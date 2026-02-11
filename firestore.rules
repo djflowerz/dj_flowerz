@@ -1,0 +1,85 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isSubscriber() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSubscriber == true;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // --- Public Content (Storefront & Marketing) ---
+    match /products/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /mixtapes/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /sessionTypes/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /studioEquipment/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /genres/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /youtubeVideos/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /shippingZones/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /subscriptionPlans/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/siteConfig { allow read: if true; allow write: if isAdmin(); }
+    
+    // --- Protected Content (Music Pool) ---
+    match /poolTracks/{id} { 
+      allow read: if isSubscriber() || isAdmin(); 
+      allow write: if isAdmin(); 
+    }
+
+    // --- User Data ---
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // --- Transactional Data ---
+    match /orders/{id} {
+      // Allow guest checkout (create), but restrict reading/updating
+      allow create: if true; 
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /subscriptions/{id} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{id} {
+      allow create: if true;
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // --- Admin Only Resources ---
+    match /studioRooms/{id} { allow read, write: if isAdmin(); }
+    match /maintenanceLogs/{id} { allow read, write: if isAdmin(); }
+    match /coupons/{id} { allow read, write: if isAdmin(); }
+    match /referralStats/{id} { allow read, write: if isAdmin(); }
+    match /newsletterCampaigns/{id} { allow read, write: if isAdmin(); }
+    match /telegramConfig/{id} { allow read, write: if isAdmin(); }
+    match /telegramChannels/{id} { allow read, write: if isAdmin(); }
+    
+    match /subscribers/{id} { 
+      allow create: if true; 
+      allow read, update, delete: if isAdmin(); 
+    }
+  }
+}
