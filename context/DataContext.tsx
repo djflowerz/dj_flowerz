@@ -6,7 +6,7 @@ import { db } from '../firebase';
 import firebase from 'firebase/compat/app';
 import { useAuth } from './AuthContext';
 
-// Initial Site Config Data (Fallback)
+// Initial Site Config Data (Fallback only if DB is empty)
 const INITIAL_CONFIG: SiteConfig = {
   hero: {
     title: "DJ FLOWERZ",
@@ -168,8 +168,6 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
   const [data, setData] = useState<T[]>(initialData);
   useEffect(() => {
     if (!enabled) {
-      // If disabled, we might want to clear data or keep initial. 
-      // Keeping initial prevents UI flicker if user logs out on a protected page before redirect.
       setData(initialData); 
       return;
     }
@@ -180,7 +178,7 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
           const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
           setData(items);
         } else {
-          setData([]);
+          setData([]); // Explicitly empty if DB is empty
         }
       },
       (error) => {
@@ -211,9 +209,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       (doc) => {
         if (doc.exists) {
           setSiteConfig(doc.data() as SiteConfig);
-        } else {
-          // If no config exists, we don't overwrite with initial here automatically to avoid accidental resets in prod.
-          // But for first run, Admin can use "Seed Database".
         }
       },
       (error) => console.warn("Firestore access error for siteConfig:", error.message)
@@ -221,7 +216,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => unsub();
   }, []);
 
-  // Public Collections
+  // Public Collections - Initialized with EMPTY arrays to ensure Real Data only.
   const [products] = useCollection<Product>('products', []);
   const [mixtapes] = useCollection<Mixtape>('mixtapes', []);
   const [sessionTypes] = useCollection<SessionType>('sessionTypes', []);
@@ -235,31 +230,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber);
 
   // Admin Only Collections
-  // We fetch 'orders' only if Admin. Normal users might need their own orders, 
-  // but this context fetches ALL. User-specific queries should be done in components or a separate hook.
   const [orders] = useCollection<Order>('orders', [], isAdmin);
   const [users] = useCollection<User>('users', [], isAdmin);
   const [subscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin);
   const [bookings] = useCollection<Booking>('bookings', [], isAdmin);
-  const [studioRooms, setStudioRooms] = useState<StudioRoom[]>([]); // Admin fetched usually
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]); // Admin
-  const [coupons, setCoupons] = useState<Coupon[]>([]); // Admin
-  const [referralStats, setReferralStats] = useState<ReferralStats[]>([]); // Admin
-  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]); // Admin
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]); // Admin
+  
+  const [studioRooms, setStudioRooms] = useState<StudioRoom[]>([]); 
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]); 
+  const [coupons, setCoupons] = useState<Coupon[]>([]); 
+  const [referralStats, setReferralStats] = useState<ReferralStats[]>([]); 
+  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]); 
+  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]); 
   
   // Telegram (Admin)
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
   const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
   
-  // Dummy states for types compliance (Admin usually fetches these)
+  // Dummy states for types compliance
   const [newsletterSegments] = useState<NewsletterSegment[]>([]);
   const [telegramMappings] = useState<TelegramMapping[]>([]);
   const [telegramUsers] = useState<TelegramUser[]>([]);
   const [telegramLogs] = useState<TelegramLog[]>([]);
 
   // Fetch specialized Admin collections explicitly
-  // We use the hook logic manually for these to keep the main body cleaner or duplicate useCollection calls
   useAdminCollection('studioRooms', setStudioRooms, isAdmin);
   useAdminCollection('maintenanceLogs', setMaintenanceLogs, isAdmin);
   useAdminCollection('coupons', setCoupons, isAdmin);

@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (userSnap.exists) {
             setUser({ id: fbUser.uid, ...userSnap.data() } as User);
           } else {
-            // Fallback/Create if doc doesn't exist (e.g. first social login)
+            // Create user doc if it doesn't exist (e.g. first social login)
             const newUser: User = {
               id: fbUser.uid,
               name: fbUser.displayName || 'User',
@@ -82,8 +82,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAuthError = (error: any, provider: string) => {
     console.error(`${provider} Auth Error:`, error);
-    // Alert the user about the error instead of mocking a login
     alert(`${provider} Login Failed: ${error.message}`);
+    // No mock fallback here. strict auth only.
     throw error;
   };
 
