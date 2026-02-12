@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-tracks": "tsx scripts/sync-tracks.ts"
   },
   "dependencies": {
     "firebase": "^12.9.0",

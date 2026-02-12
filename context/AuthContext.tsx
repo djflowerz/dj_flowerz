@@ -244,44 +244,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // --- Auto-Remove Expired Subscriptions ---
+  // --- Auto-Remove Expired Subscriptions ---
   useEffect(() => {
+    let interval: NodeJS.Timeout;
+
     const checkExpiry = async () => {
-      if (user && user.isSubscriber && user.subscriptionExpiry && !user.isAdmin) {
-        const now = new Date();
-        const expiry = new Date(user.subscriptionExpiry);
+      if (!user || !user.isSubscriber || user.isAdmin) return;
+      if (!user.subscriptionExpiry) return;
 
-        if (now > expiry) {
-          console.log(`Subscription expired for ${user.name}. Removing access.`);
+      const now = new Date();
+      const expiry = new Date(user.subscriptionExpiry);
 
-          const updates = {
+      if (now > expiry) {
+        console.log(`Subscription expired for ${user.name}. Removing access.`);
+
+        const updates = {
+          isSubscriber: false,
+          subscriptionPlan: null,
+          subscriptionExpiry: null
+        };
+
+        // Update local state immediately
+        // @ts-ignore
+        setUser(prev => prev ? ({ ...prev, ...updates }) : null);
+
+        try {
+          await db.collection('users').doc(user.id).update({
             isSubscriber: false,
-            subscriptionPlan: undefined,
-            subscriptionExpiry: undefined
-          };
-
-          // Update local state
-          setUser(prev => prev ? ({ ...prev, ...updates }) as User : null);
-
-          try {
-            // In v8, using FieldValue.delete() requires import
-            await db.collection('users').doc(user.id).update({
-              isSubscriber: false,
-              subscriptionPlan: firebase.firestore.FieldValue.delete(),
-              subscriptionExpiry: firebase.firestore.FieldValue.delete()
-            });
-            alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
-          } catch (e) {
-            console.error("Failed to expire subscription:", e);
-          }
+            subscriptionPlan: firebase.firestore.FieldValue.delete(),
+            subscriptionExpiry: firebase.firestore.FieldValue.delete()
+          });
+          alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
+        } catch (e) {
+          console.error("Failed to expire subscription:", e);
         }
       }
     };
 
-    if (!loading) {
-      checkExpiry();
-      const interval = setInterval(checkExpiry, 60000);
-      return () => clearInterval(interval);
+    if (!loading && user) {
+      checkExpiry(); // Check immediately on load
+      interval = setInterval(checkExpiry, 60000); // Check every minute
     }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [user, loading]);
 
   return (

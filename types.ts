@@ -112,6 +112,8 @@ export interface User {
   referralCode?: string;
   referredBy?: string;
   phoneNumber?: string;
+  downloadsToday?: number;
+  lastDownloadDate?: string; // ISO date string YYYY-MM-DD
 }
 
 export interface Subscription {
@@ -225,6 +227,7 @@ export interface Track {
   year: number;
   versions: TrackVersion[];
   dateAdded: string;
+  previewUrl?: string; // For mini player
 }
 
 export interface Genre {

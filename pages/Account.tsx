@@ -12,13 +12,14 @@ const Account: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editPassword, setEditPassword] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       setEditName(user.name);
       setEditPhone(user.phoneNumber || '');
+      setEditAvatar(user.avatarUrl || '');
     }
   }, [user]);
 
@@ -54,13 +55,9 @@ const Account: React.FC = () => {
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      await updateUserProfile({ name: editName, phoneNumber: editPhone });
-      if (editPassword) {
-        await updateUserPassword(editPassword);
-      }
+      await updateUserProfile({ name: editName, phoneNumber: editPhone, avatarUrl: editAvatar });
       alert("Profile updated successfully!");
       setIsEditing(false);
-      setEditPassword('');
     } catch (error: any) {
       alert("Failed to update profile: " + error.message);
     } finally {
@@ -124,14 +121,15 @@ const Account: React.FC = () => {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">New Password (Optional)</label>
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Profile Picture URL (Optional)</label>
                         <input
-                          type="password"
-                          value={editPassword}
-                          onChange={(e) => setEditPassword(e.target.value)}
-                          placeholder="Leave blank to keep current"
+                          type="url"
+                          value={editAvatar}
+                          onChange={(e) => setEditAvatar(e.target.value)}
+                          placeholder="https://example.com/avatar.jpg"
                           className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple"
                         />
+                        <p className="text-xs text-gray-500 mt-1">Enter a URL to your profile picture</p>
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
@@ -162,12 +160,20 @@ const Account: React.FC = () => {
                         {user.phoneNumber}
                       </p>
                     </div>
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition"
-                    >
-                      <Edit2 size={14} /> Edit Profile
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition"
+                      >
+                        <Edit2 size={14} /> Edit Profile
+                      </button>
+                      <Link
+                        to="/forgot-password"
+                        className="px-4 py-2 bg-transparent hover:bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition"
+                      >
+                        <Shield size={14} /> Reset Password
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>

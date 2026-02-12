@@ -227,7 +227,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [youtubeVideos, setYoutubeVideos] = useState<Video[]>([]);
 
   // Restricted Collections (Subscriber/Admin)
-  const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber);
+  const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin);
 
   // Admin Only Collections
   const [orders] = useCollection<Order>('orders', [], isAdmin);

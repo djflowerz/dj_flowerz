@@ -8,12 +8,15 @@ import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate } from '../types';
 import { POOL_HUBS, TRACK_TYPES } from '../constants';
+import { db } from '../firebase';
+import { seedR2Tracks } from '../utils/seedR2';
+import { manualSync } from '../utils/autoSyncTracks';
 
 // Mock Chart Data
 const data = [
@@ -246,6 +249,55 @@ const AdminDashboard: React.FC = () => {
    const [telegramSubTab, setTelegramSubTab] = useState('config');
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres'>('tracks');
+
+   const [isSyncing, setIsSyncing] = useState(false);
+   const [syncMessage, setSyncMessage] = useState('');
+
+   const handleSyncTracks = async () => {
+      setIsSyncing(true);
+      setSyncMessage('Starting sync...');
+      try {
+         // Direct client-side execution since we are in a SPA without API routes
+         const result = await manualSync();
+
+         if (result.success) {
+            setSyncMessage(`Sync successful! Added ${result.results?.totalAdded || 0} tracks.`);
+            // Optionally reload page or fetch tracks to update list
+            setTimeout(() => {
+               window.location.reload();
+            }, 2000);
+         } else {
+            setSyncMessage(`Sync failed: ${result.message}`);
+         }
+      } catch (error) {
+         setSyncMessage('Sync failed: Network error');
+         console.error(error);
+      } finally {
+         setTimeout(() => {
+            setIsSyncing(false);
+            setSyncMessage('');
+         }, 5000);
+      }
+   };
+   // Seeding State
+   const [isSeeding, setIsSeeding] = useState(false);
+   const [seedMessage, setSeedMessage] = useState('');
+
+   const handleSeed = async () => {
+      if (!confirm("This will DELETE ALL existing tracks and re-upload 39k tracks. Are you sure?")) return;
+      setIsSeeding(true);
+      setSeedMessage("Initializing...");
+      try {
+         await seedR2Tracks((msg) => setSeedMessage(msg));
+         alert("Seeding Complete!");
+      } catch (e: any) {
+         alert("Error: " + e.message);
+      } finally {
+         setIsSeeding(false);
+         setSeedMessage('');
+      }
+   };
+
    const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
    const [bookingSubTab, setBookingSubTab] = useState('list');
    const [subscriptionSubTab, setSubscriptionSubTab] = useState<'overview' | 'plans'>('overview');
@@ -804,9 +856,27 @@ const AdminDashboard: React.FC = () => {
                         <>
                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                               <h3 className="text-2xl font-bold">Pool Library</h3>
-                              <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
-                                 <Plus size={18} /> Upload Track
-                              </button>
+                              <div className="flex gap-2">
+                                 <button
+                                    onClick={handleSeed}
+                                    disabled={isSeeding}
+                                    className="bg-brand-purple/20 text-brand-purple px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs"
+                                 >
+                                    <Database size={18} />
+                                    {isSeeding ? seedMessage || 'Uploading...' : 'Seed R2 Data'}
+                                 </button>
+                                 <button
+                                    onClick={handleSyncTracks}
+                                    disabled={isSyncing}
+                                    className="bg-brand-purple/20 text-brand-purple px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs"
+                                 >
+                                    <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
+                                    {isSyncing ? syncMessage || 'Syncing...' : 'Sync External Tracks'}
+                                 </button>
+                                 <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
+                                    <Plus size={18} /> Upload Track
+                                 </button>
+                              </div>
                            </div>
                            <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                               <table className="w-full text-left min-w-[800px]">
@@ -1287,12 +1357,12 @@ const AdminDashboard: React.FC = () => {
                   <InputGroup label="Artist" value={newPoolTrack.artist} onChange={v => setNewPoolTrack({ ...newPoolTrack, artist: v })} required />
                   <InputGroup label="Title" value={newPoolTrack.title} onChange={v => setNewPoolTrack({ ...newPoolTrack, title: v })} required />
                </div>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="col-span-1"><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Genre</label><select value={newPoolTrack.genre} onChange={(e) => setNewPoolTrack({ ...newPoolTrack, genre: e.target.value })} className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none">{genres.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
-                  <InputGroup label="BPM" type="number" value={newPoolTrack.bpm} onChange={v => setNewPoolTrack({ ...newPoolTrack, bpm: Number(v) })} />
                   <InputGroup label="Year" type="number" value={newPoolTrack.year} onChange={v => setNewPoolTrack({ ...newPoolTrack, year: Number(v) })} />
                </div>
                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Categories / Hubs</label><div className="flex flex-wrap gap-2">{POOL_HUBS.map(hub => (<button key={hub} type="button" onClick={() => toggleTrackCategory(hub)} className={`px-3 py-1 rounded-full text-xs border transition ${newPoolTrack.category?.includes(hub) ? 'bg-brand-purple border-brand-purple text-white' : 'bg-transparent border-white/20 text-gray-400 hover:text-white'}`}>{hub}</button>))}</div></div>
+               <InputGroup label="Preview URL (Optional)" value={newPoolTrack.previewUrl || ''} onChange={v => setNewPoolTrack({ ...newPoolTrack, previewUrl: v })} placeholder="https://..." />
                <div className="border-t border-white/10 pt-6"><div className="flex justify-between items-center mb-4"><h4 className="font-bold text-white">Versions</h4><button onClick={addVersionToTrack} className="text-xs bg-white/10 px-3 py-1.5 rounded text-white flex items-center gap-1"><Plus size={12} /> Add Version</button></div><div className="space-y-3">{newPoolTrack.versions.map((version, idx) => (<div key={version.id} className="flex gap-3 items-start bg-black/20 p-3 rounded-lg border border-white/5">
                   <div className="flex-1 grid grid-cols-2 gap-2">
                      <select value={version.type} onChange={(e) => updateVersion(version.id, 'type', e.target.value)} className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none">{TRACK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
