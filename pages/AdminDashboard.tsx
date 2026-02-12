@@ -421,7 +421,9 @@ const AdminDashboard: React.FC = () => {
 
    const updateProductField = (field: keyof Product, value: any) => setNewProduct(prev => ({ ...prev, [field]: value }));
 
-   const handleDeleteProduct = async (product: Product) => {
+   const handleDeleteProduct = async (e: React.MouseEvent, product: Product) => {
+      e.stopPropagation();
+      e.preventDefault();
       if (window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
          try {
             await deleteProduct(product.id);
@@ -1053,7 +1055,7 @@ const AdminDashboard: React.FC = () => {
                                     <td className="px-6 py-4">KES {p.price.toLocaleString()}</td>
                                     <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
                                     <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${p.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{p.status}</span></td>
-                                    <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button onClick={() => handleDeleteProduct(p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
+                                    <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
                                  </tr>
                               ))}
                            </tbody>
