@@ -431,7 +431,9 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
-   const handleDeleteMixtape = async (mixtape: Mixtape) => {
+   const handleDeleteMixtape = async (e: React.MouseEvent, mixtape: Mixtape) => {
+      e.stopPropagation();
+      e.preventDefault();
       if (window.confirm(`Are you sure you want to delete "${mixtape.title}"? This action cannot be undone.`)) {
          try {
             await deleteMixtape(mixtape.id);
@@ -1077,7 +1079,7 @@ const AdminDashboard: React.FC = () => {
                                  <p className="text-xs text-gray-400 mb-2">{mix.genre}</p>
                                  <div className="flex justify-between items-center">
                                     <span className={`text-[10px] px-2 py-0.5 rounded ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
-                                    <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button onClick={() => handleDeleteMixtape(mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
+                                    <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
                                  </div>
                               </div>
                            </div>
