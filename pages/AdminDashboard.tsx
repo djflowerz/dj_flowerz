@@ -282,19 +282,43 @@ const AdminDashboard: React.FC = () => {
    // Seeding State
    const [isSeeding, setIsSeeding] = useState(false);
    const [seedMessage, setSeedMessage] = useState('');
+   const [seedProgress, setSeedProgress] = useState<any>(null);
+   const [lastSeedIndex, setLastSeedIndex] = useState(0);
 
-   const handleSeed = async () => {
-      if (!confirm("This will DELETE ALL existing tracks and re-upload 39k tracks. Are you sure?")) return;
+   const handleSeed = async (resumeFrom: number = 0) => {
+      const confirmMsg = resumeFrom > 0
+         ? `Resume seeding from track ${resumeFrom + 1}?`
+         : "Start seeding R2 tracks? This will upload up to 45,000 tracks today.";
+
+      if (!confirm(confirmMsg)) return;
+
       setIsSeeding(true);
-      setSeedMessage("Initializing...");
+      setSeedMessage("🚀 Initializing...");
+      setSeedProgress(null);
+
       try {
-         await seedR2Tracks((msg) => setSeedMessage(msg));
-         alert("Seeding Complete!");
+         const result = await seedR2Tracks((msg, progress) => {
+            setSeedMessage(msg);
+            if (progress) {
+               setSeedProgress(progress);
+               setLastSeedIndex(progress.lastProcessedIndex);
+            }
+         }, resumeFrom);
+
+         if (result.isComplete) {
+            alert(`🎉 Seeding Complete! Uploaded ${result.uploadedTracks} tracks.`);
+            setLastSeedIndex(0);
+         } else {
+            alert(`✅ Daily quota reached. Uploaded ${result.uploadedTracks} tracks. Resume tomorrow from index ${result.lastProcessedIndex + 1}`);
+         }
       } catch (e: any) {
-         alert("Error: " + e.message);
+         alert("❌ Error: " + e.message);
       } finally {
          setIsSeeding(false);
-         setSeedMessage('');
+         setTimeout(() => {
+            setSeedMessage('');
+            setSeedProgress(null);
+         }, 5000);
       }
    };
 
@@ -856,28 +880,85 @@ const AdminDashboard: React.FC = () => {
                         <>
                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                               <h3 className="text-2xl font-bold">Pool Library</h3>
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                                  <button
-                                    onClick={handleSeed}
+                                    onClick={() => handleSeed(0)}
                                     disabled={isSeeding}
-                                    className="bg-brand-purple/20 text-brand-purple px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs"
+                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
                                  >
-                                    <Database size={18} />
-                                    {isSeeding ? seedMessage || 'Uploading...' : 'Seed R2 Data'}
+                                    <Database size={16} />
+                                    {isSeeding ? 'Seeding...' : 'Seed R2 Data'}
                                  </button>
+                                 {lastSeedIndex > 0 && !isSeeding && (
+                                    <button
+                                       onClick={() => handleSeed(lastSeedIndex)}
+                                       className="bg-yellow-500/20 text-yellow-500 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-500/30 font-bold justify-center text-xs flex-1 sm:flex-initial"
+                                    >
+                                       <RefreshCw size={16} />
+                                       Resume ({lastSeedIndex + 1})
+                                    </button>
+                                 )}
                                  <button
                                     onClick={handleSyncTracks}
                                     disabled={isSyncing}
-                                    className="bg-brand-purple/20 text-brand-purple px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs"
+                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
                                  >
-                                    <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-                                    {isSyncing ? syncMessage || 'Syncing...' : 'Sync External Tracks'}
+                                    <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                                    {isSyncing ? 'Syncing...' : 'Sync External'}
                                  </button>
-                                 <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
-                                    <Plus size={18} /> Upload Track
+                                 <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold justify-center text-xs flex-1 sm:flex-initial">
+                                    <Plus size={16} /> Upload Track
                                  </button>
                               </div>
                            </div>
+
+                           {/* Seeding Progress Display */}
+                           {isSeeding && seedProgress && (
+                              <div className="bg-gradient-to-r from-brand-purple/10 to-brand-cyan/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
+                                 <div className="flex flex-col gap-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                       <span className="text-gray-300 font-medium">{seedMessage}</span>
+                                       <span className="text-brand-cyan font-bold">
+                                          {Math.round((seedProgress.uploadedTracks / (seedProgress.totalBatches * 200)) * 100)}%
+                                       </span>
+                                    </div>
+                                    <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
+                                       <div
+                                          className="bg-gradient-to-r from-brand-purple to-brand-cyan h-full transition-all duration-300"
+                                          style={{ width: `${Math.round((seedProgress.uploadedTracks / (seedProgress.totalBatches * 200)) * 100)}%` }}
+                                       />
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                       <div className="bg-black/20 rounded p-2">
+                                          <div className="text-gray-400">Uploaded</div>
+                                          <div className="text-white font-bold">{seedProgress.uploadedTracks.toLocaleString()}</div>
+                                       </div>
+                                       <div className="bg-black/20 rounded p-2">
+                                          <div className="text-gray-400">Skipped</div>
+                                          <div className="text-yellow-500 font-bold">{seedProgress.skippedTracks.toLocaleString()}</div>
+                                       </div>
+                                       <div className="bg-black/20 rounded p-2">
+                                          <div className="text-gray-400">Batch</div>
+                                          <div className="text-brand-cyan font-bold">{seedProgress.currentBatch}/{seedProgress.totalBatches}</div>
+                                       </div>
+                                       <div className="bg-black/20 rounded p-2">
+                                          <div className="text-gray-400">Quota Left</div>
+                                          <div className="text-green-500 font-bold">{seedProgress.quotaRemaining.toLocaleString()}</div>
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* Sync Progress Display */}
+                           {isSyncing && syncMessage && (
+                              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-3 mb-6">
+                                 <div className="flex items-center gap-2 text-sm">
+                                    <RefreshCw size={16} className="animate-spin text-blue-400" />
+                                    <span className="text-gray-300">{syncMessage}</span>
+                                 </div>
+                              </div>
+                           )}
                            <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                               <table className="w-full text-left min-w-[800px]">
                                  <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">

@@ -164,15 +164,31 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
-const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean = true) => {
+// Added 'limit' parameter for pagination to improve performance
+const useCollection = <T,>(
+  colName: string,
+  initialData: T[],
+  enabled: boolean = true,
+  limitCount?: number
+) => {
   const [data, setData] = useState<T[]>(initialData);
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
     if (!enabled) {
       setData(initialData);
       return;
     }
 
-    const unsub = db.collection(colName).onSnapshot(
+    setIsLoading(true);
+    let query: firebase.firestore.Query = db.collection(colName);
+
+    // Apply limit for large collections to improve initial load time
+    if (limitCount) {
+      query = query.limit(limitCount);
+    }
+
+    const unsub = query.onSnapshot(
       (snapshot) => {
         if (!snapshot.empty) {
           const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
@@ -180,17 +196,20 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
         } else {
           setData([]); // Explicitly empty if DB is empty
         }
+        setIsLoading(false);
       },
       (error) => {
         // Suppress permission errors in console for cleaner dev experience if race condition occurs
         if (error.code !== 'permission-denied') {
           console.warn(`Firestore access error for collection '${colName}':`, error.message);
         }
+        setIsLoading(false);
       }
     );
     return () => unsub();
-  }, [colName, enabled]);
-  return [data, setData] as const;
+  }, [colName, enabled, limitCount]);
+
+  return [data, setData, isLoading] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -226,8 +245,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [genres, setGenres] = useState<Genre[]>(INITIAL_GENRES);
   const [youtubeVideos, setYoutubeVideos] = useState<Video[]>([]);
 
-  // Restricted Collections (Subscriber/Admin)
-  const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin);
+  // Restricted Collections (Subscriber/Admin) - Limited for performance
+  const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, 1000);
 
   // Admin Only Collections
   const [orders] = useCollection<Order>('orders', [], isAdmin);
