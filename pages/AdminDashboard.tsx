@@ -228,7 +228,7 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', slug: '', type: 'physical', category: 'Apparel', shortDescription: '', description: '', price: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantOptions: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: ''
+   id: '', name: '', slug: '', type: 'physical', category: 'Apparel', shortDescription: '', description: '', price: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantOptions: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -319,6 +319,67 @@ const AdminDashboard: React.FC = () => {
             setSeedMessage('');
             setSeedProgress(null);
          }, 5000);
+      }
+   };
+
+   const [isCleaning, setIsCleaning] = useState(false);
+   const [cleanupLog, setCleanupLog] = useState<string[]>([]);
+
+   const handleCleanupData = async () => {
+      if (isCleaning) return;
+      if (!confirm("⚠️ WARNING: This will delete ALL mixtapes and ALL products except 'Serato DJ PRO Suite'. Continue?")) return;
+
+      setIsCleaning(true);
+      setCleanupLog(['Starting cleanup...']);
+
+      try {
+         const log = (msg: string) => setCleanupLog(prev => [...prev, msg]);
+
+         // 1. Delete ALL Mixtapes
+         log(`Found ${mixtapes.length} mixtapes to delete.`);
+
+         for (const m of mixtapes) {
+            try {
+               await deleteMixtape(m.id);
+               log(`✓ Deleted mixtape: ${m.title}`);
+            } catch (e) {
+               log(`✗ Failed to delete mixtape ${m.title}: ${e}`);
+            }
+         }
+
+         // 2. Delete all products EXCEPT "Serato DJ PRO Suite"
+         const productsToDelete = products.filter(p => {
+            // Keep only Serato DJ PRO Suite
+            const isSerato = p.name && p.name.includes('Serato DJ PRO Suite');
+            return !isSerato; // Delete everything that's NOT Serato
+         });
+
+         const productsToKeep = products.filter(p => p.name && p.name.includes('Serato DJ PRO Suite'));
+
+         log(`Found ${productsToDelete.length} products to delete.`);
+         log(`Keeping ${productsToKeep.length} product(s): ${productsToKeep.map(p => p.name).join(', ')}`);
+
+         for (const p of productsToDelete) {
+            try {
+               await deleteProduct(p.id);
+               log(`✓ Deleted product: ${p.name}`);
+            } catch (e) {
+               log(`✗ Failed to delete product ${p.name}: ${e}`);
+            }
+         }
+
+         log('');
+         log('═══════════════════════════');
+         log('✓ Cleanup complete!');
+         log(`Deleted ${mixtapes.length} mixtapes`);
+         log(`Deleted ${productsToDelete.length} products`);
+         log(`Kept ${productsToKeep.length} product(s)`);
+         log('═══════════════════════════');
+      } catch (error) {
+         console.error(error);
+         setCleanupLog(prev => [...prev, `Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      } finally {
+         setIsCleaning(false);
       }
    };
 
@@ -514,12 +575,14 @@ const AdminDashboard: React.FC = () => {
 
    const handleSaveProduct = () => {
       const variantsArray = variantsInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
+      const now = new Date().toISOString();
 
       const productToSave: Product = {
          ...newProduct,
          whatsappEnabled: true,
          variants: variantsArray,
-         hasVariants: variantsArray.length > 0
+         hasVariants: variantsArray.length > 0,
+         updatedAt: now
       };
 
       if (isEditing) {
@@ -528,7 +591,8 @@ const AdminDashboard: React.FC = () => {
          addProduct({
             ...productToSave,
             id: `p${Date.now()}`,
-            slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+            slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            createdAt: now
          });
       }
       setActiveModal(null);
@@ -538,12 +602,13 @@ const AdminDashboard: React.FC = () => {
    const openEditMixtape = (mix: Mixtape) => { setIsEditing(true); setNewMixtape(mix); setMixtapeFormTab('basic'); setActiveModal('addMixtape'); };
    const handleSaveMixtape = async () => {
       try {
+         const now = new Date().toISOString();
          const isExclusive = newMixtape.downloadType === 'music_pool' || newMixtape.showInMusicPool;
-         const finalMixtape = { ...newMixtape, isExclusive, date: newMixtape.releaseDate };
+         const finalMixtape = { ...newMixtape, isExclusive, date: newMixtape.releaseDate, updatedAt: now };
          if (isEditing) {
             await updateMixtape(finalMixtape.id, finalMixtape);
          } else {
-            await addMixtape({ ...finalMixtape, id: `m${Date.now()}`, slug: newMixtape.slug || newMixtape.title.toLowerCase().replace(/[^a-z0-9]/g, '-') });
+            await addMixtape({ ...finalMixtape, id: `m${Date.now()}`, slug: newMixtape.slug || newMixtape.title.toLowerCase().replace(/[^a-z0-9]/g, '-'), createdAt: now });
          }
          alert("Mixtape saved successfully!");
          setActiveModal(null);
@@ -1041,19 +1106,43 @@ const AdminDashboard: React.FC = () => {
                      <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                         <table className="w-full text-left min-w-[800px]">
                            <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                              <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Price</th><th className="px-6 py-4">Stock</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
+                              <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Price</th><th className="px-6 py-4">Stock</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
                            </thead>
                            <tbody className="divide-y divide-white/5 text-sm">
-                              {products.map((p) => (
-                                 <tr key={p.id} className="hover:bg-white/5 transition">
-                                    <td className="px-6 py-4 font-bold text-white">{p.name} <span className="text-gray-500 text-xs font-normal">({p.category})</span></td>
-                                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
-                                    <td className="px-6 py-4">KES {p.price.toLocaleString()}</td>
-                                    <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
-                                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${p.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{p.status}</span></td>
-                                    <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
-                                 </tr>
-                              ))}
+                              {products
+                                 .sort((a, b) => {
+                                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                    return dateB - dateA; // Newest first
+                                 })
+                                 .map((p) => (
+                                    <tr key={p.id} className="hover:bg-white/5 transition">
+                                       <td className="px-6 py-4">
+                                          <div className="font-bold text-white">{p.name}</div>
+                                          {p.category === 'Software' && p.os && p.os !== 'None' && (
+                                             <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
+                                          )}
+                                          {p.variants && p.variants.length > 0 && (
+                                             <div className="text-xs text-gray-500 mt-1">
+                                                {p.type === 'digital' ? 'Versions' : 'Variants'}: {p.variants.join(', ')}
+                                             </div>
+                                          )}
+                                       </td>
+                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
+                                       <td className="px-6 py-4"><span className="text-gray-400 text-xs">{p.category}</span></td>
+                                       <td className="px-6 py-4">KES {p.price.toLocaleString()}</td>
+                                       <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
+                                       <td className="px-6 py-4">
+                                          <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
+                                                p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                   'bg-gray-500/10 text-gray-500'
+                                             }`}>
+                                             {p.status}
+                                          </span>
+                                       </td>
+                                       <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
+                                    </tr>
+                                 ))}
                            </tbody>
                         </table>
                      </div>
@@ -1069,19 +1158,25 @@ const AdminDashboard: React.FC = () => {
                         </button>
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {mixtapes.map((mix) => (
-                           <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-4 flex gap-4 relative group">
-                              <img src={mix.coverUrl} alt={mix.title} className="w-20 h-20 rounded object-cover" />
-                              <div className="flex-1 min-w-0">
-                                 <h4 className="font-bold text-white mb-1 line-clamp-1">{mix.title}</h4>
-                                 <p className="text-xs text-gray-400 mb-2">{mix.genre}</p>
-                                 <div className="flex justify-between items-center">
-                                    <span className={`text-[10px] px-2 py-0.5 rounded ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
-                                    <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
+                        {mixtapes
+                           .sort((a, b) => {
+                              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                              return dateB - dateA; // Newest first
+                           })
+                           .map((mix) => (
+                              <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-4 flex gap-4 relative group">
+                                 <img src={mix.coverUrl} alt={mix.title} className="w-20 h-20 rounded object-cover" />
+                                 <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-white mb-1 line-clamp-1">{mix.title}</h4>
+                                    <p className="text-xs text-gray-400 mb-2">{mix.genre}</p>
+                                    <div className="flex justify-between items-center">
+                                       <span className={`text-[10px] px-2 py-0.5 rounded ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
+                                       <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
+                                    </div>
                                  </div>
                               </div>
-                           </div>
-                        ))}
+                           ))}
                      </div>
                   </div>
                )}
@@ -1418,6 +1513,50 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
+
+               {activeTab === 'system' && (
+                  <div className="animate-fade-in-up space-y-6">
+                     <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                        <h3 className="text-xl font-bold mb-4">System Utilities</h3>
+
+                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
+                           <h4 className="font-bold text-white mb-2">Cleanup & Maintenance</h4>
+                           <p className="text-sm text-gray-400 mb-4">
+                              Scan database for items that are not synchronized with valid Firebase Storage (e.g. broken links, old seeded data).
+                           </p>
+
+                           <div className="mb-4 text-xs bg-yellow-500/10 text-yellow-500 p-3 rounded border border-yellow-500/20">
+                              <div className="font-bold mb-2 flex items-center gap-2">
+                                 <AlertTriangle size={14} />
+                                 ⚠️ Warning: This action will permanently delete:
+                              </div>
+                              <ul className="list-disc list-inside space-y-1 ml-4">
+                                 <li>Mixtapes without Firebase Storage URLs</li>
+                                 <li>Products without Firebase Storage image URLs</li>
+                                 <li>Specific corrupted entries (e.g., "DJ FLOWERZ CLUB BANGERS DECEMBER SHUTDOWN 2025")</li>
+                              </ul>
+                           </div>
+
+                           <button
+                              onClick={handleCleanupData}
+                              disabled={isCleaning}
+                              className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                              {isCleaning ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                              {isCleaning ? 'Running Cleanup...' : 'Cleanup Invalid Data'}
+                           </button>
+                        </div>
+
+                        {cleanupLog.length > 0 && (
+                           <div className="bg-black/40 p-4 rounded-lg border border-white/10 font-mono text-xs text-gray-400 max-h-60 overflow-y-auto">
+                              {cleanupLog.map((line, i) => (
+                                 <div key={i} className="mb-1">{line}</div>
+                              ))}
+                           </div>
+                        )}
+                     </div>
+                  </div>
+               )}
             </div>
          </div>
 
@@ -1527,20 +1666,50 @@ const AdminDashboard: React.FC = () => {
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <InputGroup label="Category" options={['Apparel', 'Accessories', 'Software', 'Samples', 'Laptops']} value={newProduct.category} onChange={v => updateProductField('category', v)} />
-                        <InputGroup label="Status" options={['draft', 'published']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
+                        <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
                      </div>
+
+                     {/* OS Selection for Software category */}
+                     {newProduct.category === 'Software' && (
+                        <div className="bg-purple-500/10 p-4 rounded-lg border border-purple-500/20">
+                           <InputGroup
+                              label="Operating System"
+                              options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
+                              value={newProduct.os || 'None'}
+                              onChange={v => updateProductField('os', v)}
+                           />
+                        </div>
+                     )}
+
                      {newProduct.type === 'physical' && <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />}
                      <InputGroup label="Full Description" type="textarea" value={newProduct.description} onChange={v => updateProductField('description', v)} />
-                     <InputGroup label="Variants (comma separated)" value={variantsInput} onChange={setVariantsInput} placeholder="e.g. S, M, L, XL or Red, Blue" />
+                     <InputGroup
+                        label={newProduct.type === 'digital' ? 'Versions (comma separated)' : 'Variants (comma separated)'}
+                        value={variantsInput}
+                        onChange={setVariantsInput}
+                        placeholder={newProduct.type === 'digital' ? 'e.g. v1.0, v2.0, Pro, Lite' : 'e.g. S, M, L, XL or Red, Blue'}
+                     />
                   </div>
                )}
 
                {productFormTab === 'digital' && (
-                  <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
-                     <h4 className="font-bold text-blue-400 mb-2">Digital Delivery</h4>
-                     <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} />
-                     <InputGroup label="Access Password (Optional)" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} />
-                     <InputGroup label="Access Control" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
+                  <div className="space-y-4">
+                     <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
+                        <h4 className="font-bold text-blue-400 mb-4">Digital Delivery</h4>
+                        <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} />
+                        <InputGroup label="Access Password (Optional)" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} />
+                        <InputGroup label="Access Control" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
+
+                        <div className="mt-4 pt-4 border-t border-blue-500/20">
+                           <InputGroup
+                              label="Free Download"
+                              type="checkbox"
+                              checked={newProduct.isFree || false}
+                              onChange={v => updateProductField('isFree', v)}
+                              helperText="Check this if the product is completely free (price will still be shown but marked as free)"
+                           />
+                        </div>
+                     </div>
                   </div>
                )}
 

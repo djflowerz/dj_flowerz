@@ -44,6 +44,8 @@ export interface Mixtape {
   ogImage?: string;
   isExclusive: boolean;
   date?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductVariant {
@@ -89,12 +91,15 @@ export interface Product {
   downloadLimit?: number;
   expiryDays?: number;
   allowRedownload?: boolean;
+  isFree?: boolean;
   whatsappEnabled: boolean;
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'hidden';
   inventory?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface User {

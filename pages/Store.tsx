@@ -44,6 +44,7 @@ const Store: React.FC = () => {
   // Filtering Logic
   const filteredProducts = products.filter(product => {
     if (!product) return false;
+    if (product.status === 'hidden') return false;
 
     // Search - Defensive check for name
     if (searchQuery) {
