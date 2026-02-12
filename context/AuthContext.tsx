@@ -16,10 +16,18 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   subscribe: () => Promise<void>;
+  updateUserProfile: (data: Partial<User>) => Promise<void>;
+  updateUserPassword: (password: string) => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const generateReferralCode = (name: string) => {
+  const cleanName = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${cleanName}${randomStr}`;
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -34,18 +42,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const userDocRef = db.collection('users').doc(fbUser.uid);
           const userSnap = await userDocRef.get();
 
+          const adminEmail = import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+          const isEmailAdmin = fbUser.email === adminEmail;
+
           if (userSnap.exists) {
-            setUser({ id: fbUser.uid, ...userSnap.data() } as User);
+            const userData = userSnap.data() as User;
+            let needsUpdate = false;
+            let updatedData = { ...userData };
+
+            // Force Admin Role Sync
+            if (isEmailAdmin && (userData.role !== 'admin' || !userData.isAdmin)) {
+              updatedData.role = 'admin';
+              updatedData.isAdmin = true;
+              needsUpdate = true;
+            }
+
+            // Ensure Referral Code Exists
+            if (!userData.referralCode) {
+              updatedData.referralCode = generateReferralCode(userData.name || 'USR');
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              await userDocRef.update(updatedData);
+            }
+
+            setUser({
+              id: fbUser.uid,
+              ...updatedData,
+              // Ensure local state reflects admin status immediately
+              isAdmin: isEmailAdmin || userData.isAdmin,
+              role: isEmailAdmin ? 'admin' : userData.role
+            } as User);
           } else {
             // Create user doc if it doesn't exist (e.g. first social login)
             const newUser: User = {
               id: fbUser.uid,
               name: fbUser.displayName || 'User',
               email: fbUser.email || '',
-              role: 'user',
+              role: isEmailAdmin ? 'admin' : 'user',
               isSubscriber: false,
-              isAdmin: false,
-              avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100'
+              isAdmin: isEmailAdmin,
+              avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100',
+              referralCode: generateReferralCode(fbUser.displayName || 'USR')
             };
             // Save to Firestore so we have a persistent record
             await userDocRef.set(newUser);
@@ -53,14 +92,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
+          // Fallback
           setUser({
-             id: fbUser.uid,
-             name: fbUser.displayName || 'User',
-             email: fbUser.email || '',
-             role: 'user',
-             isSubscriber: false,
-             isAdmin: false,
-             avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100'
+            id: fbUser.uid,
+            name: fbUser.displayName || 'User',
+            email: fbUser.email || '',
+            role: 'user',
+            isSubscriber: false,
+            isAdmin: false,
+            avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100'
           });
         }
       } else {
@@ -83,7 +123,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleAuthError = (error: any, provider: string) => {
     console.error(`${provider} Auth Error:`, error);
     alert(`${provider} Login Failed: ${error.message}`);
-    // No mock fallback here. strict auth only.
     throw error;
   };
 
@@ -107,15 +146,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInWithTikTok = async () => {
     try {
-        const provider = new firebase.auth.OAuthProvider('oidc.tiktok'); 
-        await auth.signInWithPopup(provider);
+      const provider = new firebase.auth.OAuthProvider('oidc.tiktok');
+      await auth.signInWithPopup(provider);
     } catch (e: any) {
-        handleAuthError(e, 'TikTok');
+      handleAuthError(e, 'TikTok');
     }
   };
 
   const register = async (name: string, email: string, password?: string) => {
-    const pwd = password || "123456"; 
+    const pwd = password || "123456";
     const userCredential = await auth.createUserWithEmailAndPassword(email, pwd);
     const fbUser = userCredential.user;
 
@@ -124,14 +163,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Send verification email
     await fbUser.sendEmailVerification();
 
+    // Check if user is admin based on email
+    const adminEmail = import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+    const isAdmin = email === adminEmail;
+
     const newUser: User = {
       id: fbUser.uid,
       name: name,
       email: email,
-      role: 'user', 
+      role: isAdmin ? 'admin' : 'user',
       isSubscriber: false,
-      isAdmin: false,
-      avatarUrl: `https://ui-avatars.com/api/?name=${name}`
+      isAdmin: isAdmin,
+      avatarUrl: `https://ui-avatars.com/api/?name=${name}`,
+      referralCode: generateReferralCode(name)
     };
 
     try {
@@ -158,9 +202,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         subscriptionPlan: 'monthly',
         subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       };
-      
-      setUser({ ...user, ...updates } as User); 
-      
+
+      setUser({ ...user, ...updates } as User);
+
       try {
         await db.collection('users').doc(user.id).update(updates);
       } catch (e) {
@@ -170,18 +214,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUserProfile = async (data: Partial<User>) => {
+    if (!user) return;
+    try {
+      await db.collection('users').doc(user.id).update(data);
+      setUser(prev => prev ? { ...prev, ...data } : null);
+
+      // Update Firebase Auth profile if name/photo changed
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        if (data.name || data.avatarUrl) {
+          await currentUser.updateProfile({
+            displayName: data.name || currentUser.displayName,
+            photoURL: data.avatarUrl || currentUser.photoURL
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
+    }
+  };
+
+  const updateUserPassword = async (password: string) => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      await currentUser.updatePassword(password);
+    }
+  };
+
   // --- Auto-Remove Expired Subscriptions ---
   useEffect(() => {
     const checkExpiry = async () => {
       if (user && user.isSubscriber && user.subscriptionExpiry && !user.isAdmin) {
         const now = new Date();
         const expiry = new Date(user.subscriptionExpiry);
-        
+
         if (now > expiry) {
           console.log(`Subscription expired for ${user.name}. Removing access.`);
-          
-          const updates = { 
-            isSubscriber: false, 
+
+          const updates = {
+            isSubscriber: false,
             subscriptionPlan: undefined,
             subscriptionExpiry: undefined
           };
@@ -190,41 +263,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUser(prev => prev ? ({ ...prev, ...updates }) as User : null);
 
           try {
-             // In v8, using FieldValue.delete() requires import
-             await db.collection('users').doc(user.id).update({
-                isSubscriber: false,
-                subscriptionPlan: firebase.firestore.FieldValue.delete(),
-                subscriptionExpiry: firebase.firestore.FieldValue.delete()
-             });
+            // In v8, using FieldValue.delete() requires import
+            await db.collection('users').doc(user.id).update({
+              isSubscriber: false,
+              subscriptionPlan: firebase.firestore.FieldValue.delete(),
+              subscriptionExpiry: firebase.firestore.FieldValue.delete()
+            });
             alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
-          } catch(e) {
-             console.error("Failed to expire subscription:", e);
+          } catch (e) {
+            console.error("Failed to expire subscription:", e);
           }
         }
       }
     };
-    
-    if(!loading) {
+
+    if (!loading) {
       checkExpiry();
-      const interval = setInterval(checkExpiry, 60000); 
+      const interval = setInterval(checkExpiry, 60000);
       return () => clearInterval(interval);
     }
   }, [user, loading]);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
+    <AuthContext.Provider value={{
+      user,
       loading,
-      login: (email, role) => Promise.resolve(), 
-      realLogin, 
-      register, 
+      login: (email, role) => Promise.resolve(),
+      realLogin,
+      register,
       signInWithGoogle,
       signInWithFacebook,
       signInWithTikTok,
       resetPassword,
-      logout, 
-      subscribe, 
-      isAuthenticated: !!user 
+      logout,
+      subscribe,
+      updateUserProfile,
+      updateUserPassword,
+      isAuthenticated: !!user
     } as any}>
       {children}
     </AuthContext.Provider>

@@ -29,11 +29,11 @@ const INITIAL_CONFIG: SiteConfig = {
   },
   home: {
     featuredMixtapes: { title: "Featured Mixtapes", subtitle: "Listen to the vibe before you subscribe.", ctaText: "View All" },
-    musicPool: { 
-      title: "Unlock The Music Pool", 
-      description: "Get unlimited access to exclusive DJ edits, remixes, and tools. All plans include Telegram community access.", 
+    musicPool: {
+      title: "Unlock The Music Pool",
+      description: "Get unlimited access to exclusive DJ edits, remixes, and tools. All plans include Telegram community access.",
       benefits: ['Weekly High-Quality Drops', 'Exclusive Edits & Remixes', 'Intro/Outro Clean Edits', 'Direct Telegram Access'],
-      ctaText: "Unlock Access" 
+      ctaText: "Unlock Access"
     },
     storePromo: { title: "Trending Merch", description: "Fresh drips and exclusive digital packs.", ctaText: "Shop All" },
     studioPromo: { title: "Bookings & Studio Sessions", description: "Need a DJ for your next event or studio time to record your hit? We provide professional services tailored to your needs.", ctaText: "Book Now" },
@@ -89,7 +89,7 @@ interface DataContextType {
   coupons: Coupon[];
   referralStats: ReferralStats[];
   users: User[];
-  
+
   telegramConfig: TelegramConfig;
   telegramChannels: TelegramChannel[];
   telegramMappings: TelegramMapping[];
@@ -97,9 +97,9 @@ interface DataContextType {
   telegramLogs: TelegramLog[];
 
   // Actions
-  seedDatabase: () => Promise<void>; 
+  seedDatabase: () => Promise<void>;
   updateSiteConfig: (data: Partial<SiteConfig>) => void;
-  
+
   addProduct: (product: Product) => void;
   updateProduct: (id: string, data: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
@@ -116,11 +116,11 @@ interface DataContextType {
 
   addBooking: (booking: Booking) => void;
   updateBooking: (id: string, data: Partial<Booking>) => void;
-  
+
   addSessionType: (session: SessionType) => void;
   updateSessionType: (id: string, data: Partial<SessionType>) => void;
   deleteSessionType: (id: string) => void;
-  
+
   addVideo: (video: Video) => void;
   deleteVideo: (id: string) => void;
 
@@ -168,7 +168,7 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
   const [data, setData] = useState<T[]>(initialData);
   useEffect(() => {
     if (!enabled) {
-      setData(initialData); 
+      setData(initialData);
       return;
     }
 
@@ -184,7 +184,7 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
       (error) => {
         // Suppress permission errors in console for cleaner dev experience if race condition occurs
         if (error.code !== 'permission-denied') {
-            console.warn(`Firestore access error for collection '${colName}':`, error.message);
+          console.warn(`Firestore access error for collection '${colName}':`, error.message);
         }
       }
     );
@@ -195,13 +195,13 @@ const useCollection = <T,>(colName: string, initialData: T[], enabled: boolean =
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  
+
   // Determine roles for conditional fetching
   const isAdmin = user?.role === 'admin';
   const isSubscriber = user?.isSubscriber || isAdmin;
 
   // -- REALTIME DATA SUBSCRIPTIONS --
-  
+
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(INITIAL_CONFIG);
   useEffect(() => {
     const docRef = db.collection('settings').doc('siteConfig');
@@ -223,7 +223,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [studioEquipment] = useCollection<StudioEquipment>('studioEquipment', []);
   const [subscriptionPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', []);
   const [shippingZones, setShippingZones] = useState<ShippingZone[]>(INITIAL_SHIPPING_ZONES);
-  const [genres, setGenres] = useState<Genre[]>(INITIAL_GENRES); 
+  const [genres, setGenres] = useState<Genre[]>(INITIAL_GENRES);
   const [youtubeVideos, setYoutubeVideos] = useState<Video[]>([]);
 
   // Restricted Collections (Subscriber/Admin)
@@ -234,18 +234,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [users] = useCollection<User>('users', [], isAdmin);
   const [subscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin);
   const [bookings] = useCollection<Booking>('bookings', [], isAdmin);
-  
-  const [studioRooms, setStudioRooms] = useState<StudioRoom[]>([]); 
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]); 
-  const [coupons, setCoupons] = useState<Coupon[]>([]); 
-  const [referralStats, setReferralStats] = useState<ReferralStats[]>([]); 
-  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]); 
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]); 
-  
+
+  const [studioRooms, setStudioRooms] = useState<StudioRoom[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [referralStats, setReferralStats] = useState<ReferralStats[]>([]);
+  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]);
+  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
+
   // Telegram (Admin)
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
   const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
-  
+
   // Dummy states for types compliance
   const [newsletterSegments] = useState<NewsletterSegment[]>([]);
   const [telegramMappings] = useState<TelegramMapping[]>([]);
@@ -260,14 +260,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useAdminCollection('newsletterCampaigns', setNewsletterCampaigns, isAdmin);
   useAdminCollection('subscribers', setSubscribers, isAdmin);
   useAdminCollection('telegramChannels', setTelegramChannels, isAdmin);
-  
+
   // Fetch Telegram Config (Single Doc)
   useEffect(() => {
-      if(!isAdmin) return;
-      const unsub = db.collection('telegramConfig').doc('main').onSnapshot(doc => {
-          if(doc.exists) setTelegramConfig(doc.data() as TelegramConfig);
-      });
-      return () => unsub();
+    if (!isAdmin) return;
+    const unsub = db.collection('telegramConfig').doc('main').onSnapshot(doc => {
+      if (doc.exists) setTelegramConfig(doc.data() as TelegramConfig);
+    });
+    return () => unsub();
   }, [isAdmin]);
 
 
@@ -275,8 +275,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const seedDatabase = async () => {
     if (!isAdmin) {
-        alert("Admin privileges required to seed database.");
-        return;
+      alert("Admin privileges required to seed database.");
+      return;
     }
     try {
       const batch = db.batch();
@@ -329,7 +329,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addProduct = async (product: Product) => {
-    const { id, ...rest } = product; 
+    const { id, ...rest } = product;
     await db.collection('products').add(rest);
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
@@ -361,7 +361,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await db.collection('poolTracks').doc(id).delete();
   };
 
-  const updateGenre = (id: string, data: Partial<Genre>) => setGenres(prev => prev.map(g => g.id === id ? {...g, ...data} : g));
+  const updateGenre = (id: string, data: Partial<Genre>) => setGenres(prev => prev.map(g => g.id === id ? { ...g, ...data } : g));
 
   const addBooking = async (booking: Booking) => {
     const { id, ...rest } = booking;
@@ -415,30 +415,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await db.collection('subscriptionPlans').doc(id).delete();
   };
 
-  const addStudioRoom = (room: StudioRoom) => setStudioRooms(prev => [room, ...prev]);
-  const updateStudioRoom = (id: string, data: Partial<StudioRoom>) => setStudioRooms(prev => prev.map(r => r.id === id ? { ...r, ...data} : r));
-  const deleteStudioRoom = (id: string) => setStudioRooms(prev => prev.filter(r => r.id !== id));
-  const addMaintenanceLog = (log: MaintenanceLog) => setMaintenanceLogs(prev => [log, ...prev]);
-  const updateMaintenanceLog = (id: string, data: Partial<MaintenanceLog>) => setMaintenanceLogs(prev => prev.map(l => l.id === id ? { ...l, ...data} : l));
+  const addStudioRoom = async (room: StudioRoom) => { const { id, ...rest } = room; await db.collection('studioRooms').add(rest); };
+  const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => { await db.collection('studioRooms').doc(id).update(data); };
+  const deleteStudioRoom = async (id: string) => { await db.collection('studioRooms').doc(id).delete(); };
+
+  const addMaintenanceLog = async (log: MaintenanceLog) => { const { id, ...rest } = log; await db.collection('maintenanceLogs').add(rest); };
+  const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => { await db.collection('maintenanceLogs').doc(id).update(data); };
 
   const updateOrder = async (id: string, data: Partial<Order>) => {
     await db.collection('orders').doc(id).update(data);
   };
 
-  const addCampaign = (camp: NewsletterCampaign) => setNewsletterCampaigns(prev => [camp, ...prev]);
-  const updateCampaign = (id: string, data: Partial<NewsletterCampaign>) => setNewsletterCampaigns(prev => prev.map(c => c.id === id ? {...c, ...data} : c));
+  const addCampaign = async (camp: NewsletterCampaign) => { const { id, ...rest } = camp; await db.collection('newsletterCampaigns').add(rest); };
+  const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => { await db.collection('newsletterCampaigns').doc(id).update(data); };
 
-  const addCoupon = (coupon: Coupon) => setCoupons(prev => [coupon, ...prev]);
-  const updateCoupon = (id: string, data: Partial<Coupon>) => setCoupons(prev => prev.map(c => c.id === id ? {...c, ...data} : c));
-  const deleteCoupon = (id: string) => setCoupons(prev => prev.filter(c => c.id !== id));
+  const addCoupon = async (coupon: Coupon) => { const { id, ...rest } = coupon; await db.collection('coupons').add(rest); };
+  const updateCoupon = async (id: string, data: Partial<Coupon>) => { await db.collection('coupons').doc(id).update(data); };
+  const deleteCoupon = async (id: string) => { await db.collection('coupons').doc(id).delete(); };
 
-  const updateTelegramConfig = (config: Partial<TelegramConfig>) => setTelegramConfig(prev => ({...prev, ...config}));
-  const addTelegramChannel = (channel: TelegramChannel) => setTelegramChannels(prev => [channel, ...prev]);
-  const updateTelegramChannel = (id: string, data: Partial<TelegramChannel>) => setTelegramChannels(prev => prev.map(c => c.id === id ? {...c, ...data} : c));
-  const deleteTelegramChannel = (id: string) => setTelegramChannels(prev => prev.filter(c => c.id !== id));
+  const updateTelegramConfig = async (config: Partial<TelegramConfig>) => { await db.collection('telegramConfig').doc('main').set(config, { merge: true }); };
+  const addTelegramChannel = async (channel: TelegramChannel) => { const { id, ...rest } = channel; await db.collection('telegramChannels').add(rest); };
+  const updateTelegramChannel = async (id: string, data: Partial<TelegramChannel>) => { await db.collection('telegramChannels').doc(id).update(data); };
+  const deleteTelegramChannel = async (id: string) => { await db.collection('telegramChannels').doc(id).delete(); };
 
-  const updateShippingZone = (id: string, data: Partial<ShippingZone>) => setShippingZones(prev => prev.map(z => z.id === id ? {...z, ...data} : z));
-  const addSubscriber = (email: string) => setSubscribers(prev => [{id: `sub_${Date.now()}`, email, dateSubscribed: new Date().toISOString().split('T')[0], status: 'active', source: 'Manual'}, ...prev]);
+  const updateShippingZone = (id: string, data: Partial<ShippingZone>) => setShippingZones(prev => prev.map(z => z.id === id ? { ...z, ...data } : z));
+
+  const addSubscriber = async (email: string) => {
+    await db.collection('subscribers').add({
+      email, dateSubscribed: new Date().toISOString().split('T')[0], status: 'active', source: 'Manual'
+    });
+  };
 
   const updateUser = async (id: string, data: Partial<User>) => {
     await db.collection('users').doc(id).update(data);
@@ -449,9 +455,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
       telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
-      seedDatabase, 
+      seedDatabase,
       updateSiteConfig, addProduct, updateProduct, deleteProduct,
-      addMixtape, updateMixtape, deleteMixtape, 
+      addMixtape, updateMixtape, deleteMixtape,
       addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
       addBooking, updateBooking,
       addSessionType, updateSessionType, deleteSessionType,
@@ -472,17 +478,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 // Helper for admin collections
 function useAdminCollection(colName: string, setData: (data: any[]) => void, isAdmin: boolean) {
-    useEffect(() => {
-        if(!isAdmin) {
-            setData([]);
-            return;
-        }
-        const unsub = db.collection(colName).onSnapshot(
-            snapshot => setData(snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}))),
-            err => console.warn(`Admin Fetch Error ${colName}:`, err.message)
-        );
-        return () => unsub();
-    }, [colName, isAdmin, setData]);
+  useEffect(() => {
+    if (!isAdmin) {
+      setData([]);
+      return;
+    }
+    const unsub = db.collection(colName).onSnapshot(
+      snapshot => setData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+      err => console.warn(`Admin Fetch Error ${colName}:`, err.message)
+    );
+    return () => unsub();
+  }, [colName, isAdmin, setData]);
 }
 
 export const useData = () => {

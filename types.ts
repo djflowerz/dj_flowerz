@@ -42,13 +42,13 @@ export interface Mixtape {
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;
-  isExclusive: boolean; 
-  date?: string; 
+  isExclusive: boolean;
+  date?: string;
 }
 
 export interface ProductVariant {
-  name: string; 
-  options: string[]; 
+  name: string;
+  options: string[];
 }
 
 export interface Product {
@@ -59,42 +59,42 @@ export interface Product {
   category: string;
   os?: 'macOS' | 'Windows' | 'Android' | 'iOS' | 'Linux' | 'None';
   shortDescription: string;
-  description: string; 
+  description: string;
   price: number;
   compareAtPrice?: number;
   currency: string;
   isActive: boolean;
   visibility: 'public' | 'members_only';
   tags: string[];
-  isHot?: boolean; 
-  image: string; 
-  images?: string[]; 
+  isHot?: boolean;
+  image: string;
+  images?: string[];
   videoUrl?: string;
   imageAlt?: string;
   hasVariants: boolean;
-  variantOptions?: ProductVariant[]; 
-  variants?: string[]; 
+  variantOptions?: ProductVariant[];
+  variants?: string[];
   trackStock: boolean;
   stock: number;
   lowStockThreshold?: number;
   sku?: string;
-  weight?: string; 
-  dimensions?: string; 
+  weight?: string;
+  dimensions?: string;
   shippingClass?: string;
   requiresShipping: boolean;
-  size?: string; 
+  size?: string;
   digitalFileUrl?: string;
-  downloadPassword?: string; 
+  downloadPassword?: string;
   secureDownloadLink?: string;
   downloadLimit?: number;
   expiryDays?: number;
   allowRedownload?: boolean;
-  whatsappEnabled: boolean; 
+  whatsappEnabled: boolean;
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;
   status: 'draft' | 'published';
-  inventory?: number; 
+  inventory?: number;
 }
 
 export interface User {
@@ -111,6 +111,7 @@ export interface User {
   lastLogin?: string;
   referralCode?: string;
   referredBy?: string;
+  phoneNumber?: string;
 }
 
 export interface Subscription {
@@ -239,9 +240,9 @@ export interface CartItem extends Product {
 
 export interface SessionType {
   id: string;
-  name: string; 
+  name: string;
   description: string;
-  duration: number; 
+  duration: number;
   price: number;
   depositRequired: boolean;
   equipmentIncluded: string[];
@@ -251,7 +252,7 @@ export interface SessionType {
 export interface StudioEquipment {
   id: string;
   name: string;
-  category: string; 
+  category: string;
   image: string;
   description?: string;
   status?: 'available' | 'maintenance' | 'booked';
@@ -280,15 +281,15 @@ export interface Booking {
   clientName: string;
   clientEmail?: string;
   clientPhone?: string;
-  serviceType: string; 
-  serviceName?: string; 
+  serviceType: string;
+  serviceName?: string;
   date: string;
   time: string;
   duration: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   paymentStatus: 'paid' | 'deposit' | 'pending' | 'refunded';
   amount: number;
-  budget?: string; 
+  budget?: string;
   notes?: string;
   source: 'web' | 'manual';
   location?: string;
@@ -310,7 +311,7 @@ export interface TelegramConfig {
 export interface TelegramChannel {
   id: string;
   name: string;
-  channelId: string; 
+  channelId: string;
   genre: string;
   inviteLink: string;
   active: boolean;
@@ -318,15 +319,15 @@ export interface TelegramChannel {
 
 export interface TelegramMapping {
   id: string;
-  planId: string; 
-  channelIds: string[]; 
+  planId: string;
+  channelIds: string[];
   autoInvite: boolean;
 }
 
 export interface TelegramUser {
   id: string;
-  userId: string; 
-  userName: string; 
+  userId: string;
+  userName: string;
   telegramUsername: string;
   telegramUserId: string;
   status: 'Verified' | 'Pending' | 'Unlinked';
@@ -335,7 +336,7 @@ export interface TelegramUser {
 
 export interface TelegramLog {
   id: string;
-  action: string; 
+  action: string;
   details: string;
   user?: string;
   channel?: string;
