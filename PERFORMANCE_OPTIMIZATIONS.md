@@ -13,9 +13,9 @@ This document outlines all performance optimizations implemented to improve site
 - Causing browser lag and quota exceeded errors
 
 #### Solution:
-- **Batch Size**: Reduced from 400 to 200 tracks per batch
+- **Batch Size**: Increased to 400 tracks per batch
 - **Daily Quota Limit**: Set to 45,000 writes (leaving buffer for other operations)
-- **Rate Limiting**: Added 1-second delay between batches
+- **Rate Limiting**: Added 200ms delay between batches
 - **Progress Tracking**: Real-time progress with detailed metrics
 - **Resume Capability**: Can resume from last processed index
 - **Duplicate Detection**: Checks for existing tracks to avoid re-uploading
@@ -148,14 +148,14 @@ const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAd
 ### Firestore Quota Management:
 - **Free Tier**: 50,000 writes/day
 - **Our Limit**: 45,000 writes/day (10% buffer)
-- **Batch Size**: 200 tracks
-- **Batches/Day**: 225 batches
+- **Batch Size**: 400 tracks
+- **Batches/Day**: 112 batches
 - **Days for Full Seed**: ~2 days (90,000 tracks ÷ 45,000/day)
 
 ### Rate Limiting:
-- **Delay Between Batches**: 1,000ms (1 second)
-- **Total Time/Batch**: ~1.5 seconds (including commit time)
-- **Total Time/Day**: ~5-6 minutes of active uploading
+- **Delay Between Batches**: 200ms
+- **Total Time/Batch**: ~0.5 seconds (including commit time)
+- **Total Time/Day**: ~1 minute of active uploading (but limited by quota)
 
 ### Error Handling:
 - **Quota Exceeded**: Gracefully stops and saves progress

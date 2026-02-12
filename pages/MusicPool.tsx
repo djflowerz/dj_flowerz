@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Shield, Check, Zap, Smartphone, Globe, Headphones, Star, Search, Download, Play, Pause, Folder, ChevronDown, ChevronUp, Clock, Filter, Layers, Music } from 'lucide-react';
@@ -10,7 +10,7 @@ import { downloadFile } from '../utils/downloadHelper';
 
 const MusicPool: React.FC = () => {
    const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans } = useData();
+   const { poolTracks, genres, subscriptionPlans, loadMorePoolTracks } = useData();
    const isUnlocked = user?.isSubscriber || user?.isAdmin;
 
    // View State
@@ -42,7 +42,12 @@ const MusicPool: React.FC = () => {
 
       // Check Limits
       const today = new Date().toISOString().split('T')[0];
-      const limit = user.subscriptionPlan === 'weekly' ? 30 : 200;
+
+      // Determine Limit based on Plan
+      // Check for weekly plan identifiers
+      const planId = user.subscriptionPlan?.toLowerCase() || '';
+      const isWeekly = planId.includes('week') || planId.includes('7') || planId === 'weekly';
+      const limit = isWeekly ? 30 : 200;
 
       let downloadsToday = user.downloadsToday || 0;
       const lastDate = user.lastDownloadDate || '';
@@ -94,6 +99,16 @@ const MusicPool: React.FC = () => {
          return matchesSearch && matchesCategory && matchesYear && matchesGenre;
       });
    }, [poolTracks, searchQuery, activeCategory, selectedYear, selectedGenre]);
+
+   // Pagination State
+   const [currentPage, setCurrentPage] = useState(1);
+   const itemsPerPage = 100;
+
+   // Reset page on filter change
+   useEffect(() => { setCurrentPage(1); }, [activeCategory, selectedYear, selectedGenre, searchQuery]);
+
+   const totalPages = Math.ceil(filteredTracks.length / itemsPerPage);
+   const paginatedTracks = filteredTracks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
    const toggleExpand = (id: string) => {
       setExpandedTrackId(expandedTrackId === id ? null : id);
@@ -222,7 +237,7 @@ const MusicPool: React.FC = () => {
                         <div className="bg-[#15151A] border border-white/5 rounded-2xl overflow-hidden">
                            {filteredTracks.length > 0 ? (
                               <div className="divide-y divide-white/5">
-                                 {filteredTracks.map(track => (
+                                 {paginatedTracks.map(track => (
                                     <div key={track.id} className={`group hover:bg-white/[0.02] transition ${expandedTrackId === track.id ? 'bg-white/[0.02]' : ''}`}>
 
                                        {/* Main Row */}
@@ -353,7 +368,49 @@ const MusicPool: React.FC = () => {
                         </div>
                      </div>
 
+                     {/* Pagination Controls */}
+                     {filteredTracks.length > 0 && (
+                        <div className="mt-8 pb-8 border-t border-white/5 pt-8 flex flex-col items-center gap-4">
+                           <div className="flex items-center gap-4">
+                              <button
+                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                 disabled={currentPage === 1}
+                                 className="px-4 py-2 bg-[#25252A] rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/10 transition text-white"
+                              >
+                                 Previous
+                              </button>
+                              <span className="text-gray-400 text-sm">
+                                 Page <span className="text-white font-bold">{currentPage}</span> of {totalPages}
+                              </span>
+                              <button
+                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                 disabled={currentPage === totalPages}
+                                 className="px-4 py-2 bg-[#25252A] rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/10 transition text-white"
+                              >
+                                 Next
+                              </button>
+                           </div>
+
+                           {/* Load More from DB (Only on last page) */}
+                           {currentPage === totalPages && loadMorePoolTracks && (
+                              <div className="flex flex-col items-center gap-2">
+                                 <button
+                                    onClick={() => loadMorePoolTracks(1000)}
+                                    className="px-8 py-3 bg-[#1A1A20] border border-white/10 text-white rounded-xl hover:bg-brand-purple hover:border-brand-purple transition font-bold shadow-lg flex items-center gap-2"
+                                 >
+                                    Load 1000 More Tracks from Database
+                                 </button>
+                                 <p className="text-gray-500 text-xs">Currently loaded: {poolTracks.length} tracks</p>
+                              </div>
+                           )}
+
+                           <p className="text-gray-500 text-xs text-center mt-2">
+                              Showing {paginatedTracks.length} of {filteredTracks.length} tracks (Total Loaded: {poolTracks.length})
+                           </p>
+                        </div>
+                     )}
                   </div>
+
                </div>
             </div>
          </div>

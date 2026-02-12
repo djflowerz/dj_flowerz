@@ -111,6 +111,7 @@ interface DataContextType {
   addPoolTrack: (track: Track) => void;
   updatePoolTrack: (id: string, data: Partial<Track>) => void;
   deletePoolTrack: (id: string) => void;
+  loadMorePoolTracks: (count?: number) => void;
 
   updateGenre: (id: string, data: Partial<Genre>) => void;
 
@@ -173,6 +174,11 @@ const useCollection = <T,>(
 ) => {
   const [data, setData] = useState<T[]>(initialData);
   const [isLoading, setIsLoading] = useState(false);
+  const [limit, setLimit] = useState<number | undefined>(limitCount);
+
+  const loadMore = (count: number = 1000) => {
+    if (limit) setLimit(prev => (prev || 0) + count);
+  };
 
   useEffect(() => {
     if (!enabled) {
@@ -184,8 +190,8 @@ const useCollection = <T,>(
     let query: firebase.firestore.Query = db.collection(colName);
 
     // Apply limit for large collections to improve initial load time
-    if (limitCount) {
-      query = query.limit(limitCount);
+    if (limit) {
+      query = query.limit(limit);
     }
 
     const unsub = query.onSnapshot(
@@ -207,9 +213,9 @@ const useCollection = <T,>(
       }
     );
     return () => unsub();
-  }, [colName, enabled, limitCount]);
+  }, [colName, enabled, limit]);
 
-  return [data, setData, isLoading] as const;
+  return [data, setData, isLoading, loadMore] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -246,7 +252,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [youtubeVideos, setYoutubeVideos] = useState<Video[]>([]);
 
   // Restricted Collections (Subscriber/Admin) - Limited for performance
-  const [poolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, 1000);
+  const [poolTracks, , , loadMorePoolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, 1000);
 
   // Admin Only Collections
   const [orders] = useCollection<Order>('orders', [], isAdmin);
@@ -355,7 +361,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await db.collection('products').doc(id).update(data);
   };
   const deleteProduct = async (id: string) => {
-    await db.collection('products').doc(id).delete();
+    console.log(`Attempting to delete product with ID: ${id}`);
+    try {
+      await db.collection('products').doc(id).delete();
+      console.log(`Product ${id} deleted successfully`);
+    } catch (err: any) {
+      console.error("Delete failed for product:", id, err);
+      alert("Failed to delete product: " + (err.message || 'Unknown error'));
+      throw err;
+    }
   };
 
   const addMixtape = async (mixtape: Mixtape) => {
@@ -366,7 +380,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await db.collection('mixtapes').doc(id).update(data);
   };
   const deleteMixtape = async (id: string) => {
-    await db.collection('mixtapes').doc(id).delete();
+    try {
+      await db.collection('mixtapes').doc(id).delete();
+      console.log(`Mixtape ${id} deleted successfully`);
+    } catch (err: any) {
+      console.error("Delete failed for mixtape:", id, err);
+      alert("Failed to delete mixtape: " + (err.message || 'Unknown error'));
+      throw err;
+    }
   };
 
   const addPoolTrack = async (track: Track) => {
@@ -477,7 +498,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       seedDatabase,
       updateSiteConfig, addProduct, updateProduct, deleteProduct,
       addMixtape, updateMixtape, deleteMixtape,
-      addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
+      addPoolTrack, updatePoolTrack, deletePoolTrack, loadMorePoolTracks, updateGenre,
       addBooking, updateBooking,
       addSessionType, updateSessionType, deleteSessionType,
       addVideo, deleteVideo,

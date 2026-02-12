@@ -365,7 +365,7 @@ const AdminDashboard: React.FC = () => {
    const [editingZone, setEditingZone] = useState<ShippingZone | null>(null);
 
    const {
-      siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, genres, subscriptions, orders, newsletterCampaigns,
+      siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
       telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
       seedDatabase,
@@ -420,6 +420,28 @@ const AdminDashboard: React.FC = () => {
    };
 
    const updateProductField = (field: keyof Product, value: any) => setNewProduct(prev => ({ ...prev, [field]: value }));
+
+   const handleDeleteProduct = async (product: Product) => {
+      if (window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
+         try {
+            await deleteProduct(product.id);
+         } catch (error) {
+            console.error("Deletion error:", error);
+         }
+      }
+   };
+
+   const handleDeleteMixtape = async (mixtape: Mixtape) => {
+      if (window.confirm(`Are you sure you want to delete "${mixtape.title}"? This action cannot be undone.`)) {
+         try {
+            await deleteMixtape(mixtape.id);
+         } catch (error) {
+            console.error("Mixtape deletion error:", error);
+            alert(`Failed to delete mixtape: ${error instanceof Error ? error.message : 'Unknown error'}`);
+         }
+      }
+   };
+
    const updateMixtapeField = (field: keyof Mixtape, value: any) => setNewMixtape(prev => ({ ...prev, [field]: value }));
 
    const openAddPoolTrack = () => { setIsEditing(false); setNewPoolTrack({ ...INITIAL_POOL_TRACK_STATE, genre: genres[0]?.name || 'Afrobeats', versions: [] }); setActiveModal('addPoolTrack'); };
@@ -980,6 +1002,14 @@ const AdminDashboard: React.FC = () => {
                                     ))}
                                  </tbody>
                               </table>
+                              {loadMorePoolTracks && poolTracks.length > 0 && (
+                                 <div className="p-4 text-center border-t border-white/5">
+                                    <button onClick={() => loadMorePoolTracks(1000)} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded text-sm font-bold text-white transition">
+                                       Load 1000 More
+                                    </button>
+                                    <p className="text-gray-500 text-xs mt-2">Showing {poolTracks.length} tracks</p>
+                                 </div>
+                              )}
                            </div>
                         </>
                      )}
@@ -1021,7 +1051,7 @@ const AdminDashboard: React.FC = () => {
                                     <td className="px-6 py-4">KES {p.price.toLocaleString()}</td>
                                     <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
                                     <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${p.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{p.status}</span></td>
-                                    <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button onClick={() => deleteProduct(p.id)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
+                                    <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button onClick={() => handleDeleteProduct(p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
                                  </tr>
                               ))}
                            </tbody>
@@ -1047,7 +1077,7 @@ const AdminDashboard: React.FC = () => {
                                  <p className="text-xs text-gray-400 mb-2">{mix.genre}</p>
                                  <div className="flex justify-between items-center">
                                     <span className={`text-[10px] px-2 py-0.5 rounded ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
-                                    <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button onClick={() => deleteMixtape(mix.id)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
+                                    <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button onClick={() => handleDeleteMixtape(mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
                                  </div>
                               </div>
                            </div>

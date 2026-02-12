@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
@@ -80,6 +80,15 @@ const Store: React.FC = () => {
       default: return 0;
     }
   });
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, selectedCategory, selectedType, selectedPrice, selectedOS, sortBy]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -228,71 +237,96 @@ const Store: React.FC = () => {
           {/* Product Grid */}
           <div className="flex-1">
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-                {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition group flex flex-col shadow-lg">
-                    <Link to={`/store/${product.id}`} className="relative aspect-square bg-gray-800 block overflow-hidden">
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+                  {paginatedProducts.map((product) => (
+                    <div key={product.id} className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition group flex flex-col shadow-lg">
+                      <Link to={`/store/${product.id}`} className="relative aspect-square bg-gray-800 block overflow-hidden">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
 
-                      {/* Tags */}
-                      <div className="absolute top-2 left-2 flex flex-col gap-2">
-                        {product.isHot && (
-                          <div className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
-                            HOT
-                          </div>
-                        )}
-                        {product.price === 0 && (
-                          <div className="bg-green-600 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
-                            FREE
-                          </div>
-                        )}
-                      </div>
-
-                      {(getProductType(product) === 'digital') && (
-                        <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
-                          DIGITAL
+                        {/* Tags */}
+                        <div className="absolute top-2 left-2 flex flex-col gap-2">
+                          {product.isHot && (
+                            <div className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
+                              HOT
+                            </div>
+                          )}
+                          {product.price === 0 && (
+                            <div className="bg-green-600 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
+                              FREE
+                            </div>
+                          )}
                         </div>
-                      )}
 
-                      <div className="absolute bottom-0 left-0 right-0 p-2 md:p-4 translate-y-full group-hover:translate-y-0 transition duration-300 bg-gradient-to-t from-black to-transparent">
-                        <p className="text-white text-xs font-bold text-center">View Details</p>
-                      </div>
-                    </Link>
+                        {(getProductType(product) === 'digital') && (
+                          <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded shadow-lg uppercase tracking-wider">
+                            DIGITAL
+                          </div>
+                        )}
 
-                    <div className="p-3 md:p-5 flex-1 flex flex-col">
-                      <Link to={`/store/${product.id}`} className="block">
-                        <h3 className="text-sm md:text-lg font-bold text-white mb-1 hover:text-brand-cyan transition line-clamp-1">{product.name}</h3>
+                        <div className="absolute bottom-0 left-0 right-0 p-2 md:p-4 translate-y-full group-hover:translate-y-0 transition duration-300 bg-gradient-to-t from-black to-transparent">
+                          <p className="text-white text-xs font-bold text-center">View Details</p>
+                        </div>
                       </Link>
-                      <div className="flex justify-between items-center mb-2 md:mb-4">
-                        <p className="text-gray-400 text-[10px] md:text-xs capitalize">{getDisplayCategory(product.category)}</p>
-                        {product.os && <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-300 hidden sm:inline">{product.os}</span>}
-                      </div>
 
-                      <div className="mt-auto pt-3 md:pt-4 border-t border-white/5">
-                        <div className="text-base md:text-xl font-bold text-white mb-2 md:mb-3">
-                          {product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}
+                      <div className="p-3 md:p-5 flex-1 flex flex-col">
+                        <Link to={`/store/${product.id}`} className="block">
+                          <h3 className="text-sm md:text-lg font-bold text-white mb-1 hover:text-brand-cyan transition line-clamp-1">{product.name}</h3>
+                        </Link>
+                        <div className="flex justify-between items-center mb-2 md:mb-4">
+                          <p className="text-gray-400 text-[10px] md:text-xs capitalize">{getDisplayCategory(product.category)}</p>
+                          {product.os && <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-300 hidden sm:inline">{product.os}</span>}
                         </div>
-                        <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
-                          <button
-                            onClick={() => addToCart(product)}
-                            className="flex items-center justify-center gap-1.5 py-2 bg-brand-purple text-white rounded-lg font-bold text-xs md:text-sm hover:bg-purple-600 transition"
-                          >
-                            <ShoppingCart size={14} className="md:w-4 md:h-4" /> {product.price === 0 ? 'Get' : 'Cart'}
-                          </button>
-                          <a
-                            href={`https://wa.me/${siteConfig.contact.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}. Is it available?`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1.5 py-2 bg-[#25D366] text-white rounded-lg font-bold text-xs md:text-sm hover:bg-[#20bd5a] transition"
-                          >
-                            <MessageCircle size={14} className="md:w-4 md:h-4" /> <span className="sm:hidden lg:inline">Chat</span><span className="hidden sm:inline lg:hidden">WA</span>
-                          </a>
+
+                        <div className="mt-auto pt-3 md:pt-4 border-t border-white/5">
+                          <div className="text-base md:text-xl font-bold text-white mb-2 md:mb-3">
+                            {product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}
+                          </div>
+                          <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
+                            <button
+                              onClick={() => addToCart(product)}
+                              className="flex items-center justify-center gap-1.5 py-2 bg-brand-purple text-white rounded-lg font-bold text-xs md:text-sm hover:bg-purple-600 transition"
+                            >
+                              <ShoppingCart size={14} className="md:w-4 md:h-4" /> {product.price === 0 ? 'Get' : 'Cart'}
+                            </button>
+                            <a
+                              href={`https://wa.me/${siteConfig.contact.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}. Is it available?`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-1.5 py-2 bg-[#25D366] text-white rounded-lg font-bold text-xs md:text-sm hover:bg-[#20bd5a] transition"
+                            >
+                              <MessageCircle size={14} className="md:w-4 md:h-4" /> <span className="sm:hidden lg:inline">Chat</span><span className="hidden sm:inline lg:hidden">WA</span>
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-8 flex justify-center gap-4">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-[#15151A] border border-white/10 rounded-lg text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5 transition"
+                    >
+                      Previous
+                    </button>
+                    <span className="flex items-center text-gray-400 text-sm">
+                      Page <span className="text-white font-bold mx-1">{currentPage}</span> of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-[#15151A] border border-white/10 rounded-lg text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5 transition"
+                    >
+                      Next
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-20 bg-[#15151A] rounded-2xl border border-white/5">
                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">

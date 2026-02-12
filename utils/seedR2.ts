@@ -3,8 +3,8 @@ import { db } from '../firebase';
 
 // Firestore free tier limits: 50,000 writes/day
 const DAILY_WRITE_LIMIT = 45000; // Leave buffer for other operations
-const BATCH_SIZE = 200; // Smaller batches for better reliability
-const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay to avoid rate limiting
+const BATCH_SIZE = 400; // Increased to 400 for faster throughput (max 500)
+const DELAY_BETWEEN_BATCHES = 200; // 200ms delay - fast but safe
 
 interface SeedProgress {
     totalTracks: number;
