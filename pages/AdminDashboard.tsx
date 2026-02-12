@@ -424,25 +424,21 @@ const AdminDashboard: React.FC = () => {
    const handleDeleteProduct = async (e: React.MouseEvent, product: Product) => {
       e.stopPropagation();
       e.preventDefault();
-      if (window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
-         try {
-            await deleteProduct(product.id);
-         } catch (error) {
-            console.error("Deletion error:", error);
-         }
+      try {
+         await deleteProduct(product.id);
+      } catch (error) {
+         console.error("Deletion error:", error);
       }
    };
 
    const handleDeleteMixtape = async (e: React.MouseEvent, mixtape: Mixtape) => {
       e.stopPropagation();
       e.preventDefault();
-      if (window.confirm(`Are you sure you want to delete "${mixtape.title}"? This action cannot be undone.`)) {
-         try {
-            await deleteMixtape(mixtape.id);
-         } catch (error) {
-            console.error("Mixtape deletion error:", error);
-            alert(`Failed to delete mixtape: ${error instanceof Error ? error.message : 'Unknown error'}`);
-         }
+      try {
+         await deleteMixtape(mixtape.id);
+      } catch (error) {
+         console.error("Mixtape deletion error:", error);
+         alert(`Failed to delete mixtape: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
    };
 
