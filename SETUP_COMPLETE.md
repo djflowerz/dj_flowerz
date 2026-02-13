@@ -4,7 +4,7 @@
 
 Your application has been successfully configured, fixed, and is **running locally**!
 
-**URL**: http://localhost:3000
+**URL**: https://dj-flowerz.vercel.app
 **Admin User**: `ianmuriithiflowerz@gmail.com`
 
 ---
@@ -21,7 +21,7 @@ We resolved several issues to get your app running:
 ## 🚀 How to Use
 
 ### 1. Open the App
-Go to [http://localhost:3000](http://localhost:3000)
+Go to [https://dj-flowerz.vercel.app](https://dj-flowerz.vercel.app)
 
 ### 2. Sign In as Admin
 - Click **Login** / **Sign In**

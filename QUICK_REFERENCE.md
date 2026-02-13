@@ -29,7 +29,7 @@
 ### **⚠️ CRITICAL**: You must re-seed to make tracks available!
 
 ### In Your Browser:
-1. Navigate to: **http://localhost:3000/#/admin**
+1. Navigate to: **https://dj-flowerz.vercel.app/#/admin**
 2. Click: **"Music Pool"** tab
 3. Click: **"Seed R2 Data"** button
 4. Confirm: Click **"Yes"**
@@ -76,7 +76,7 @@ ls -lh public/r2_tracks.json
 ## 🎯 After Seeding
 
 ### View Your New Tracks:
-1. Navigate to: **http://localhost:3000/#/music-pool**
+1. Navigate to: **https://dj-flowerz.vercel.app/#/music-pool**
 2. Filter by: **Category → "Remix & Mashups"**
 3. You'll see: **6,257 remix and mashup tracks**
 4. Features: Preview, Download, Search
