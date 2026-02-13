@@ -166,6 +166,14 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+// Helper to prevent hanging Firestore calls
+function withTimeout<T>(promise: Promise<T>, ms: number = 10000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timed out")), ms))
+  ]);
+}
+
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
 // Added 'limit' parameter for pagination to improve performance
@@ -268,7 +276,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mixtapes, , , , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', [], true, 100, 'createdAt', 'desc', false);
   const [sessionTypes, , , , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, undefined, undefined, 'desc', false);
   const [studioEquipment, , , , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', [], true, undefined, undefined, 'desc', false);
-  const [subscriptionPlans, , , , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, undefined, undefined, 'desc', true);
+  const [subscriptionPlans, , , , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, undefined, 'price', 'asc', true);
   const [shippingZones, , , , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, undefined, undefined, 'desc', false);
   const [genres, , , , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, undefined, undefined, 'desc', false);
   const [youtubeVideos, , , , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, undefined, undefined, 'desc', false);
@@ -508,17 +516,33 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
-    const docId = plan.id || `plan_${Date.now()}`;
-    await db.collection('subscriptionPlans').doc(docId).set({ ...plan, id: docId, updatedAt: new Date().toISOString() });
-    refreshPlans();
+    try {
+      const docId = plan.id || `plan_${Date.now()}`;
+      await withTimeout(db.collection('subscriptionPlans').doc(docId).set({ ...plan, id: docId, updatedAt: new Date().toISOString() }));
+      if (typeof refreshPlans === 'function') refreshPlans();
+    } catch (error) {
+      console.error("DataContext: Error adding plan:", error);
+      throw error;
+    }
   };
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
-    await db.collection('subscriptionPlans').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
-    refreshPlans();
+    try {
+      if (!id) throw new Error("Plan ID is required for update");
+      await withTimeout(db.collection('subscriptionPlans').doc(id).update({ ...data, updatedAt: new Date().toISOString() }));
+      if (typeof refreshPlans === 'function') refreshPlans();
+    } catch (error) {
+      console.error("DataContext: Error updating plan:", error);
+      throw error;
+    }
   };
   const deleteSubscriptionPlan = async (id: string) => {
-    await db.collection('subscriptionPlans').doc(id).delete();
-    refreshPlans();
+    try {
+      await withTimeout(db.collection('subscriptionPlans').doc(id).delete());
+      if (typeof refreshPlans === 'function') refreshPlans();
+    } catch (error) {
+      console.error("DataContext: Error deleting plan:", error);
+      throw error;
+    }
   };
 
   const addStudioRoom = async (room: StudioRoom) => {

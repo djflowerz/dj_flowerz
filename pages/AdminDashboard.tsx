@@ -371,21 +371,7 @@ const AdminDashboard: React.FC = () => {
       return () => unsubscribe();
    }, [user?.isAdmin]);
 
-   const [livePlans, setLivePlans] = useState<SubscriptionPlan[]>([]);
-   useEffect(() => {
-      const q = db.collection('subscriptionPlans').orderBy('price', 'asc');
-      const unsubscribe = q.onSnapshot(
-         (snapshot) => {
-            const plansData = snapshot.docs.map(doc => ({
-               id: doc.id,
-               ...doc.data()
-            } as SubscriptionPlan));
-            setLivePlans(plansData);
-         },
-         (error) => console.error("Plans sync error:", error)
-      );
-      return () => unsubscribe();
-   }, []);
+   // We use subscriptionPlans from useData hook instead of manual listener for better consistency
 
    const [liveUsers, setLiveUsers] = useState<UserType[]>([]);
    useEffect(() => {
@@ -869,19 +855,27 @@ const AdminDashboard: React.FC = () => {
       }
       setIsSavingPlan(true);
       try {
+         console.log("AdminDashboard: Starting plan save...", { isEditing, plan: editingPlan });
          const features = planFeaturesInput.split('\n').filter(f => f.trim() !== '');
+
          if (isEditing) {
+            if (!editingPlan.id) throw new Error("Missing plan ID for update");
             await updateSubscriptionPlan(editingPlan.id, { ...editingPlan, features });
+            console.log("AdminDashboard: Plan update successful.");
          } else {
-            await addSubscriptionPlan({ ...editingPlan, id: `plan_${Date.now()}`, features });
+            const newId = `plan_${Date.now()}`;
+            await addSubscriptionPlan({ ...editingPlan, id: newId, features });
+            console.log("AdminDashboard: Plan creation successful.");
          }
+
          alert("Subscription plan saved successfully!");
          setActiveModal(null);
       } catch (error: any) {
-         console.error("Error saving plan:", error);
-         alert("Failed to save plan: " + error.message);
+         console.error("AdminDashboard: Error saving plan:", error);
+         alert("Failed to save plan: " + (error.message || "Unknown error"));
       } finally {
          setIsSavingPlan(false);
+         console.log("AdminDashboard: Plan save process finished.");
       }
    };
 
@@ -1258,7 +1252,7 @@ const AdminDashboard: React.FC = () => {
 
                      {subscriptionSubTab === 'plans' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                           {(livePlans.length > 0 ? livePlans : subscriptionPlans).map(plan => (
+                           {(subscriptionPlans || []).map(plan => (
                               <div key={plan.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5 relative">
                                  {plan.isBestValue && <span className="absolute top-4 right-4 bg-brand-purple text-white text-[10px] font-bold px-2 py-1 rounded">BEST VALUE</span>}
                                  <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
