@@ -16,7 +16,9 @@ interface SeedProgress {
     quotaUsed: number;
     quotaRemaining: number;
     isComplete: boolean;
+    rangeComplete: boolean;
     lastProcessedIndex: number;
+    currentTrackTitle?: string;
 }
 
 // Helper to delay execution
@@ -38,6 +40,7 @@ const trackExists = async (downloadUrl: string): Promise<boolean> => {
 export const seedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     startFromIndex: number = 0,
+    maxTracks: number = 10000,
     maxWrites: number = DAILY_WRITE_LIMIT
 ) => {
     try {
@@ -49,12 +52,8 @@ export const seedR2Tracks = async (
         const allTracks = await res.json();
 
         const totalTracks = allTracks.length;
-        const tracksToProcess = allTracks.slice(startFromIndex);
+        const tracksToProcess = allTracks.slice(startFromIndex, startFromIndex + maxTracks);
         const maxTracksThisRun = Math.min(tracksToProcess.length, maxWrites);
-
-        console.log(`📊 Total tracks in file: ${totalTracks}`);
-        console.log(`📍 Starting from index: ${startFromIndex}`);
-        console.log(`🎯 Max tracks this run: ${maxTracksThisRun}`);
 
         const progress: SeedProgress = {
             totalTracks,
@@ -66,15 +65,18 @@ export const seedR2Tracks = async (
             quotaUsed: 0,
             quotaRemaining: maxWrites,
             isComplete: false,
-            lastProcessedIndex: startFromIndex
+            rangeComplete: false,
+            lastProcessedIndex: startFromIndex,
+            currentTrackTitle: ''
         };
 
-        onProgress(`📦 Processing ${maxTracksThisRun} tracks in ${progress.totalBatches} batches...`, progress);
+        onProgress(`📦 Prepared ${maxTracksThisRun} tracks. Starting upload...`, progress);
 
         let batch = db.batch();
         let batchCount = 0;
+        let i = 0;
 
-        for (let i = 0; i < maxTracksThisRun && progress.quotaRemaining > 0; i++) {
+        for (i = 0; i < maxTracksThisRun && progress.quotaRemaining > 0; i++) {
             const track = tracksToProcess[i];
             progress.processedTracks++;
             progress.lastProcessedIndex = startFromIndex + i;
@@ -116,6 +118,13 @@ export const seedR2Tracks = async (
             const docRef = db.collection('poolTracks').doc(cleanTrack.id);
             batch.set(docRef, cleanTrack);
             batchCount++;
+            progress.currentTrackTitle = `${cleanTrack.artist} - ${cleanTrack.title}`;
+
+            // Provide frequent updates during the batch
+            if (i % 20 === 0) {
+                const percentage = Math.round((progress.processedTracks / maxTracksThisRun) * 100);
+                onProgress(`⏳ Queueing: ${progress.currentTrackTitle} (${percentage}%)`, progress);
+            }
 
             // Commit batch when full
             if (batchCount >= BATCH_SIZE) {
@@ -165,13 +174,18 @@ export const seedR2Tracks = async (
             }
         }
 
+        progress.rangeComplete = (i >= tracksToProcess.length);
         progress.isComplete = (progress.lastProcessedIndex + 1) >= totalTracks;
 
-        if (progress.isComplete) {
-            onProgress(`🎉 Complete! Uploaded ${progress.uploadedTracks} tracks (${progress.skippedTracks} skipped)`, progress);
+        if (progress.rangeComplete) {
+            if (progress.isComplete) {
+                onProgress(`🎉 Database Fully Seeded! Uploaded ${progress.uploadedTracks} tracks (${progress.skippedTracks} skipped)`, progress);
+            } else {
+                onProgress(`✅ Part Seeded! Uploaded ${progress.uploadedTracks} tracks (${progress.skippedTracks} skipped)`, progress);
+            }
         } else {
             onProgress(
-                `✅ Session complete! Uploaded ${progress.uploadedTracks} tracks. Resume tomorrow from index ${progress.lastProcessedIndex + 1}`,
+                `⏸️ Session paused (Quota or Limit). Uploaded ${progress.uploadedTracks} tracks. Resume from index ${progress.lastProcessedIndex + 1}`,
                 progress
             );
         }
@@ -197,5 +211,5 @@ export const resumeSeedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     lastIndex: number
 ) => {
-    return seedR2Tracks(onProgress, lastIndex + 1, DAILY_WRITE_LIMIT);
+    return seedR2Tracks(onProgress, lastIndex + 1, 10000, DAILY_WRITE_LIMIT);
 };

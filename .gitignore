@@ -27,3 +27,5 @@ dist-ssr
 r2_downloads_list.txt
 r2_tracks.json
 remix_tracks_data.json
+.vercel
+.env*.local

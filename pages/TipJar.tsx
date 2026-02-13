@@ -16,7 +16,7 @@ const TipJar: React.FC = () => {
     reference: `tip_${(new Date()).getTime()}`,
     email: user?.email || "guest_tipper@djflowerz.com",
     amount: (Number(amount) || 0) * 100, // Amount in KES cents
-    publicKey: import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_fd545124e451381254315431543', // Fallback or throw error
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_fd545124e451381254315431543', // Fallback or throw error
     currency: 'KES',
     metadata: {
       custom_fields: [
@@ -54,7 +54,7 @@ const TipJar: React.FC = () => {
       alert("Please enter a valid amount.");
       return;
     }
-    initializePayment(onSuccess, onClose);
+    initializePayment({ onSuccess, onClose });
   };
 
   return (

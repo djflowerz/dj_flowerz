@@ -3,16 +3,24 @@ import { Link } from 'react-router-dom';
 import { Play, ArrowRight, ShoppingBag, Youtube, Mail, Disc, Headphones, Music, Star } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
+import { useAuth } from '../context/AuthContext';
 
 const Home: React.FC = () => {
+   const { user } = useAuth();
    const { siteConfig, mixtapes, products, youtubeVideos } = useData();
    const { playTrack, currentTrack, isPlaying } = usePlayer();
    const { hero, home } = siteConfig;
 
    const featuredMixtapes = mixtapes.slice(0, 3);
    const displayProducts = [...products]
-      .filter(p => p.status !== 'hidden')
-      .sort((a, b) => (a.isHot === b.isHot ? 0 : a.isHot ? -1 : 1))
+      .filter(p => {
+         if (user?.isAdmin) return true;
+         return p.status !== 'hidden' && p.status !== 'draft';
+      })
+      .sort((a, b) => {
+         if (a.isHot !== b.isHot) return a.isHot ? -1 : 1;
+         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      })
       .slice(0, 4);
 
    return (

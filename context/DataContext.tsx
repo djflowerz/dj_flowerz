@@ -95,6 +95,9 @@ interface DataContextType {
   telegramMappings: TelegramMapping[];
   telegramUsers: TelegramUser[];
   telegramLogs: TelegramLog[];
+  poolError: string | null;
+  productsError: string | null;
+  mixtapesError: string | null;
 
   // Actions
   seedDatabase: () => Promise<void>;
@@ -166,56 +169,74 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
 // Added 'limit' parameter for pagination to improve performance
-const useCollection = <T,>(
+const useCollection = <T extends { id: string }>(
   colName: string,
   initialData: T[],
   enabled: boolean = true,
-  limitCount?: number
+  limit?: number,
+  orderByField?: string,
+  orderDirection: 'asc' | 'desc' = 'desc',
+  isRealtime: boolean = true
 ) => {
   const [data, setData] = useState<T[]>(initialData);
-  const [isLoading, setIsLoading] = useState(false);
-  const [limit, setLimit] = useState<number | undefined>(limitCount);
+  const [isLoading, setIsLoading] = useState(enabled);
+  const [currentLimit, setLimit] = useState(limit);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadMore = (count: number = 1000) => {
-    if (limit) setLimit(prev => (prev || 0) + count);
+  const loadMore = (count: number = 20) => {
+    if (currentLimit) setLimit(prev => (prev || 0) + count);
   };
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const refresh = () => setRefreshTrigger(prev => prev + 1);
 
   useEffect(() => {
     if (!enabled) {
       setData(initialData);
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (data.length === 0) setIsLoading(true);
+    setError(null);
+
     let query: firebase.firestore.Query = db.collection(colName);
+    if (orderByField) query = query.orderBy(orderByField, orderDirection);
+    if (currentLimit) query = query.limit(currentLimit);
 
-    // Apply limit for large collections to improve initial load time
-    if (limit) {
-      query = query.limit(limit);
-    }
-
-    const unsub = query.onSnapshot(
-      (snapshot) => {
-        if (!snapshot.empty) {
+    if (isRealtime) {
+      const unsub = query.onSnapshot(
+        (snapshot) => {
           const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
           setData(items);
-        } else {
-          setData([]); // Explicitly empty if DB is empty
+          setIsLoading(false);
+        },
+        (error) => {
+          if (error.code === 'resource-exhausted') {
+            setError('Quota exceeded. Please try again later.');
+          }
+          if (error.code !== 'permission-denied') {
+            console.warn(`Firestore access error for collection '${colName}':`, error.message);
+          }
+          setIsLoading(false);
         }
+      );
+      return () => unsub();
+    } else {
+      query.get().then(snapshot => {
+        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+        setData(items);
         setIsLoading(false);
-      },
-      (error) => {
-        // Suppress permission errors in console for cleaner dev experience if race condition occurs
-        if (error.code !== 'permission-denied') {
-          console.warn(`Firestore access error for collection '${colName}':`, error.message);
+      }).catch(error => {
+        if (error.code === 'resource-exhausted') {
+          setError('Quota exceeded.');
         }
+        console.warn(`Firestore fetch error for collection '${colName}':`, error.message);
         setIsLoading(false);
-      }
-    );
-    return () => unsub();
-  }, [colName, enabled, limit]);
+      });
+    }
+  }, [colName, enabled, currentLimit, orderByField, orderDirection, isRealtime, refreshTrigger]);
 
-  return [data, setData, isLoading, loadMore] as const;
+  return [data, setData, isLoading, loadMore, error, refresh] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -241,50 +262,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => unsub();
   }, []);
 
-  // Public Collections - Initialized with EMPTY arrays to ensure Real Data only.
-  const [products] = useCollection<Product>('products', []);
-  const [mixtapes] = useCollection<Mixtape>('mixtapes', []);
-  const [sessionTypes] = useCollection<SessionType>('sessionTypes', []);
-  const [studioEquipment] = useCollection<StudioEquipment>('studioEquipment', []);
-  const [subscriptionPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', []);
-  const [shippingZones, setShippingZones] = useState<ShippingZone[]>(INITIAL_SHIPPING_ZONES);
-  const [genres, setGenres] = useState<Genre[]>(INITIAL_GENRES);
-  const [youtubeVideos, setYoutubeVideos] = useState<Video[]>([]);
+  // Public Collections - Added 'createdAt' sorting
+  // Public Collections - Realtime is good here for small updates
+  const [products, , , , productsError, refreshProducts] = useCollection<Product>('products', [], true, 100, 'createdAt', 'desc', false);
+  const [mixtapes, , , , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', [], true, 100, 'createdAt', 'desc', false);
+  const [sessionTypes, , , , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, undefined, undefined, 'desc', false);
+  const [studioEquipment, , , , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', [], true, undefined, undefined, 'desc', false);
+  const [subscriptionPlans, , , , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, undefined, undefined, 'desc', false);
+  const [shippingZones, , , , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, undefined, undefined, 'desc', false);
+  const [genres, , , , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, undefined, undefined, 'desc', false);
+  const [youtubeVideos, , , , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, undefined, undefined, 'desc', false);
 
-  // Restricted Collections (Subscriber/Admin) - Limited for performance
-  const [poolTracks, , , loadMorePoolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, 1000);
+  // Restricted Collections (Subscriber/Admin) - Non-realtime for Pool Tracks to save quota
+  const [poolTracks, , , loadMorePoolTracks, poolError, refreshPoolTracks] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, 50, 'createdAt', 'desc', true);
 
-  // Admin Only Collections
-  const [orders] = useCollection<Order>('orders', [], isAdmin);
-  const [users] = useCollection<User>('users', [], isAdmin);
-  const [subscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin);
-  const [bookings] = useCollection<Booking>('bookings', [], isAdmin);
+  // Admin Only Collections - Re-enabled real-time for better admin experience
+  const [orders, , , , , refreshOrders] = useCollection<Order>('orders', [], isAdmin, 50, 'createdAt', 'desc', true);
+  const [users, , , , , refreshUsers] = useCollection<User>('users', [], isAdmin, 50, undefined, 'desc', true);
+  const [subscriptions, , , , , refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, 50, undefined, 'desc', true);
+  const [bookings, , , , , refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, 50, 'createdAt', 'desc', true);
 
-  const [studioRooms, setStudioRooms] = useState<StudioRoom[]>([]);
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [referralStats, setReferralStats] = useState<ReferralStats[]>([]);
-  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]);
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
+  const [studioRooms, , , , , refreshRooms] = useCollection<StudioRoom>('studioRooms', [], isAdmin, undefined, undefined, 'desc', false);
+  const [maintenanceLogs, , , , , refreshLogs] = useCollection<MaintenanceLog>('maintenanceLogs', [], isAdmin, 50, 'createdAt', 'desc', false);
+  const [coupons, , , , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, undefined, undefined, 'desc', false);
+  const [referralStats, , , , , refreshReferrals] = useCollection<ReferralStats>('referralStats', [], isAdmin, undefined, undefined, 'desc', false);
+  const [newsletterCampaigns, , , , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletterCampaigns', [], isAdmin, undefined, 'createdAt', 'desc', false);
+  const [newsletterSegments, , , , , refreshSegments] = useCollection<NewsletterSegment>('newsletterSegments', [], isAdmin, undefined, undefined, 'desc', false);
+  const [subscribers, , , , , refreshSubscribers] = useCollection<NewsletterSubscriber>('subscribers', [], isAdmin, 100, 'dateSubscribed', 'desc', false);
+  const [telegramChannels, , , , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegramChannels', [], isAdmin, undefined, undefined, 'desc', false);
+  const [telegramMappings] = useCollection<TelegramMapping>('telegramMappings', [], isAdmin, undefined, undefined, 'desc', false);
+  const [telegramUsers] = useCollection<TelegramUser>('telegramUsers', [], isAdmin, undefined, undefined, 'desc', false);
+  const [telegramLogs] = useCollection<TelegramLog>('telegramLogs', [], isAdmin, 100, 'timestamp', 'desc', false);
 
-  // Telegram (Admin)
+  // useAdminCollection is no longer needed since we use useCollection directly above
+  // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
-  const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
-
-  // Dummy states for types compliance
-  const [newsletterSegments] = useState<NewsletterSegment[]>([]);
-  const [telegramMappings] = useState<TelegramMapping[]>([]);
-  const [telegramUsers] = useState<TelegramUser[]>([]);
-  const [telegramLogs] = useState<TelegramLog[]>([]);
-
-  // Fetch specialized Admin collections explicitly
-  useAdminCollection('studioRooms', setStudioRooms, isAdmin);
-  useAdminCollection('maintenanceLogs', setMaintenanceLogs, isAdmin);
-  useAdminCollection('coupons', setCoupons, isAdmin);
-  useAdminCollection('referralStats', setReferralStats, isAdmin);
-  useAdminCollection('newsletterCampaigns', setNewsletterCampaigns, isAdmin);
-  useAdminCollection('subscribers', setSubscribers, isAdmin);
-  useAdminCollection('telegramChannels', setTelegramChannels, isAdmin);
 
   // Fetch Telegram Config (Single Doc)
   useEffect(() => {
@@ -306,38 +318,52 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const batch = db.batch();
 
+      const now = new Date().toISOString();
+
       // Seed Products
       PRODUCTS.forEach(p => {
         const ref = db.collection('products').doc(p.id);
-        batch.set(ref, p);
+        batch.set(ref, { ...p, createdAt: p.createdAt || now, updatedAt: p.updatedAt || now });
       });
 
       // Seed Mixtapes
       FEATURED_MIXTAPES.forEach(m => {
         const ref = db.collection('mixtapes').doc(m.id);
-        batch.set(ref, m);
+        batch.set(ref, { ...m, createdAt: m.createdAt || now, updatedAt: m.updatedAt || now });
       });
 
       // Seed Pool Tracks
       POOL_TRACKS.forEach(t => {
         const ref = db.collection('poolTracks').doc(t.id);
-        batch.set(ref, t);
+        batch.set(ref, { ...t, createdAt: t.createdAt || now, updatedAt: t.updatedAt || now });
       });
 
       // Seed Equipment
       INITIAL_STUDIO_EQUIPMENT.forEach(e => {
         const ref = db.collection('studioEquipment').doc(e.id);
-        batch.set(ref, e);
+        batch.set(ref, { ...e, createdAt: now, updatedAt: now });
       });
 
       // Seed Plans
       SUBSCRIPTION_PLANS.forEach(p => {
         const ref = db.collection('subscriptionPlans').doc(p.id);
-        batch.set(ref, { ...p, active: true });
+        batch.set(ref, { ...p, active: true, createdAt: now, updatedAt: now });
+      });
+
+      // Seed Shipping Zones
+      INITIAL_SHIPPING_ZONES.forEach(z => {
+        const ref = db.collection('shippingZones').doc(z.id);
+        batch.set(ref, { ...z, createdAt: now, updatedAt: now });
+      });
+
+      // Seed Genres
+      INITIAL_GENRES.forEach(g => {
+        const ref = db.collection('genres').doc(g.id);
+        batch.set(ref, { ...g, createdAt: now, updatedAt: now });
       });
 
       // Seed Config
-      batch.set(db.collection('settings').doc('siteConfig'), INITIAL_CONFIG);
+      batch.set(db.collection('settings').doc('siteConfig'), { ...INITIAL_CONFIG, updatedAt: now });
 
       await batch.commit();
       console.log("Database Seeded Successfully!");
@@ -355,16 +381,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addProduct = async (product: Product) => {
     const { id, ...rest } = product;
-    await db.collection('products').add(rest);
+    if (id) {
+      await db.collection('products').doc(id).set(rest);
+    } else {
+      await db.collection('products').add(rest);
+    }
+    refreshProducts();
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
     await db.collection('products').doc(id).update(data);
+    refreshProducts();
   };
   const deleteProduct = async (id: string) => {
     console.log(`Attempting to delete product with ID: ${id}`);
     try {
       await db.collection('products').doc(id).delete();
       console.log(`Product ${id} deleted successfully`);
+      refreshProducts();
     } catch (err: any) {
       console.error("Delete failed for product:", id, err);
       alert("Failed to delete product: " + (err.message || 'Unknown error'));
@@ -374,15 +407,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addMixtape = async (mixtape: Mixtape) => {
     const { id, ...rest } = mixtape;
-    await db.collection('mixtapes').add(rest);
+    if (id) {
+      await db.collection('mixtapes').doc(id).set(rest);
+    } else {
+      await db.collection('mixtapes').add(rest);
+    }
+    refreshMixtapes();
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
     await db.collection('mixtapes').doc(id).update(data);
+    refreshMixtapes();
   };
   const deleteMixtape = async (id: string) => {
     try {
       await db.collection('mixtapes').doc(id).delete();
       console.log(`Mixtape ${id} deleted successfully`);
+      refreshMixtapes();
     } catch (err: any) {
       console.error("Delete failed for mixtape:", id, err);
       alert("Failed to delete mixtape: " + (err.message || 'Unknown error'));
@@ -392,48 +432,71 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addPoolTrack = async (track: Track) => {
     const { id, ...rest } = track;
-    await db.collection('poolTracks').add(rest);
+    if (id) {
+      await db.collection('poolTracks').doc(id).set(rest);
+    } else {
+      await db.collection('poolTracks').add(rest);
+    }
+    refreshPoolTracks();
   };
   const updatePoolTrack = async (id: string, data: Partial<Track>) => {
     await db.collection('poolTracks').doc(id).update(data);
+    refreshPoolTracks();
   };
   const deletePoolTrack = async (id: string) => {
     await db.collection('poolTracks').doc(id).delete();
+    refreshPoolTracks();
   };
 
-  const updateGenre = (id: string, data: Partial<Genre>) => setGenres(prev => prev.map(g => g.id === id ? { ...g, ...data } : g));
+  const updateGenre = async (id: string, data: Partial<Genre>) => {
+    await db.collection('genres').doc(id).update(data);
+    refreshGenres();
+  };
 
   const addBooking = async (booking: Booking) => {
     const { id, ...rest } = booking;
     await db.collection('bookings').add(rest);
+    refreshBookings();
   };
   const updateBooking = async (id: string, data: Partial<Booking>) => {
     await db.collection('bookings').doc(id).update(data);
+    refreshBookings();
   };
 
   const addSessionType = async (session: SessionType) => {
     const { id, ...rest } = session;
     await db.collection('sessionTypes').add(rest);
+    refreshSessionTypes();
   };
   const updateSessionType = async (id: string, data: Partial<SessionType>) => {
     await db.collection('sessionTypes').doc(id).update(data);
+    refreshSessionTypes();
   };
   const deleteSessionType = async (id: string) => {
     await db.collection('sessionTypes').doc(id).delete();
+    refreshSessionTypes();
   };
 
-  const addVideo = (video: Video) => setYoutubeVideos(prev => [video, ...prev]);
-  const deleteVideo = (id: string) => setYoutubeVideos(prev => prev.filter(v => v.id !== id));
+  const addVideo = async (video: Video) => {
+    const { id, ...rest } = video;
+    await db.collection('youtubeVideos').add(rest);
+  };
+  const deleteVideo = async (id: string) => {
+    await db.collection('youtubeVideos').doc(id).delete();
+  };
 
   const addStudioEquipment = async (equipment: StudioEquipment) => {
     const { id, ...rest } = equipment;
     await db.collection('studioEquipment').add(rest);
+    refreshEquipment();
   };
   const updateStudioEquipment = async (id: string, data: Partial<StudioEquipment>) => {
     await db.collection('studioEquipment').doc(id).update(data);
+    refreshEquipment();
   };
   const deleteStudioEquipment = async (id: string) => {
     await db.collection('studioEquipment').doc(id).delete();
+    refreshEquipment();
   };
 
   const addSubscription = async (sub: Subscription) => {
@@ -446,48 +509,101 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
     const { id, ...rest } = plan;
-    await db.collection('subscriptionPlans').add(rest);
+    const docId = id || `plan_${Date.now()}`;
+    await db.collection('subscriptionPlans').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshPlans();
   };
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
-    await db.collection('subscriptionPlans').doc(id).update(data);
+    await db.collection('subscriptionPlans').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
+    refreshPlans();
   };
   const deleteSubscriptionPlan = async (id: string) => {
     await db.collection('subscriptionPlans').doc(id).delete();
+    refreshPlans();
   };
 
-  const addStudioRoom = async (room: StudioRoom) => { const { id, ...rest } = room; await db.collection('studioRooms').add(rest); };
-  const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => { await db.collection('studioRooms').doc(id).update(data); };
-  const deleteStudioRoom = async (id: string) => { await db.collection('studioRooms').doc(id).delete(); };
+  const addStudioRoom = async (room: StudioRoom) => {
+    const { id, ...rest } = room;
+    const docId = id || `rm_${Date.now()}`;
+    await db.collection('studioRooms').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshRooms();
+  };
+  const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => { await db.collection('studioRooms').doc(id).update(data); refreshRooms(); };
+  const deleteStudioRoom = async (id: string) => { await db.collection('studioRooms').doc(id).delete(); refreshRooms(); };
 
-  const addMaintenanceLog = async (log: MaintenanceLog) => { const { id, ...rest } = log; await db.collection('maintenanceLogs').add(rest); };
-  const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => { await db.collection('maintenanceLogs').doc(id).update(data); };
+  const addMaintenanceLog = async (log: MaintenanceLog) => {
+    const { id, ...rest } = log;
+    const docId = id || `log_${Date.now()}`;
+    await db.collection('maintenanceLogs').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshLogs();
+  };
+  const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => {
+    await db.collection('maintenanceLogs').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
+    refreshLogs();
+  };
 
   const updateOrder = async (id: string, data: Partial<Order>) => {
     await db.collection('orders').doc(id).update(data);
+    refreshOrders();
   };
 
-  const addCampaign = async (camp: NewsletterCampaign) => { const { id, ...rest } = camp; await db.collection('newsletterCampaigns').add(rest); };
-  const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => { await db.collection('newsletterCampaigns').doc(id).update(data); };
+  const addCampaign = async (camp: NewsletterCampaign) => {
+    const { id, ...rest } = camp;
+    const docId = id || `camp_${Date.now()}`;
+    await db.collection('newsletterCampaigns').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshCampaigns();
+  };
+  const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => {
+    await db.collection('newsletterCampaigns').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
+    refreshCampaigns();
+  };
 
-  const addCoupon = async (coupon: Coupon) => { const { id, ...rest } = coupon; await db.collection('coupons').add(rest); };
-  const updateCoupon = async (id: string, data: Partial<Coupon>) => { await db.collection('coupons').doc(id).update(data); };
-  const deleteCoupon = async (id: string) => { await db.collection('coupons').doc(id).delete(); };
+  const addCoupon = async (coupon: Coupon) => {
+    const { id, ...rest } = coupon;
+    const docId = id || `cpn_${Date.now()}`;
+    await db.collection('coupons').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshCoupons();
+  };
+  const updateCoupon = async (id: string, data: Partial<Coupon>) => {
+    await db.collection('coupons').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
+    refreshCoupons();
+  };
+  const deleteCoupon = async (id: string) => {
+    await db.collection('coupons').doc(id).delete();
+    refreshCoupons();
+  };
 
   const updateTelegramConfig = async (config: Partial<TelegramConfig>) => { await db.collection('telegramConfig').doc('main').set(config, { merge: true }); };
-  const addTelegramChannel = async (channel: TelegramChannel) => { const { id, ...rest } = channel; await db.collection('telegramChannels').add(rest); };
-  const updateTelegramChannel = async (id: string, data: Partial<TelegramChannel>) => { await db.collection('telegramChannels').doc(id).update(data); };
-  const deleteTelegramChannel = async (id: string) => { await db.collection('telegramChannels').doc(id).delete(); };
+  const addTelegramChannel = async (channel: TelegramChannel) => {
+    const { id, ...rest } = channel;
+    const docId = id || `tg_${Date.now()}`;
+    await db.collection('telegramChannels').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    refreshTelegramChannels();
+  };
+  const updateTelegramChannel = async (id: string, data: Partial<TelegramChannel>) => {
+    await db.collection('telegramChannels').doc(id).update({ ...data, updatedAt: new Date().toISOString() });
+    refreshTelegramChannels();
+  };
+  const deleteTelegramChannel = async (id: string) => {
+    await db.collection('telegramChannels').doc(id).delete();
+    refreshTelegramChannels();
+  };
 
-  const updateShippingZone = (id: string, data: Partial<ShippingZone>) => setShippingZones(prev => prev.map(z => z.id === id ? { ...z, ...data } : z));
+  const updateShippingZone = async (id: string, data: Partial<ShippingZone>) => {
+    await db.collection('shippingZones').doc(id).update(data);
+    refreshZones();
+  };
 
   const addSubscriber = async (email: string) => {
     await db.collection('subscribers').add({
       email, dateSubscribed: new Date().toISOString().split('T')[0], status: 'active', source: 'Manual'
     });
+    refreshSubscribers();
   };
 
   const updateUser = async (id: string, data: Partial<User>) => {
     await db.collection('users').doc(id).update(data);
+    refreshUsers();
   };
 
   return (
@@ -495,6 +611,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
       telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
+      poolError, productsError, mixtapesError,
       seedDatabase,
       updateSiteConfig, addProduct, updateProduct, deleteProduct,
       addMixtape, updateMixtape, deleteMixtape,

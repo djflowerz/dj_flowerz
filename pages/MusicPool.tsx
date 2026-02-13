@@ -10,7 +10,7 @@ import { downloadFile } from '../utils/downloadHelper';
 
 const MusicPool: React.FC = () => {
    const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans, loadMorePoolTracks } = useData();
+   const { poolTracks, genres, subscriptionPlans, loadMorePoolTracks, poolError } = useData();
    const isUnlocked = user?.isSubscriber || user?.isAdmin;
 
    // View State
@@ -235,6 +235,12 @@ const MusicPool: React.FC = () => {
                         </div>
 
                         <div className="bg-[#15151A] border border-white/5 rounded-2xl overflow-hidden">
+                           {poolError && (
+                              <div className="p-8 text-center text-red-400 bg-red-500/5 border-b border-red-500/10">
+                                 <p className="font-bold mb-1">Database Quota Exceeded</p>
+                                 <p className="text-sm opacity-80">We've reached our daily usage limit for data fetching. Some tracks may not appear until the quota resets. Please try again tomorrow!</p>
+                              </div>
+                           )}
                            {filteredTracks.length > 0 ? (
                               <div className="divide-y divide-white/5">
                                  {paginatedTracks.map(track => (

@@ -3,11 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
 const Store: React.FC = () => {
+  const { user } = useAuth();
   const { addToCart } = useCart();
-  const { products, siteConfig } = useData();
+  const { products, siteConfig, productsError } = useData();
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +46,12 @@ const Store: React.FC = () => {
   // Filtering Logic
   const filteredProducts = products.filter(product => {
     if (!product) return false;
-    if (product.status === 'hidden') return false;
+
+    // Status Filtering: Guest/User can ONLY see 'published' products.
+    // Admin can see 'draft' and 'hidden' products to verify uploads.
+    if (!user?.isAdmin) {
+      if (product.status === 'hidden' || product.status === 'draft') return false;
+    }
 
     // Search - Defensive check for name
     if (searchQuery) {
@@ -77,7 +84,7 @@ const Store: React.FC = () => {
       case 'Price: Low': return a.price - b.price;
       case 'Price: High': return b.price - a.price;
       case 'Hot': return (b.isHot ? 1 : 0) - (a.isHot ? 1 : 0);
-      case 'Newest': return 0;
+      case 'Newest': return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       default: return 0;
     }
   });
@@ -237,6 +244,15 @@ const Store: React.FC = () => {
 
           {/* Product Grid */}
           <div className="flex-1">
+            {productsError && (
+              <div className="mb-8 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+                <p className="font-bold flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  Service Interruption
+                </p>
+                <p className="text-sm opacity-80">Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later or contact us if you need help with an order!</p>
+              </div>
+            )}
             {filteredProducts.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">

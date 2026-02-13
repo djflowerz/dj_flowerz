@@ -5,7 +5,7 @@ import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock
 import { Link, Navigate } from 'react-router-dom';
 
 const Account: React.FC = () => {
-  const { user, logout, updateUserProfile, updateUserPassword } = useAuth();
+  const { user, loading, logout, updateUserProfile, updateUserPassword } = useAuth();
   const [timeLeft, setTimeLeft] = useState<string>('');
 
   // Edit State
@@ -13,7 +13,7 @@ const Account: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -53,7 +53,7 @@ const Account: React.FC = () => {
   }, [user]);
 
   const handleSaveProfile = async () => {
-    setLoading(true);
+    setEditLoading(true);
     try {
       await updateUserProfile({ name: editName, phoneNumber: editPhone, avatarUrl: editAvatar });
       alert("Profile updated successfully!");
@@ -61,9 +61,20 @@ const Account: React.FC = () => {
     } catch (error: any) {
       alert("Failed to update profile: " + error.message);
     } finally {
-      setLoading(false);
+      setEditLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-purple border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 animate-pulse">Loading Account...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -133,7 +144,7 @@ const Account: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
-                      {loading ? (
+                      {editLoading ? (
                         <span className="text-gray-400 text-sm animate-pulse">Saving...</span>
                       ) : (
                         <>

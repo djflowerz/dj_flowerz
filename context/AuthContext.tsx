@@ -35,47 +35,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Sync with Firebase Auth state
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
+    let profileUnsubscribe: () => void = () => { };
+
+    const authUnsubscribe = auth.onAuthStateChanged(async (fbUser) => {
+      // Clean up previous profile listener if any
+      profileUnsubscribe();
+
       if (fbUser) {
-        try {
-          // Fetch extra user details from Firestore
-          const userDocRef = db.collection('users').doc(fbUser.uid);
-          const userSnap = await userDocRef.get();
+        setLoading(true);
+        const userDocRef = db.collection('users').doc(fbUser.uid);
 
-          const adminEmail = import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
-          const isEmailAdmin = fbUser.email === adminEmail;
+        // Start real-time listener for current user document
+        profileUnsubscribe = userDocRef.onSnapshot(async (doc) => {
+          if (doc.exists) {
+            const userData = doc.data() as User;
+            const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+            const isEmailAdmin = fbUser.email === adminEmail;
 
-          if (userSnap.exists) {
-            const userData = userSnap.data() as User;
-            let needsUpdate = false;
-            let updatedData = { ...userData };
-
-            // Force Admin Role Sync
-            if (isEmailAdmin && (userData.role !== 'admin' || !userData.isAdmin)) {
-              updatedData.role = 'admin';
-              updatedData.isAdmin = true;
-              needsUpdate = true;
-            }
-
-            // Ensure Referral Code Exists
-            if (!userData.referralCode) {
-              updatedData.referralCode = generateReferralCode(userData.name || 'USR');
-              needsUpdate = true;
-            }
-
-            if (needsUpdate) {
-              await userDocRef.update(updatedData);
+            // Optional: Auto-sync admin role if email matches but doc doesn't show it
+            if (isEmailAdmin && (!userData.isAdmin || userData.role !== 'admin')) {
+              await userDocRef.update({ isAdmin: true, role: 'admin' });
             }
 
             setUser({
               id: fbUser.uid,
-              ...updatedData,
-              // Ensure local state reflects admin status immediately
+              ...userData,
               isAdmin: isEmailAdmin || userData.isAdmin,
               role: isEmailAdmin ? 'admin' : userData.role
             } as User);
           } else {
-            // Create user doc if it doesn't exist (e.g. first social login)
+            // Create user doc if it doesn't exist
+            const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+            const isEmailAdmin = fbUser.email === adminEmail;
+
             const newUser: User = {
               id: fbUser.uid,
               name: fbUser.displayName || 'User',
@@ -86,30 +78,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100',
               referralCode: generateReferralCode(fbUser.displayName || 'USR')
             };
-            // Save to Firestore so we have a persistent record
             await userDocRef.set(newUser);
             setUser(newUser);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          // Fallback
-          setUser({
-            id: fbUser.uid,
-            name: fbUser.displayName || 'User',
-            email: fbUser.email || '',
-            role: 'user',
-            isSubscriber: false,
-            isAdmin: false,
-            avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100'
-          });
-        }
+          setLoading(false);
+        }, (error) => {
+          console.error("User profile sync error:", error);
+          setLoading(false);
+        });
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      authUnsubscribe();
+      profileUnsubscribe();
+    };
   }, []);
 
   const login = async (email: string, role: 'user' | 'admin' = 'user') => {
@@ -164,7 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await fbUser.sendEmailVerification();
 
     // Check if user is admin based on email
-    const adminEmail = import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
     const isAdmin = email === adminEmail;
 
     const newUser: User = {

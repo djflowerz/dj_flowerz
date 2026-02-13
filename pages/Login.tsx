@@ -7,6 +7,7 @@ import { AlertCircle } from 'lucide-react';
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { realLogin, signInWithGoogle, signInWithFacebook, signInWithTikTok } = useAuth();
   const navigate = useNavigate();
@@ -74,7 +75,7 @@ const Login: React.FC = () => {
           <div>
             <label className="block text-sm text-gray-400 mb-2">Password</label>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -84,11 +85,22 @@ const Login: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
-              <input type="checkbox" className="rounded border-gray-600 bg-gray-700" />
-              Remember me
-            </label>
-            <Link to="/forgot-password" className="text-brand-cyan hover:underline">Forgot Password?</Link>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={(e) => setShowPassword(e.target.checked)}
+                  className="rounded border-gray-600 bg-gray-700 text-brand-purple focus:ring-brand-purple"
+                />
+                Show password
+              </label>
+              <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+                <input type="checkbox" className="rounded border-gray-600 bg-gray-700 text-brand-purple focus:ring-brand-purple" />
+                Remember me
+              </label>
+            </div>
+            <Link to="/forgot-password" university-name="brand-cyan hover:underline" className="text-brand-cyan hover:underline">Forgot Password?</Link>
           </div>
 
           <button type="submit" className="w-full py-4 bg-brand-purple text-white font-bold rounded-lg hover:bg-purple-600 transition shadow-lg shadow-brand-purple/20">

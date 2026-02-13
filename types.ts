@@ -233,6 +233,8 @@ export interface Track {
   versions: TrackVersion[];
   dateAdded: string;
   previewUrl?: string; // For mini player
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Genre {

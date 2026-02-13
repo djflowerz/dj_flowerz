@@ -20,7 +20,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, className }) =>
         reference: `sub_${plan.id}_${new Date().getTime()}`,
         email: user?.email || 'guest@djflowerz.com',
         amount: plan.price * 100, // KES cents
-        publicKey: import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || '',
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || '',
         currency: 'KES',
         metadata: {
             custom_fields: [
@@ -66,7 +66,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, className }) =>
             return;
         }
 
-        initializePayment(onSuccess, onClose);
+        initializePayment({ onSuccess, onClose });
     };
 
     return (

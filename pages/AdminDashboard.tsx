@@ -243,8 +243,31 @@ const INITIAL_COUPON_STATE: Coupon = { id: '', code: '', discountType: 'percenta
 const INITIAL_PLAN_STATE: SubscriptionPlan = { id: '', name: '', price: 0, period: 'mo', features: [], active: true, link: '' };
 const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, description: '', status: 'active' };
 
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+
 const AdminDashboard: React.FC = () => {
+   const { user, loading } = useAuth();
    const [activeTab, setActiveTab] = useState('dashboard');
+
+   if (loading) {
+      return (
+         <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+               <div className="w-12 h-12 border-4 border-brand-purple border-t-transparent rounded-full animate-spin" />
+               <p className="text-gray-400 animate-pulse">Verifying Admin Access...</p>
+            </div>
+         </div>
+      );
+   }
+
+   if (!user) {
+      return <Navigate to="/login" replace />;
+   }
+
+   if (!user.isAdmin) {
+      return <Navigate to="/" replace />;
+   }
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
@@ -257,15 +280,9 @@ const AdminDashboard: React.FC = () => {
       setIsSyncing(true);
       setSyncMessage('Starting sync...');
       try {
-         // Direct client-side execution since we are in a SPA without API routes
          const result = await manualSync();
-
          if (result.success) {
             setSyncMessage(`Sync successful! Added ${result.results?.totalAdded || 0} tracks.`);
-            // Optionally reload page or fetch tracks to update list
-            setTimeout(() => {
-               window.location.reload();
-            }, 2000);
          } else {
             setSyncMessage(`Sync failed: ${result.message}`);
          }
@@ -284,11 +301,13 @@ const AdminDashboard: React.FC = () => {
    const [seedMessage, setSeedMessage] = useState('');
    const [seedProgress, setSeedProgress] = useState<any>(null);
    const [lastSeedIndex, setLastSeedIndex] = useState(0);
+   const [selectedPart, setSelectedPart] = useState(0);
 
-   const handleSeed = async (resumeFrom: number = 0) => {
-      const confirmMsg = resumeFrom > 0
-         ? `Resume seeding from track ${resumeFrom + 1}?`
-         : "Start seeding R2 tracks? This will upload up to 45,000 tracks today.";
+   const handleSeed = async (resumeFrom: number = -1) => {
+      const startIdx = resumeFrom >= 0 ? resumeFrom : selectedPart * 10000;
+      const confirmMsg = resumeFrom >= 0
+         ? `Resume seeding from track ${startIdx + 1}?`
+         : `Start seeding R2 tracks (Part ${selectedPart + 1}: ${startIdx + 1} to ${startIdx + 10000})? This will upload up to 10,000 tracks in this run.`;
 
       if (!confirm(confirmMsg)) return;
 
@@ -303,13 +322,17 @@ const AdminDashboard: React.FC = () => {
                setSeedProgress(progress);
                setLastSeedIndex(progress.lastProcessedIndex);
             }
-         }, resumeFrom);
+         }, startIdx, 10000);
 
-         if (result.isComplete) {
-            alert(`🎉 Seeding Complete! Uploaded ${result.uploadedTracks} tracks.`);
+         if (result.rangeComplete) {
+            if (result.isComplete) {
+               alert(`🎉 Database Fully Seeded! Total: ${result.uploadedTracks} tracks uploaded.`);
+            } else {
+               alert(`✅ Part ${selectedPart + 1} Complete! Uploaded ${result.uploadedTracks} tracks.`);
+            }
             setLastSeedIndex(0);
          } else {
-            alert(`✅ Daily quota reached. Uploaded ${result.uploadedTracks} tracks. Resume tomorrow from index ${result.lastProcessedIndex + 1}`);
+            alert(`⏸️ Paused. Uploaded ${result.uploadedTracks} tracks. You can resume later from index ${result.lastProcessedIndex + 1}`);
          }
       } catch (e: any) {
          alert("❌ Error: " + e.message);
@@ -437,7 +460,8 @@ const AdminDashboard: React.FC = () => {
       addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
       addSubscriber, updateShippingZone, updateSubscription, updateOrder, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
       addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-      addCoupon, updateCoupon, deleteCoupon, updateUser
+      addCoupon, updateCoupon, deleteCoupon, updateUser,
+      poolError, productsError, mixtapesError
    } = useData();
 
    // Dynamic Stats
@@ -465,10 +489,16 @@ const AdminDashboard: React.FC = () => {
       { id: 'system', label: 'System', icon: Database },
    ];
 
-   const handleSaveConfig = () => {
-      updateSiteConfig(editingConfig);
-      alert('Site Configuration saved successfully!');
+   const handleSaveConfig = async () => {
+      try {
+         await updateSiteConfig(editingConfig);
+         alert('Site Configuration saved successfully!');
+      } catch (error: any) {
+         console.error("Error saving config:", error);
+         alert("Failed to save configuration: " + error.message);
+      }
    };
+
 
    const updateContentField = (section: keyof SiteConfig, field: string, value: any) => {
       setEditingConfig(prev => ({
@@ -513,14 +543,29 @@ const AdminDashboard: React.FC = () => {
       setActiveModal('addPoolTrack');
    };
 
-   const handleSavePoolTrack = () => {
-      if (isEditing) {
-         updatePoolTrack(newPoolTrack.id, newPoolTrack);
-      } else {
-         addPoolTrack({ ...newPoolTrack, id: `pt_${Date.now()}`, dateAdded: new Date().toISOString() });
+   const handleSavePoolTrack = async () => {
+      try {
+         const now = new Date().toISOString();
+         const trackToSave = { ...newPoolTrack, updatedAt: now };
+
+         if (isEditing) {
+            await updatePoolTrack(newPoolTrack.id, trackToSave);
+         } else {
+            await addPoolTrack({
+               ...trackToSave,
+               id: `pt_${Date.now()}`,
+               dateAdded: now,
+               createdAt: now
+            });
+         }
+         alert("Music Pool track saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving pool track:", error);
+         alert("Failed to save track: " + error.message);
       }
-      setActiveModal(null);
    };
+
 
    const addVersionToTrack = () => {
       setNewPoolTrack(prev => ({
@@ -552,10 +597,17 @@ const AdminDashboard: React.FC = () => {
    }
 
    const openEditGenre = (g: Genre) => { setEditingGenre(g); setActiveModal('editGenre'); };
-   const handleSaveGenre = () => {
-      updateGenre(editingGenre.id, editingGenre);
-      setActiveModal(null);
+   const handleSaveGenre = async () => {
+      try {
+         await updateGenre(editingGenre.id, editingGenre);
+         alert("Genre updated successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving genre:", error);
+         alert("Failed to save genre: " + error.message);
+      }
    };
+
 
    const openAddProduct = () => {
       setIsEditing(false);
@@ -573,29 +625,35 @@ const AdminDashboard: React.FC = () => {
       setActiveModal('addProduct');
    };
 
-   const handleSaveProduct = () => {
-      const variantsArray = variantsInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
-      const now = new Date().toISOString();
+   const handleSaveProduct = async () => {
+      try {
+         const variantsArray = variantsInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
+         const now = new Date().toISOString();
 
-      const productToSave: Product = {
-         ...newProduct,
-         whatsappEnabled: true,
-         variants: variantsArray,
-         hasVariants: variantsArray.length > 0,
-         updatedAt: now
-      };
+         const productToSave: Product = {
+            ...newProduct,
+            whatsappEnabled: true,
+            variants: variantsArray,
+            hasVariants: variantsArray.length > 0,
+            updatedAt: now
+         };
 
-      if (isEditing) {
-         updateProduct(newProduct.id, productToSave);
-      } else {
-         addProduct({
-            ...productToSave,
-            id: `p${Date.now()}`,
-            slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-            createdAt: now
-         });
+         if (isEditing) {
+            await updateProduct(newProduct.id, productToSave);
+         } else {
+            await addProduct({
+               ...productToSave,
+               id: `p${Date.now()}`,
+               slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+               createdAt: now
+            });
+         }
+         alert("Product saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving product:", error);
+         alert("Failed to save product: " + error.message);
       }
-      setActiveModal(null);
    };
 
    const openAddMixtape = () => { setIsEditing(false); setNewMixtape(INITIAL_MIXTAPE_STATE); setMixtapeFormTab('basic'); setActiveModal('addMixtape'); };
@@ -620,42 +678,77 @@ const AdminDashboard: React.FC = () => {
 
    const openAddBooking = () => { setIsEditing(false); setNewBooking(INITIAL_BOOKING_STATE); setActiveModal('addBooking'); };
    const openEditBooking = (b: Booking) => { setIsEditing(true); setNewBooking(b); setActiveModal('addBooking'); };
-   const handleSaveBooking = () => {
-      if (isEditing) { updateBooking(newBooking.id!, newBooking); }
-      else { addBooking({ ...newBooking, id: `b${Date.now()}`, duration: 2, amount: 0, source: 'manual' } as Booking); }
-      setActiveModal(null);
+   const handleSaveBooking = async () => {
+      try {
+         if (isEditing) {
+            await updateBooking(newBooking.id!, newBooking);
+         } else {
+            await addBooking({ ...newBooking, id: `b${Date.now()}`, duration: 2, amount: 0, source: 'manual' } as Booking);
+         }
+         alert("Booking saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving booking:", error);
+         alert("Failed to save booking: " + error.message);
+      }
    };
+
 
    const openAddSessionType = () => { setIsEditing(false); setNewSessionType(INITIAL_SESSION_TYPE); setActiveModal('addSessionType'); };
    const openEditSessionType = (st: SessionType) => { setIsEditing(true); setNewSessionType(st); setActiveModal('addSessionType'); };
-   const handleSaveSessionType = () => {
-      if (isEditing) { updateSessionType(newSessionType.id, newSessionType); }
-      else { addSessionType({ ...newSessionType, id: `st_${Date.now()}` }); }
-      setActiveModal(null);
+   const handleSaveSessionType = async () => {
+      try {
+         if (isEditing) { await updateSessionType(newSessionType.id, newSessionType); }
+         else { await addSessionType({ ...newSessionType, id: `st_${Date.now()}` }); }
+         alert("Service saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving session type:", error);
+         alert("Failed to save service: " + error.message);
+      }
    };
    const openAddEquipment = () => { setIsEditing(false); setNewEquipment(INITIAL_EQUIPMENT_STATE); setActiveModal('addEquipment'); };
    const openEditEquipment = (eq: StudioEquipment) => { setIsEditing(true); setNewEquipment(eq); setActiveModal('addEquipment'); };
-   const handleSaveEquipment = () => {
-      if (isEditing) { updateStudioEquipment(newEquipment.id, newEquipment); }
-      else { addStudioEquipment({ ...newEquipment, id: `eq_${Date.now()}` }); }
-      setActiveModal(null);
+   const handleSaveEquipment = async () => {
+      try {
+         if (isEditing) { await updateStudioEquipment(newEquipment.id, newEquipment); }
+         else { await addStudioEquipment({ ...newEquipment, id: `eq_${Date.now()}` }); }
+         alert("Equipment saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving equipment:", error);
+         alert("Failed to save equipment: " + error.message);
+      }
    };
 
    const openAddChannel = () => { setIsEditing(false); setNewChannel({ name: '', channelId: '', genre: '', inviteLink: '', active: true }); setActiveModal('addChannel'); };
    const openEditChannel = (ch: TelegramChannel) => { setIsEditing(true); setNewChannel(ch); setActiveModal('addChannel'); };
-   const handleSaveChannel = () => {
-      if (isEditing && newChannel.id) { updateTelegramChannel(newChannel.id, newChannel); }
-      else { addTelegramChannel({ ...newChannel, id: `tc_${Date.now()}` } as TelegramChannel); }
-      setActiveModal(null);
+   const handleSaveChannel = async () => {
+      try {
+         if (isEditing && newChannel.id) { await updateTelegramChannel(newChannel.id, newChannel); }
+         else { await addTelegramChannel({ ...newChannel, id: `tc_${Date.now()}` } as TelegramChannel); }
+         alert("Channel saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving channel:", error);
+         alert("Failed to save channel: " + error.message);
+      }
    };
 
    const openAddCoupon = () => { setIsEditing(false); setNewCoupon(INITIAL_COUPON_STATE); setActiveModal('addCoupon'); };
    const openEditCoupon = (cp: Coupon) => { setIsEditing(true); setNewCoupon(cp); setActiveModal('addCoupon'); };
-   const handleSaveCoupon = () => {
-      if (isEditing) { updateCoupon(newCoupon.id, newCoupon); }
-      else { addCoupon({ ...newCoupon, id: `cp_${Date.now()}` }); }
-      setActiveModal(null);
-   }
+   const handleSaveCoupon = async () => {
+      try {
+         if (isEditing) { await updateCoupon(newCoupon.id, newCoupon); }
+         else { await addCoupon({ ...newCoupon, id: `cp_${Date.now()}` }); }
+         alert("Coupon saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving coupon:", error);
+         alert("Failed to save coupon: " + error.message);
+      }
+   };
+
 
    const handleRevokeSubscription = (subId: string) => {
       if (confirm("Are you sure you want to revoke this subscription? User access will be removed immediately.")) {
@@ -665,29 +758,46 @@ const AdminDashboard: React.FC = () => {
 
    const openAddPlan = () => { setIsEditing(false); setEditingPlan(INITIAL_PLAN_STATE); setPlanFeaturesInput(''); setActiveModal('addPlan'); };
    const openEditPlan = (plan: SubscriptionPlan) => { setIsEditing(true); setEditingPlan(plan); setPlanFeaturesInput(plan.features.join('\n')); setActiveModal('addPlan'); };
-   const handleSavePlan = () => {
-      const features = planFeaturesInput.split('\n').filter(f => f.trim() !== '');
-      if (isEditing) {
-         updateSubscriptionPlan(editingPlan.id, { ...editingPlan, features });
-      } else {
-         addSubscriptionPlan({ ...editingPlan, id: `plan_${Date.now()}`, features });
+   const handleSavePlan = async () => {
+      try {
+         const features = planFeaturesInput.split('\n').filter(f => f.trim() !== '');
+         if (isEditing) {
+            await updateSubscriptionPlan(editingPlan.id, { ...editingPlan, features });
+         } else {
+            await addSubscriptionPlan({ ...editingPlan, id: `plan_${Date.now()}`, features });
+         }
+         alert("Subscription plan saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving plan:", error);
+         alert("Failed to save plan: " + error.message);
       }
-      setActiveModal(null);
    };
 
    const openAddRoom = () => { setIsEditing(false); setEditingRoom(INITIAL_ROOM_STATE); setActiveModal('addRoom'); };
    const openEditRoom = (room: StudioRoom) => { setIsEditing(true); setEditingRoom(room); setActiveModal('addRoom'); };
-   const handleSaveRoom = () => {
-      if (isEditing) { updateStudioRoom(editingRoom.id, editingRoom); }
-      else { addStudioRoom({ ...editingRoom, id: `rm_${Date.now()}` }); }
-      setActiveModal(null);
+   const handleSaveRoom = async () => {
+      try {
+         if (isEditing) { await updateStudioRoom(editingRoom.id, editingRoom); }
+         else { await addStudioRoom({ ...editingRoom, id: `rm_${Date.now()}` }); }
+         alert("Studio room saved successfully!");
+         setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error saving room:", error);
+         alert("Failed to save room: " + error.message);
+      }
    }
 
    const openEditZone = (zone: ShippingZone) => { setEditingZone(JSON.parse(JSON.stringify(zone))); setActiveModal('editZone'); };
-   const handleSaveZone = () => {
+   const handleSaveZone = async () => {
       if (editingZone) {
-         updateShippingZone(editingZone.id, editingZone);
-         setActiveModal(null);
+         try {
+            await updateShippingZone(editingZone.id, editingZone);
+            alert("Shipping rates updated!");
+            setActiveModal(null);
+         } catch (error: any) {
+            alert("Error updating rates: " + error.message);
+         }
       }
    }
    const updateRate = (rateId: string, field: keyof ShippingRate, value: any) => {
@@ -789,12 +899,28 @@ const AdminDashboard: React.FC = () => {
                   </h2>
                </div>
                <div className="flex items-center gap-6">
+                  {(poolError || productsError || mixtapesError) && (
+                     <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full">
+                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Quota Limited</span>
+                     </div>
+                  )}
+                  <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full">
+                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                     <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">Live Syncing</span>
+                  </div>
                   <button className="relative text-gray-400 hover:text-white"><Bell size={20} /></button>
                   <div className="w-8 h-8 rounded-full bg-brand-purple flex items-center justify-center font-bold">A</div>
                </div>
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+               {(poolError || productsError || mixtapesError) && (
+                  <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-3">
+                     <div className="w-2 h-2 bg-red-500 rounded-full" />
+                     <p><strong>Warning:</strong> The database has reached its daily usage quota. Some data matches may not display correctly until the quota resets. Consider upgrading your Firebase plan if this occurs frequently.</p>
+                  </div>
+               )}
 
                {activeTab === 'dashboard' && (
                   <div className="space-y-8 animate-fade-in-up">
@@ -968,8 +1094,20 @@ const AdminDashboard: React.FC = () => {
                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                               <h3 className="text-2xl font-bold">Pool Library</h3>
                               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                 <select
+                                    value={selectedPart}
+                                    onChange={(e) => setSelectedPart(Number(e.target.value))}
+                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-brand-purple"
+                                    disabled={isSeeding}
+                                 >
+                                    <option value={0}>Part 1 (0-10k)</option>
+                                    <option value={1}>Part 2 (10k-20k)</option>
+                                    <option value={2}>Part 3 (20k-30k)</option>
+                                    <option value={3}>Part 4 (30k-40k)</option>
+                                    <option value={4}>Part 5 (40k-50k)</option>
+                                 </select>
                                  <button
-                                    onClick={() => handleSeed(0)}
+                                    onClick={() => handleSeed(-1)}
                                     disabled={isSeeding}
                                     className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
                                  >
@@ -1004,18 +1142,25 @@ const AdminDashboard: React.FC = () => {
                               <div className="bg-gradient-to-r from-brand-purple/10 to-brand-cyan/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
                                  <div className="flex flex-col gap-3">
                                     <div className="flex justify-between items-center text-sm">
-                                       <span className="text-gray-300 font-medium">{seedMessage}</span>
+                                       <div className="flex flex-col">
+                                          <span className="text-gray-300 font-medium">{seedMessage}</span>
+                                          {seedProgress.currentTrackTitle && (
+                                             <span className="text-[10px] text-brand-purple font-mono animate-pulse">
+                                                Current: {seedProgress.currentTrackTitle}
+                                             </span>
+                                          )}
+                                       </div>
                                        <span className="text-brand-cyan font-bold">
-                                          {Math.round((seedProgress.uploadedTracks / (seedProgress.totalBatches * 200)) * 100)}%
+                                          {Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%
                                        </span>
                                     </div>
                                     <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
                                        <div
                                           className="bg-gradient-to-r from-brand-purple to-brand-cyan h-full transition-all duration-300"
-                                          style={{ width: `${Math.round((seedProgress.uploadedTracks / (seedProgress.totalBatches * 200)) * 100)}%` }}
+                                          style={{ width: `${Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%` }}
                                        />
                                     </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
                                        <div className="bg-black/20 rounded p-2">
                                           <div className="text-gray-400">Uploaded</div>
                                           <div className="text-white font-bold">{seedProgress.uploadedTracks.toLocaleString()}</div>
@@ -1134,8 +1279,8 @@ const AdminDashboard: React.FC = () => {
                                        <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
                                        <td className="px-6 py-4">
                                           <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
-                                                p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                   'bg-gray-500/10 text-gray-500'
+                                             p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                'bg-gray-500/10 text-gray-500'
                                              }`}>
                                              {p.status}
                                           </span>
@@ -1558,7 +1703,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
             </div>
-         </div>
+         </div >
 
          <Modal isOpen={activeModal === 'addPlan'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Plan" : "Create New Plan"}>
             <div className="space-y-4">
@@ -1903,7 +2048,7 @@ const AdminDashboard: React.FC = () => {
             </div>
          </Modal>
 
-      </div>
+      </div >
    );
 };
 

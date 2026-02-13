@@ -92,6 +92,31 @@ Successfully implemented functionality to seed 39,387 tracks from R2 CDN into Fi
 - **Naming**: `${artist} - ${title} (${version}).mp3`
 - **CORS**: Handled by blob conversion
 
+### 3. Granular Progress Tracking (New)
+To provide better visibility during large uploads (e.g., 10,000 tracks), the seeding process now includes:
+- **Live Percentage Calculation**: Accurate progress bar based on the specific part being uploaded.
+- **Current Track Title**: Displays exactly which track is being processed in real-time.
+- **Detailed Stats**: Counters for Uploaded tracks and Skipped tracks (duplicates).
+- **Quota & Batch Info**: Shows remaining Firebase quota and current batch number.
+
+### 4. Real-time Music Pool Updates (New)
+The Music Pool list in the Admin Dashboard now has **Real-time Listeners** enabled.
+- **Effect**: As soon as a track is successfully uploaded to Firestore via the seeding process, it will automatically appear in your track list without needing to refresh.
+
+---
+
+## Technical Details
+
+### Code Changes
+- **`utils/seedR2.ts`**: Increased progress notification frequency from `1/10th` of a batch to every single track. Added `currentTrackTitle` to the progress state.
+- **`pages/AdminDashboard.tsx`**: Enhanced the seeding UI with a dedicated stats grid and a pulsing "Current Track" display.
+- **`context/DataContext.tsx`**: Enabled `isRealtime: true` for the `poolTracks` collection.
+
+## How to Proceed
+1. **Choose Part**: Select your desired range (e.g., 1-10k).
+2. **Start Seeding**: Click **Seed R2 Data**.
+3. **Monitor**: Watch the progress bar and the counters. You will see tracks appearing in the "Track List" below as they are processed.
+
 ## Potential Issues & Solutions
 
 ### Issue 1: Firebase Write Limits

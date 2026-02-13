@@ -3,8 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import { ShoppingCart, MessageCircle, ChevronRight, Minus, Plus } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 
 const ProductDetails: React.FC = () => {
+   const { user } = useAuth();
    const { id } = useParams<{ id: string }>();
    const { addToCart } = useCart();
    const { products, siteConfig } = useData();
@@ -13,7 +15,10 @@ const ProductDetails: React.FC = () => {
 
    const product = products.find(p => p.id === id);
 
-   if (!product || product.status === 'hidden') {
+   // Allow Admin to see draft/hidden products for preview
+   const isVisible = product && (user?.isAdmin || (product.status !== 'hidden' && product.status !== 'draft'));
+
+   if (!product || !isVisible) {
       return (
          <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] text-center">
             <h1 className="text-3xl font-bold text-white mb-4">Product Not Found</h1>
