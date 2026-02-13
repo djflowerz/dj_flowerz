@@ -1,6 +1,6 @@
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
    BarChart, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis
 } from 'recharts';
@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate } from '../types';
 import { POOL_HUBS, TRACK_TYPES } from '../constants';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 
@@ -249,6 +249,166 @@ import { Navigate } from 'react-router-dom';
 const AdminDashboard: React.FC = () => {
    const { user, loading } = useAuth();
    const [activeTab, setActiveTab] = useState('dashboard');
+   const [contentSubTab, setContentSubTab] = useState('home');
+   const [telegramSubTab, setTelegramSubTab] = useState('config');
+   const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
+   const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres'>('tracks');
+
+   const [isSyncing, setIsSyncing] = useState(false);
+   const [syncMessage, setSyncMessage] = useState('');
+
+   // Seeding State
+   const [isSeeding, setIsSeeding] = useState(false);
+   const [seedMessage, setSeedMessage] = useState('');
+   const [seedProgress, setSeedProgress] = useState<any>(null);
+   const [lastSeedIndex, setLastSeedIndex] = useState(0);
+   const [selectedPart, setSelectedPart] = useState(0);
+
+   const [isCleaning, setIsCleaning] = useState(false);
+   const [cleanupLog, setCleanupLog] = useState<string[]>([]);
+
+   const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
+   const [bookingSubTab, setBookingSubTab] = useState('list');
+   const [subscriptionSubTab, setSubscriptionSubTab] = useState<'overview' | 'plans'>('overview');
+   const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons'>('referrals');
+
+   const [activeModal, setActiveModal] = useState<string | null>(null);
+   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+   const [isEditing, setIsEditing] = useState(false);
+   const [isSavingPlan, setIsSavingPlan] = useState(false);
+
+   // Form States
+   const [productFormTab, setProductFormTab] = useState('basic');
+   const [newProduct, setNewProduct] = useState<Product>(INITIAL_PRODUCT_STATE);
+   const [variantsInput, setVariantsInput] = useState('');
+
+   const [mixtapeFormTab, setMixtapeFormTab] = useState('basic');
+   const [newMixtape, setNewMixtape] = useState<Mixtape>(INITIAL_MIXTAPE_STATE);
+   const [newBooking, setNewBooking] = useState<Partial<Booking>>(INITIAL_BOOKING_STATE);
+   const [newSessionType, setNewSessionType] = useState<SessionType>(INITIAL_SESSION_TYPE);
+   const [newEquipment, setNewEquipment] = useState<StudioEquipment>(INITIAL_EQUIPMENT_STATE);
+
+   const [newPoolTrack, setNewPoolTrack] = useState<Track>(INITIAL_POOL_TRACK_STATE);
+   const [editingGenre, setEditingGenre] = useState<Genre>({ id: '', name: '', coverUrl: '' });
+
+   const [newChannel, setNewChannel] = useState<Partial<TelegramChannel>>({ name: '', channelId: '', genre: '', inviteLink: '', active: true });
+
+   const [newCoupon, setNewCoupon] = useState<Coupon>(INITIAL_COUPON_STATE);
+
+   const [emailSubject, setEmailSubject] = useState('');
+   const [emailBody, setEmailBody] = useState('');
+
+   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+
+   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+   const [shippingDetails, setShippingDetails] = useState({
+      courierName: '',
+      trackingNumber: '',
+      estimatedArrival: '',
+      deliveryMethod: '',
+      pickupLocation: '',
+      adminMessage: ''
+   });
+   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+   const [isShipping, setIsShipping] = useState(false);
+
+   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan>(INITIAL_PLAN_STATE);
+   const [planFeaturesInput, setPlanFeaturesInput] = useState('');
+
+   const [editingRoom, setEditingRoom] = useState<StudioRoom>(INITIAL_ROOM_STATE);
+
+   const [editingZone, setEditingZone] = useState<ShippingZone | null>(null);
+
+   // Real-time Data Listeners
+   const [liveOrders, setLiveOrders] = useState<Order[]>([]);
+   const [liveSubscriptions, setLiveSubscriptions] = useState<Subscription[]>([]);
+   const [ordersLoading, setOrdersLoading] = useState(true);
+   const [subsLoading, setSubsLoading] = useState(true);
+
+   useEffect(() => {
+      if (!user?.isAdmin) return;
+
+      console.log("Setting up real-time orders listener...");
+      const q = db.collection('orders').orderBy('createdAt', 'desc').limit(100);
+      const unsubscribe = q.onSnapshot(
+         (snapshot) => {
+            const ordersData = snapshot.docs.map(doc => ({
+               id: doc.id,
+               ...doc.data()
+            } as Order));
+            setLiveOrders(ordersData);
+            setOrdersLoading(false);
+         },
+         (error) => {
+            console.error("Orders sync error:", error);
+            setOrdersLoading(false);
+         }
+      );
+
+      return () => unsubscribe();
+   }, [user?.isAdmin]);
+
+   useEffect(() => {
+      if (!user?.isAdmin) return;
+
+      console.log("Setting up real-time subscriptions listener...");
+      const q = db.collection('subscriptions').orderBy('startDate', 'desc').limit(100);
+      const unsubscribe = q.onSnapshot(
+         (snapshot) => {
+            const subsData = snapshot.docs.map(doc => ({
+               id: doc.id,
+               ...doc.data()
+            } as Subscription));
+            setLiveSubscriptions(subsData);
+            setSubsLoading(false);
+         },
+         (error) => {
+            console.error("Subscriptions sync error:", error);
+            setSubsLoading(false);
+         }
+      );
+
+      return () => unsubscribe();
+   }, [user?.isAdmin]);
+
+   const [livePlans, setLivePlans] = useState<SubscriptionPlan[]>([]);
+   useEffect(() => {
+      const q = db.collection('subscriptionPlans').orderBy('price', 'asc');
+      const unsubscribe = q.onSnapshot(
+         (snapshot) => {
+            const plansData = snapshot.docs.map(doc => ({
+               id: doc.id,
+               ...doc.data()
+            } as SubscriptionPlan));
+            setLivePlans(plansData);
+         },
+         (error) => console.error("Plans sync error:", error)
+      );
+      return () => unsubscribe();
+   }, []);
+
+   const dataContext = useData();
+   const {
+      siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
+      subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
+      telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
+      seedDatabase,
+      updateSiteConfig, deleteProduct, updateBooking, addBooking, deleteMixtape, deleteVideo,
+      addProduct, updateProduct, addMixtape, updateMixtape, addSessionType, updateSessionType, deleteSessionType,
+      updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
+      addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
+      addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
+      addSubscriber, updateShippingZone, updateSubscription, updateOrder, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
+      addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
+      addCoupon, updateCoupon, deleteCoupon, updateUser,
+      poolError, productsError, mixtapesError
+   } = dataContext;
+
+   // Dynamic Stats
+   const totalRevenue = useMemo(() => liveOrders?.reduce((acc, order) => acc + (order.total || 0), 0) || 0, [liveOrders]);
+   const activeSubs = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active').length || 0, [liveSubscriptions]);
+
+   const [editingConfig, setEditingConfig] = useState<SiteConfig>(siteConfig);
 
    if (loading) {
       return (
@@ -268,13 +428,6 @@ const AdminDashboard: React.FC = () => {
    if (!user.isAdmin) {
       return <Navigate to="/" replace />;
    }
-   const [contentSubTab, setContentSubTab] = useState('home');
-   const [telegramSubTab, setTelegramSubTab] = useState('config');
-   const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
-   const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres'>('tracks');
-
-   const [isSyncing, setIsSyncing] = useState(false);
-   const [syncMessage, setSyncMessage] = useState('');
 
    const handleSyncTracks = async () => {
       setIsSyncing(true);
@@ -296,12 +449,6 @@ const AdminDashboard: React.FC = () => {
          }, 5000);
       }
    };
-   // Seeding State
-   const [isSeeding, setIsSeeding] = useState(false);
-   const [seedMessage, setSeedMessage] = useState('');
-   const [seedProgress, setSeedProgress] = useState<any>(null);
-   const [lastSeedIndex, setLastSeedIndex] = useState(0);
-   const [selectedPart, setSelectedPart] = useState(0);
 
    const handleSeed = async (resumeFrom: number = -1) => {
       const startIdx = resumeFrom >= 0 ? resumeFrom : selectedPart * 10000;
@@ -344,9 +491,6 @@ const AdminDashboard: React.FC = () => {
          }, 5000);
       }
    };
-
-   const [isCleaning, setIsCleaning] = useState(false);
-   const [cleanupLog, setCleanupLog] = useState<string[]>([]);
 
    const handleCleanupData = async () => {
       if (isCleaning) return;
@@ -406,69 +550,7 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
-   const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
-   const [bookingSubTab, setBookingSubTab] = useState('list');
-   const [subscriptionSubTab, setSubscriptionSubTab] = useState<'overview' | 'plans'>('overview');
-   const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons'>('referrals');
-
-   const [activeModal, setActiveModal] = useState<string | null>(null);
-   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-   const [isEditing, setIsEditing] = useState(false);
-
-   // Form States
-   const [productFormTab, setProductFormTab] = useState('basic');
-   const [newProduct, setNewProduct] = useState<Product>(INITIAL_PRODUCT_STATE);
-   const [variantsInput, setVariantsInput] = useState('');
-
-   const [mixtapeFormTab, setMixtapeFormTab] = useState('basic');
-   const [newMixtape, setNewMixtape] = useState<Mixtape>(INITIAL_MIXTAPE_STATE);
-   const [newBooking, setNewBooking] = useState<Partial<Booking>>(INITIAL_BOOKING_STATE);
-   const [newSessionType, setNewSessionType] = useState<SessionType>(INITIAL_SESSION_TYPE);
-   const [newEquipment, setNewEquipment] = useState<StudioEquipment>(INITIAL_EQUIPMENT_STATE);
-
-   const [newPoolTrack, setNewPoolTrack] = useState<Track>(INITIAL_POOL_TRACK_STATE);
-   const [editingGenre, setEditingGenre] = useState<Genre>({ id: '', name: '', coverUrl: '' });
-
-   const [newChannel, setNewChannel] = useState<Partial<TelegramChannel>>({ name: '', channelId: '', genre: '', inviteLink: '', active: true });
-
-   const [newCoupon, setNewCoupon] = useState<Coupon>(INITIAL_COUPON_STATE);
-
-   const [emailSubject, setEmailSubject] = useState('');
-   const [emailBody, setEmailBody] = useState('');
-
-   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
-
-   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-   const [shippingDetails, setShippingDetails] = useState({ courierName: '', trackingNumber: '', estimatedArrival: '' });
-
-   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan>(INITIAL_PLAN_STATE);
-   const [planFeaturesInput, setPlanFeaturesInput] = useState('');
-
-   const [editingRoom, setEditingRoom] = useState<StudioRoom>(INITIAL_ROOM_STATE);
-
-   const [editingZone, setEditingZone] = useState<ShippingZone | null>(null);
-
-   const {
-      siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
-      subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
-      telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
-      seedDatabase,
-      updateSiteConfig, deleteProduct, updateBooking, addBooking, deleteMixtape, deleteVideo,
-      addProduct, updateProduct, addMixtape, updateMixtape, addSessionType, updateSessionType, deleteSessionType,
-      updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
-      addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-      addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
-      addSubscriber, updateShippingZone, updateSubscription, updateOrder, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
-      addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-      addCoupon, updateCoupon, deleteCoupon, updateUser,
-      poolError, productsError, mixtapesError
-   } = useData();
-
-   // Dynamic Stats
-   const totalRevenue = useMemo(() => orders.reduce((acc, order) => acc + (order.total || 0), 0), [orders]);
-   const activeSubs = useMemo(() => subscriptions.filter(s => s.status === 'active').length, [subscriptions]);
-
-   const [editingConfig, setEditingConfig] = useState<SiteConfig>(siteConfig);
+   // Removed redundant hooks previously here
 
    const tabs = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -757,8 +839,13 @@ const AdminDashboard: React.FC = () => {
    }
 
    const openAddPlan = () => { setIsEditing(false); setEditingPlan(INITIAL_PLAN_STATE); setPlanFeaturesInput(''); setActiveModal('addPlan'); };
-   const openEditPlan = (plan: SubscriptionPlan) => { setIsEditing(true); setEditingPlan(plan); setPlanFeaturesInput(plan.features.join('\n')); setActiveModal('addPlan'); };
+   const openEditPlan = (plan: SubscriptionPlan) => { setIsEditing(true); setEditingPlan(plan); setPlanFeaturesInput((plan.features || []).join('\n')); setActiveModal('addPlan'); };
    const handleSavePlan = async () => {
+      if (!editingPlan.name || editingPlan.price <= 0) {
+         alert("Please fill in the plan name and price.");
+         return;
+      }
+      setIsSavingPlan(true);
       try {
          const features = planFeaturesInput.split('\n').filter(f => f.trim() !== '');
          if (isEditing) {
@@ -771,6 +858,8 @@ const AdminDashboard: React.FC = () => {
       } catch (error: any) {
          console.error("Error saving plan:", error);
          alert("Failed to save plan: " + error.message);
+      } finally {
+         setIsSavingPlan(false);
       }
    };
 
@@ -814,18 +903,44 @@ const AdminDashboard: React.FC = () => {
 
    const openShipModal = (order: Order) => {
       setSelectedOrder(order);
-      setShippingDetails({ courierName: '', trackingNumber: '', estimatedArrival: '' });
+      setShippingDetails({
+         courierName: '',
+         trackingNumber: '',
+         estimatedArrival: '',
+         deliveryMethod: '',
+         pickupLocation: '',
+         adminMessage: ''
+      });
+      setReceiptFile(null);
       setActiveModal('shipOrder');
    }
 
-   const handleShipOrder = () => {
-      if (selectedOrder) {
-         updateOrder(selectedOrder.id, {
+   const handleShipOrder = async () => {
+      if (!selectedOrder) return;
+
+      setIsShipping(true);
+      try {
+         let receiptUrl = '';
+         if (receiptFile) {
+            const storageRef = storage.ref(`receipts/order_${selectedOrder.id}_${Date.now()}`);
+            await storageRef.put(receiptFile);
+            receiptUrl = await storageRef.getDownloadURL();
+         }
+
+         await updateOrder(selectedOrder.id, {
             status: 'shipped',
-            ...shippingDetails
+            ...shippingDetails,
+            receiptUrl,
+            shippedAt: new Date().toISOString()
          });
-         alert(`Order ${selectedOrder.id} marked as shipped! Notification sent to user.`);
+
+         alert(`Order ${selectedOrder.id} successfully marked as shipped!`);
          setActiveModal(null);
+      } catch (error: any) {
+         console.error("Error shipping order:", error);
+         alert("Failed to ship order: " + error.message);
+      } finally {
+         setIsShipping(false);
       }
    }
 
@@ -926,7 +1041,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="space-y-8 animate-fade-in-up">
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <StatCard label="Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-green-500" />
-                        <StatCard label="Orders" value={orders.length} icon={ShoppingBag} color="text-brand-purple" />
+                        <StatCard label="Orders" value={liveOrders.length} icon={ShoppingBag} color="text-brand-purple" />
                         <StatCard label="Active Subs" value={activeSubs} icon={Users} color="text-yellow-500" />
                         <StatCard label="Mixtapes" value={mixtapes.length} icon={Music} color="text-brand-cyan" />
                      </div>
@@ -935,6 +1050,30 @@ const AdminDashboard: React.FC = () => {
                         <ResponsiveContainer width="100%" height="100%">
                            <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
                         </ResponsiveContainer>
+                     </div>
+
+                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                        <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center">
+                           <span>Recent Activities</span>
+                           <button onClick={() => setActiveTab('orders')} className="text-brand-purple text-xs hover:underline">View All</button>
+                        </div>
+                        <table className="w-full text-left">
+                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
+                              <tr><th className="px-6 py-4">Ref Code</th><th className="px-6 py-4">Customer</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4 text-right">Status</th></tr>
+                           </thead>
+                           <tbody className="divide-y divide-white/5 text-sm">
+                              {liveOrders.slice(0, 5).map(order => (
+                                 <tr key={order.id} className="hover:bg-white/5 transition">
+                                    <td className="px-6 py-4 text-xs font-mono text-gray-400">{order.referenceCode || 'N/A'}</td>
+                                    <td className="px-6 py-4 font-bold">{order.customerName}</td>
+                                    <td className="px-6 py-4 text-brand-purple font-bold">KES {order.total}</td>
+                                    <td className="px-6 py-4 text-right">
+                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{order.status}</span>
+                                    </td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
                      </div>
                   </div>
                )}
@@ -986,12 +1125,12 @@ const AdminDashboard: React.FC = () => {
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-white/5 text-sm">
-                              {orders.length === 0 ? (
+                              {liveOrders.length === 0 ? (
                                  <tr>
                                     <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No orders found.</td>
                                  </tr>
                               ) : (
-                                 orders.map(order => (
+                                 liveOrders.map(order => (
                                     <tr key={order.id} className="hover:bg-white/5 transition">
                                        <td className="px-6 py-4 font-mono">{order.id}</td>
                                        <td className="px-6 py-4">
@@ -1010,8 +1149,7 @@ const AdminDashboard: React.FC = () => {
                                           <button className="text-gray-400 hover:text-white"><Eye size={16} /></button>
                                        </td>
                                     </tr>
-                                 ))
-                              )}
+                                 )))}
                            </tbody>
                         </table>
                      </div>
@@ -1021,10 +1159,10 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'subscriptions' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Subs" value={subscriptions.filter(s => s.status === 'active').length} icon={Users} color="text-green-500" />
-                        <StatCard label="New This Month" value="12" icon={Plus} color="text-blue-500" />
+                        <StatCard label="Active Subs" value={activeSubs} icon={Users} color="text-green-500" />
+                        <StatCard label="New This Month" value={liveSubscriptions.filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" />
                         <StatCard label="Churn Rate" value="5%" icon={UserX} color="text-red-500" />
-                        <StatCard label="MRR" value="KES 45K" icon={DollarSign} color="text-brand-purple" />
+                        <StatCard label="MRR" value={`KES ${(activeSubs * 500).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
                      </div>
 
                      <div className="flex gap-4 border-b border-white/5 pb-4">
@@ -1039,19 +1177,25 @@ const AdminDashboard: React.FC = () => {
                                  <tr><th className="px-6 py-4">User</th><th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
                               </thead>
                               <tbody className="divide-y divide-white/5 text-sm">
-                                 {subscriptions.map((sub) => {
-                                    const isExpired = new Date() > new Date(sub.expiryDate);
-                                    return (
-                                       <tr key={sub.id} className="hover:bg-white/5 transition">
-                                          <td className="px-6 py-4 font-bold text-white">{sub.userName}</td>
-                                          <td className="px-6 py-4 capitalize">{sub.planId}</td>
-                                          <td className="px-6 py-4">KES {sub.amount}</td>
-                                          <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
-                                          <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
-                                          <td className="px-6 py-4">{sub.status === 'active' && !isExpired && <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>}</td>
-                                       </tr>
-                                    );
-                                 })}
+                                 {subsLoading ? (
+                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading subscriptions...</td></tr>
+                                 ) : liveSubscriptions.length === 0 ? (
+                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No subscriptions found.</td></tr>
+                                 ) : (
+                                    liveSubscriptions.map((sub) => {
+                                       const isExpired = new Date() > new Date(sub.expiryDate);
+                                       return (
+                                          <tr key={sub.id} className="hover:bg-white/5 transition">
+                                             <td className="px-6 py-4 font-bold text-white">{sub.userName}</td>
+                                             <td className="px-6 py-4 capitalize">{sub.planId}</td>
+                                             <td className="px-6 py-4">KES {sub.amount}</td>
+                                             <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
+                                             <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
+                                             <td className="px-6 py-4">{sub.status === 'active' && !isExpired && <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>}</td>
+                                          </tr>
+                                       );
+                                    })
+                                 )}
                               </tbody>
                            </table>
                         </div>
@@ -1059,13 +1203,13 @@ const AdminDashboard: React.FC = () => {
 
                      {subscriptionSubTab === 'plans' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                           {subscriptionPlans.map(plan => (
+                           {(livePlans.length > 0 ? livePlans : subscriptionPlans).map(plan => (
                               <div key={plan.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5 relative">
                                  {plan.isBestValue && <span className="absolute top-4 right-4 bg-brand-purple text-white text-[10px] font-bold px-2 py-1 rounded">BEST VALUE</span>}
                                  <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
                                  <p className="text-2xl font-bold text-brand-cyan mb-4">KES {plan.price} <span className="text-sm text-gray-500">/{plan.period}</span></p>
                                  <ul className="space-y-2 mb-6">
-                                    {plan.features.map((f, i) => <li key={i} className="text-xs text-gray-400 flex items-center gap-2"><Check size={12} className="text-green-500" /> {f}</li>)}
+                                    {(plan.features || []).map((f, i) => <li key={i} className="text-xs text-gray-400 flex items-center gap-2"><Check size={12} className="text-green-500" /> {f}</li>)}
                                  </ul>
                                  <div className="flex gap-2">
                                     <button onClick={() => openEditPlan(plan)} className="flex-1 py-2 bg-white/10 text-white rounded font-bold text-sm hover:bg-white/20">Edit</button>
@@ -1604,17 +1748,29 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'payments' && (
                   <div className="animate-fade-in-up bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                     <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Ref Code</th><th className="px-6 py-4">Date/Time</th><th className="px-6 py-4">User</th><th className="px-6 py-4">Items</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{orders.map(order => (<tr key={order.id}>
-                        <td className="px-6 py-4 text-gray-500 font-mono text-xs">{order.referenceCode || 'N/A'}</td>
-                        <td className="px-6 py-4">
-                           <div className="text-white">{order.date}</div>
-                           <div className="text-xs text-gray-500">{order.time}</div>
-                        </td>
-                        <td className="px-6 py-4 font-bold">{order.customerName}</td>
-                        <td className="px-6 py-4 text-xs">{order.items.map(i => i.productName).join(', ')}</td>
-                        <td className="px-6 py-4 font-bold text-brand-purple">KES {order.total}</td>
-                        <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{order.status}</span></td></tr>))}
-                     </tbody></table>
+                     {ordersLoading ? (
+                        <div className="p-20 text-center text-gray-500">Loading payments...</div>
+                     ) : liveOrders.length === 0 ? (
+                        <div className="p-20 text-center text-gray-400 flex flex-col items-center gap-4">
+                           <CreditCard size={48} className="text-gray-700" />
+                           <div>
+                              <p className="text-lg font-bold">No payments found</p>
+                              <p className="text-sm">Recent transactions will appear here in real-time.</p>
+                           </div>
+                        </div>
+                     ) : (
+                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Ref Code</th><th className="px-6 py-4">Date/Time</th><th className="px-6 py-4">User</th><th className="px-6 py-4">Items</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{liveOrders.map(order => (<tr key={order.id}>
+                           <td className="px-6 py-4 text-gray-500 font-mono text-xs">{order.referenceCode || 'N/A'}</td>
+                           <td className="px-6 py-4">
+                              <div className="text-white">{order.date}</div>
+                              <div className="text-xs text-gray-500">{order.time}</div>
+                           </td>
+                           <td className="px-6 py-4 font-bold">{order.customerName}</td>
+                           <td className="px-6 py-4 text-xs">{order.items.map(i => i.productName).join(', ')}</td>
+                           <td className="px-6 py-4 font-bold text-brand-purple">KES {order.total}</td>
+                           <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{order.status}</span></td></tr>))}
+                        </tbody></table>
+                     )}
                   </div>
                )}
 
@@ -1718,7 +1874,7 @@ const AdminDashboard: React.FC = () => {
                   <InputGroup label="Active" type="checkbox" checked={editingPlan.active} onChange={v => setEditingPlan({ ...editingPlan, active: v })} />
                   <InputGroup label="Best Value" type="checkbox" checked={editingPlan.isBestValue} onChange={v => setEditingPlan({ ...editingPlan, isBestValue: v })} />
                </div>
-               <div className="flex justify-end pt-4"><button onClick={handleSavePlan} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Plan</button></div>
+               <div className="flex justify-end pt-4"><button onClick={handleSavePlan} disabled={isSavingPlan} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPlan && <RefreshCw className="animate-spin" size={18} />} {isSavingPlan ? "Saving..." : "Save Plan"}</button></div>
             </div>
          </Modal>
 
@@ -1944,13 +2100,53 @@ const AdminDashboard: React.FC = () => {
             </div>
          </Modal>
 
-         <Modal isOpen={activeModal === 'shipOrder'} onClose={() => setActiveModal(null)} title="Mark Order Shipped">
+         <Modal isOpen={activeModal === 'shipOrder'} onClose={() => !isShipping && setActiveModal(null)} title="Mark Order Shipped">
             <div className="space-y-4">
-               <p className="text-gray-400 text-sm mb-4">Send tracking information to <b>{selectedOrder?.customerName}</b>.</p>
-               <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
-               <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
-               <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleShipOrder} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white flex items-center gap-2"><Truck size={18} /> Confirm Shipment</button></div>
+               <p className="text-gray-400 text-sm mb-4">Update shipping for order <b>#{selectedOrder?.id}</b></p>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <InputGroup label="Delivery Method" value={shippingDetails.deliveryMethod} onChange={v => setShippingDetails({ ...shippingDetails, deliveryMethod: v })} placeholder="e.g. Air Freight, Pickup" />
+                  <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
+               </div>
+
+               <InputGroup label="Pickup/Delivery Location" value={shippingDetails.pickupLocation} onChange={v => setShippingDetails({ ...shippingDetails, pickupLocation: v })} placeholder="Where should the user collect it?" />
+
+               <div className="grid grid-cols-2 gap-4">
+                  <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
+                  <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Receipt / Waybill Image</label>
+                  <input
+                     type="file"
+                     accept="image/*"
+                     onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                     className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-gray-400 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-purple/20 file:text-brand-purple hover:file:bg-brand-purple/30"
+                  />
+                  {receiptFile && <p className="text-[10px] text-green-500">Selected: {receiptFile.name}</p>}
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Admin Message to User</label>
+                  <textarea
+                     className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50"
+                     placeholder="Optional message for the customer..."
+                     value={shippingDetails.adminMessage}
+                     onChange={(e) => setShippingDetails({ ...shippingDetails, adminMessage: e.target.value })}
+                  />
+               </div>
+
+               <div className="flex justify-end pt-4">
+                  <button
+                     onClick={handleShipOrder}
+                     disabled={isShipping}
+                     className={`px-8 py-3 rounded-lg font-bold text-white flex items-center gap-2 transition ${isShipping ? 'bg-gray-600 cursor-not-allowed' : 'bg-brand-purple hover:bg-brand-purple/80 hover:scale-[1.02]'}`}
+                  >
+                     {isShipping ? <RefreshCw size={18} className="animate-spin" /> : <Truck size={18} />}
+                     {isShipping ? 'Shipping...' : 'Confirm Shipment'}
+                  </button>
+               </div>
             </div>
          </Modal>
 

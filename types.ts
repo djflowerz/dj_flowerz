@@ -168,6 +168,11 @@ export interface Order {
   trackingNumber?: string;
   courierName?: string;
   estimatedArrival?: string;
+  pickupLocation?: string;
+  receiptUrl?: string;
+  adminMessage?: string;
+  shippedAt?: string;
+  deliveryMethod?: string;
 }
 
 export interface Coupon {

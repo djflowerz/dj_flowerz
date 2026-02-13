@@ -268,7 +268,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mixtapes, , , , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', [], true, 100, 'createdAt', 'desc', false);
   const [sessionTypes, , , , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, undefined, undefined, 'desc', false);
   const [studioEquipment, , , , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', [], true, undefined, undefined, 'desc', false);
-  const [subscriptionPlans, , , , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, undefined, undefined, 'desc', false);
+  const [subscriptionPlans, , , , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, undefined, undefined, 'desc', true);
   const [shippingZones, , , , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, undefined, undefined, 'desc', false);
   const [genres, , , , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, undefined, undefined, 'desc', false);
   const [youtubeVideos, , , , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, undefined, undefined, 'desc', false);
@@ -508,9 +508,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
-    const { id, ...rest } = plan;
-    const docId = id || `plan_${Date.now()}`;
-    await db.collection('subscriptionPlans').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    const docId = plan.id || `plan_${Date.now()}`;
+    await db.collection('subscriptionPlans').doc(docId).set({ ...plan, id: docId, updatedAt: new Date().toISOString() });
     refreshPlans();
   };
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
@@ -523,18 +522,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addStudioRoom = async (room: StudioRoom) => {
-    const { id, ...rest } = room;
-    const docId = id || `rm_${Date.now()}`;
-    await db.collection('studioRooms').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    const docId = room.id || `rm_${Date.now()}`;
+    await db.collection('studioRooms').doc(docId).set({ ...room, id: docId, updatedAt: new Date().toISOString() });
     refreshRooms();
   };
   const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => { await db.collection('studioRooms').doc(id).update(data); refreshRooms(); };
   const deleteStudioRoom = async (id: string) => { await db.collection('studioRooms').doc(id).delete(); refreshRooms(); };
 
   const addMaintenanceLog = async (log: MaintenanceLog) => {
-    const { id, ...rest } = log;
-    const docId = id || `log_${Date.now()}`;
-    await db.collection('maintenanceLogs').doc(docId).set({ ...rest, updatedAt: new Date().toISOString() });
+    const docId = log.id || `log_${Date.now()}`;
+    await db.collection('maintenanceLogs').doc(docId).set({ ...log, id: docId, updatedAt: new Date().toISOString() });
     refreshLogs();
   };
   const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => {
