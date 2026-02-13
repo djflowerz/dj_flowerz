@@ -389,16 +389,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addProduct = async (product: Product) => {
     const { id, ...rest } = product;
-    if (id) {
-      await db.collection('products').doc(id).set(rest);
-    } else {
-      await db.collection('products').add(rest);
+    try {
+      if (id) {
+        await withTimeout(db.collection('products').doc(id).set(rest));
+      } else {
+        await withTimeout(db.collection('products').add(rest));
+      }
+      refreshProducts();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
     }
-    refreshProducts();
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    await db.collection('products').doc(id).update(data);
-    refreshProducts();
+    try {
+      await withTimeout(db.collection('products').doc(id).update(data));
+      refreshProducts();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
+    }
   };
   const deleteProduct = async (id: string) => {
     console.log(`Attempting to delete product with ID: ${id}`);
@@ -415,16 +429,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addMixtape = async (mixtape: Mixtape) => {
     const { id, ...rest } = mixtape;
-    if (id) {
-      await db.collection('mixtapes').doc(id).set(rest);
-    } else {
-      await db.collection('mixtapes').add(rest);
+    try {
+      if (id) {
+        await withTimeout(db.collection('mixtapes').doc(id).set(rest));
+      } else {
+        await withTimeout(db.collection('mixtapes').add(rest));
+      }
+      refreshMixtapes();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
     }
-    refreshMixtapes();
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
-    await db.collection('mixtapes').doc(id).update(data);
-    refreshMixtapes();
+    try {
+      await withTimeout(db.collection('mixtapes').doc(id).update(data));
+      refreshMixtapes();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
+    }
   };
   const deleteMixtape = async (id: string) => {
     try {
@@ -440,16 +468,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addPoolTrack = async (track: Track) => {
     const { id, ...rest } = track;
-    if (id) {
-      await db.collection('poolTracks').doc(id).set(rest);
-    } else {
-      await db.collection('poolTracks').add(rest);
+    try {
+      if (id) {
+        await withTimeout(db.collection('poolTracks').doc(id).set(rest));
+      } else {
+        await withTimeout(db.collection('poolTracks').add(rest));
+      }
+      refreshPoolTracks();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
     }
-    refreshPoolTracks();
   };
   const updatePoolTrack = async (id: string, data: Partial<Track>) => {
-    await db.collection('poolTracks').doc(id).update(data);
-    refreshPoolTracks();
+    try {
+      await withTimeout(db.collection('poolTracks').doc(id).update(data));
+      refreshPoolTracks();
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
+      throw error;
+    }
   };
   const deletePoolTrack = async (id: string) => {
     await db.collection('poolTracks').doc(id).delete();

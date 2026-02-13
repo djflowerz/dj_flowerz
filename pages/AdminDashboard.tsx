@@ -276,6 +276,8 @@ const AdminDashboard: React.FC = () => {
    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
    const [isEditing, setIsEditing] = useState(false);
    const [isSavingPlan, setIsSavingPlan] = useState(false);
+   const [isSavingProduct, setIsSavingProduct] = useState(false);
+   const [isSavingPoolTrack, setIsSavingPoolTrack] = useState(false);
 
    // Form States
    const [productFormTab, setProductFormTab] = useState('basic');
@@ -634,6 +636,8 @@ const AdminDashboard: React.FC = () => {
    };
 
    const handleSavePoolTrack = async () => {
+      if (isSavingPoolTrack) return;
+      setIsSavingPoolTrack(true);
       try {
          const now = new Date().toISOString();
          const trackToSave = { ...newPoolTrack, updatedAt: now };
@@ -653,6 +657,8 @@ const AdminDashboard: React.FC = () => {
       } catch (error: any) {
          console.error("Error saving pool track:", error);
          alert("Failed to save track: " + error.message);
+      } finally {
+         setIsSavingPoolTrack(false);
       }
    };
 
@@ -716,6 +722,8 @@ const AdminDashboard: React.FC = () => {
    };
 
    const handleSaveProduct = async () => {
+      if (isSavingProduct) return;
+      setIsSavingProduct(true);
       try {
          const variantsArray = variantsInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
          const now = new Date().toISOString();
@@ -743,6 +751,8 @@ const AdminDashboard: React.FC = () => {
       } catch (error: any) {
          console.error("Error saving product:", error);
          alert("Failed to save product: " + error.message);
+      } finally {
+         setIsSavingProduct(false);
       }
    };
 
@@ -1971,7 +1981,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <button onClick={() => removeVersion(version.id)} className="text-red-500 hover:text-white"><X size={16} /></button>
                </div>))}</div></div>
-               <div className="flex justify-end pt-4"><button onClick={handleSavePoolTrack} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Track</button></div>
+               <div className="flex justify-end pt-4"><button onClick={handleSavePoolTrack} disabled={isSavingPoolTrack} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPoolTrack && <RefreshCw className="animate-spin" size={18} />} {isSavingPoolTrack ? "Saving..." : "Save Track"}</button></div>
             </div>
          </Modal>
 
@@ -2081,7 +2091,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               <div className="flex justify-end pt-4"><button onClick={handleSaveProduct} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Product</button></div>
+               <div className="flex justify-end pt-4"><button onClick={handleSaveProduct} disabled={isSavingProduct} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingProduct && <RefreshCw className="animate-spin" size={18} />} {isSavingProduct ? "Saving..." : "Save Product"}</button></div>
             </div>
          </Modal>
 
