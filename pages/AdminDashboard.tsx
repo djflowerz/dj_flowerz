@@ -377,9 +377,9 @@ const AdminDashboard: React.FC = () => {
    useEffect(() => {
       if (!user?.isAdmin) return;
 
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const q = db.collection('users')
-         .where('lastSeen', '>=', fiveMinutesAgo)
+         .where('lastSeen', '>=', tenMinutesAgo)
          .limit(50);
 
       const unsubscribe = q.onSnapshot(

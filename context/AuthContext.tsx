@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               id: fbUser.uid,
               ...userData,
               isAdmin: isEmailAdmin || userData.isAdmin,
-              role: isEmailAdmin ? 'admin' : userData.role
+              role: isEmailAdmin ? 'admin' : (fbUser.isAnonymous ? 'guest' : (userData.role || 'user'))
             } as User);
           } else {
             // Create user doc if it doesn't exist
@@ -70,13 +70,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             const newUser: User = {
               id: fbUser.uid,
-              name: fbUser.displayName || 'User',
-              email: fbUser.email || '',
-              role: isEmailAdmin ? 'admin' : 'user',
+              name: fbUser.displayName || (fbUser.isAnonymous ? 'Guest User' : 'User'),
+              email: fbUser.email || (fbUser.isAnonymous ? 'guest@anonymous.id' : ''),
+              role: isEmailAdmin ? 'admin' : (fbUser.isAnonymous ? 'guest' : 'user'),
               isSubscriber: false,
               isAdmin: isEmailAdmin,
-              avatarUrl: fbUser.photoURL || 'https://picsum.photos/seed/user/100/100',
-              referralCode: generateReferralCode(fbUser.displayName || 'USR')
+              avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${fbUser.isAnonymous ? 'Guest' : 'User'}&background=random`,
+              referralCode: generateReferralCode(fbUser.displayName || (fbUser.isAnonymous ? 'GST' : 'USR'))
             };
             await userDocRef.set(newUser);
             setUser(newUser);
@@ -87,8 +87,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setLoading(false);
         });
       } else {
-        setUser(null);
-        setLoading(false);
+        // Automatically sign in anonymously if no user is present
+        try {
+          console.log("AuthContext: Performing anonymous sign-in for guest...");
+          await auth.signInAnonymously();
+        } catch (e) {
+          console.error("AuthContext: Anonymous sign-in failed:", e);
+          setUser(null);
+          setLoading(false);
+        }
       }
     });
 
@@ -286,13 +293,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await db.collection('users').doc(user.id).update({
           lastSeen: new Date().toISOString()
         });
+        console.log(`Presence updated for ${user.isAdmin ? 'Admin' : (user.role || 'User')}: ${user.name}`);
       } catch (e) {
         console.warn("Presence update failed:", e);
       }
     };
 
     updatePresence();
-    const presenceInterval = setInterval(updatePresence, 120000);
+    const presenceInterval = setInterval(updatePresence, 120000); // 2 minutes
     return () => clearInterval(presenceInterval);
   }, [user?.id, loading]);
 
