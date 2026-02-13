@@ -115,6 +115,7 @@ export interface User {
   status?: 'active' | 'suspended';
   lastLogin?: string;
   referralCode?: string;
+  lastSeen?: string;
   referredBy?: string;
   phoneNumber?: string;
   downloadsToday?: number;

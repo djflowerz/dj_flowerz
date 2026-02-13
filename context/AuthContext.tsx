@@ -277,6 +277,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [user, loading]);
 
+  // --- Heartbeat for Presence ---
+  useEffect(() => {
+    if (!user || loading) return;
+
+    const updatePresence = async () => {
+      try {
+        await db.collection('users').doc(user.id).update({
+          lastSeen: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn("Presence update failed:", e);
+      }
+    };
+
+    updatePresence();
+    const presenceInterval = setInterval(updatePresence, 120000);
+    return () => clearInterval(presenceInterval);
+  }, [user?.id, loading]);
+
   return (
     <AuthContext.Provider value={{
       user,

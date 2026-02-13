@@ -387,6 +387,28 @@ const AdminDashboard: React.FC = () => {
       return () => unsubscribe();
    }, []);
 
+   const [liveUsers, setLiveUsers] = useState<UserType[]>([]);
+   useEffect(() => {
+      if (!user?.isAdmin) return;
+
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const q = db.collection('users')
+         .where('lastSeen', '>=', fiveMinutesAgo)
+         .limit(50);
+
+      const unsubscribe = q.onSnapshot(
+         (snapshot) => {
+            const usersData = snapshot.docs.map(doc => ({
+               id: doc.id,
+               ...doc.data()
+            } as UserType));
+            setLiveUsers(usersData);
+         },
+         (error) => console.error("Users presence sync error:", error)
+      );
+      return () => unsubscribe();
+   }, [user?.isAdmin]);
+
    const dataContext = useData();
    const {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
@@ -1045,11 +1067,44 @@ const AdminDashboard: React.FC = () => {
                         <StatCard label="Active Subs" value={activeSubs} icon={Users} color="text-yellow-500" />
                         <StatCard label="Mixtapes" value={mixtapes.length} icon={Music} color="text-brand-cyan" />
                      </div>
-                     <div className="bg-[#15151A] p-6 rounded-xl border border-white/5 h-80">
-                        <h3 className="text-lg font-bold mb-6">Revenue Trend</h3>
-                        <ResponsiveContainer width="100%" height="100%">
-                           <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
-                        </ResponsiveContainer>
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 bg-[#15151A] p-6 rounded-xl border border-white/5 h-80">
+                           <h3 className="text-lg font-bold mb-6">Revenue Trend</h3>
+                           <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
+                           </ResponsiveContainer>
+                        </div>
+
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden flex flex-col h-80">
+                           <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center shrink-0">
+                              <span className="flex items-center gap-2">
+                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                 Live Presence
+                              </span>
+                              <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full">{liveUsers.length} Online</span>
+                           </div>
+                           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                              {liveUsers.length === 0 ? (
+                                 <div className="h-full flex flex-col items-center justify-center text-gray-500 text-sm">
+                                    <Monitor size={48} className="mb-4 opacity-20" />
+                                    <p>No active users right now</p>
+                                 </div>
+                              ) : (
+                                 liveUsers.map(u => (
+                                    <div key={u.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg border border-white/5">
+                                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-green-500/30">
+                                          <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}`} alt="" className="w-full h-full object-cover" />
+                                       </div>
+                                       <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-bold truncate">{u.name}</p>
+                                          <p className="text-[10px] text-gray-500 truncate">{u.email}</p>
+                                       </div>
+                                       <div className="text-[10px] text-green-500 font-mono">Active</div>
+                                    </div>
+                                 ))
+                              )}
+                           </div>
+                        </div>
                      </div>
 
                      <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
