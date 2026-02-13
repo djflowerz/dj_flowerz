@@ -167,10 +167,10 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 // Helper to prevent hanging Firestore calls
-function withTimeout<T>(promise: Promise<T>, ms: number = 10000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number = 30000): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timed out")), ms))
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timed out (30s limit reached). This often happens when the database quota is reached or connection is unstable.")), ms))
   ]);
 }
 
@@ -520,7 +520,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const docId = plan.id || `plan_${Date.now()}`;
       await withTimeout(db.collection('subscriptionPlans').doc(docId).set({ ...plan, id: docId, updatedAt: new Date().toISOString() }));
       if (typeof refreshPlans === 'function') refreshPlans();
-    } catch (error) {
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
       console.error("DataContext: Error adding plan:", error);
       throw error;
     }
@@ -530,7 +533,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!id) throw new Error("Plan ID is required for update");
       await withTimeout(db.collection('subscriptionPlans').doc(id).update({ ...data, updatedAt: new Date().toISOString() }));
       if (typeof refreshPlans === 'function') refreshPlans();
-    } catch (error) {
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
       console.error("DataContext: Error updating plan:", error);
       throw error;
     }
@@ -539,7 +545,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await withTimeout(db.collection('subscriptionPlans').doc(id).delete());
       if (typeof refreshPlans === 'function') refreshPlans();
-    } catch (error) {
+    } catch (error: any) {
+      if (error.code === 'resource-exhausted') {
+        throw new Error("Firebase daily quota reached. Please wait for reset or upgrade your plan.");
+      }
       console.error("DataContext: Error deleting plan:", error);
       throw error;
     }
