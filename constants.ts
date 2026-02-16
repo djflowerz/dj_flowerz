@@ -5,23 +5,42 @@ import { Mixtape, Product, Track, StudioEquipment, ShippingZone, NewsletterSubsc
 
 export const POOL_HUBS = [
   'New Uploads',
-  'Redrums',
-  'Mashups Hub',
-  'Video Redrums',
-  'Audio Redrums',
+  'Kenyan Love Songs (Low Hype)',
+  'Kenyan Love Songs Hype',
+  'Kikuyu Gospel (Kigocco)',
+  'Bongo Flava (TBT) Hype',
+  'Bongo TBT Low Hype',
+  'Afrobeat (Oldies)',
+  'Remix & Mashups Hub',
+  'Redrums Video Remixes',
+  "Riddimz F'",
+  '2026 VIDEO POOL EDITS',
+  '2025 VIDEO POOL EDITS',
+  '2024 VIDEO POOL EDITS',
+  '2023 VIDEO POOL EDITS',
+  '2022 VIDEO POOL EDITS',
+  '2021 VIDEO POOL EDITS',
+  '2020 VIDEO POOL EDITS',
+  'Riddim Videos',
   'Afrohouse',
   'Reggae Fussion',
   'Amapiano',
   'Dancehall Edits',
   'Club Edits',
-  'Hype Edits',
-  'Amapiano Redrum Edits',
+  'HYPE EDITS',
   'RnB Remixes'
+];
+
+// Month names for filtering year-based edits
+export const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 export const POOL_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
 
 export const GENRE_NAMES = [
+  "New Uploads", "Remix & Mashups Hub", "Redrums Video Remixes", "Riddimz F'",
   "3-step Amapiano", "South Africa Amapiano", "Reggae Covers", "Afrobeats (TBT)",
   "Mugithi Covers", "Taarabu", "Afro Amapiano", "Mugithi Kikuyu", "Souls",
   "East Africa TBT (Low Hype)", "East Africa TBT (Hype)", "Urban Pop (Low Hype)",
@@ -35,7 +54,24 @@ export const GENRE_NAMES = [
   "Tanzania Amapiano", "Kenyan Amapiano", "Urban Amapiano", "Dombolo",
   "Bongo Flava (TBT) Hype", "Bongo TBT Low Hype",
   "House", "Techno", "Jazz", "Classical", "Pop", "Rock", "Metal",
-  "Country", "Blues", "Funk", "Disco", "Afro-House", "Deep House"
+  "Country", "Blues", "Funk", "Disco", "Afro-House", "Deep House",
+  "Moombahton", "Afrobeat (Oldies)", "Baila", "Soca", "Zouk", "Kwaito",
+  "Gqom", "Trap", "K-Pop", "Latin Pop", "Salsa", "Bachata", "Kizomba",
+  "Semba", "Makossa", "Highlife", "Hiplife", "Bongo Mixes", "Coupe Decale",
+  "Drill", "Grime", "Rumba Congolaise", "Ethio-Jazz", "Habesha Mix"
+];
+
+export const MIXTAPE_GENRE_NAMES = [
+  "3-Step & Amapiano",
+  "Bongo",
+  "Gospel",
+  "Arbantone",
+  "Afropop & Afrobeats",
+  "Rap & Hip Hop",
+  "R&B & Soul",
+  "reggae",
+  "dancehall",
+  "secular"
 ];
 
 // Initial genres with placeholder images (Admin can update these)
@@ -52,7 +88,37 @@ export const TRACK_TYPES = [
 // All data below will be fetched from Firebase Firestore
 export const POOL_TRACKS: Track[] = [];
 
-export const FEATURED_MIXTAPES: Mixtape[] = [];
+export const FEATURED_MIXTAPES: Mixtape[] = [
+  {
+    id: 'sample-1',
+    title: 'Amapiano Winter Vibez',
+    slug: 'amapiano-winter-vibez',
+    genre: 'Kenyan Amapiano',
+    description: 'A smooth journey through the latest Amapiano hits from Kenya and South Africa.',
+    releaseDate: '2023-11-01',
+    status: 'published',
+    coverUrl: 'https://images.unsplash.com/photo-1571266028243-371695039148?auto=format&fit=crop&q=80&w=1000',
+    audioUrl: 'https://hearthis.at/dj-flowerz/sample-mixtape/',
+    duration: '58:45',
+    allowFullStream: true,
+    allowDownload: true,
+    downloadType: 'free',
+    streamQuality: 'standard',
+    tracklist: [
+      { id: 't1', position: 1, artist: 'Artist A', title: 'Song 1', timestamp: '00:00' },
+      { id: 't2', position: 2, artist: 'Artist B', title: 'Song 2', timestamp: '05:30' }
+    ],
+    isFeatured: true,
+    showInGallery: true,
+    showInMusicPool: true,
+    tags: ['Amapiano', '2023', 'Kenya'],
+    enableComments: true,
+    requireLoginToComment: false,
+    moderateComments: false,
+    isExclusive: false,
+    date: 'Nov 2023'
+  }
+];
 
 export const PRODUCTS: Product[] = [];
 
@@ -64,7 +130,8 @@ export const SUBSCRIPTION_PLANS = [
     period: 'yr',
     features: ['Unlimited Downloads', 'Priority Support', 'Exclusive Edits', 'Video Mixes'],
     link: 'https://paystack.shop/pay/po2leez4hy',
-    isBestValue: true
+    isBestValue: true,
+    active: true
   },
   {
     id: '6months',
@@ -72,7 +139,8 @@ export const SUBSCRIPTION_PLANS = [
     price: 3500,
     period: '6mo',
     features: ['Unlimited Downloads', 'Exclusive Edits', 'Video Mixes'],
-    link: 'https://paystack.shop/pay/5p4gjiehpv'
+    link: 'https://paystack.shop/pay/5p4gjiehpv',
+    active: true
   },
   {
     id: '3months',
@@ -80,7 +148,8 @@ export const SUBSCRIPTION_PLANS = [
     price: 1800,
     period: '3mo',
     features: ['Unlimited Downloads', 'Exclusive Edits'],
-    link: 'https://paystack.shop/pay/ayljjgzxzp'
+    link: 'https://paystack.shop/pay/ayljjgzxzp',
+    active: true
   },
   {
     id: 'monthly',
@@ -88,7 +157,8 @@ export const SUBSCRIPTION_PLANS = [
     price: 700,
     period: 'mo',
     features: ['Unlimited Downloads'],
-    link: 'https://paystack.shop/pay/u0qw529xyk'
+    link: 'https://paystack.shop/pay/u0qw529xyk',
+    active: true
   },
   {
     id: 'weekly',
@@ -96,7 +166,8 @@ export const SUBSCRIPTION_PLANS = [
     price: 200,
     period: 'wk',
     features: ['7 Days Access'],
-    link: 'https://paystack.shop/pay/7u8-7dn081'
+    link: 'https://paystack.shop/pay/7u8-7dn081',
+    active: true
   }
 ];
 
