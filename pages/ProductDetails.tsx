@@ -71,7 +71,7 @@ const ProductDetails: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                {/* Gallery */}
                <div className="space-y-4">
-                  <div className="relative aspect-square bg-gray-800 rounded-2xl overflow-hidden border border-white/5 group">
+                  <div className="relative aspect-square bg-white rounded-2xl overflow-hidden border border-white/5 group">
                      <img src={activeImage} alt={product.name} className="w-full h-full object-cover transition duration-500" />
 
                      {allImages.length > 1 && (
@@ -208,7 +208,7 @@ const ProductDetails: React.FC = () => {
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4).map(similar => (
                      <Link key={similar.id} to={`/store/${similar.id}`} className="block bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition group">
-                        <div className="aspect-square bg-gray-800 overflow-hidden relative">
+                        <div className="aspect-square bg-white overflow-hidden relative">
                            <img src={similar.image} alt={similar.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
                            {similar.condition && (
                               <div className="absolute top-2 right-2">
