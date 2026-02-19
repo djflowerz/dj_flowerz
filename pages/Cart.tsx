@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { Trash2, ArrowRight, Minus, Plus, Truck, AlertCircle, CreditCard, Lock, MapPin, Package, Clock, Info, Download } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePaystackPayment } from 'react-paystack';
@@ -10,6 +11,7 @@ const PICKUP_RATE = 116;
 
 const Cart: React.FC = () => {
    const { items, removeFromCart, updateQuantity, cartSubtotal, taxAmount, cartTotal, clearCart } = useCart();
+   const { user } = useAuth();
    const navigate = useNavigate();
    const [isProcessing, setIsProcessing] = useState(false);
 
@@ -235,7 +237,7 @@ const Cart: React.FC = () => {
                      <div className="space-y-4">
                         {items.map((item) => (
                            <div key={`${item.id}-${item.selectedVariant}`} className="bg-[#15151A] p-4 rounded-xl border border-white/5 flex gap-4">
-                              <div className="w-24 h-24 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0">
+                              <div className="w-24 h-24 bg-white rounded-lg overflow-hidden flex-shrink-0">
                                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                               </div>
 
