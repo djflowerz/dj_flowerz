@@ -1237,26 +1237,31 @@ const AdminDashboard: React.FC = () => {
 
          const expiryDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-         updateUser(userId, {
-            isSubscriber: true,
-            subscriptionPlan: plan as any,
-            subscriptionExpiry: expiryDate.toISOString()
-         });
+         try {
+            await updateUser(userId, {
+               isSubscriber: true,
+               subscriptionPlan: plan as any,
+               subscriptionExpiry: expiryDate.toISOString()
+            });
 
-         // Also record in subscriptions table for history
-         addSubscription({
-            id: `manual_${Date.now()}`,
-            userId: userId,
-            userName: selectedUser?.name || 'Manual Grant',
-            planId: plan,
-            amount: 0, // Manual grant
-            startDate: new Date().toISOString(),
-            expiryDate: expiryDate.toISOString(),
-            status: 'active',
-            paymentMethod: 'admin_manual'
-         });
+            // Also record in subscriptions table for history
+            await addSubscription({
+               id: `manual_${Date.now()}`,
+               userId: userId,
+               userName: selectedUser?.name || 'Manual Grant',
+               planId: plan,
+               amount: 0, // Manual grant
+               startDate: new Date().toISOString(),
+               expiryDate: expiryDate.toISOString(),
+               status: 'active',
+               paymentMethod: 'admin_manual'
+            });
 
-         alert(`✅ Music Pool Access Granted!\n\nPlan: ${plan.toUpperCase()}\nDuration: ${days} days\nExpires: ${expiryDate.toLocaleDateString()}`);
+            alert(`✅ Music Pool Access Granted!\n\nPlan: ${plan.toUpperCase()}\nDuration: ${days} days\nExpires: ${expiryDate.toLocaleDateString()}`);
+         } catch (error: any) {
+            console.error("Error granting pool access:", error);
+            alert(`Failed to grant pool access: ${error.message}\nThis might be due to a Missing RLS Policy on the profiles table.`);
+         }
       }
    };
 
