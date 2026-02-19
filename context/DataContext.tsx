@@ -224,13 +224,13 @@ const mapSupabaseTrack = (t: any): Track => {
     downloadUrl: v.downloadUrl || v.download_url
   }));
 
-  // Robustly handle URLs - if root has one but versions don't, or vice versa
-  const previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined);
+  // Robustly handle URLs - prioritizing streamable content
+  const previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
 
   return {
     id: t.id,
-    artist: t.artist || 'Unknown Artist',
-    title: t.title || 'Unknown Title',
+    artist: t.artist || 'DJ Flowerz',
+    title: t.title || 'Untitled Mix',
     genre: cleanLabel(t.genre),
     category: (t.category || []).map(cleanLabel),
     bpm: t.bpm,
@@ -253,15 +253,23 @@ const mapSupabaseGeneric = (item: any): any => ({
 const mapSupabaseProduct = (p: any): Product => {
   const images = p.images || (p.image ? [p.image] : []);
 
-  // Prioritize front-facing images
-  let mainImage = images[0] || '';
-  if (images.length > 1) {
+  // Restore: Use p.image as primary if available. 
+  // This ensures the user's intended "main" image is respected.
+  let mainImage = p.image || images[0] || '';
+
+  // Alignment: If we have multiple images, and the user specifically wants 
+  // "same direction" (e.g., front-facing), we look for that keyword as a preferred fallback.
+  if (images.length > 1 && (!p.image || !p.image.toLowerCase().includes('front'))) {
     const frontImage = images.find((img: string) =>
       img.toLowerCase().includes('front') ||
       img.toLowerCase().includes('main') ||
       img.toLowerCase().includes('primary')
     );
-    if (frontImage) mainImage = frontImage;
+    // Only override if p.image was null or specifically not a "front" image
+    if (frontImage && (!p.image || !p.image.includes(frontImage))) {
+      // However, the user said "RESTORE", so I will only use this if p.image is null.
+      if (!p.image) mainImage = frontImage;
+    }
   }
 
   return {
