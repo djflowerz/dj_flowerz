@@ -218,23 +218,30 @@ const cleanLabel = (label: string) => {
 };
 
 // Supabase Mapping Helper
-const mapSupabaseTrack = (t: any): Track => ({
-  id: t.id,
-  artist: t.artist,
-  title: t.title,
-  genre: cleanLabel(t.genre),
-  category: (t.category || []).map(cleanLabel),
-  bpm: t.bpm,
-  year: t.year,
-  versions: (t.versions || []).map((v: any) => ({
+const mapSupabaseTrack = (t: any): Track => {
+  const versions = (t.versions || []).map((v: any) => ({
     ...v,
     downloadUrl: v.downloadUrl || v.download_url
-  })),
-  dateAdded: t.date_added,
-  previewUrl: t.preview_url,
-  createdAt: t.created_at,
-  updatedAt: t.updated_at
-});
+  }));
+
+  // Robustly handle URLs - if root has one but versions don't, or vice versa
+  const previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined);
+
+  return {
+    id: t.id,
+    artist: t.artist || 'Unknown Artist',
+    title: t.title || 'Unknown Title',
+    genre: cleanLabel(t.genre),
+    category: (t.category || []).map(cleanLabel),
+    bpm: t.bpm,
+    year: t.year,
+    versions,
+    dateAdded: t.date_added || t.dateAdded || t.created_at,
+    previewUrl,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at
+  };
+};
 
 // Generic Mapper (for simple tables with just timestamps)
 const mapSupabaseGeneric = (item: any): any => ({
@@ -243,22 +250,38 @@ const mapSupabaseGeneric = (item: any): any => ({
   updatedAt: item.updated_at || item.updatedAt
 });
 
-const mapSupabaseProduct = (p: any): Product => ({
-  ...p,
-  image: p.image || (p.images && p.images.length > 0 ? p.images[0] : ''),
-  isActive: p.is_active,
-  isHot: p.is_featured,
-  compareAtPrice: p.sale_price,
-  variantOptions: p.variants || [],
-  variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : [],
-  stock: p.inventory || 0,
-  createdAt: p.created_at,
-  updatedAt: p.updated_at,
-  // Digital download fields - map snake_case DB columns to camelCase
-  digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
-  downloadPassword: p.download_password || p.downloadPassword || '',
-  secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
-});
+const mapSupabaseProduct = (p: any): Product => {
+  const images = p.images || (p.image ? [p.image] : []);
+
+  // Prioritize front-facing images
+  let mainImage = images[0] || '';
+  if (images.length > 1) {
+    const frontImage = images.find((img: string) =>
+      img.toLowerCase().includes('front') ||
+      img.toLowerCase().includes('main') ||
+      img.toLowerCase().includes('primary')
+    );
+    if (frontImage) mainImage = frontImage;
+  }
+
+  return {
+    ...p,
+    image: mainImage,
+    images: images,
+    isActive: p.is_active,
+    isHot: p.is_featured,
+    compareAtPrice: p.sale_price,
+    variantOptions: p.variants || [],
+    variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : [],
+    stock: p.inventory || 0,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+    // Digital download fields - map snake_case DB columns to camelCase
+    digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
+    downloadPassword: p.download_password || p.downloadPassword || '',
+    secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
+  };
+};
 
 const mapSupabaseMixtape = (m: any): Mixtape => ({
   ...m,
