@@ -86,11 +86,15 @@ const Store: React.FC = () => {
     return true;
   }).sort((a, b) => {
     switch (sortBy) {
-      case 'Price: Low': return a.price - b.price;
-      case 'Price: High': return b.price - a.price;
-      case 'Hot': return (b.isHot ? 1 : 0) - (a.isHot ? 1 : 0);
-      case 'Newest': return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      default: return 0;
+      case 'Price: Low': return a.price - b.price || a.name.localeCompare(b.name);
+      case 'Price: High': return b.price - a.price || a.name.localeCompare(b.name);
+      case 'Hot': return (b.isHot ? 1 : 0) - (a.isHot ? 1 : 0) || a.name.localeCompare(b.name);
+      case 'Newest':
+      default:
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        return a.name.localeCompare(b.name); // Ensure consistent alignment
     }
   });
 
