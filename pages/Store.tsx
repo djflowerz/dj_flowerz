@@ -263,7 +263,7 @@ const Store: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                   {paginatedProducts.map((product) => (
                     <div key={product.id} className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition group flex flex-col shadow-lg">
-                      <Link to={`/store/${product.id}`} className="relative aspect-square bg-gray-800 block overflow-hidden">
+                      <Link to={`/store/${product.id}`} className="relative aspect-square bg-white block overflow-hidden">
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
 
                         {/* Tags */}
