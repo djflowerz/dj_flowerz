@@ -1,8 +1,7 @@
-
+/// <reference types="vite/client" />
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-import { auth, db } from '../firebase';
-import firebase from 'firebase/compat/app';
+import { supabase } from '../utils/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +10,7 @@ interface AuthContextType {
   realLogin: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithGoogleRedirect: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
   signInWithTikTok: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -18,7 +18,13 @@ interface AuthContextType {
   subscribe: () => Promise<void>;
   updateUserProfile: (data: Partial<User>) => Promise<void>;
   updateUserPassword: (password: string) => Promise<void>;
+  updateUserEmail: (email: string) => Promise<void>;
+  reauthenticate: (password: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   isAuthenticated: boolean;
+  mfaResolver: any;
+  setMfaResolver: (resolver: any) => void;
+  checkEmailVerification: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,211 +38,376 @@ const generateReferralCode = (name: string) => {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaResolver, setMfaResolver] = useState<any>(null);
 
-  // Sync with Firebase Auth state
+  // Sync with Supabase Auth state
   useEffect(() => {
-    let profileUnsubscribe: () => void = () => { };
+    let mounted = true;
 
-    const authUnsubscribe = auth.onAuthStateChanged(async (fbUser) => {
-      // Clean up previous profile listener if any
-      profileUnsubscribe();
-
-      if (fbUser) {
-        setLoading(true);
-        const userDocRef = db.collection('users').doc(fbUser.uid);
-
-        // Start real-time listener for current user document
-        profileUnsubscribe = userDocRef.onSnapshot(async (doc) => {
-          if (doc.exists) {
-            const userData = doc.data() as User;
-            const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
-            const isEmailAdmin = fbUser.email === adminEmail;
-
-            // Optional: Auto-sync admin role if email matches but doc doesn't show it
-            if (isEmailAdmin && (!userData.isAdmin || userData.role !== 'admin')) {
-              await userDocRef.update({ isAdmin: true, role: 'admin' });
-            }
-
-            setUser({
-              id: fbUser.uid,
-              ...userData,
-              isAdmin: isEmailAdmin || userData.isAdmin,
-              role: isEmailAdmin ? 'admin' : (fbUser.isAnonymous ? 'guest' : (userData.role || 'user'))
-            } as User);
-          } else {
-            // Create user doc if it doesn't exist
-            const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
-            const isEmailAdmin = fbUser.email === adminEmail;
-
-            const newUser: User = {
-              id: fbUser.uid,
-              name: fbUser.displayName || (fbUser.isAnonymous ? 'Guest User' : 'User'),
-              email: fbUser.email || (fbUser.isAnonymous ? 'guest@anonymous.id' : ''),
-              role: isEmailAdmin ? 'admin' : (fbUser.isAnonymous ? 'guest' : 'user'),
-              isSubscriber: false,
-              isAdmin: isEmailAdmin,
-              avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${fbUser.isAnonymous ? 'Guest' : 'User'}&background=random`,
-              referralCode: generateReferralCode(fbUser.displayName || (fbUser.isAnonymous ? 'GST' : 'USR'))
-            };
-            await userDocRef.set(newUser);
-            setUser(newUser);
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("User profile sync error:", error);
-          setLoading(false);
-        });
-      } else {
-        // Automatically sign in anonymously if no user is present
-        try {
-          console.log("AuthContext: Performing anonymous sign-in for guest...");
-          await auth.signInAnonymously();
-        } catch (e) {
-          console.error("AuthContext: Anonymous sign-in failed:", e);
+    // Helper to fetch profile and set user
+    const fetchProfileAndSetUser = async (session: any) => {
+      if (!session?.user) {
+        if (mounted) {
           setUser(null);
           setLoading(false);
         }
+        return;
       }
+
+      const sbUser = session.user;
+      const isAdminEmail = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com');
+
+      try {
+        // Fetch or Create Profile
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', sbUser.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error("Error fetching profile:", error);
+        }
+
+        let userData: User;
+
+        if (profile) {
+          // Profile exists
+          // Update last seen
+          supabase.from('profiles').update({
+            last_seen: new Date().toISOString(),
+            presence_status: 'online'
+          }).eq('id', sbUser.id).then(({ error: updateError }) => {
+            if (updateError) console.error("Error updating last_seen:", updateError);
+          });
+
+          userData = {
+            id: sbUser.id,
+            name: profile.name || sbUser.user_metadata?.full_name || 'User',
+            email: sbUser.email || '',
+            role: profile.role || (isAdminEmail ? 'admin' : 'user'),
+            isAdmin: (profile.role === 'admin') || isAdminEmail,
+            isSubscriber: profile.is_subscriber || false,
+            subscriptionPlan: profile.subscription_plan,
+            subscriptionExpiry: profile.subscription_expiry,
+            avatarUrl: profile.avatar_url || sbUser.user_metadata?.avatar_url || '',
+            referralCode: profile.referral_code,
+            balance: profile.balance || 0,
+            createdAt: profile.created_at || new Date().toISOString(),
+            updatedAt: profile.updated_at || new Date().toISOString()
+          };
+        } else {
+          // Profile doesn't exist, create it
+          const now = new Date().toISOString();
+          const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
+
+          let referrerId = null;
+          const refCode = localStorage.getItem('referralCode');
+          if (refCode) {
+            const { data: refProfile } = await supabase.from('profiles').select('id').eq('referral_code', refCode).single();
+            if (refProfile) referrerId = refProfile.id;
+          }
+
+          // Check for existing active subscription (e.g. guest checkout or manual entry)
+          let initialSubscriberStatus = false;
+          let initialSubscriptionPlan = null;
+          let initialSubscriptionExpiry = null;
+
+          if (sbUser.email) {
+            const { data: existingSub } = await supabase
+              .from('subscriptions')
+              .select('plan_id, expiry_date')
+              .eq('user_email', sbUser.email)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            if (existingSub) {
+              initialSubscriberStatus = true;
+              initialSubscriptionPlan = existingSub.plan_id;
+              initialSubscriptionExpiry = existingSub.expiry_date;
+            }
+          }
+
+          const newProfile = {
+            id: sbUser.id,
+            name: sbUser.user_metadata?.full_name || 'User',
+            email: sbUser.email || '',
+            role: isAdminEmail ? 'admin' : 'user',
+            is_subscriber: initialSubscriberStatus,
+            subscription_plan: initialSubscriptionPlan,
+            subscription_expiry: initialSubscriptionExpiry,
+            avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
+            referral_code: referralCode,
+            referred_by: referrerId,
+            created_at: now,
+            updated_at: now,
+            last_seen: now,
+            presence_status: 'online'
+          };
+
+          const { error: insertError } = await supabase.from('profiles').insert(newProfile);
+
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+          }
+
+          userData = {
+            id: newProfile.id,
+            name: newProfile.name,
+            email: newProfile.email,
+            role: newProfile.role as any,
+            isAdmin: newProfile.role === 'admin',
+            isSubscriber: newProfile.is_subscriber,
+            avatarUrl: newProfile.avatar_url,
+            referralCode: newProfile.referral_code,
+            createdAt: newProfile.created_at,
+            updatedAt: newProfile.updated_at
+          };
+        }
+
+        if (mounted) {
+          setUser(userData);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Auth sync error:", err);
+        if (mounted) setLoading(false);
+      }
+    };
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      fetchProfileAndSetUser(session);
     });
 
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      fetchProfileAndSetUser(session);
+    });
+
+    // Capture referral code from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      localStorage.setItem('referralCode', refCode.toUpperCase());
+    }
+
     return () => {
-      authUnsubscribe();
-      profileUnsubscribe();
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
-  const login = async (email: string, role: 'user' | 'admin' = 'user') => {
-    throw new Error("Login requires password. Please use the login form.");
-  };
+  // Realtime listener: update user state when their profile changes in Supabase
+  // This ensures subscription status updates immediately after webhook fires
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`profile:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload) => {
+          const updated = payload.new as any;
+          setUser(prev => prev ? {
+            ...prev,
+            isSubscriber: updated.is_subscriber || false,
+            subscriptionPlan: updated.subscription_plan,
+            subscriptionExpiry: updated.subscription_expiry,
+            name: updated.name || prev.name,
+            avatarUrl: updated.avatar_url || prev.avatarUrl,
+            balance: updated.balance || 0,
+          } : prev);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // --- Auth Methods ---
+
+  const login = async () => {
+    throw new Error("Use realLogin instead");
+  }
 
   const realLogin = async (email: string, password: string) => {
-    await auth.signInWithEmailAndPassword(email, password);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (error) throw error;
   };
 
-  const handleAuthError = (error: any, provider: string) => {
-    console.error(`${provider} Auth Error:`, error);
-    alert(`${provider} Login Failed: ${error.message}`);
-    throw error;
+  const register = async (name: string, email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
+        }
+      }
+    });
+    if (error) throw error;
   };
 
   const signInWithGoogle = async () => {
-    try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      await auth.signInWithPopup(provider);
-    } catch (e) {
-      handleAuthError(e, 'Google');
-    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      }
+    });
+    if (error) throw error;
+  };
+
+  const signInWithGoogleRedirect = async () => {
+    await signInWithGoogle();
   };
 
   const signInWithFacebook = async () => {
-    try {
-      const provider = new firebase.auth.FacebookAuthProvider();
-      await auth.signInWithPopup(provider);
-    } catch (e) {
-      handleAuthError(e, 'Facebook');
-    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'facebook',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      }
+    });
+    if (error) throw error;
   };
 
   const signInWithTikTok = async () => {
-    try {
-      const provider = new firebase.auth.OAuthProvider('oidc.tiktok');
-      await auth.signInWithPopup(provider);
-    } catch (e: any) {
-      handleAuthError(e, 'TikTok');
-    }
+    alert("TikTok login is currently not supported via Supabase in this demo.");
   };
-
-  const register = async (name: string, email: string, password?: string) => {
-    const pwd = password || "123456";
-    const userCredential = await auth.createUserWithEmailAndPassword(email, pwd);
-    const fbUser = userCredential.user;
-
-    if (!fbUser) throw new Error("User creation failed");
-
-    // Send verification email
-    await fbUser.sendEmailVerification();
-
-    // Check if user is admin based on email
-    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.REACT_APP_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
-    const isAdmin = email === adminEmail;
-
-    const newUser: User = {
-      id: fbUser.uid,
-      name: name,
-      email: email,
-      role: isAdmin ? 'admin' : 'user',
-      isSubscriber: false,
-      isAdmin: isAdmin,
-      avatarUrl: `https://ui-avatars.com/api/?name=${name}`,
-      referralCode: generateReferralCode(name)
-    };
-
-    try {
-      await db.collection('users').doc(fbUser.uid).set(newUser);
-    } catch (e) {
-      console.error("Failed to create user profile in Firestore:", e);
-    }
-    setUser(newUser);
-  };
-
-  const resetPassword = async (email: string) => {
-    await auth.sendPasswordResetEmail(email);
-  }
 
   const logout = async () => {
-    await auth.signOut();
+    await supabase.auth.signOut();
     setUser(null);
   };
 
-  const subscribe = async () => {
-    if (user) {
-      const updates = {
-        isSubscriber: true,
-        subscriptionPlan: 'monthly',
-        subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      };
-
-      setUser({ ...user, ...updates } as User);
-
-      try {
-        await db.collection('users').doc(user.id).update(updates);
-      } catch (e) {
-        console.error("Failed to update subscription in Firestore:", e);
-        alert("Failed to update subscription on server. Check console.");
-      }
-    }
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw error;
   };
+
+  const checkEmailVerification = async () => {
+    // Supabase handles this via session; if we have a session but email isn't confirmed (and it's required),
+    // usually signIn fails or session is minimal.
+    // For this mocked function:
+    const { data } = await supabase.auth.getUser();
+    return !!data.user?.email_confirmed_at;
+  };
+
+  // --- Profile Methods ---
 
   const updateUserProfile = async (data: Partial<User>) => {
     if (!user) return;
-    try {
-      await db.collection('users').doc(user.id).update(data);
-      setUser(prev => prev ? { ...prev, ...data } : null);
 
-      // Update Firebase Auth profile if name/photo changed
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        if (data.name || data.avatarUrl) {
-          await currentUser.updateProfile({
-            displayName: data.name || currentUser.displayName,
-            photoURL: data.avatarUrl || currentUser.photoURL
-          });
-        }
-      }
+    try {
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (data.name) updates.name = data.name;
+      if (data.avatarUrl) updates.avatar_url = data.avatarUrl;
+      if (data.role) updates.role = data.role;
+      if (data.isSubscriber !== undefined) updates.is_subscriber = data.isSubscriber;
+      // Map other fields as necessary
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUser(prev => prev ? { ...prev, ...data } : null);
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;
     }
   };
 
+  const updateUserEmail = async (email: string) => {
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) throw error;
+    // Note: User might need to confirm new email depending on settings
+  };
+
   const updateUserPassword = async (password: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      await currentUser.updatePassword(password);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }
+
+  const deleteAccount = async () => {
+    // Note: Only Supabase Service Role can strictly "delete" a user from auth.users via API,
+    // or the user can delete themselves if configured.
+    // Typically we just delete the profile or mark as inactive.
+    // For now, we'll just try to delete the profile.
+    if (!user) return;
+
+    const { error } = await supabase.rpc('delete_user'); // Requires a custom RPC or Edge Function usually
+    // Fallback: Delete profile
+    const { error: profileError } = await supabase.from('profiles').delete().eq('id', user.id);
+    if (profileError) console.error("Could not delete profile", profileError);
+
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  const reauthenticate = async (password: string) => {
+    // Supabase doesn't have a direct "reauthenticate" method like Firebase.
+    // Usually you just ask for the password again and try to signIn,
+    // or leave it be if the session is active.
+    if (user?.email) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password
+      });
+      if (error) throw error;
     }
   };
 
-  // --- Auto-Remove Expired Subscriptions ---
+
+  const subscribe = async () => {
+    if (user) {
+      const updates = {
+        is_subscriber: true,
+        subscription_plan: 'monthly',
+        subscription_expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', user.id);
+
+        if (error) throw error;
+
+        setUser(prev => prev ? ({
+          ...prev,
+          isSubscriber: true,
+          subscriptionPlan: 'monthly',
+          subscriptionExpiry: updates.subscription_expiry
+        }) : null);
+
+      } catch (e) {
+        console.error("Failed to update subscription:", e);
+        alert("Failed to update subscription. Check console.");
+      }
+    }
+  };
+
   // --- Auto-Remove Expired Subscriptions ---
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -252,21 +423,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log(`Subscription expired for ${user.name}. Removing access.`);
 
         const updates = {
-          isSubscriber: false,
-          subscriptionPlan: null,
-          subscriptionExpiry: null
+          is_subscriber: false,
+          subscription_plan: null,
+          subscription_expiry: null,
+          updated_at: new Date().toISOString()
         };
 
-        // Update local state immediately
-        // @ts-ignore
-        setUser(prev => prev ? ({ ...prev, ...updates }) : null);
-
         try {
-          await db.collection('users').doc(user.id).update({
+          const { error } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', user.id);
+
+          if (error) throw error;
+
+          setUser(prev => prev ? ({
+            ...prev,
             isSubscriber: false,
-            subscriptionPlan: firebase.firestore.FieldValue.delete(),
-            subscriptionExpiry: firebase.firestore.FieldValue.delete()
-          });
+            subscriptionPlan: null,
+            subscriptionExpiry: undefined
+          }) : null);
+
           alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
         } catch (e) {
           console.error("Failed to expire subscription:", e);
@@ -275,8 +452,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     if (!loading && user) {
-      checkExpiry(); // Check immediately on load
-      interval = setInterval(checkExpiry, 60000); // Check every minute
+      checkExpiry();
+      interval = setInterval(checkExpiry, 60000);
     }
 
     return () => {
@@ -290,28 +467,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const updatePresence = async () => {
       try {
-        await db.collection('users').doc(user.id).update({
-          lastSeen: new Date().toISOString()
-        });
-        console.log(`Presence updated for ${user.isAdmin ? 'Admin' : (user.role || 'User')}: ${user.name}`);
+        const now = new Date().toISOString();
+        await supabase.from('profiles').update({
+          last_seen: now,
+          presence_status: 'online',
+          updated_at: now
+        }).eq('id', user.id);
       } catch (e) {
         console.warn("Presence update failed:", e);
       }
     };
 
     updatePresence();
-    const presenceInterval = setInterval(updatePresence, 120000); // 2 minutes
+    const presenceInterval = setInterval(updatePresence, 120000);
     return () => clearInterval(presenceInterval);
   }, [user?.id, loading]);
+
+  // --- Real-time Profile Sync ---
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase.channel(`profile:${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new) {
+          const newProfile = payload.new as any;
+          setUser(prev => {
+            if (!prev) return null;
+            // Merge updates
+            return {
+              ...prev,
+              isSubscriber: newProfile.is_subscriber,
+              subscriptionPlan: newProfile.subscription_plan,
+              subscriptionExpiry: newProfile.subscription_expiry,
+              role: newProfile.role,
+              isAdmin: newProfile.role === 'admin' || prev.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com'),
+              avatarUrl: newProfile.avatar_url,
+              name: newProfile.name,
+              balance: newProfile.balance,
+              referralCode: newProfile.referral_code,
+              updatedAt: newProfile.updated_at
+            };
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   return (
     <AuthContext.Provider value={{
       user,
       loading,
-      login: (email, role) => Promise.resolve(),
+      login,
       realLogin,
       register,
       signInWithGoogle,
+      signInWithGoogleRedirect,
       signInWithFacebook,
       signInWithTikTok,
       resetPassword,
@@ -319,7 +538,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscribe,
       updateUserProfile,
       updateUserPassword,
-      isAuthenticated: !!user
+      updateUserEmail,
+      reauthenticate,
+      deleteAccount,
+      isAuthenticated: !!user,
+      mfaResolver,
+      setMfaResolver,
+      checkEmailVerification
     } as any}>
       {children}
     </AuthContext.Provider>

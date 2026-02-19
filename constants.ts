@@ -28,7 +28,14 @@ export const POOL_HUBS = [
   'Dancehall Edits',
   'Club Edits',
   'HYPE EDITS',
-  'RnB Remixes'
+  'RnB Remixes',
+  '3 Step Amapiano',
+  'South Africa Amapiano',
+  'Reggae Covers',
+  'Afro Beats (TBT)',
+  'Mugithi Covers (Kikuyu)',
+  'Taarabu',
+  'Afro Amapiano'
 ];
 
 // Month names for filtering year-based edits
@@ -69,9 +76,13 @@ export const MIXTAPE_GENRE_NAMES = [
   "Afropop & Afrobeats",
   "Rap & Hip Hop",
   "R&B & Soul",
-  "reggae",
-  "dancehall",
-  "secular"
+  "Reggae",
+  "Dancehall",
+  "Club Bangers",
+  "Kenyan",
+  "Soul",
+  "Pop",
+  "Secular"
 ];
 
 // Initial genres with placeholder images (Admin can update these)
@@ -129,7 +140,6 @@ export const SUBSCRIPTION_PLANS = [
     price: 6000,
     period: 'yr',
     features: ['Unlimited Downloads', 'Priority Support', 'Exclusive Edits', 'Video Mixes'],
-    link: 'https://paystack.shop/pay/po2leez4hy',
     isBestValue: true,
     active: true
   },
@@ -139,7 +149,6 @@ export const SUBSCRIPTION_PLANS = [
     price: 3500,
     period: '6mo',
     features: ['Unlimited Downloads', 'Exclusive Edits', 'Video Mixes'],
-    link: 'https://paystack.shop/pay/5p4gjiehpv',
     active: true
   },
   {
@@ -148,7 +157,6 @@ export const SUBSCRIPTION_PLANS = [
     price: 1800,
     period: '3mo',
     features: ['Unlimited Downloads', 'Exclusive Edits'],
-    link: 'https://paystack.shop/pay/ayljjgzxzp',
     active: true
   },
   {
@@ -157,7 +165,6 @@ export const SUBSCRIPTION_PLANS = [
     price: 700,
     period: 'mo',
     features: ['Unlimited Downloads'],
-    link: 'https://paystack.shop/pay/u0qw529xyk',
     active: true
   },
   {
@@ -166,7 +173,6 @@ export const SUBSCRIPTION_PLANS = [
     price: 200,
     period: 'wk',
     features: ['7 Days Access'],
-    link: 'https://paystack.shop/pay/7u8-7dn081',
     active: true
   }
 ];

@@ -1,14 +1,14 @@
 
 # DJ Flowerz - Premium Music Platform
 
-A React-based web application for DJ Flowerz featuring a music pool, merchandise store, booking system, and admin dashboard. Built with React, Tailwind CSS, and Firebase.
+A React-based web application for DJ Flowerz featuring a music pool, merchandise store, booking system, and admin dashboard. Built with React, Tailwind CSS, and Supabase.
 
 ## Features
 
 *   **Music Pool**: Subscription-based access to exclusive tracks.
 *   **Merch Store**: E-commerce functionality for physical and digital goods.
 *   **Bookings**: Request DJ services or studio sessions.
-*   **Authentication**: Secure login via Email, Google, and more using Firebase Auth.
+*   **Authentication**: Secure login via Email, Google, and more using Supabase Auth.
 *   **Admin Dashboard**: Manage products, users, orders, and content.
 *   **Responsive Design**: Mobile-first UI with dark mode aesthetic.
 
@@ -30,22 +30,22 @@ A React-based web application for DJ Flowerz featuring a music pool, merchandise
         ```bash
         cp .env.example .env
         ```
-    *   Fill in your Firebase configuration keys in `.env`.
+    *   Fill in your Supabase configuration keys (URL, Anon Key, Service Role) in `.env`.
 
 4.  **Run the application:**
     ```bash
     npm start
     ```
 
-## Firebase Setup
+## Supabase Setup
 
-1.  Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+1.  Create a project at [supabase.com](https://supabase.com).
 2.  Enable **Authentication** (Email/Password, Google).
-3.  Create a **Cloud Firestore** database.
-4.  Copy the config keys to your `.env` file.
+3.  Go to **SQL Editor** and run the scripts in `/supabase` to set up the schema and buckets.
+4.  Copy the URL and API keys to your `.env` file.
 5.  **Seeding Data**:
     *   Log in to the app (create an account).
-    *   Manually promote your user to Admin in the Firestore Console (set `role: 'admin'`).
+    *   Manually promote your user to Admin in the Supabase Dashboard (profiles table -> set `role: 'admin'`).
     *   Go to `/admin` -> `System` -> Click "Seed Database" to populate initial content.
 
 ## Deployment
@@ -63,6 +63,6 @@ This project is ready for **Cloudflare Pages** or **Vercel**.
 *   React 19
 *   TypeScript
 *   Tailwind CSS
-*   Firebase v12 (Compat)
+*   Supabase (Auth, Database, Storage)
 *   Lucide React (Icons)
 *   Recharts (Analytics)

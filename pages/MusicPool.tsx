@@ -7,16 +7,43 @@ import {
    LayoutDashboard, Package, Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, CheckCircle,
-   Layers, ChevronDown, ChevronUp, Folder, Database, RefreshCw, Zap, Shield, Play, Pause, Music, Star, Smartphone, Clock, Filter
+   Layers, ChevronDown, ChevronUp, ChevronLeft, Folder, Database, RefreshCw, Zap, Shield, Play, Pause, Music, Star, Smartphone, Clock, Filter, Ticket
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { POOL_HUBS, POOL_YEARS, MONTHS } from '../constants';
 import SubscribeButton from '../components/SubscribeButton';
-import { downloadFile } from '../utils/downloadHelper';
+import { downloadFileSecurely } from '../utils/downloadHelper';
+
+// Add 'New' to POOL_HUBS if not present, or handled in UI
+const DISPLAY_HUBS = ['New', ...POOL_HUBS.filter(h => h !== 'New')];
 
 const MusicPool: React.FC = () => {
    const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks } = useData();
+   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode } = useData();
+   const [referralCode, setReferralCode] = useState('');
+   const [appliedReferral, setAppliedReferral] = useState<{ code: string; discount: number; discountType: 'flat' | 'percentage'; referrerId: string } | null>(null);
+   const [referralError, setReferralError] = useState('');
+   const [isApplying, setIsApplying] = useState(false);
+
+   const handleApplyReferral = async () => {
+      if (!referralCode.trim()) return;
+      setIsApplying(true);
+      setReferralError('');
+
+      const result = await applyReferralCode(referralCode);
+      if (result.success) {
+         setAppliedReferral({
+            code: referralCode,
+            discount: result.discount || 0,
+            discountType: result.discountType || 'percentage',
+            referrerId: result.referrerId || ''
+         });
+         setReferralCode('');
+      } else {
+         setReferralError(result.message || 'Invalid referral code');
+      }
+      setIsApplying(false);
+   };
    const { pauseTrack: pauseGlobalTrack } = usePlayer();
    const isUnlocked = user?.isSubscriber || user?.isAdmin;
 
@@ -28,55 +55,59 @@ const MusicPool: React.FC = () => {
    const [searchQuery, setSearchQuery] = useState('');
    const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
 
+   // Filter State Handlers (Enhanced to reset others)
+   const changeCategory = (cat: string) => {
+      setActiveCategory(cat);
+      setSearchQuery('');
+      setSelectedYear('All');
+      setSelectedMonth('All');
+   };
+
+   const changeYear = (year: number | 'All') => {
+      setSelectedYear(year);
+      setSearchQuery('');
+      if (year !== 'All') {
+         setActiveCategory('All');
+         setSelectedGenre('All');
+      }
+   };
+
+   const changeGenre = (genre: string) => {
+      setSelectedGenre(genre);
+      setSearchQuery('');
+   };
+
+   const changeMonth = (month: string) => {
+      setSelectedMonth(month);
+      setSearchQuery('');
+   };
+
    // Audio Player State
    const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
    const mediaRef = React.useRef<HTMLMediaElement | null>(null);
 
-   const handleDownload = async (url: string, fileName: string) => {
+   const handleDownload = async (url: string, fileName: string, track: any) => {
       if (!user) {
          alert("Please login to download.");
          return;
       }
 
-      if (user.isAdmin) {
-         downloadFile(url, fileName);
-         return;
-      }
-
-      if (!user.isSubscriber) {
+      if (!user.isSubscriber && !user.isAdmin) {
          alert("Subscription required to download.");
          return;
       }
 
-      // Check Limits
-      const today = new Date().toISOString().split('T')[0];
-
-      // Determine Limit based on Plan
-      // Check for weekly plan identifiers
-      const planId = user.subscriptionPlan?.toLowerCase() || '';
-      const isWeekly = planId.includes('week') || planId.includes('7') || planId === 'weekly';
-      const limit = isWeekly ? 30 : 200;
-
-      let downloadsToday = user.downloadsToday || 0;
-      const lastDate = user.lastDownloadDate || '';
-
-      if (lastDate !== today) {
-         downloadsToday = 0; // Reset if new day
-      }
-
-      if (downloadsToday >= limit) {
-         alert(`Daily download limit reached (${limit}/day). Please try again tomorrow.`);
-         return;
-      }
-
-      // Proceed
-      downloadFile(url, fileName);
-
-      // Update User Stats
-      await updateUserProfile({
-         downloadsToday: downloadsToday + 1,
-         lastDownloadDate: today
+      // Use the secure download helper which handles limits, logging, and token attachment server-side
+      await downloadFileSecurely(url, {
+         fileName,
+         trackId: track.id,
+         artist: track.artist,
+         title: track.title,
+         type: 'track'
       });
+
+      // We don't need to manually updateUserProfile here anymore as the server does it,
+      // and the real-time listener in AuthContext will catch the change.
    };
 
    const togglePlay = (track: any) => {
@@ -115,6 +146,7 @@ const MusicPool: React.FC = () => {
          const matchesSearch = title.includes(query) || artist.includes(query);
 
          const matchesCategory = activeCategory === 'All' ||
+            (activeCategory === 'New' && categories.some(c => c.toLowerCase() === 'new')) ||
             categories.some(c => c.includes(activeCategory.toLowerCase()) || activeCategory.toLowerCase().includes(c));
 
          const matchesYear = selectedYear === 'All' || Number(track.year) === Number(selectedYear);
@@ -125,8 +157,20 @@ const MusicPool: React.FC = () => {
             categories.some(c => c.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(c));
 
          // Month filtering for year-based categories
+         // Month filtering for year-based categories
          const matchesMonth = selectedMonth === 'All' ||
-            categories.some(c => c.toLowerCase().includes(selectedMonth.toLowerCase()));
+            categories.some(c => {
+               const catLower = c.toLowerCase();
+               const monthLower = selectedMonth.toLowerCase();
+               // Check full name first
+               if (catLower.includes(monthLower)) return true;
+
+               // Check 3-letter abbreviation (e.g. Jan for January)
+               const abbr = monthLower.slice(0, 3);
+               // Ensure it's not a partial match of another word (e.g. Jun in Jungle) unless it's explicitly spaced or hyphenated?
+               // For now, simple includes is safer than missing data, assuming categories are mostly "Jan 2022" etc.
+               return catLower.includes(abbr);
+            });
 
          return matchesSearch && matchesCategory && matchesYear && matchesGenre && matchesMonth;
       });
@@ -159,15 +203,23 @@ const MusicPool: React.FC = () => {
                   <h1 className="text-3xl font-display font-bold text-white flex items-center gap-3">
                      <Headphones className="text-brand-purple" /> DJ Pool Library
                   </h1>
-                  <div className="relative w-full md:w-96">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <div className="relative w-full md:w-96 group">
+                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-purple transition-colors" size={18} />
                      <input
                         type="text"
                         placeholder="Search artist or title..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#15151A] border border-white/10 rounded-full py-3 pl-10 pr-4 text-white focus:border-brand-purple focus:outline-none placeholder:text-gray-600 shadow-lg"
+                        className="w-full bg-[#15151A] border border-white/10 rounded-full py-3.5 pl-11 pr-12 text-white focus:border-brand-purple focus:outline-none placeholder:text-gray-600 shadow-xl transition-all"
                      />
+                     {searchQuery && (
+                        <button
+                           onClick={() => setSearchQuery('')}
+                           className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1 transition-colors"
+                        >
+                           <X size={14} />
+                        </button>
+                     )}
                   </div>
                </div>
 
@@ -175,15 +227,15 @@ const MusicPool: React.FC = () => {
                <div className="mb-6 overflow-x-auto pb-4 custom-scrollbar">
                   <div className="flex gap-3">
                      <button
-                        onClick={() => setActiveCategory('All')}
+                        onClick={() => changeCategory('All')}
                         className={`px-6 py-2.5 rounded-full font-bold whitespace-nowrap transition-all duration-300 ${activeCategory === 'All' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
                      >
                         All Tracks
                      </button>
-                     {POOL_HUBS.map(hub => (
+                     {DISPLAY_HUBS.map(hub => (
                         <button
                            key={hub}
-                           onClick={() => setActiveCategory(hub)}
+                           onClick={() => changeCategory(hub)}
                            className={`px-6 py-2.5 rounded-full font-bold whitespace-nowrap transition-all duration-300 ${activeCategory === hub ? 'bg-brand-purple text-white shadow-[0_0_20px_rgba(123,92,255,0.3)]' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
                         >
                            {hub}
@@ -198,7 +250,7 @@ const MusicPool: React.FC = () => {
                      {POOL_YEARS.map(year => (
                         <button
                            key={year}
-                           onClick={() => setSelectedYear(selectedYear === year ? 'All' : year)}
+                           onClick={() => changeYear(selectedYear === year ? 'All' : year)}
                            className={`flex items-center gap-2 px-5 py-4 rounded-2xl border transition-all min-w-[140px] shadow-lg ${selectedYear === year ? 'bg-brand-cyan/10 border-brand-cyan text-brand-cyan shadow-brand-cyan/10' : 'bg-[#15151A] border-white/5 text-gray-400 hover:border-white/20'}`}
                         >
                            <Folder size={20} className={selectedYear === year ? "fill-current" : ""} />
@@ -216,7 +268,7 @@ const MusicPool: React.FC = () => {
                      {/* Mobile Horizontal Scroll */}
                      <div className="lg:hidden mb-6 overflow-x-auto pb-2 custom-scrollbar flex gap-2">
                         <button
-                           onClick={() => setSelectedGenre('All')}
+                           onClick={() => changeGenre('All')}
                            className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all ${selectedGenre === 'All' ? 'bg-brand-purple text-white' : 'bg-[#15151A] text-gray-400 border border-white/10'}`}
                         >
                            All Genres
@@ -224,7 +276,7 @@ const MusicPool: React.FC = () => {
                         {genres.map(genre => (
                            <button
                               key={genre.id}
-                              onClick={() => setSelectedGenre(genre.name)}
+                              onClick={() => changeGenre(genre.name)}
                               className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all ${selectedGenre === genre.name ? 'bg-brand-purple text-white' : 'bg-[#15151A] text-gray-400 border border-white/10'}`}
                            >
                               {genre.name}
@@ -244,7 +296,7 @@ const MusicPool: React.FC = () => {
 
                         <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 custom-scrollbar relative z-10">
                            <button
-                              onClick={() => setSelectedGenre('All')}
+                              onClick={() => changeGenre('All')}
                               className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 text-sm flex items-center justify-between group/genre ${selectedGenre === 'All'
                                  ? 'bg-gradient-to-r from-brand-purple to-purple-600 text-white font-bold shadow-lg shadow-brand-purple/20'
                                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
@@ -256,7 +308,7 @@ const MusicPool: React.FC = () => {
                            {genres.map(genre => (
                               <button
                                  key={genre.id}
-                                 onClick={() => setSelectedGenre(genre.name)}
+                                 onClick={() => changeGenre(genre.name)}
                                  className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 text-sm flex items-center justify-between group/genre ${selectedGenre === genre.name
                                     ? 'bg-gradient-to-r from-brand-purple to-purple-600 text-white font-bold shadow-lg shadow-brand-purple/20'
                                     : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
@@ -301,65 +353,123 @@ const MusicPool: React.FC = () => {
                         {filteredTracks.length > 0 ? (
                            <div className="divide-y divide-white/5">
                               {visibleTracks.map(track => (
-                                 <div key={track.id} className={`group hover:bg-white/[0.03] transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/[0.03]' : ''}`}>
+                                 <div key={track.id} className={`group hover:bg-white/[0.05] border border-white/5 rounded-3xl mb-4 transition-all duration-300 overflow-hidden ${expandedTrackId === track.id ? 'bg-white/[0.05] border-brand-purple/30 ring-1 ring-brand-purple/20' : ''}`}>
 
-                                    {/* Main Row */}
-                                    <div className="p-5 flex flex-col md:flex-row items-center gap-5">
-                                       {/* Play/Art */}
-                                       <div
-                                          onClick={() => togglePlay(track)}
-                                          className="relative flex-shrink-0 w-14 h-14 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden group-hover:ring-2 ring-white/10 cursor-pointer shadow-xl transition-all duration-300 group-hover:scale-105 active:scale-95"
-                                       >
-                                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
-                                             {playingTrackId === track.id ? (
-                                                <Pause size={24} className="text-brand-cyan fill-current animate-pulse" />
-                                             ) : (
-                                                <Play size={24} className="text-white fill-current translate-x-0.5" />
-                                             )}
-                                          </div>
-                                          {/* Subtle glow when playing */}
-                                          {playingTrackId === track.id && (
-                                             <div className="absolute inset-0 bg-brand-cyan/10 animate-pulse"></div>
-                                          )}
-                                       </div>
+                                    {/* Main Content Area */}
+                                    <div className="p-6">
+                                       <div className="flex flex-col md:flex-row gap-6">
+                                          {/* Left: Play Icon & Song Details */}
+                                          <div className="flex-1 flex flex-col gap-4">
+                                             <div className="flex items-start gap-4">
+                                                {/* Play Toggle */}
+                                                <div
+                                                   onClick={() => togglePlay(track)}
+                                                   className="relative flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden group-hover:ring-2 ring-white/10 cursor-pointer shadow-xl transition-all duration-300 group-hover:scale-105 active:scale-95"
+                                                >
+                                                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
+                                                      {playingTrackId === track.id ? (
+                                                         <Pause size={28} className="text-brand-cyan fill-current animate-pulse" />
+                                                      ) : (
+                                                         <Play size={28} className="text-white fill-current translate-x-0.5" />
+                                                      )}
+                                                   </div>
+                                                   {playingTrackId === track.id && (
+                                                      <div className="absolute inset-0 bg-brand-cyan/10 animate-pulse"></div>
+                                                   )}
+                                                </div>
 
-                                       {/* Info */}
-                                       <div className="flex-1 text-center md:text-left min-w-0">
-                                          <h4 className="font-display font-bold text-white truncate text-xl mb-0.5 group-hover:text-brand-cyan transition-colors">{track.title}</h4>
-                                          <p className="text-brand-purple text-sm font-medium truncate opacity-80">{track.artist}</p>
-                                       </div>
+                                                {/* Details: Title & Artist */}
+                                                <div className="min-w-0 flex-1">
+                                                   <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words">
+                                                      {track.title}
+                                                   </h4>
+                                                   <p className="text-brand-purple text-sm font-medium opacity-90 truncate italic">{track.artist}</p>
+                                                </div>
+                                             </div>
 
-                                       {/* Meta */}
-                                       <div className="hidden md:flex items-center gap-3 text-sm">
-                                          <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 text-gray-400 text-xs font-medium min-w-[100px] text-center">
-                                             {track.versions && track.versions.length > 0 ? track.versions[0].type : 'Original'}
-                                          </span>
-                                          <span className="bg-brand-purple/10 text-brand-purple px-3 py-1.5 rounded-xl border border-brand-purple/20 text-xs font-black min-w-[100px] text-center tracking-tighter">
-                                             {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
-                                          </span>
-                                       </div>
+                                             {/* Metadata Info (Genres, Tags, Categories) - Stacked Below Title */}
+                                             <div className="flex flex-wrap gap-2 items-center mt-1">
+                                                {/* Primary Genre Tag */}
+                                                <span className="bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-lg border border-brand-purple/30 text-[10px] font-black uppercase tracking-widest whitespace-normal max-w-full">
+                                                   {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
+                                                </span>
 
-                                       {/* Actions */}
-                                       <div className="flex items-center gap-3 w-full md:w-auto justify-center">
-                                          <button
-                                             onClick={() => {
-                                                const firstVersion = track.versions?.[0];
-                                                if (firstVersion?.downloadUrl) {
-                                                   const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                   handleDownload(firstVersion.downloadUrl, `${track.artist} - ${track.title}.${ext}`);
+                                                {/* NEW Badge */}
+                                                {track.category?.map(c => c.toLowerCase()).includes('new') && (
+                                                   <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
+                                                      NEW
+                                                   </span>
+                                                )}
+
+                                                {/* Version/Type Tag */}
+                                                <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
+                                                   {track.versions[0]?.type || 'Video'}
+                                                </span>
+
+                                                {/* Additional Category Tags */}
+                                                {track.category && track.category.length > 0 &&
+                                                   track.category
+                                                      .filter(cat => {
+                                                         const c = cat.toLowerCase();
+                                                         const g = track.genre?.toLowerCase() || '';
+                                                         return !c.includes('video pool') &&
+                                                            !c.includes('tracks') &&
+                                                            !c.includes('genres') &&
+                                                            c !== g &&
+                                                            c !== track.versions[0]?.type?.toLowerCase();
+                                                      })
+                                                      .map((cat, idx) => {
+                                                         // Clean up formatting for display
+                                                         let displayCat = cat.toUpperCase();
+                                                         // If it's a year but doesn't have EDITS, add it
+                                                         if (/20\d{2}/.test(displayCat) && !displayCat.includes('EDITS')) {
+                                                            displayCat = displayCat.replace(/(20\d{2})/, '$1 EDITS');
+                                                         }
+
+                                                         return (
+                                                            <span key={idx} className="bg-brand-cyan/10 text-brand-cyan px-2 py-0.5 rounded-lg border border-brand-cyan/20 text-[10px] font-bold uppercase whitespace-nowrap">
+                                                               {displayCat}
+                                                            </span>
+                                                         );
+                                                      })
                                                 }
-                                             }}
-                                             className="flex-1 md:flex-none px-6 py-3 bg-white text-black font-bold rounded-2xl hover:bg-brand-cyan hover:scale-105 transition-all duration-300 text-sm shadow-lg flex items-center justify-center gap-2 group/btn active:scale-95"
-                                          >
-                                             <Download size={16} className="group-hover/btn:translate-y-0.5 transition-transform" />
-                                             Download
-                                          </button>
-                                          <button
-                                             onClick={() => toggleExpand(track.id)}
-                                             className={`p-3 rounded-2xl border transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/10 border-white/30 text-white' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'}`}
-                                          >
-                                             {expandedTrackId === track.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                                          </button>
+
+                                                {/* Show year ONLY if NOT 2026 and not already in tags */}
+                                                {track.year && track.year > 0 && track.year !== 2026 && (
+                                                   <span className="bg-brand-cyan/10 text-brand-cyan px-3 py-1 rounded-lg border border-brand-cyan/20 text-[10px] font-bold">
+                                                      {track.year}
+                                                   </span>
+                                                )}
+                                             </div>
+                                          </div>
+
+                                          {/* Right: Action Buttons (Download & Expand) */}
+                                          <div className="flex flex-row md:flex-col lg:flex-row items-center gap-3 w-full md:w-auto self-end md:self-center">
+                                             <button
+                                                onClick={() => {
+                                                   const firstVersion = track.versions?.[0];
+                                                   if (firstVersion?.downloadUrl) {
+                                                      const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
+                                                      handleDownload(firstVersion.downloadUrl, `${track.artist} - ${track.title}.${ext}`, track);
+                                                   }
+                                                }}
+                                                onContextMenu={(e) => {
+                                                   e.preventDefault();
+                                                   alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
+                                                   return false;
+                                                }}
+                                                className="flex-1 md:flex-none px-10 py-4 bg-white text-black font-black rounded-2xl hover:bg-brand-cyan hover:scale-105 transition-all duration-300 text-sm shadow-2xl flex items-center justify-center gap-2 group/btn active:scale-95 uppercase tracking-widest"
+                                             >
+                                                <Download size={18} className="group-hover/btn:translate-y-0.5 transition-transform" />
+                                                Download
+                                             </button>
+                                             <button
+                                                onClick={() => toggleExpand(track.id)}
+                                                className={`p-4 rounded-2xl border transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/10 border-white/30 text-white' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'}`}
+                                             >
+                                                {expandedTrackId === track.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                                             </button>
+                                          </div>
                                        </div>
                                     </div>
 
@@ -376,6 +486,7 @@ const MusicPool: React.FC = () => {
                                                       controls
                                                       autoPlay
                                                       playsInline
+                                                      onContextMenu={(e) => e.preventDefault()}
                                                       className="w-full max-h-[600px] object-contain"
                                                       src={mediaUrl}
                                                       onEnded={() => setPlayingTrackId(null)}
@@ -387,6 +498,7 @@ const MusicPool: React.FC = () => {
                                                       ref={mediaRef as any}
                                                       controls
                                                       autoPlay
+                                                      onContextMenu={(e) => e.preventDefault()}
                                                       className="w-full h-10 accent-brand-purple"
                                                       src={mediaUrl}
                                                       onEnded={() => setPlayingTrackId(null)}
@@ -416,7 +528,12 @@ const MusicPool: React.FC = () => {
                                                    <button
                                                       onClick={() => {
                                                          const ext = version.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                         handleDownload(version.downloadUrl, `${track.artist} - ${track.title} (${version.type}).${ext}`);
+                                                         handleDownload(version.downloadUrl, `${track.artist} - ${track.title} (${version.type}).${ext}`, track);
+                                                      }}
+                                                      onContextMenu={(e) => {
+                                                         e.preventDefault();
+                                                         alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
+                                                         return false;
                                                       }}
                                                       className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-brand-purple transition-all duration-300 group-hover/v:scale-105 active:scale-95"
                                                    >
@@ -552,7 +669,7 @@ const MusicPool: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                      <button
-                        onClick={() => setSelectedMonth('All')}
+                        onClick={() => changeMonth('All')}
                         className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === 'All' ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
                      >
                         All Months
@@ -560,7 +677,7 @@ const MusicPool: React.FC = () => {
                      {MONTHS.map(month => (
                         <button
                            key={month}
-                           onClick={() => setSelectedMonth(month)}
+                           onClick={() => changeMonth(month)}
                            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === month ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
                         >
                            {month}
@@ -592,16 +709,35 @@ const MusicPool: React.FC = () => {
                      key={plan.id}
                      className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
                   >
+                     {appliedReferral && (
+                        <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
+                           {appliedReferral.discountType === 'percentage' ? `${appliedReferral.discount}%` : `KES ${appliedReferral.discount}`} APPLIED
+                        </div>
+                     )}
                      {plan.isBestValue && (
                         <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
                            Best Value
                         </div>
                      )}
                      <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                     <div className="mb-6 flex items-baseline">
-                        <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
-                        <span className="text-4xl font-bold text-white tracking-tight">{plan.price.toLocaleString()}</span>
-                        {/* <span className="text-gray-500 ml-1">/{plan.period}</span> */}
+                     <div className="mb-6 flex items-baseline gap-2">
+                        <div className="flex items-baseline">
+                           <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
+                           <span className={`text-4xl font-bold tracking-tight ${appliedReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
+                              {plan.price.toLocaleString()}
+                           </span>
+                        </div>
+                        {appliedReferral && (
+                           <div className="flex items-baseline">
+                              <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
+                              <span className="text-4xl font-bold text-white tracking-tight">
+                                 {appliedReferral.discountType === 'percentage'
+                                    ? (plan.price * (1 - appliedReferral.discount / 100)).toLocaleString()
+                                    : Math.max(0, plan.price - appliedReferral.discount).toLocaleString()
+                                 }
+                              </span>
+                           </div>
+                        )}
                      </div>
 
                      <div className="flex-1">
@@ -617,10 +753,58 @@ const MusicPool: React.FC = () => {
 
                      <SubscribeButton
                         plan={plan}
+                        referralInfo={appliedReferral || undefined}
                         className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
                      />
                   </div>
                ))}
+            </div>
+
+            {/* Referral Code Input */}
+            <div className="max-w-md mx-auto mb-16">
+               <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 shadow-xl">
+                  <div className="flex items-center gap-3 mb-4">
+                     <Ticket size={20} className="text-brand-purple" />
+                     <h4 className="text-white font-bold">Have a Referral Code?</h4>
+                  </div>
+
+                  {appliedReferral ? (
+                     <div className="bg-brand-cyan/10 border border-brand-cyan/20 p-4 rounded-xl flex items-center justify-between">
+                        <div>
+                           <p className="text-brand-cyan font-bold text-sm uppercase tracking-widest">Code Applied!</p>
+                           <p className="text-white text-xs font-mono">{appliedReferral.code.toUpperCase()}</p>
+                        </div>
+                        <button
+                           onClick={() => setAppliedReferral(null)}
+                           className="text-gray-500 hover:text-white transition"
+                        >
+                           <X size={18} />
+                        </button>
+                     </div>
+                  ) : (
+                     <div className="space-y-3">
+                        <div className="flex gap-2">
+                           <input
+                              type="text"
+                              placeholder="ENTER CODE"
+                              value={referralCode}
+                              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                              className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono uppercase focus:border-brand-purple outline-none"
+                           />
+                           <button
+                              onClick={handleApplyReferral}
+                              disabled={isApplying || !referralCode.trim()}
+                              className="px-6 py-3 bg-brand-purple text-white font-bold rounded-xl hover:bg-brand-purple/80 transition disabled:opacity-50"
+                           >
+                              {isApplying ? <RefreshCw size={18} className="animate-spin" /> : 'APPLY'}
+                           </button>
+                        </div>
+                        {referralError && (
+                           <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{referralError}</p>
+                        )}
+                     </div>
+                  )}
+               </div>
             </div>
 
             <div className="bg-[#15151A] p-8 rounded-2xl border border-white/10 text-center max-w-2xl mx-auto">

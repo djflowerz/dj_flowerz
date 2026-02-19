@@ -6,7 +6,7 @@
  * 2. VickNick Video Pool: https://r2.vicknickvideopool.com
  */
 
-import { db } from '../firebase';
+import { supabase } from './supabase';
 
 // Track sources configuration
 const TRACK_SOURCES = {
@@ -25,6 +25,8 @@ const TRACK_SOURCES = {
         enabled: true,
     },
 };
+
+export type SourceName = keyof typeof TRACK_SOURCES;
 
 interface ExternalTrack {
     key?: string;
@@ -51,6 +53,7 @@ interface R2Track {
         downloadUrl: string;
     }>;
     dateAdded: string;
+    originalUploadDate?: string; // Track original source date
 }
 
 /**
@@ -80,9 +83,23 @@ async function fetchVickNickR2TracksAPI(): Promise<ExternalTrack[]> {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const tracks = await response.json();
-        console.log(`✅ Fetched ${tracks.length} tracks from VickNick R2`);
-        return tracks;
+
+        const html = await response.text();
+
+        // Use regex to extract ALL_TRACKS array from the HTML script tag
+        const match = html.match(/ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/);
+        if (match && match[1]) {
+            try {
+                const tracks = JSON.parse(match[1]);
+                console.log(`✅ Fetched ${tracks.length} tracks from VickNick R2 via HTML extraction`);
+                return tracks;
+            } catch (e) {
+                console.error('❌ Error parsing extracted JSON from VickNick R2:', e);
+            }
+        } else {
+            console.warn('⚠️  Could not find ALL_TRACKS in VickNick R2 HTML response');
+        }
+        return [];
     } catch (error) {
         console.error('❌ Error fetching VickNick R2 tracks:', error);
         return [];
@@ -102,148 +119,254 @@ function transformToR2Track(
     let previewUrl = '';
     let downloadUrl = '';
 
-    if (externalTrack.key) {
+    if ('key' in externalTrack && externalTrack.key) {
         // Remix & Mashups format
         const encodedPath = externalTrack.key.split('/').map(encodeURIComponent).join('/');
         previewUrl = `${cdnBase}/${encodedPath}`;
         downloadUrl = previewUrl;
     } else if (externalTrack.url) {
         // VickNick R2 format
-        previewUrl = externalTrack.url;
-        downloadUrl = externalTrack.downloadUrl || externalTrack.url;
+        // Ensure URL is encoded properly if it's a direct link with spaces/special chars
+        const urlParts = externalTrack.url.split('/');
+        const filename = urlParts.pop() || '';
+        const encodedFilename = encodeURIComponent(filename).replace(/%20/g, '+');
+        const encodedUrl = [...urlParts, encodedFilename].join('/');
+
+        previewUrl = encodedUrl;
+        downloadUrl = (externalTrack.downloadUrl ?
+            [...externalTrack.downloadUrl.split('/').slice(0, -1), encodeURIComponent(externalTrack.downloadUrl.split('/').pop() || '')].join('/') :
+            encodedUrl);
     }
 
     let title = externalTrack.baseTitle || externalTrack.title || 'Unknown Title';
-    let artist = externalTrack.month || externalTrack.artist || source.category;
+    let artist = (externalTrack as any).month || (externalTrack as any).artist || source.category;
 
     // --- Metadata Cleanup Logic ---
     // Fix cases where Artist is a genre (e.g. "Afro House") and Title is "Artist - Title"
     const GENERIC_ARTISTS = [
         'Afro House', 'Club Edits', 'Dancehall Remixes', 'Amapiano',
-        'Reggae Fussion', 'HYPE EDITS', 'Remix & Mashups', 'R2 Pool'
+        'Reggae Fussion', 'HYPE EDITS', 'Remix & Mashups', 'R2 Pool',
+        'REMIXAH', 'DANCEHALL REFIX', 'AFROBEATS', 'HIP HOP EX',
+        'VICKNICK', 'VIDEO POOL'
     ];
 
-    if (GENERIC_ARTISTS.includes(artist) || artist === source.category) {
-        // Check if title has " - " separator
-        const separator = ' - ';
-        if (title.includes(separator)) {
-            const parts = title.split(separator);
-            if (parts.length >= 2) {
-                // Heuristic: "Artist - Title"
-                // Assuming the first part is the Artist
-                artist = parts[0].trim();
-                title = parts.slice(1).join(separator).trim();
+    // Common separators in filenames
+    const separators = [' - ', ' – ', ' — ', ' ___ ', ' __ ', ' _ '];
+
+    // If artist is generic or matches the source category, try to split the title
+    if (GENERIC_ARTISTS.some(ga => artist.toUpperCase().includes(ga.toUpperCase())) || artist === source.category) {
+        let found = false;
+        for (const sep of separators) {
+            if (title.includes(sep)) {
+                const parts = title.split(sep);
+                if (parts.length >= 2) {
+                    // Heuristic: Some titles are "Genre - Artist - Title" or "Artist - Title"
+                    // If first part is a known generic, use second as artist
+                    if (GENERIC_ARTISTS.some(ga => parts[0].toUpperCase().includes(ga.toUpperCase()))) {
+                        artist = parts[1].trim();
+                        title = parts.slice(2).join(sep).trim() || parts[1].trim();
+                    } else {
+                        // Check if the END of the title looks like an artist (if more than 2 parts)
+                        // Or just assume first part is artist
+                        artist = parts[0].trim();
+                        title = parts.slice(1).join(sep).trim();
+                    }
+
+                    found = true;
+                    break;
+                }
             }
+        }
+
+        // Catch formats like "Title Artist" where artist is often at the end after brackets
+        if (!found && title.includes(') ')) {
+            const parts = title.split(') ');
+            if (parts.length >= 2) {
+                artist = parts[parts.length - 1].trim();
+                title = parts.slice(0, -1).join(') ').trim() + ')';
+                found = true;
+            }
+        }
+
+        if (found) {
+            artist = artist.replace(/_/g, ' ').trim();
+            title = title.replace(/_/g, ' ').trim();
         }
     }
     // -----------------------------
+
+    let genre = source.category;
+    const folderContext = ((externalTrack as any).month || (externalTrack as any).key || '').toUpperCase();
+
+    // Check if folder or initial artist field contains a specific genre name
+    for (const ga of GENERIC_ARTISTS) {
+        if (folderContext.includes(ga.toUpperCase()) || artist.toUpperCase().includes(ga.toUpperCase())) {
+            // Map generic labels to slightly nicer genre names if needed
+            genre = ga;
+            break;
+        }
+    }
 
     // Extract year from title or use current year
     const yearMatch = title.match(/\((\d{4})\)/);
     const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear();
 
-    // Generate unique ID from download URL
-    const trackId = downloadUrl.split('/').pop()?.replace(/\.[^/.]+$/, '') ||
-        `track_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a temporary ID for internal use (will be replaced by DB UUID on insert)
+    const trackId = 'temp_' + (downloadUrl.split('/').pop()?.replace(/\.[^/.]+$/, '') || Date.now().toString());
 
     return {
         id: trackId,
-        title,
-        artist,
-        genre: source.category,
-        category: [source.category],
+        title: title.trim(),
+        artist: artist.trim(),
+        genre: genre,
+        category: [source.category, 'New'],
         bpm: 0,
         year,
         previewUrl,
-        versions: [
-            {
-                id: 'v1',
-                type: 'Original',
-                downloadUrl,
-            },
-        ],
+        versions: [{ id: 'v1', type: 'Original', downloadUrl }],
         dateAdded: new Date().toISOString(),
+        originalUploadDate: (externalTrack as any).uploaded // Pass through from source
     };
 }
 
 /**
- * Check if track already exists in Firestore
+ * Ensure genre exists in the database, creating it if necessary
  */
-async function trackExists(downloadUrl: string): Promise<boolean> {
+async function ensureGenreExists(genreName: string): Promise<void> {
+    if (!genreName) return;
     try {
-        // Fallback: check by downloadUrl in versions array manually due to array-contains limitation with object equality
-        // Or if we query just by 'downloadUrl' if stored separately.
-        // But for now, let's keep it consistent
-        // Actually, listing all is safer but expensive.
-        // Let's optimize: query by 'id' if possible? No the ID is generated.
+        const { data } = await supabase
+            .from('genres')
+            .select('id')
+            .ilike('name', genreName)
+            .maybeSingle();
 
-        // Simple optimization: Just check if any version has this downloadUrl.
-        // Unfortunately, Firestore doesn't support 'array-contains-any-field'.
-        // We stick to listing all as safer fallback but maybe limit?
-
-        // BETTER: Query where 'versions' array contains EXACT object we create?
-        // But that assumes we constructed it exactly same way before.
-        // Let's just fetch all 'poolTracks' and iterate.
-        // For production scale (thousands), this should be cached or specialized index.
-
-        const allTracks = await db.collection('poolTracks').get();
-        for (const doc of allTracks.docs) {
-            const track = doc.data();
-            // Check in versions array
-            if (track.versions?.some((v: any) => v.downloadUrl === downloadUrl)) {
-                return true;
-            }
+        if (!data) {
+            console.log(`🆕 Creating new genre: ${genreName}`);
+            const genreId = genreName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+            await supabase
+                .from('genres')
+                .insert([{
+                    id: genreId,
+                    name: genreName,
+                    cover_url: 'https://cdn.vicknickvideopool.com/default_genre_cover.jpg',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }]);
         }
-        return false;
-
     } catch (err) {
-        console.error('Error checking track existence:', err);
-        return false;
+        console.error(`Error ensuring genre ${genreName}:`, err);
     }
 }
 
 /**
- * Add new tracks to Firestore
+ * Add new tracks to Firestore in batches
  */
-async function addTracksToFirestore(tracks: R2Track[]): Promise<number> {
+async function addTracksToFirestore(tracks: R2Track[], updateExisting: boolean = false): Promise<number> {
+    if (tracks.length === 0) return 0;
+
+    console.log(`🔍 Checking ${tracks.length} tracks for duplicates in a pool of 120k+...`);
+
+    // Strategy: Fetch all existing URLs once and check in memory. 
+    // This is much faster than thousands of tiny queries without an index.
+    let existingUrls = new Set<string>();
+    try {
+        let page = 0;
+        const pageSize = 20000;
+        while (true) {
+            const { data, error } = await supabase
+                .from('pool_tracks')
+                .select('download_url')
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+
+            data.forEach(item => {
+                if (item.download_url) existingUrls.add(item.download_url);
+            });
+
+            if (data.length < pageSize) break;
+            page++;
+            console.log(`✅ Loaded ${existingUrls.size} existing tracks so far...`);
+        }
+        console.log(`✅ Fully loaded ${existingUrls.size} existing tracks for deduplication.`);
+    } catch (err) {
+        console.error('❌ Failed to load existing tracks for deduplication. Aborting to prevent accidental duplicates.', err);
+        return 0;
+    }
+
+    // Filter out existing tracks
+    const newTracks = tracks.filter(t => {
+        const url = t.versions[0]?.downloadUrl;
+        return url && !existingUrls.has(url);
+    });
+
+    if (newTracks.length === 0) {
+        console.log('✨ All fetched tracks are already in the pool. No new tracks to add.');
+        return 0;
+    }
+
+    console.log(`➕ Adding ${newTracks.length} new tracks to the pool...`);
     let addedCount = 0;
 
-    for (const track of tracks) {
+    // Process in batches of 100 for insertion
+    for (let i = 0; i < newTracks.length; i += 100) {
+        const batch = newTracks.slice(i, i + 100);
+
         try {
-            const downloadUrl = track.versions[0]?.downloadUrl;
-
-            if (!downloadUrl) {
-                console.warn(`⚠️  Skipping track without download URL: ${track.title}`);
-                continue;
+            // Ensure genres exist for this batch
+            const uniqueGenres = Array.from(new Set(batch.map(t => t.genre)));
+            for (const genre of uniqueGenres) {
+                await ensureGenreExists(genre);
             }
 
-            // Check if track already exists
-            const exists = await trackExists(downloadUrl);
+            // Prepare records for insert
+            const records = batch.map(track => ({
+                title: track.title,
+                artist: track.artist,
+                genre: track.genre,
+                category: track.category,
+                bpm: track.bpm,
+                year: track.year,
+                preview_url: track.previewUrl,
+                download_url: track.versions[0]?.downloadUrl,
+                versions: track.versions.map(v => ({ ...v, download_url: v.downloadUrl })),
+                date_added: track.dateAdded
+            }));
 
-            if (exists) {
-                // console.log(`⏭️  Track already exists: ${track.title}`); // Verbose log
-                continue;
+            const { error: insertError } = await supabase
+                .from('pool_tracks')
+                .insert(records);
+
+            if (insertError) {
+                console.error(`❌ Batch insert error (batch ${i / 100 + 1}):`, insertError);
+                // Fallback to one-by-one if batch fails
+                for (const single of records) {
+                    const { error: singleError } = await supabase.from('pool_tracks').insert([single]);
+                    if (!singleError) addedCount++;
+                }
+            } else {
+                addedCount += batch.length;
+                console.log(`✅ Batch ${i / 100 + 1} added (${batch.length} tracks)`);
             }
-
-            // Add new track to 'poolTracks'
-            await db.collection('poolTracks').add(track);
-            addedCount++;
-            console.log(`✅ Added: ${track.title} by ${track.artist}`);
-
-        } catch (error) {
-            console.error(`❌ Error adding track ${track.title}:`, error);
+        } catch (err) {
+            console.error(`❌ Unexpected error in batch ${i / 100 + 1}:`, err);
         }
     }
 
+    console.log(`📊 Sync Summary: ${addedCount} tracks added.`);
     return addedCount;
 }
 
 /**
  * Sync tracks from a specific source
  */
-async function syncTracksFromSource(
-    sourceName: 'remixMashups' | 'vicknickR2'
-): Promise<{ total: number; added: number }> {
+export async function syncTracksFromSource(sourceName: SourceName, updateExisting: boolean = false): Promise<{ total: number; added: number }> {
+    if (!TRACK_SOURCES[sourceName]) {
+        console.error(`❌ Source ${sourceName} not found`);
+        return { total: 0, added: 0 };
+    }
     const source = TRACK_SOURCES[sourceName];
 
     if (!source.enabled) {
@@ -270,13 +393,31 @@ async function syncTracksFromSource(
     // Transform to R2Track format
     const r2Tracks = externalTracks.map(track => transformToR2Track(track, source));
 
+    // Filter by recency if source supports it (satisfies "only recently updated")
+    let tracksToProcess = r2Tracks;
+    const RECENT_THRESHOLD_DAYS = 7; // Only tracks from this week
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - RECENT_THRESHOLD_DAYS);
+
+    if (!updateExisting) {
+        tracksToProcess = r2Tracks.filter(t => {
+            if (!t.originalUploadDate) return true; // Keep if no date info
+            return new Date(t.originalUploadDate) >= recentDate;
+        });
+
+        if (tracksToProcess.length < r2Tracks.length) {
+            console.log(`📉 Filtered ${r2Tracks.length - tracksToProcess.length} tracks as they are older than ${RECENT_THRESHOLD_DAYS} days.`);
+        }
+    }
+
     // Add to Firestore
-    const addedCount = await addTracksToFirestore(r2Tracks);
+    const addedCount = await addTracksToFirestore(tracksToProcess, updateExisting);
 
     console.log(`\n📊 ${source.name} Sync Complete:`);
     console.log(`   Total tracks fetched: ${externalTracks.length}`);
+    console.log(`   Tracks eligible (recent): ${tracksToProcess.length}`);
     console.log(`   New tracks added: ${addedCount}`);
-    console.log(`   Duplicates skipped: ${externalTracks.length - addedCount}`);
+    console.log(`   Already existing or skipped: ${tracksToProcess.length - addedCount}`);
 
     return { total: externalTracks.length, added: addedCount };
 }
@@ -284,7 +425,7 @@ async function syncTracksFromSource(
 /**
  * Sync all enabled sources
  */
-export async function syncAllSources(): Promise<{
+export async function syncAllSources(updateExisting: boolean = false): Promise<{
     remixMashups: { total: number; added: number };
     vicknickR2: { total: number; added: number };
     totalAdded: number;
@@ -300,12 +441,12 @@ export async function syncAllSources(): Promise<{
 
     // Sync Remix & Mashups
     if (TRACK_SOURCES.remixMashups.enabled) {
-        results.remixMashups = await syncTracksFromSource('remixMashups');
+        results.remixMashups = await syncTracksFromSource('remixMashups', updateExisting);
     }
 
     // Sync VickNick R2
     if (TRACK_SOURCES.vicknickR2.enabled) {
-        results.vicknickR2 = await syncTracksFromSource('vicknickR2');
+        results.vicknickR2 = await syncTracksFromSource('vicknickR2', updateExisting);
     }
 
     results.totalAdded = results.remixMashups.added + results.vicknickR2.added;
@@ -340,13 +481,13 @@ export function schedulePeriodicSync(intervalHours: number = 6): NodeJS.Timeout 
 /**
  * Manual sync trigger (for admin dashboard)
  */
-export async function manualSync(): Promise<{
+export async function manualSync(updateExisting: boolean = false): Promise<{
     success: boolean;
     message: string;
     results?: any;
 }> {
     try {
-        const results = await syncAllSources();
+        const results = await syncAllSources(updateExisting);
         return {
             success: true,
             message: `Successfully synced ${results.totalAdded} new tracks`,

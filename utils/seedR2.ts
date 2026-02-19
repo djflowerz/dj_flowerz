@@ -1,10 +1,9 @@
 
-import { db } from '../firebase';
+import { supabase } from './supabase';
 
-// Firestore free tier limits: 50,000 writes/day
-const DAILY_WRITE_LIMIT = 45000; // Leave buffer for other operations
-const BATCH_SIZE = 400; // Increased to 400 for faster throughput (max 500)
-const DELAY_BETWEEN_BATCHES = 200; // 200ms delay - fast but safe
+// Supabase limits: Depends on plan, but usually much higher than Firestore free tier
+const BATCH_SIZE = 500; // Supabase handles 500-1000 well in a single request
+const DELAY_BETWEEN_BATCHES = 200;
 
 interface SeedProgress {
     totalTracks: number;
@@ -13,38 +12,21 @@ interface SeedProgress {
     skippedTracks: number;
     currentBatch: number;
     totalBatches: number;
-    quotaUsed: number;
-    quotaRemaining: number;
     isComplete: boolean;
     rangeComplete: boolean;
     lastProcessedIndex: number;
     currentTrackTitle?: string;
 }
 
-// Helper to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Check if track already exists (to avoid duplicates)
-const trackExists = async (downloadUrl: string): Promise<boolean> => {
-    try {
-        const snapshot = await db.collection('poolTracks')
-            .where('versions', 'array-contains', { downloadUrl })
-            .limit(1)
-            .get();
-        return !snapshot.empty;
-    } catch {
-        return false;
-    }
-};
 
 export const seedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     startFromIndex: number = 0,
-    maxTracks: number = 10000,
-    maxWrites: number = DAILY_WRITE_LIMIT
+    maxTracks: number = 10000
 ) => {
     try {
-        console.log("🚀 Starting R2 track seeding...");
+        console.log("🚀 Starting R2 track seeding to Supabase...");
         onProgress("📥 Downloading track list...");
 
         const res = await fetch('/r2_tracks.json');
@@ -53,7 +35,6 @@ export const seedR2Tracks = async (
 
         const totalTracks = allTracks.length;
         const tracksToProcess = allTracks.slice(startFromIndex, startFromIndex + maxTracks);
-        const maxTracksThisRun = Math.min(tracksToProcess.length, maxWrites);
 
         const progress: SeedProgress = {
             totalTracks,
@@ -61,142 +42,84 @@ export const seedR2Tracks = async (
             uploadedTracks: 0,
             skippedTracks: 0,
             currentBatch: 0,
-            totalBatches: Math.ceil(maxTracksThisRun / BATCH_SIZE),
-            quotaUsed: 0,
-            quotaRemaining: maxWrites,
+            totalBatches: Math.ceil(tracksToProcess.length / BATCH_SIZE),
             isComplete: false,
             rangeComplete: false,
             lastProcessedIndex: startFromIndex,
             currentTrackTitle: ''
         };
 
-        onProgress(`📦 Prepared ${maxTracksThisRun} tracks. Starting upload...`, progress);
+        onProgress(`📦 Prepared ${tracksToProcess.length} tracks. Starting upload...`, progress);
 
-        let batch = db.batch();
-        let batchCount = 0;
-        let i = 0;
+        for (let i = 0; i < tracksToProcess.length; i += BATCH_SIZE) {
+            const batch = tracksToProcess.slice(i, i + BATCH_SIZE);
+            const formattedBatch = batch.map((track: any) => {
+                // Ensure field names match snake_case Supabase schema
+                const download_url = track.downloadUrl || (track.versions && track.versions[0]?.downloadUrl);
 
-        for (i = 0; i < maxTracksThisRun && progress.quotaRemaining > 0; i++) {
-            const track = tracksToProcess[i];
-            progress.processedTracks++;
-            progress.lastProcessedIndex = startFromIndex + i;
+                // Auto-detect version type if not present
+                const fullText = ((track.title || '') + " " + (track.artist || '')).toUpperCase();
+                let mainVersionLabel = 'Original';
+                if (fullText.includes('INSTRUMENTAL')) mainVersionLabel = 'Instrumental';
+                else if (fullText.includes('CLEAN') || fullText.includes('TV CLEAN')) mainVersionLabel = 'TV Clean';
+                else if (fullText.includes('EXTENDED') || fullText.includes('EXTENDZ')) mainVersionLabel = 'Extendz';
 
-            // Clean undefined values
-            const cleanTrack = JSON.parse(JSON.stringify(track));
-
-            // Ensure required fields
-            if (!cleanTrack.id) cleanTrack.id = db.collection('poolTracks').doc().id;
-            if (!cleanTrack.dateAdded) cleanTrack.dateAdded = new Date().toISOString();
-
-            // Check for duplicates (only for first batch to save quota)
-            if (i < BATCH_SIZE && cleanTrack.versions?.[0]?.downloadUrl) {
-                const exists = await trackExists(cleanTrack.versions[0].downloadUrl);
-                if (exists) {
-                    progress.skippedTracks++;
-                    continue;
-                }
-            }
-
-            // Auto-detect version type
-            const fullText = ((cleanTrack.title || '') + " " + (cleanTrack.artist || '')).toUpperCase();
-            let mainVersionLabel = 'Original';
-
-            if (fullText.includes('INSTRUMENTAL')) mainVersionLabel = 'Instrumental';
-            else if (fullText.includes('CLEAN') || fullText.includes('TV CLEAN')) mainVersionLabel = 'TV Clean';
-            else if (fullText.includes('EXTENDED') || fullText.includes('EXTENDZ')) mainVersionLabel = 'Extendz';
-
-            if (cleanTrack.versions && cleanTrack.versions.length > 0) {
-                cleanTrack.versions[0].type = mainVersionLabel;
-            } else if (cleanTrack.downloadUrl) {
-                cleanTrack.versions = [{
+                const versions = track.versions || [{
                     id: 'v1',
                     type: mainVersionLabel,
-                    downloadUrl: cleanTrack.downloadUrl
+                    download_url: download_url
                 }];
-            }
 
-            const docRef = db.collection('poolTracks').doc(cleanTrack.id);
-            batch.set(docRef, cleanTrack);
-            batchCount++;
-            progress.currentTrackTitle = `${cleanTrack.artist} - ${cleanTrack.title}`;
+                return {
+                    title: track.title,
+                    artist: track.artist,
+                    genre: track.genre || 'Uncategorized',
+                    category: track.category || [],
+                    bpm: track.bpm || 0,
+                    year: track.year || new Date().getFullYear(),
+                    preview_url: track.previewUrl || download_url,
+                    download_url: download_url,
+                    versions: versions,
+                    date_added: track.dateAdded || new Date().toISOString()
+                };
+            }).filter(t => t.download_url); // Only insert if we have a download URL
 
-            // Provide frequent updates during the batch
-            if (i % 20 === 0) {
-                const percentage = Math.round((progress.processedTracks / maxTracksThisRun) * 100);
-                onProgress(`⏳ Queueing: ${progress.currentTrackTitle} (${percentage}%)`, progress);
-            }
+            const { error } = await supabase
+                .from('pool_tracks')
+                .upsert(formattedBatch, { onConflict: 'download_url' });
 
-            // Commit batch when full
-            if (batchCount >= BATCH_SIZE) {
-                try {
-                    await batch.commit();
-                    progress.uploadedTracks += batchCount;
-                    progress.quotaUsed += batchCount;
-                    progress.quotaRemaining -= batchCount;
-                    progress.currentBatch++;
-
-                    const percentage = Math.round((progress.uploadedTracks / maxTracksThisRun) * 100);
-                    onProgress(
-                        `⬆️ Uploaded: ${percentage}% (${progress.uploadedTracks}/${maxTracksThisRun}) | Quota: ${progress.quotaRemaining} remaining`,
-                        progress
-                    );
-
-                    console.log(`✅ Batch ${progress.currentBatch}/${progress.totalBatches} committed (${batchCount} tracks)`);
-
-                    // Reset batch
-                    batch = db.batch();
-                    batchCount = 0;
-
-                    // Delay to avoid rate limiting
-                    await delay(DELAY_BETWEEN_BATCHES);
-                } catch (error: any) {
-                    console.error("❌ Batch commit error:", error);
-                    if (error.code === 'resource-exhausted') {
-                        onProgress(`⚠️ Quota exceeded. Uploaded ${progress.uploadedTracks} tracks. Resume from index ${progress.lastProcessedIndex + 1}`, progress);
-                        throw new Error(`Quota exceeded. Resume from index: ${progress.lastProcessedIndex + 1}`);
-                    }
-                    throw error;
-                }
-            }
-        }
-
-        // Commit remaining tracks
-        if (batchCount > 0 && progress.quotaRemaining > 0) {
-            try {
-                await batch.commit();
-                progress.uploadedTracks += batchCount;
-                progress.quotaUsed += batchCount;
-                progress.currentBatch++;
-                console.log(`✅ Final batch committed (${batchCount} tracks)`);
-            } catch (error: any) {
-                console.error("❌ Final batch error:", error);
+            if (error) {
+                console.error("❌ Supabase upload error:", error);
                 throw error;
             }
-        }
 
-        progress.rangeComplete = (i >= tracksToProcess.length);
-        progress.isComplete = (progress.lastProcessedIndex + 1) >= totalTracks;
+            progress.processedTracks += batch.length;
+            progress.uploadedTracks += formattedBatch.length;
+            progress.currentBatch++;
+            progress.lastProcessedIndex = startFromIndex + progress.processedTracks - 1;
 
-        if (progress.rangeComplete) {
-            if (progress.isComplete) {
-                onProgress(`🎉 Database Fully Seeded! Uploaded ${progress.uploadedTracks} tracks (${progress.skippedTracks} skipped)`, progress);
-            } else {
-                onProgress(`✅ Part Seeded! Uploaded ${progress.uploadedTracks} tracks (${progress.skippedTracks} skipped)`, progress);
+            if (batch.length > 0) {
+                progress.currentTrackTitle = `${batch[batch.length - 1].artist} - ${batch[batch.length - 1].title}`;
             }
-        } else {
+
+            const percentage = Math.round((progress.processedTracks / tracksToProcess.length) * 100);
             onProgress(
-                `⏸️ Session paused (Quota or Limit). Uploaded ${progress.uploadedTracks} tracks. Resume from index ${progress.lastProcessedIndex + 1}`,
+                `⬆️ Uploaded: ${percentage}% (${progress.processedTracks}/${tracksToProcess.length})`,
                 progress
             );
+
+            // Small delay to prevent hitting rate limits too hard
+            await delay(DELAY_BETWEEN_BATCHES);
         }
 
-        console.log("📊 Seeding summary:", {
-            uploaded: progress.uploadedTracks,
-            skipped: progress.skippedTracks,
-            quotaUsed: progress.quotaUsed,
-            lastIndex: progress.lastProcessedIndex,
-            isComplete: progress.isComplete
-        });
+        progress.rangeComplete = true;
+        progress.isComplete = (progress.lastProcessedIndex + 1) >= totalTracks;
+
+        if (progress.isComplete) {
+            onProgress(`🎉 Database Fully Seeded! Total: ${progress.uploadedTracks} tracks uploaded.`, progress);
+        } else {
+            onProgress(`✅ Part Seeded! Uploaded ${progress.uploadedTracks} tracks.`, progress);
+        }
 
         return progress;
     } catch (error: any) {
@@ -206,10 +129,9 @@ export const seedR2Tracks = async (
     }
 };
 
-// Helper function to resume seeding from a specific index
 export const resumeSeedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     lastIndex: number
 ) => {
-    return seedR2Tracks(onProgress, lastIndex + 1, 10000, DAILY_WRITE_LIMIT);
+    return seedR2Tracks(onProgress, lastIndex + 1, 10000);
 };

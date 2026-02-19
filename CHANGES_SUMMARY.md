@@ -285,4 +285,56 @@ We encountered and fixed the following issues during setup:
 
 ---
 
-*Last Updated: 2026-02-12*
+*Last Updated: 2026-02-15*
+
+---
+
+## 🎵 Music Pool Fixes & Enhancements (2026-02-15)
+
+**Objective**: Ensure all 45,000+ tracks are visible, fix genre filtering, and improve media playback.
+
+### 1. **Genre Filtering Fix (Frontend)**
+- **Issue**: Genres in the database contained track counts (e.g., "Amapiano (6119 tracks)"), causing exact match filters to fail against clean genre names (e.g., "Amapiano").
+- **Fix**: Updated `pages/MusicPool.tsx` filtering logic to use partial string matching (`.includes()`), ensuring selecting a genre correctly limits the view to matching tracks.
+
+### 2. **Genre Display Cleanup**
+- **Issue**: Track list displayed raw genre strings like "AMAPIANO (6119 TRACKS)".
+- **Fix**: Implemented regex replacement in `pages/MusicPool.tsx` to strip `(xxxx tracks)` suffix, resulting in clean genre badges (e.g., "AMAPIANO").
+
+### 3. **Video/Audio Player Logic**
+- **Feature**: Automatically detect media type based on file extension or URL keywords.
+- **Implementation**: 
+  - `.mp4`, `.mov`, `.webm`, or URLs containing "video" -> Render `<video>` player.
+  - `.mp3`, `.wav`, etc. -> Render `<audio>` player.
+- **Result**: seamless playback for mixed media types in the pool.
+
+### 4. **Full Library Access**
+- **Issue**: Default fetch limit prevented seeing all 45,000+ tracks.
+- **Fix**: Increased `fetchPoolTracks` limit in `DataContext.tsx` to 60,000 to accommodate the entire library.
+- **Optimization**: Added "Load More" / "Full Library Loaded" indicators for user clarity.
+
+### 5. **Admin & API**
+- **Security**: Updated `api/get-pool-tracks.ts` to use Supabase Service Role key for consistent access to all tracks, bypassing restrictive RLS policies for the public pool view.
+
+---
+
+## 🎧 Mixtape & Subscription Logic (2026-02-15)
+
+### 1. **True Mixtape Playback** ✅
+**File**: `context/PlayerContext.tsx`
+- **Objective**: Ensure the mixtape player plays the full track, not just a preview.
+- **Fix**: Updated logic to prioritize `stream_url` and `download_url` from Hearthis API over `preview_url`.
+
+### 2. **Strict Subscription Expiry** ✅
+**File**: `context/AuthContext.tsx`
+- **Objective**: Automatically revoke access when subscription timer ends.
+- **Implementation**: Added real-time check: `isSubscriber = db.isSubscriber && new Date() < db.expiryDate`.
+- **Action**: If expired, user status updates to suspended/false immediately, blocking downloads.
+
+### 3. **Download Limits Enforcement** ✅
+**File**: `pages/MusicPool.tsx`
+- **Rule 1**: 1-Week Plans -> Max 30 downloads/day.
+- **Rule 2**: Monthly/Other Plans -> Max 200 downloads/day.
+- **Result**: Enforced via client-side check on every download attempt. Resets strictly at midnight.
+
+

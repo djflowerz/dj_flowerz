@@ -26,8 +26,13 @@ You must add these environment variables in your Vercel Project Settings (`Setti
 | `VITE_FIREBASE_PROJECT_ID` | `flowpay-401a4` | Your Firebase Project ID |
 | `VITE_FIREBASE_STORAGE_BUCKET` | `flowpay-401a4.firebasestorage.app` | For track downloads |
 
+| VITE_SUPABASE_URL | `https://...` | Supabase API URL |
+| VITE_SUPABASE_ANON_KEY | `eyJhbGci...` | For frontend database access |
+| SUPABASE_SERVICE_ROLE_KEY | `sb_secret_...` | For backend (webhook) updates |
+| SUPABASE_DB_URL | `postgresql://...` | For direct database access |
+
 ### How to get the `FIREBASE_SERVICE_ACCOUNT` JSON:
-To allow the Vercel backend to update your admin dashboard safely:
+To allow the Vercel backend to update your admin dashboard safely (if still using Firestore for some parts):
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. **Project Settings** > **Service Accounts**
 3. Click **Generate new private key**
@@ -42,13 +47,14 @@ To allow the Vercel backend to update your admin dashboard safely:
 4. Ensure the `api/` directory is present in your repository root.
 
 ## 4. Why this fixes the Admin Portal issue
-The new `api/paystack/webhook.ts` uses the **Firebase Admin SDK**. This bypasses all security rules and directly updates the `orders`, `subscriptions`, and `users` collections in Firestore. 
+The new `api/paystack/webhook.ts` now uses the **Supabase client** with the Service Role key. This bypasses RLS and directly updates the `orders`, `profiles`, `subscriptions`, `payments`, and `tips` tables in Supabase.
 
-When a user pays, Paystack notifies this webhook, which then creates the order record that appears in your Admin Dashboard's **Payments** and **Orders** tabs instantly.
+When a user pays, Paystack notifies this webhook, which then creates the record that appears in your Admin Dashboard instantly.
 
 ---
 
 **Current Configuration Summary:**
-- **Vercel API Routes**: Ready and optimized for Serverless.
-- **Paystack Keys**: Updated in your local `.env`.
-- **Admin Access**: Still mapping to your email `ianmuriithiflowerz@gmail.com`.
+- **Vercel API Routes**: Updated to use Supabase for persistent tracking.
+- **Supabase Migration**: Initial tables and buckets created.
+- **Paystack Keys**: Configured in Vercel environment variables.
+- **Admin Access**: ianmuriithiflowerz@gmail.com

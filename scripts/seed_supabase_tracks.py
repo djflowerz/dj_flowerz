@@ -66,11 +66,11 @@ def map_genre(folder_path, file_name, artist, title):
 
 def seed_tracks():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(script_dir, "..", "music_track_list.txt")
+    file_path = os.path.join(script_dir, "..", "scanned_files.txt")
     if not os.path.exists(file_path):
-        file_path = "music_track_list.txt"
+        file_path = "scanned_files.txt"
         if not os.path.exists(file_path):
-            print("Error: music_track_list.txt not found.")
+            print("Error: scanned_files.txt not found.")
             return
 
     print(f"Reading {file_path} for updated sync...")
@@ -84,115 +84,77 @@ def seed_tracks():
     base_url = "https://cdn.vicknickvideopool.com"
     namespace = uuid.NAMESPACE_DNS
     
-    for line in lines[2:]:
-        parts = line.split('|')
-        if len(parts) < 6: continue
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("==="): continue
+
+        folder_path = os.path.dirname(line)
+        file_name = os.path.basename(line)
         
-        file_name = parts[0].strip()
-        artist = parts[1].strip()
-        title = parts[2].strip()
-        year_str = parts[3].strip()
-        folder_path = parts[4].strip()
-        source = parts[5].strip()
+        # Determine source
+        source = "R2 Video Pool" # Default
+        if "Remix & Mashups Hub" in line:
+             source = "Remix & Mashups Hub"
+
+        # Try to extract Artist - Title from filename
+        # Common formats: "Artist - Title.mp4", "Artist - Title (feat X).mp4"
+        name_part = os.path.splitext(file_name)[0]
+        if " - " in name_part:
+            artist, title = name_part.split(" - ", 1)
+        else:
+            artist = "Unknown Artist"
+            title = name_part
+        
+        # Replace DJ VICNICK variants with DJ FLOWERZ
+        if "[ DJ VICKNICK VIDEO POOL]" in title:
+            title = title.replace("[ DJ VICKNICK VIDEO POOL]", "[DJ FLOWERZ VIDEOPOOL]")
+        if "DJ VICKNICK VIDEO POOL" in title:
+             title = title.replace("DJ VICKNICK VIDEO POOL", "DJ FLOWERZ VIDEOPOOL")
+        if "DJ VICNICK VIDEOPOOL" in title:
+             title = title.replace("DJ VICNICK VIDEOPOOL", "DJ FLOWERZ VIDEOPOOL")
+        
+        # Extract year from folder path if possible
+        year_str = "0"
+        # will try to extract in logic below.
 
         # Improved year detection
         year = None
-        if year_str.isdigit():
-            year = int(year_str)
-        
+        # Improved year detection - don't let it clutter titles
+        year = None
         if "2026" in folder_path or "2026" in file_name:
             year = 2026
         elif "2025" in folder_path or "2025" in file_name:
-            if not year: year = 2025
+            year = 2025
+        elif "2024" in folder_path or "2024" in file_name:
+            year = 2024
 
         genre = map_genre(folder_path, file_name, artist, title)
         
-        # Start with folder structure as categories
-        categories = [p.strip() for p in folder_path.split('/') if p.strip()]
+        # Start with folder structure as categories, but clean them up
+        raw_categories = [p.strip() for p in folder_path.split('/') if p.strip()]
+        categories = []
+        for cat in raw_categories:
+            c = cat.upper()
+            # Clean up redundant branding but keep the core info (like year)
+            c = c.replace("DJ FLOWERZ", "").replace("VIDEO POOL", "").replace("GENRES", "").replace("  ", " ").strip()
+            # Format monthly edits nicely: "JANUARY 2026 EDITS" -> "JAN 2026 EDITS"
+            c = c.replace("JANUARY", "JAN").replace("FEBRUARY", "FEB").replace("MARCH", "MAR")
+            c = c.replace("APRIL", "APR").replace("AUGUST", "AUG").replace("SEPTEMBER", "SEP")
+            c = c.replace("OCTOBER", "OCT").replace("NOVEMBER", "NOV").replace("DECEMBER", "DEC")
+            
+            if c and c not in categories:
+                categories.append(c)
         
-        # Add explicit categories based on naming conventions to support POOL_HUBS filters
+        # Add explicit categories based on naming conventions
         fp_lower = folder_path.lower()
-        
-        # Year-based categories with month extraction
-        if "2026" in folder_path or "2025" in folder_path or "2024" in folder_path or "2023" in folder_path or "2022" in folder_path or "2021" in folder_path or "2020" in folder_path:
-            if "New Uploads" not in categories and ("2026" in folder_path or "2025" in folder_path):
-                categories.append("New Uploads")
-        
-        # Remix & Mashups Hub
-        if "remix & mashups hub" in fp_lower or "remix" in fp_lower:
-            if "Remix & Mashups Hub" not in categories:
-                categories.append("Remix & Mashups Hub")
-        
-        # Redrums
-        if "redrums video remixes" in fp_lower or "redrum" in fp_lower:
-            if "Redrums Video Remixes" not in categories:
-                categories.append("Redrums Video Remixes")
-        
-        # Riddimz
-        if "riddimz f" in fp_lower or "riddim" in fp_lower:
-            if "Riddimz F'" not in categories:
-                categories.append("Riddimz F'")
-        
-        # Genre-based categories from Genres/ folder
-        if "genres/" in fp_lower:
-            # Kenyan Love Songs
-            if "kenya love songs (low hype)" in fp_lower or "kenya love songs (hype)" in fp_lower:
-                if "Kenyan Love Songs (Low Hype)" in fp_lower and "Kenyan Love Songs (Low Hype)" not in categories:
-                    categories.append("Kenyan Love Songs (Low Hype)")
-                elif "kenya love songs (hype)" in fp_lower and "Kenyan Love Songs Hype" not in categories:
-                    categories.append("Kenyan Love Songs Hype")
-            
-            # Kikuyu Gospel
-            if "kikuyu gospel" in fp_lower or "kigoco" in fp_lower:
-                if "Kikuyu Gospel (Kigocco)" not in categories:
-                    categories.append("Kikuyu Gospel (Kigocco)")
-            
-            # Bongo Flava
-            if "bongo flava (tbt)" in fp_lower:
-                if "hype" in fp_lower and "Bongo Flava (TBT) Hype" not in categories:
-                    categories.append("Bongo Flava (TBT) Hype")
-                elif "low hype" in fp_lower and "Bongo TBT Low Hype" not in categories:
-                    categories.append("Bongo TBT Low Hype")
-            
-            # Afrobeat Oldies
-            if "afro beats (tbt)" in fp_lower or "afrobeat" in fp_lower:
-                if "Afrobeat (Oldies)" not in categories:
-                    categories.append("Afrobeat (Oldies)")
-            
-            # Amapiano
-            if "amapiano" in fp_lower:
-                if "Amapiano" not in categories:
-                    categories.append("Amapiano")
-            
-            # Afrohouse
-            if "afro amapiano" in fp_lower or "afrohouse" in fp_lower:
-                if "Afrohouse" not in categories:
-                    categories.append("Afrohouse")
-            
-            # Reggae Fussion
-            if "reggae" in fp_lower and "gospel" not in fp_lower:
-                if "Reggae Fussion" not in categories:
-                    categories.append("Reggae Fussion")
-            
-            # Dancehall Edits
-            if "dancehall" in fp_lower:
-                if "Dancehall Edits" not in categories:
-                    categories.append("Dancehall Edits")
-            
-            # Club Edits
-            if "club" in fp_lower or "crunk" in fp_lower:
-                if "Club Edits" not in categories:
-                    categories.append("Club Edits")
-            
-            # Hype Edits
-            if "hype" in fp_lower and "low hype" not in fp_lower:
-                if "HYPE EDITS" not in categories:
-                    categories.append("HYPE EDITS")
-            
-            # RnB Remixes
-            if "rnb" in fp_lower or "r&b" in fp_lower:
-                if "RnB Remixes" not in categories:
-                    categories.append("RnB Remixes")
+        if "afrobeat" in fp_lower or "afro beat" in fp_lower:
+            if "AFROBEATS" not in categories: categories.append("AFROBEATS")
+        if "redrum" in fp_lower:
+            if "REDRUM" not in categories: categories.append("REDRUM")
+        if "remix" in fp_lower:
+            if "REMIX" not in categories: categories.append("REMIX")
+        if "hype" in fp_lower:
+            if "HYPE" not in categories: categories.append("HYPE")
 
         full_path = f"{folder_path}/{file_name}".replace("//", "/")
         track_id = str(uuid.uuid5(namespace, full_path))
@@ -207,11 +169,17 @@ def seed_tracks():
         if "dirty" in file_name.lower(): v_type = "Dirty"
         if "extended" in file_name.lower(): v_type = "Extended"
 
+        # Final title cleanup: remove "2026" or "2025" if it's explicitly in the title at the start
+        # e.g. "2026 Leo" -> "Leo"
+        clean_title = title.strip()
+        # Regex to remove leading year like "2026 " or "(2026) "
+        clean_title = re.sub(r'^(\(?202\d\)?\s+|-?\s*)', '', clean_title)
+        
         track_data = {
             "id": track_id,
-            "artist": artist,
-            "title": title,
-            "year": year,
+            "artist": artist.strip(),
+            "title": clean_title,
+            "year": year if year else 0,
             "genre": genre,
             "category": categories,
             "versions": [{

@@ -27,14 +27,16 @@ while i < len(lines):
         continue
     
     if line.startswith("Title:"):
-        title = line.replace("Title:", "").strip()
+        # The source file has labels swapped: "Title:" actually contains the Artist name
+        artist = line.replace("Title:", "").strip()
         
         # Read next lines
-        artist_line = lines[i+1].strip() if i+1 < len(lines) else ""
+        title_line = lines[i+1].strip() if i+1 < len(lines) else ""
         preview_line = lines[i+2].strip() if i+2 < len(lines) else ""
         download_line = lines[i+3].strip() if i+3 < len(lines) else ""
         
-        artist = artist_line.replace("Artist:", "").strip()
+        # "Artist:" line actually contains the Track Title
+        title = title_line.replace("Artist:", "").strip()
         preview_url = preview_line.replace("Preview Link:", "").strip()
         download_url = download_line.replace("Download Link:", "").strip()
         

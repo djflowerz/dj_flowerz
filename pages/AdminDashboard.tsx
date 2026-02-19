@@ -1,33 +1,26 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import {
    BarChart, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis
 } from 'recharts';
+
 import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate } from '../types';
-import { POOL_HUBS, TRACK_TYPES } from '../constants';
-import { db, storage } from '../firebase';
+import { useAuth } from '../context/AuthContext';
+import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage } from '../types';
+import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
+import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
+import { MailerLiteService } from '../services/MailerLiteService';
 
-// Mock Chart Data
-const data = [
-   { name: 'Mon', sales: 4000 },
-   { name: 'Tue', sales: 3000 },
-   { name: 'Wed', sales: 2000 },
-   { name: 'Thu', sales: 2780 },
-   { name: 'Fri', sales: 1890 },
-   { name: 'Sat', sales: 2390 },
-   { name: 'Sun', sales: 3490 },
-];
+
 
 const StatCard: React.FC<{ label: string; value: string | number; icon: any; color: string }> = ({ label, value, icon: Icon, color }) => (
    <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 flex items-center gap-4">
@@ -40,6 +33,41 @@ const StatCard: React.FC<{ label: string; value: string | number; icon: any; col
       </div>
    </div>
 );
+
+const CountdownTimer: React.FC<{ expiryDate: string }> = ({ expiryDate }) => {
+   const [timeLeft, setTimeLeft] = useState<string>('');
+
+   useEffect(() => {
+      const updateTimer = () => {
+         const now = new Date().getTime();
+         const expiry = new Date(expiryDate).getTime();
+         const diff = expiry - now;
+
+         if (diff <= 0) {
+            setTimeLeft('Expired');
+            return;
+         }
+
+         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+         const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+         setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+      };
+
+      const timer = setInterval(updateTimer, 1000);
+      updateTimer();
+      return () => clearInterval(timer);
+   }, [expiryDate]);
+
+   return (
+      <div className="flex items-center gap-2 text-[10px] font-mono bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded border border-brand-purple/30">
+         <Clock size={10} />
+         {timeLeft}
+      </div>
+   );
+};
 
 const ImageUpload: React.FC<{
    label: string;
@@ -228,11 +256,11 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', slug: '', type: 'physical', category: 'Apparel', shortDescription: '', description: '', price: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantOptions: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
+   id: '', name: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantOptions: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
-   id: '', title: '', slug: '', genre: 'Afrobeats', description: '', releaseDate: new Date().toISOString().split('T')[0], status: 'draft', coverUrl: '', audioUrl: '', duration: '00:00', allowFullStream: true, allowDownload: true, downloadType: 'free', streamQuality: 'high', tracklist: [], isFeatured: false, showInGallery: true, showInMusicPool: false, tags: [], enableComments: true, requireLoginToComment: false, moderateComments: false, isExclusive: false
+   id: '', title: '', slug: '', genre: '3-Step & Amapiano', description: '', releaseDate: new Date().toISOString().split('T')[0], status: 'draft', coverUrl: '', audioUrl: '', duration: '00:00', allowFullStream: true, allowDownload: true, downloadType: 'free', streamQuality: 'high', tracklist: [], isFeatured: false, showInGallery: true, showInMusicPool: false, tags: [], enableComments: true, requireLoginToComment: false, moderateComments: false, isExclusive: false
 };
 
 const INITIAL_BOOKING_STATE: Partial<Booking> = { clientName: '', serviceType: 'manual', date: '', time: '', status: 'confirmed', paymentStatus: 'pending', budget: '' };
@@ -243,8 +271,8 @@ const INITIAL_COUPON_STATE: Coupon = { id: '', code: '', discountType: 'percenta
 const INITIAL_PLAN_STATE: SubscriptionPlan = { id: '', name: '', price: 0, period: 'mo', features: [], active: true, link: '' };
 const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, description: '', status: 'active' };
 
-import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+
+
 
 const AdminDashboard: React.FC = () => {
    const { user, loading } = useAuth();
@@ -266,6 +294,8 @@ const AdminDashboard: React.FC = () => {
 
    const [isCleaning, setIsCleaning] = useState(false);
    const [cleanupLog, setCleanupLog] = useState<string[]>([]);
+   const [isScanningPool, setIsScanningPool] = useState(false);
+   const [scanResults, setScanResults] = useState<{ broken: number; checked: number; missingVersions: number }>({ broken: 0, checked: 0, missingVersions: 0 });
 
    const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
    const [bookingSubTab, setBookingSubTab] = useState('list');
@@ -273,11 +303,13 @@ const AdminDashboard: React.FC = () => {
    const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons'>('referrals');
 
    const [activeModal, setActiveModal] = useState<string | null>(null);
+   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
    const [isEditing, setIsEditing] = useState(false);
    const [isSavingPlan, setIsSavingPlan] = useState(false);
    const [isSavingProduct, setIsSavingProduct] = useState(false);
    const [isSavingPoolTrack, setIsSavingPoolTrack] = useState(false);
+   const [isSending, setIsSending] = useState(false);
 
    // Form States
    const [productFormTab, setProductFormTab] = useState('basic');
@@ -301,6 +333,7 @@ const AdminDashboard: React.FC = () => {
    const [emailBody, setEmailBody] = useState('');
 
    const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+   const [grantPlan, setGrantPlan] = useState<string>('monthly');
 
    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
    const [shippingDetails, setShippingDetails] = useState({
@@ -320,105 +353,223 @@ const AdminDashboard: React.FC = () => {
    const [editingRoom, setEditingRoom] = useState<StudioRoom>(INITIAL_ROOM_STATE);
 
    const [editingZone, setEditingZone] = useState<ShippingZone | null>(null);
-
-   // Real-time Data Listeners
-   const [liveOrders, setLiveOrders] = useState<Order[]>([]);
-   const [liveSubscriptions, setLiveSubscriptions] = useState<Subscription[]>([]);
-   const [ordersLoading, setOrdersLoading] = useState(true);
-   const [subsLoading, setSubsLoading] = useState(true);
-
-   useEffect(() => {
-      if (!user?.isAdmin) return;
-
-      console.log("Setting up real-time orders listener...");
-      const q = db.collection('orders').orderBy('createdAt', 'desc').limit(100);
-      const unsubscribe = q.onSnapshot(
-         (snapshot) => {
-            const ordersData = snapshot.docs.map(doc => ({
-               id: doc.id,
-               ...doc.data()
-            } as Order));
-            setLiveOrders(ordersData);
-            setOrdersLoading(false);
-         },
-         (error) => {
-            console.error("Orders sync error:", error);
-            setOrdersLoading(false);
-         }
-      );
-
-      return () => unsubscribe();
-   }, [user?.isAdmin]);
-
-   useEffect(() => {
-      if (!user?.isAdmin) return;
-
-      console.log("Setting up real-time subscriptions listener...");
-      const q = db.collection('subscriptions').orderBy('startDate', 'desc').limit(100);
-      const unsubscribe = q.onSnapshot(
-         (snapshot) => {
-            const subsData = snapshot.docs.map(doc => ({
-               id: doc.id,
-               ...doc.data()
-            } as Subscription));
-            setLiveSubscriptions(subsData);
-            setSubsLoading(false);
-         },
-         (error) => {
-            console.error("Subscriptions sync error:", error);
-            setSubsLoading(false);
-         }
-      );
-
-      return () => unsubscribe();
-   }, [user?.isAdmin]);
-
-   // We use subscriptionPlans from useData hook instead of manual listener for better consistency
-
-   const [liveUsers, setLiveUsers] = useState<UserType[]>([]);
-   useEffect(() => {
-      if (!user?.isAdmin) return;
-
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      const q = db.collection('users')
-         .where('lastSeen', '>=', tenMinutesAgo)
-         .limit(50);
-
-      const unsubscribe = q.onSnapshot(
-         (snapshot) => {
-            const usersData = snapshot.docs.map(doc => ({
-               id: doc.id,
-               ...doc.data()
-            } as UserType));
-            setLiveUsers(usersData);
-         },
-         (error) => console.error("Users presence sync error:", error)
-      );
-      return () => unsubscribe();
-   }, [user?.isAdmin]);
+   const [poolPage, setPoolPage] = useState(1);
+   const tracksPerPage = 100;
+   const [referralSubTab, setReferralSubTab] = useState<'settings' | 'logs'>('settings');
 
    const dataContext = useData();
    const {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
+      payments, tips, contactMessages,
+      mixtapesLoading: mxLoading, productsLoading: pdLoading, ordersLoading: odLoading, usersLoading: usLoading, subscriptionsLoading: sbLoading,
+      bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading: pyLoading, tipsLoading,
+      studioEquipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
+      poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
+      hasQuotaExceeded,
       telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
       seedDatabase,
       updateSiteConfig, deleteProduct, updateBooking, addBooking, deleteMixtape, deleteVideo,
       addProduct, updateProduct, addMixtape, updateMixtape, addSessionType, updateSessionType, deleteSessionType,
       updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
       addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-      addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
-      addSubscriber, updateShippingZone, updateSubscription, updateOrder, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
+      addSubscription, addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
+      updateOrder, addCampaign, updateCampaign,
+      addCoupon, updateCoupon, deleteCoupon,
+      addSubscriber, updateShippingZone, updateSubscription, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
       addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-      addCoupon, updateCoupon, deleteCoupon, updateUser,
-      poolError, productsError, mixtapesError
+      updateUser, removeUser,
+      referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs, updateContactMessage
    } = dataContext;
 
+   const ordersLoading = odLoading;
+   const subsLoading = sbLoading;
+   const paymentsLoading = pyLoading;
+   const mixtapesLoading = mxLoading;
+   const productsLoading = pdLoading;
+   const usersLoading = usLoading;
+
+   const liveOrders = orders;
+   const liveSubscriptions = subscriptions;
+   const livePayments = payments;
+   const liveTips = tips;
+   const liveUsers = useMemo(() => {
+      const now = new Date();
+      return users.filter(u => {
+         if (u.presenceStatus === 'online') return true;
+         if (u.lastSeen) {
+            const lastSeen = new Date(u.lastSeen);
+            const diff = (now.getTime() - lastSeen.getTime()) / 1000 / 60; // minutes
+            return diff < 5; // Recently seen
+         }
+         return false;
+      });
+   }, [users]);
+
+   const combinedTransactions = useMemo(() => {
+      const all: any[] = [];
+      const seenRefs = new Set<string>();
+      const seenTips = new Set<string>();
+
+      // Add orders (Primary source of truth for all transactions from webhooks)
+      liveOrders.forEach(o => {
+         // Determine display type
+         let displayType = 'Order';
+         if (o.metadata?.type === 'tip' || o.type === 'tip') displayType = 'Tip';
+         else if (o.metadata?.type === 'subscription' || o.type === 'subscription') displayType = 'Subscription';
+         else if (o.metadata?.type === 'booking' || o.type === 'booking') displayType = 'Booking';
+         else if (o.type === 'Store' || o.metadata?.type === 'store') displayType = 'Order';
+
+         // Robustly capture reference to prevent duplicates from Payments table
+         const ref = o.referenceCode || o.id;
+         if (ref) seenRefs.add(ref);
+         if (o.metadata?.reference) seenRefs.add(o.metadata.reference); // Check metadata too
+
+         // If it's a tip, also track it to avoid duplicates from liveTips
+         if (displayType === 'Tip') {
+            const dateStr = o.date || (o.createdAt || '').split('T')[0];
+            const tipSig = `${o.customerEmail}-${o.total}-${dateStr}`;
+            seenTips.add(tipSig);
+         }
+
+         all.push({
+            id: o.id,
+            ref: ref,
+            date: o.date || (o.createdAt || '').split('T')[0],
+            time: o.time || '',
+            name: o.customerName,
+            items: o.items.map((i: any) => i.productName).join(', '),
+            amount: o.total,
+            status: o.status,
+            type: displayType,
+            rawDate: o.createdAt
+         });
+      });
+
+      // Add payments (show unique payments that aren't already orders)
+      livePayments.forEach(p => {
+         const ref = p.payment_ref || p.id;
+
+         // Deduplicate: If we already added this by reference in orders, skip it
+         if (ref && seenRefs.has(ref)) return;
+
+         // Identify subscription payments explicitly
+         const isSubscription = p.payment_type === 'subscription' || p.metadata?.type === 'subscription';
+         const typeLabel = isSubscription ? 'Subscription' : (p.payment_type === 'tip' ? 'Tip' : (p.payment_type || 'Payment'));
+
+         // If it's a tip payment, track it
+         if (p.payment_type === 'tip') {
+            const dateStr = p.createdAt ? p.createdAt.split('T')[0] : '';
+            const tipSig = `${p.user_email}-${p.amount}-${dateStr}`;
+            seenTips.add(tipSig);
+         }
+
+         all.push({
+            id: p.id,
+            ref: ref,
+            date: p.createdAt ? p.createdAt.split('T')[0] : '',
+            time: p.createdAt ? new Date(p.createdAt).toLocaleTimeString() : '',
+            name: p.user_email || 'Guest',
+            items: p.payment_type === 'tip' ? 'Tip Jar' : (isSubscription ? 'Subscription Payment' : 'Direct Payment'),
+            amount: p.amount,
+            status: p.status,
+            type: typeLabel,
+            rawDate: p.createdAt
+         });
+      });
+
+      // Add tips (avoiding duplicates already in orders or payments)
+      liveTips.forEach(t => {
+         const createdAtStr = t.createdAt?.toDate ? t.createdAt.toDate().toISOString() : (t.createdAt || '');
+         const dateStr = createdAtStr.split('T')[0];
+         const tipSig = `${t.email}-${t.amount}-${dateStr}`;
+
+         if (!seenTips.has(tipSig)) {
+            all.push({
+               id: t.id,
+               ref: t.id,
+               date: dateStr,
+               time: createdAtStr ? new Date(createdAtStr).toLocaleTimeString() : '',
+               name: t.email || 'Guest',
+               items: 'Tip Jar',
+               amount: t.amount,
+               status: t.status || 'completed',
+               type: 'Tip',
+               rawDate: createdAtStr
+            });
+         }
+      });
+
+      return all.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+   }, [liveOrders, livePayments, liveTips]);
+
    // Dynamic Stats
-   const totalRevenue = useMemo(() => liveOrders?.reduce((acc, order) => acc + (order.total || 0), 0) || 0, [liveOrders]);
+   const totalRevenue = useMemo(() => {
+      return combinedTransactions
+         .filter(tx => tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active')
+         .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+   }, [combinedTransactions]);
+
    const activeSubs = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active').length || 0, [liveSubscriptions]);
 
+   const shippingStats = useMemo(() => {
+      const shippingOrders = liveOrders.filter(o => o.requiresShipping || o.items?.some(item => item.type === 'physical'));
+      return {
+         pending: shippingOrders.filter(o => o.status === 'pending' || o.status === 'processing').length,
+         delivered: shippingOrders.filter(o => o.status === 'shipped' || o.status === 'completed').length,
+         failed: shippingOrders.filter(o => o.status === 'cancelled').length,
+         revenue: shippingOrders.reduce((acc, o) => acc + (o.total || 0), 0)
+      };
+   }, [liveOrders]);
+
+   const studioStats = useMemo(() => ({
+      bookedToday: bookings.filter(b => b.date === new Date().toISOString().split('T')[0]).length,
+      availableRooms: studioRooms.filter(r => r.status === 'active').length,
+      revenuePerRoom: studioRooms.length > 0 ? (bookings.reduce((acc, b) => acc + (Number(b.budget) || 0), 0) / studioRooms.length) : 0
+   }), [bookings, studioRooms]);
+
+   const contentStats = useMemo(() => ({
+      activeSections: Object.keys(siteConfig).filter(k => k !== 'legal' && k !== 'seo').length,
+      lastUpdated: siteConfig.hero.title ? 'Live' : 'Check DB' // Simplified for now
+   }), [siteConfig]);
+
+   const activeSubsAmt = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active' && new Date() <= new Date(s.expiryDate)).reduce((acc, s) => acc + (s.amount || 0), 0) || 0, [liveSubscriptions]);
+   const activeSubsCount = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active' && new Date() <= new Date(s.expiryDate)).length || 0, [liveSubscriptions]);
+
+   const referralStatsSummary = useMemo(() => ({
+      total: referralLogs.length,
+      payouts: referralLogs.filter(l => l.rewardIssued).length * (referralSettings.referrerRewardAmount || 0),
+      active: new Set(referralLogs.map(l => l.referrerId)).size
+   }), [referralLogs, referralSettings]);
+
+   const chartData = useMemo(() => {
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+         const d = new Date();
+         d.setDate(d.getDate() - (6 - i));
+         return d.toISOString().split('T')[0];
+      });
+
+      const successfulTx = combinedTransactions.filter(tx =>
+         tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active'
+      );
+
+      return last7Days.map(date => {
+         const dailyRevenue = successfulTx
+            .filter(tx => tx.date === date)
+            .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+
+         return {
+            name: date.split('-').slice(1).join('/'), // MM/DD
+            sales: dailyRevenue
+         };
+      });
+   }, [combinedTransactions]);
+
    const [editingConfig, setEditingConfig] = useState<SiteConfig>(siteConfig);
+
+   useEffect(() => {
+      if (siteConfig) setEditingConfig(siteConfig);
+   }, [siteConfig]);
 
    if (loading) {
       return (
@@ -502,6 +653,51 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
+   const handleScanPool = async () => {
+      if (!confirm('This will scan all music pool tracks for broken links and missing data. Continue?')) return;
+      setIsScanningPool(true);
+      setScanResults({ broken: 0, checked: 0, missingVersions: 0 });
+
+      let broken = 0;
+      let missingVersions = 0;
+      const total = poolTracks.length;
+
+      for (let i = 0; i < total; i++) {
+         const t = poolTracks[i];
+         const versions = t.versions || [];
+         if (versions.length === 0) {
+            missingVersions++;
+         }
+
+         const hasValidLink = versions.some(v => (v.downloadUrl || (v as any).download_url) && (v.downloadUrl || (v as any).download_url).startsWith('http'));
+         if (!hasValidLink && !t.preview_url) {
+            broken++;
+         }
+
+         if (i % 500 === 0) {
+            setScanResults({ broken, checked: i + 1, missingVersions });
+            await new Promise(r => setTimeout(r, 0)); // Prevent UI freeze
+         }
+      }
+      setScanResults({ broken, checked: total, missingVersions });
+      setIsScanningPool(false);
+      alert(`Scan Complete!\nTotal Checked: ${total}\nMissing Versions: ${missingVersions}\nBroken Links/Null: ${broken}`);
+   };
+
+   const handleFixPool = async () => {
+      if (!confirm('This will attempt to fix broken tracks by re-syncing data from external sources and updating existing records. Continue?')) return;
+
+      setIsScanningPool(true);
+      try {
+         const res = await manualSync(true); // true = updateExisting
+         alert(res.message);
+      } catch (e) {
+         console.error(e);
+         alert('Repair failed. Check console.');
+      }
+      setIsScanningPool(false);
+   };
+
    const handleCleanupData = async () => {
       if (isCleaning) return;
       if (!confirm("⚠️ WARNING: This will delete ALL mixtapes and ALL products except 'Serato DJ PRO Suite'. Continue?")) return;
@@ -575,9 +771,11 @@ const AdminDashboard: React.FC = () => {
       { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
       { id: 'content', label: 'Site Content', icon: Globe },
       { id: 'users', label: 'Users', icon: Users },
+      { id: 'referrals', label: 'Referrals', icon: Gift },
       { id: 'payments', label: 'Payments', icon: CreditCard },
       { id: 'shipping', label: 'Shipping', icon: Truck },
       { id: 'newsletters', label: 'Newsletters', icon: Mail },
+      { id: 'messages', label: 'Messages', icon: MessageSquare },
       { id: 'system', label: 'System', icon: Database },
    ];
 
@@ -856,6 +1054,22 @@ const AdminDashboard: React.FC = () => {
       }
    }
 
+   const handleSyncSubscription = async (id: string, status: string, expiry: string) => {
+      // Re-trigger update logic in DataContext using updateSubscription
+      if (!confirm("Sync user access? This will update the user's profile based on subscription status.")) return;
+
+      try {
+         await updateSubscription(id, {
+            status: status as any,
+            expiryDate: expiry
+         });
+         alert("User profile synced successfully.");
+      } catch (e: any) {
+         console.error("Sync failed:", e);
+         alert("Sync failed: " + e.message);
+      }
+   }
+
    const openAddPlan = () => { setIsEditing(false); setEditingPlan(INITIAL_PLAN_STATE); setPlanFeaturesInput(''); setActiveModal('addPlan'); };
    const openEditPlan = (plan: SubscriptionPlan) => { setIsEditing(true); setEditingPlan(plan); setPlanFeaturesInput((plan.features || []).join('\n')); setActiveModal('addPlan'); };
    const handleSavePlan = async () => {
@@ -948,9 +1162,20 @@ const AdminDashboard: React.FC = () => {
       try {
          let receiptUrl = '';
          if (receiptFile) {
-            const storageRef = storage.ref(`receipts/order_${selectedOrder.id}_${Date.now()}`);
-            await storageRef.put(receiptFile);
-            receiptUrl = await storageRef.getDownloadURL();
+            const fileExt = receiptFile.name.split('.').pop();
+            const fileName = `receipts/order_${selectedOrder.id}_${Date.now()}.${fileExt}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+               .from('uploads')
+               .upload(fileName, receiptFile);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+               .from('uploads')
+               .getPublicUrl(fileName);
+
+            receiptUrl = publicUrl;
          }
 
          await updateOrder(selectedOrder.id, {
@@ -970,22 +1195,68 @@ const AdminDashboard: React.FC = () => {
       }
    }
 
-   const handleUserAction = (userId: string, action: string) => {
+   const handleUserAction = async (userId: string, action: string, extra?: any) => {
       if (action === 'ban') {
          if (confirm('Suspend this user?')) updateUser(userId, { status: 'suspended' });
       }
       if (action === 'activate') {
          updateUser(userId, { status: 'active' });
       }
+      if (action === 'delete') {
+         if (confirm('ARE YOU SURE? This will permanently remove the user profile and authentication.')) {
+            try {
+               const res = await fetch('/api/admin/delete-user', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId, adminEmail: user?.email })
+               });
+
+               if (!res.ok) {
+                  const data = await res.json();
+                  throw new Error(data.error || 'Failed to delete user');
+               }
+
+               removeUser(userId); // Update local state/context
+               setActiveModal(null);
+               alert('User successfully deleted.');
+            } catch (err: any) {
+               alert(`Error deleting user: ${err.message}`);
+               console.error(err);
+            }
+         }
+      }
       if (action === 'reset') alert(`Resetting password for ${userId} (Email sent)`);
       if (action === 'grant_pool') {
-         if (confirm('Grant full Music Pool access?')) {
-            updateUser(userId, {
-               isSubscriber: true,
-               subscriptionPlan: 'monthly',
-               subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            });
-         }
+         const plan = extra || grantPlan;
+         let days = 30;
+         if (plan === 'weekly') days = 7;
+         if (plan === 'monthly') days = 30;
+         if (plan === '3months') days = 90;
+         if (plan === '6months') days = 180;
+         if (plan === 'yearly') days = 365;
+
+         const expiryDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+         updateUser(userId, {
+            isSubscriber: true,
+            subscriptionPlan: plan as any,
+            subscriptionExpiry: expiryDate.toISOString()
+         });
+
+         // Also record in subscriptions table for history
+         addSubscription({
+            id: `manual_${Date.now()}`,
+            userId: userId,
+            userName: selectedUser?.name || 'Manual Grant',
+            planId: plan,
+            amount: 0, // Manual grant
+            startDate: new Date().toISOString(),
+            expiryDate: expiryDate.toISOString(),
+            status: 'active',
+            paymentMethod: 'admin_manual'
+         });
+
+         alert(`✅ Music Pool Access Granted!\n\nPlan: ${plan.toUpperCase()}\nDuration: ${days} days\nExpires: ${expiryDate.toLocaleDateString()}`);
       }
    };
 
@@ -994,10 +1265,48 @@ const AdminDashboard: React.FC = () => {
       setActiveModal('userDetail');
    }
 
-   const sendCampaign = () => {
-      alert(`Campaign "${emailSubject}" sent to subscribers!`);
-      setEmailSubject('');
-      setEmailBody('');
+   const sendCampaign = async () => {
+      if (!emailSubject || !emailBody) {
+         alert("Please provide both subject and message.");
+         return;
+      }
+      if (subscribers.length === 0) {
+         alert("No subscribers found.");
+         return;
+      }
+
+      setIsSending(true);
+      try {
+         // Get current session token for the secure API
+         const { data: { session } } = await supabase.auth.getSession();
+         const token = session?.access_token || '';
+
+         // Email sending via MailerLite (Now calling secure local API)
+         const result = await MailerLiteService.createCampaign(emailSubject, emailBody, token);
+
+         if (!result.success) {
+            throw new Error(result.error);
+         }
+
+         alert(`Campaign sent successfully via MailerLite!`);
+
+         // Also record the campaign
+         await addCampaign({
+            id: `camp_${Date.now()}`,
+            name: emailSubject,
+            type: 'newsletter',
+            status: 'sent',
+            recipients: subscribers.length,
+            sentAt: new Date().toISOString()
+         });
+         setEmailSubject('');
+         setEmailBody('');
+      } catch (error: any) {
+         console.error("Error sending campaign:", error);
+         alert("Failed to send campaign: " + error.message);
+      } finally {
+         setIsSending(false);
+      }
    }
 
    return (
@@ -1067,15 +1376,15 @@ const AdminDashboard: React.FC = () => {
                   <div className="space-y-8 animate-fade-in-up">
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <StatCard label="Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-green-500" />
-                        <StatCard label="Orders" value={liveOrders.length} icon={ShoppingBag} color="text-brand-purple" />
-                        <StatCard label="Active Subs" value={activeSubs} icon={Users} color="text-yellow-500" />
-                        <StatCard label="Mixtapes" value={mixtapes.length} icon={Music} color="text-brand-cyan" />
+                        <StatCard label="Transactions" value={combinedTransactions.length.toString()} icon={ShoppingBag} color="text-brand-purple" />
+                        <StatCard label="Active Subs" value={activeSubs.toString()} icon={Users} color="text-yellow-500" />
+                        <StatCard label="Referral Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-brand-cyan" />
                      </div>
                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 bg-[#15151A] p-6 rounded-xl border border-white/5 h-80">
                            <h3 className="text-lg font-bold mb-6">Revenue Trend</h3>
                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
+                              <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
                            </ResponsiveContainer>
                         </div>
 
@@ -1113,21 +1422,32 @@ const AdminDashboard: React.FC = () => {
 
                      <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
                         <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center">
-                           <span>Recent Activities</span>
-                           <button onClick={() => setActiveTab('orders')} className="text-brand-purple text-xs hover:underline">View All</button>
+                           <span>Recent Transactions</span>
+                           <button onClick={() => setActiveTab('payments')} className="text-brand-purple text-xs hover:underline">View All</button>
                         </div>
                         <table className="w-full text-left">
                            <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr><th className="px-6 py-4">Ref Code</th><th className="px-6 py-4">Customer</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4 text-right">Status</th></tr>
+                              <tr>
+                                 <th className="px-6 py-4">Type</th>
+                                 <th className="px-6 py-4">Customer</th>
+                                 <th className="px-6 py-4">Amount</th>
+                                 <th className="px-6 py-4 text-right">Status</th>
+                              </tr>
                            </thead>
                            <tbody className="divide-y divide-white/5 text-sm">
-                              {liveOrders.slice(0, 5).map(order => (
-                                 <tr key={order.id} className="hover:bg-white/5 transition">
-                                    <td className="px-6 py-4 text-xs font-mono text-gray-400">{order.referenceCode || 'N/A'}</td>
-                                    <td className="px-6 py-4 font-bold">{order.customerName}</td>
-                                    <td className="px-6 py-4 text-brand-purple font-bold">KES {order.total}</td>
+                              {combinedTransactions.slice(0, 5).map(tx => (
+                                 <tr key={tx.id} className="hover:bg-white/5 transition">
+                                    <td className="px-6 py-4">
+                                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
+                                          tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
+                                             'bg-purple-500/10 text-purple-500'
+                                          }`}>{tx.type}</span>
+                                    </td>
+                                    <td className="px-6 py-4 font-bold">{tx.name}</td>
+                                    <td className="px-6 py-4 text-brand-purple font-bold">KES {tx.amount.toLocaleString()}</td>
                                     <td className="px-6 py-4 text-right">
-                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{order.status}</span>
+                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'
+                                          }`}>{tx.status}</span>
                                     </td>
                                  </tr>
                               ))}
@@ -1171,13 +1491,18 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'orders' && (
                   <div className="animate-fade-in-up">
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                         <table className="w-full text-left min-w-[800px]">
                            <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
                               <tr>
-                                 <th className="px-6 py-4">Order ID</th>
+                                 <th className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                       Order ID
+                                       {ordersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
+                                    </div>
+                                 </th>
                                  <th className="px-6 py-4">Customer</th>
-                                 <th className="px-6 py-4">Items</th>
+                                 <th className="px-6 py-4">Products</th>
                                  <th className="px-6 py-4">Total</th>
                                  <th className="px-6 py-4">Status</th>
                                  <th className="px-6 py-4">Actions</th>
@@ -1196,7 +1521,18 @@ const AdminDashboard: React.FC = () => {
                                           <div className="font-bold text-white">{order.customerName}</div>
                                           <div className="text-xs text-gray-400">{order.customerEmail}</div>
                                        </td>
-                                       <td className="px-6 py-4">{order.items.length} Items</td>
+                                       <td className="px-6 py-4">
+                                          <div className="flex flex-col gap-1 max-w-[250px]">
+                                             {order.items.map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-1.5 leading-tight">
+                                                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} title={item.type}></span>
+                                                   <span className="text-white font-medium truncate">{item.productName}</span>
+                                                   {item.quantity > 1 && <span className="text-[10px] bg-white/10 px-1 rounded text-gray-400">x{item.quantity}</span>}
+                                                </div>
+                                             ))}
+                                             {order.items.length === 0 && <span className="text-gray-500 italic text-xs">No items found</span>}
+                                          </div>
+                                       </td>
                                        <td className="px-6 py-4">KES {order.total.toLocaleString()}</td>
                                        <td className="px-6 py-4">
                                           <span className={`px-2 py-1 rounded text-xs capitalize ${order.status === 'completed' ? 'bg-green-500/20 text-green-500' : order.status === 'shipped' ? 'bg-blue-500/20 text-blue-500' : 'bg-yellow-500/20 text-yellow-500'}`}>{order.status}</span>
@@ -1205,6 +1541,7 @@ const AdminDashboard: React.FC = () => {
                                           {order.status === 'processing' && (
                                              <button onClick={() => openShipModal(order)} className="text-xs bg-blue-500/10 text-blue-500 px-3 py-1 rounded hover:bg-blue-500/20 font-bold">Ship Order</button>
                                           )}
+                                          <button onClick={() => { setSelectedOrder(order); setActiveModal('editOrderStatus'); }} className="text-blue-400 hover:text-white" title="Edit Order"><Edit2 size={16} /></button>
                                           <button className="text-gray-400 hover:text-white"><Eye size={16} /></button>
                                        </td>
                                     </tr>
@@ -1218,10 +1555,10 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'subscriptions' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Subs" value={activeSubs} icon={Users} color="text-green-500" />
+                        <StatCard label="Active Subs" value={activeSubsCount} icon={Users} color="text-green-500" />
                         <StatCard label="New This Month" value={liveSubscriptions.filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" />
                         <StatCard label="Churn Rate" value="5%" icon={UserX} color="text-red-500" />
-                        <StatCard label="MRR" value={`KES ${(activeSubs * 500).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
+                        <StatCard label="MRR" value={`KES ${activeSubsAmt.toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
                      </div>
 
                      <div className="flex gap-4 border-b border-white/5 pb-4">
@@ -1233,7 +1570,15 @@ const AdminDashboard: React.FC = () => {
                         <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                            <table className="w-full text-left min-w-[800px]">
                               <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr><th className="px-6 py-4">User</th><th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
+                                 <tr>
+                                    <th className="px-6 py-4">
+                                       <div className="flex items-center gap-2">
+                                          User
+                                          {subsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
+                                       </div>
+                                    </th>
+                                    <th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th>
+                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/5 text-sm">
                                  {subsLoading ? (
@@ -1245,12 +1590,24 @@ const AdminDashboard: React.FC = () => {
                                        const isExpired = new Date() > new Date(sub.expiryDate);
                                        return (
                                           <tr key={sub.id} className="hover:bg-white/5 transition">
-                                             <td className="px-6 py-4 font-bold text-white">{sub.userName}</td>
+                                             <td className="px-6 py-4">
+                                                <div className="font-bold text-white">{sub.userName}</div>
+                                                <div className="text-[10px] text-gray-500">{sub.userEmail}</div>
+                                             </td>
                                              <td className="px-6 py-4 capitalize">{sub.planId}</td>
                                              <td className="px-6 py-4">KES {sub.amount}</td>
                                              <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
                                              <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
-                                             <td className="px-6 py-4">{sub.status === 'active' && !isExpired && <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>}</td>
+                                             <td className="px-6 py-4">
+                                                {sub.status === 'active' && !isExpired && (
+                                                   <div className="flex gap-3">
+                                                      <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="text-brand-cyan hover:underline text-xs flex items-center gap-1">
+                                                         <RefreshCw size={10} /> Sync
+                                                      </button>
+                                                      <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>
+                                                   </div>
+                                                )}
+                                             </td>
                                           </tr>
                                        );
                                     })
@@ -1400,7 +1757,7 @@ const AdminDashboard: React.FC = () => {
                                     <tr><th className="px-6 py-4">Title / Artist</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">BPM / Key</th><th className="px-6 py-4">Versions</th><th className="px-6 py-4">Year</th><th className="px-6 py-4">Actions</th></tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/5 text-sm">
-                                    {poolTracks.map(track => (
+                                    {poolTracks.slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
                                        <tr key={track.id} className="hover:bg-white/5 transition">
                                           <td className="px-6 py-4"><div className="font-bold text-white">{track.title}</div><div className="text-xs text-gray-400">{track.artist}</div></td>
                                           <td className="px-6 py-4"><div className="text-brand-cyan text-xs font-bold mb-1">{track.genre}</div></td>
@@ -1415,14 +1772,37 @@ const AdminDashboard: React.FC = () => {
                                     ))}
                                  </tbody>
                               </table>
-                              {loadMorePoolTracks && poolTracks.length > 0 && (
-                                 <div className="p-4 text-center border-t border-white/5">
-                                    <button onClick={() => loadMorePoolTracks(1000)} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded text-sm font-bold text-white transition">
-                                       Load 1000 More
+
+                              <div className="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+                                 <div className="flex items-center gap-2">
+                                    <button
+                                       onClick={() => setPoolPage(p => Math.max(1, p - 1))}
+                                       disabled={poolPage === 1}
+                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                    >
+                                       Prev
                                     </button>
-                                    <p className="text-gray-500 text-xs mt-2">Showing {poolTracks.length} tracks</p>
+                                    <span className="text-xs text-gray-400">Page {poolPage} of {Math.ceil(poolTracks.length / tracksPerPage)}</span>
+                                    <button
+                                       onClick={() => setPoolPage(p => p + 1)}
+                                       disabled={poolPage >= Math.ceil(poolTracks.length / tracksPerPage)}
+                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                    >
+                                       Next
+                                    </button>
                                  </div>
-                              )}
+
+                                 <div className="flex flex-col items-center gap-2">
+                                    <p className="text-gray-500 text-xs text-center">Showing {Math.min(poolTracks.length, poolPage * tracksPerPage).toLocaleString()} of {poolTracks.length.toLocaleString()} loaded tracks</p>
+                                    <button
+                                       onClick={() => loadMorePoolTracks(500)}
+                                       className="px-4 py-1.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg text-xs font-bold hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                       <Database size={14} />
+                                       Fetch More from DB
+                                    </button>
+                                 </div>
+                              </div>
                            </div>
                         </>
                      )}
@@ -1470,9 +1850,9 @@ const AdminDashboard: React.FC = () => {
                                           {p.category === 'Software' && p.os && p.os !== 'None' && (
                                              <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
                                           )}
-                                          {p.variants && p.variants.length > 0 && (
+                                          {p.variantOptions && p.variantOptions.length > 0 && (
                                              <div className="text-xs text-gray-500 mt-1">
-                                                {p.type === 'digital' ? 'Versions' : 'Variants'}: {p.variants.join(', ')}
+                                                {p.type === 'digital' ? 'Versions' : 'Variants'}: {p.variantOptions.map(v => v.name).join(', ')}
                                              </div>
                                           )}
                                        </td>
@@ -1505,7 +1885,7 @@ const AdminDashboard: React.FC = () => {
                            <Plus size={18} /> Upload Mix
                         </button>
                      </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {mixtapes
                            .sort((a, b) => {
                               const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -1513,14 +1893,25 @@ const AdminDashboard: React.FC = () => {
                               return dateB - dateA; // Newest first
                            })
                            .map((mix) => (
-                              <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-4 flex gap-4 relative group">
-                                 <img src={mix.coverUrl} alt={mix.title} className="w-20 h-20 rounded object-cover" />
-                                 <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-white mb-1 line-clamp-1">{mix.title}</h4>
-                                    <p className="text-xs text-gray-400 mb-2">{mix.genre}</p>
-                                    <div className="flex justify-between items-center">
-                                       <span className={`text-[10px] px-2 py-0.5 rounded ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
-                                       <div className="flex gap-2"><button onClick={() => openEditMixtape(mix)} className="text-xs px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><PenSquare size={14} /></button><button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={14} /></button></div>
+                              <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-3 flex gap-3 relative group">
+                                 <div className="relative w-16 h-16 shrink-0">
+                                    <img src={mix.coverUrl} alt={mix.title} className="w-full h-full rounded object-cover" />
+                                    {mix.isExclusive && <div className="absolute -top-1 -right-1 bg-brand-purple text-white text-[8px] font-bold px-1 rounded shadow-lg ring-1 ring-black">EXCL</div>}
+                                 </div>
+                                 <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                    <div>
+                                       <h4 className="font-bold text-white text-sm truncate leading-tight">{mix.title}</h4>
+                                       <p className="text-[10px] text-gray-400 truncate">{mix.genre}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-1">
+                                       <div className="flex items-center gap-1.5">
+                                          <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-bold ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
+                                          {mix.isFeatured && <Star size={8} className="text-yellow-500 fill-yellow-500" />}
+                                       </div>
+                                       <div className="flex gap-2">
+                                          <button onClick={() => openEditMixtape(mix)} className="text-gray-500 hover:text-blue-500 transition"><PenSquare size={12} /></button>
+                                          <button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-gray-500 hover:text-red-500 transition"><Trash2 size={12} /></button>
+                                       </div>
                                     </div>
                                  </div>
                               </div>
@@ -1627,10 +2018,10 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'studio' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Booked Today" value="3" icon={Mic} color="text-brand-cyan" />
-                        <StatCard label="Utilization" value="75%" icon={Timer} color="text-green-500" />
-                        <StatCard label="Rev/Room" value="KES 12K" icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Available" value="2 Rooms" icon={Check} color="text-blue-500" />
+                        <StatCard label="Booked Today" value={studioStats.bookedToday} icon={Mic} color="text-brand-cyan" />
+                        <StatCard label="Total Services" value={sessionTypes.length} icon={Timer} color="text-green-500" />
+                        <StatCard label="Rev/Room" value={`KES ${Math.round(studioStats.revenuePerRoom).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
+                        <StatCard label="Available" value={`${studioStats.availableRooms} Rooms`} icon={Check} color="text-blue-500" />
                      </div>
 
                      <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
@@ -1642,7 +2033,10 @@ const AdminDashboard: React.FC = () => {
 
                      {studioSubTab === 'services' && (
                         <>
-                           <div className="flex justify-end"><button onClick={openAddSessionType} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Service</button></div>
+                           <div className="flex justify-between items-center mb-4">
+                              <span className="font-bold flex items-center gap-2 text-white">Services {sessionTypesLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
+                              <button onClick={openAddSessionType} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Service</button>
+                           </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {sessionTypes.map(st => (
                                  <div key={st.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
@@ -1657,36 +2051,41 @@ const AdminDashboard: React.FC = () => {
                      {studioSubTab === 'equipment' && (
                         <>
                            <div className="flex justify-end"><button onClick={openAddEquipment} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Gear</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Item</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{studioEquipment.map(eq => (<tr key={eq.id}><td className="px-6 py-4 font-bold">{eq.name}</td><td className="px-6 py-4 text-gray-400">{eq.category}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditEquipment(eq)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteStudioEquipment(eq.id)} /></td></tr>))}</tbody></table></div>
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {studioEquipmentLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{studioEquipment.map(eq => (<tr key={eq.id}><td className="px-6 py-4 font-bold">{eq.name}</td><td className="px-6 py-4 text-gray-400">{eq.category}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditEquipment(eq)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteStudioEquipment(eq.id)} /></td></tr>))}</tbody></table></div>
                         </>
                      )}
                      {studioSubTab === 'rooms' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                           {studioRooms.map(room => (
-                              <div key={room.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                 <div className="flex justify-between items-start mb-2">
-                                    <h4 className="font-bold text-lg">{room.name}</h4>
-                                    <div className="flex gap-2">
-                                       <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditRoom(room)} />
-                                       <Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => { if (confirm('Delete room?')) deleteStudioRoom(room.id) }} />
+                        <>
+                           <div className="flex justify-between items-center mb-4">
+                              <span className="font-bold flex items-center gap-2 text-white">Rooms {studioRoomsLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
+                              <div onClick={openAddRoom} className="bg-brand-purple text-white px-3 py-1.5 rounded-lg font-bold text-xs flex gap-2 items-center cursor-pointer hover:bg-purple-600 transition">
+                                 <Plus size={16} /> Add Room
+                              </div>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {studioRooms.map(room => (
+                                 <div key={room.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
+                                    <div className="flex justify-between items-start mb-2">
+                                       <h4 className="font-bold text-lg">{room.name}</h4>
+                                       <div className="flex gap-2">
+                                          <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditRoom(room)} />
+                                          <Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => { if (confirm('Delete room?')) deleteStudioRoom(room.id) }} />
+                                       </div>
+                                    </div>
+                                    <p className="text-sm text-gray-400 mb-4">{room.description}</p>
+                                    <div className="flex justify-between items-center text-xs">
+                                       <span className="bg-white/10 px-2 py-1 rounded">Cap: {room.capacity}</span>
+                                       <span className={`px-2 py-1 rounded ${room.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{room.status}</span>
                                     </div>
                                  </div>
-                                 <p className="text-sm text-gray-400 mb-4">{room.description}</p>
-                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="bg-white/10 px-2 py-1 rounded">Cap: {room.capacity}</span>
-                                    <span className={`px-2 py-1 rounded ${room.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{room.status}</span>
-                                 </div>
-                              </div>
-                           ))}
-                           <div onClick={openAddRoom} className="bg-[#15151A] p-6 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-500 hover:bg-white/5 cursor-pointer">
-                              <Plus size={32} className="mb-2" />
-                              <span>Add Room</span>
+                              ))}
+                              {/* Removed the large add card since we added a button above */}
                            </div>
-                        </div>
+                        </>
                      )}
                      {studioSubTab === 'maintenance' && (
                         <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Item</th><th className="px-6 py-4">Issue</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">
+                           <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {maintenanceLogsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Issue</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">
                               {maintenanceLogs.map(log => (
                                  <tr key={log.id}>
                                     <td className="px-6 py-4 font-bold">{log.itemName}</td>
@@ -1701,26 +2100,168 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
+               {activeTab === 'referrals' && (
+                  <div className="animate-fade-in-up space-y-6">
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <StatCard label="Total Referrals" value={referralStatsSummary.total} icon={Users} color="text-brand-purple" />
+                        <StatCard label="Active Referrers" value={referralStatsSummary.active} icon={Shield} color="text-brand-cyan" />
+                        <StatCard label="Total Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" />
+                        <StatCard label="System Status" value={referralSettings.enabled ? 'Active' : 'Disabled'} icon={Shield} color={referralSettings.enabled ? 'text-green-500' : 'text-red-500'} />
+                     </div>
+
+                     <div className="flex gap-4 border-b border-white/5 pb-4">
+                        <button onClick={() => setReferralSubTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'settings' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>System Settings</button>
+                        <button onClick={() => setReferralSubTab('logs')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'logs' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Logs</button>
+                     </div>
+
+                     {referralSubTab === 'settings' && (
+                        <div className="bg-[#15151A] p-8 rounded-2xl border border-white/5 space-y-8 max-w-2xl">
+                           <div className="flex justify-between items-center">
+                              <div>
+                                 <h3 className="text-xl font-bold text-white">Referral System Control</h3>
+                                 <p className="text-sm text-gray-500">Enable or disable the entire referral system</p>
+                              </div>
+                              <button
+                                 onClick={() => updateReferralSettings({ enabled: !referralSettings.enabled })}
+                                 className={`px-6 py-2 rounded-full font-bold text-sm transition ${referralSettings.enabled ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
+                              >
+                                 {referralSettings.enabled ? 'SYSTEM ENABLED' : 'SYSTEM DISABLED'}
+                              </button>
+                           </div>
+
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-4">
+                                 <div className="flex justify-between items-center">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase">New User Discount</label>
+                                    <select
+                                       value={referralSettings.newUserDiscountType}
+                                       onChange={(e) => updateReferralSettings({ newUserDiscountType: e.target.value as 'percentage' | 'flat' })}
+                                       className="bg-black/20 border border-white/10 rounded px-2 py-1 text-[10px] font-bold text-brand-purple uppercase outline-none"
+                                    >
+                                       <option value="percentage">% Percentage</option>
+                                       <option value="flat">KES Flat</option>
+                                    </select>
+                                 </div>
+                                 <div className="flex items-center gap-3">
+                                    <input
+                                       type="number"
+                                       value={referralSettings.newUserDiscount}
+                                       onChange={(e) => updateReferralSettings({ newUserDiscount: Number(e.target.value) })}
+                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                    />
+                                    <span className="text-gray-400 font-bold">{referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}</span>
+                                 </div>
+                              </div>
+                              <div className="space-y-4">
+                                 <label className="block text-xs font-bold text-gray-500 uppercase">Referrer Reward (KES)</label>
+                                 <div className="flex items-center gap-3">
+                                    <input
+                                       type="number"
+                                       value={referralSettings.referrerRewardAmount}
+                                       onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
+                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                    />
+                                    <span className="text-gray-400 font-bold">KES</span>
+                                 </div>
+                              </div>
+                           </div>
+
+                           <div className="p-4 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex gap-4 items-start">
+                              <Info className="text-brand-purple shrink-0 mt-1" size={20} />
+                              <div className="text-sm text-gray-300">
+                                 <p className="font-bold text-white mb-1">How it works:</p>
+                                 <ul className="list-disc ml-4 space-y-1 text-xs">
+                                    <li>New users get the <strong>Discount %</strong> on their first subscription.</li>
+                                    <li>Referrers receive a <strong>Flat Amount</strong> in their balance once the referee pays.</li>
+                                    <li>System validates for self-referral and one-time use automatically.</li>
+                                 </ul>
+                              </div>
+                           </div>
+                        </div>
+                     )}
+
+                     {referralSubTab === 'logs' && (
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                           <table className="w-full text-left">
+                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
+                                 <tr>
+                                    <th className="px-6 py-4">Referrer</th>
+                                    <th className="px-6 py-4">Referee</th>
+                                    <th className="px-6 py-4">Plan Purchased</th>
+                                    <th className="px-6 py-4">Reward</th>
+                                    <th className="px-6 py-4">Date</th>
+                                    <th className="px-6 py-4">Status</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-sm">
+                                 {referralLogs.length === 0 ? (
+                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No referral activity logged yet.</td></tr>
+                                 ) : (
+                                    referralLogs.map(log => (
+                                       <tr key={log.id} className="hover:bg-white/5 transition">
+                                          <td className="px-6 py-4">
+                                             <div className="font-bold text-white">{log.referrerName}</div>
+                                             <div className="text-[10px] text-gray-500 font-mono uppercase">{log.referrerId.split('-')[0]}...</div>
+                                          </td>
+                                          <td className="px-6 py-4">
+                                             <div className="font-bold text-white">{log.refereeName}</div>
+                                             <div className="text-[10px] text-gray-400">Applied {log.discountApplied}% OFF</div>
+                                          </td>
+                                          <td className="px-6 py-4 capitalize">{log.planPurchased}</td>
+                                          <td className="px-6 py-4 text-green-500 font-bold">KES {referralSettings.referrerRewardAmount}</td>
+                                          <td className="px-6 py-4 text-gray-500">{new Date(log.createdAt).toLocaleDateString()}</td>
+                                          <td className="px-6 py-4">
+                                             <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${log.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                                {log.status}
+                                             </span>
+                                          </td>
+                                       </tr>
+                                    ))
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
+                     )}
+                  </div>
+               )}
+
                {activeTab === 'users' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <StatCard label="Total Users" value={users.length} icon={Users} color="text-brand-purple" />
                         <StatCard label="Subscribers" value={users.filter(u => u.isSubscriber).length} icon={Check} color="text-green-500" />
                         <StatCard label="Admins" value={users.filter(u => u.role === 'admin').length} icon={Shield} color="text-red-500" />
-                        <StatCard label="Active Now" value="45" icon={Monitor} color="text-blue-500" />
+                        <StatCard label="Active Now" value={liveUsers.length} icon={Monitor} color="text-blue-500" />
                      </div>
 
                      <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Role</th><th className="px-6 py-4">Subscription</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{users.map(u => (<tr key={u.id}>
-                           <td className="px-6 py-4 font-bold">{u.name}</td>
-                           <td className="px-6 py-4 text-gray-400">{u.email}</td>
-                           <td className="px-6 py-4 capitalize">{u.role}</td>
-                           <td className="px-6 py-4 text-xs text-gray-500">{u.isSubscriber ? <span className="text-green-500">Active ({u.subscriptionPlan})</span> : 'None'}</td>
-                           <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${u.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{u.status}</span></td>
-                           <td className="px-6 py-4 flex gap-2">
-                              <button onClick={() => openUserDetail(u)} className="text-blue-500 text-xs hover:underline flex items-center gap-1"><Eye size={14} /> View</button>
-                           </td>
-                        </tr>))}</tbody></table>
+                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Role</th><th className="px-6 py-4">Subscription</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{users.map(u => {
+                           const isOnline = liveUsers.some(lu => lu.id === u.id);
+                           const displayStatus = u.status || 'active';
+                           return (
+                              <tr key={u.id}>
+                                 <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                       {isOnline && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shrink-0" title="Online" />}
+                                       <span className="font-bold">{u.name}</span>
+                                    </div>
+                                 </td>
+                                 <td className="px-6 py-4 text-gray-400">{u.email}</td>
+                                 <td className="px-6 py-4 capitalize">{u.role}</td>
+                                 <td className="px-6 py-4 text-xs text-gray-500">
+                                    {u.isSubscriber ? (
+                                       <div className="flex flex-col gap-1">
+                                          <span className="text-green-500 font-bold">Active ({u.subscriptionPlan})</span>
+                                          {u.subscriptionExpiry && <CountdownTimer expiryDate={u.subscriptionExpiry} />}
+                                       </div>
+                                    ) : 'None'}
+                                 </td>
+                                 <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${displayStatus === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{displayStatus}</span></td>
+                                 <td className="px-6 py-4 flex gap-2">
+                                    <button onClick={() => openUserDetail(u)} className="text-blue-500 text-xs hover:underline flex items-center gap-1"><Eye size={14} /> View</button>
+                                 </td>
+                              </tr>);
+                        })}</tbody></table>
                      </div>
                   </div>
                )}
@@ -1728,20 +2269,67 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'shipping' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Pending" value="8" icon={Package} color="text-yellow-500" />
-                        <StatCard label="Delivered" value="1,402" icon={Check} color="text-green-500" />
-                        <StatCard label="Revenue" value="KES 120K" icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Failed" value="12" icon={AlertTriangle} color="text-red-500" />
+                        <StatCard label="Pending" value={shippingStats.pending.toString()} icon={Package} color="text-yellow-500" />
+                        <StatCard label="Delivered" value={shippingStats.delivered.toString()} icon={Check} color="text-green-500" />
+                        <StatCard label="Revenue" value={`KES ${new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}`} icon={DollarSign} color="text-brand-purple" />
+                        <StatCard label="Failed" value={shippingStats.failed.toString()} icon={AlertTriangle} color="text-red-500" />
                      </div>
 
-                     <div className="grid grid-cols-1 gap-6">
-                        {shippingZones.map(zone => (
-                           <div key={zone.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                              <div className="flex justify-between mb-4"><h4 className="font-bold text-lg">{zone.name}</h4><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditZone(zone)} /></div>
-                              <p className="text-gray-400 text-sm mb-4">{zone.description}</p>
-                              <div className="space-y-2">{zone.rates.map(r => (<div key={r.id} className="flex justify-between text-sm border-b border-white/5 pb-2"><span>{r.label}</span><span className="font-bold text-brand-purple">KES {r.price}</span></div>))}</div>
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                           <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center text-brand-cyan">
+                              <span><Truck size={16} className="inline mr-2" /> Pending Shipments</span>
+                              <span className="text-xs px-2 py-0.5 bg-brand-cyan/10 rounded-full">{liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length}</span>
                            </div>
-                        ))}
+                           <div className="max-h-[500px] overflow-y-auto">
+                              <table className="w-full text-left">
+                                 <tbody className="divide-y divide-white/5 text-sm">
+                                    {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).map(o => (
+                                       <tr key={o.id} className="hover:bg-white/5">
+                                          <td className="px-4 py-3 font-mono text-xs">{o.id}</td>
+                                          <td className="px-4 py-3">
+                                             <div className="font-bold">{o.customerName}</div>
+                                             <div className="text-[10px] text-gray-500">{o.customerEmail}</div>
+                                          </td>
+                                          <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{o.items.map(i => i.productName).join(', ')}</td>
+                                          <td className="px-4 py-3"><button onClick={() => openShipModal(o)} className="text-[10px] bg-brand-purple text-white px-2 py-1 rounded font-bold uppercase">Ship Now</button></td>
+                                       </tr>
+                                    ))}
+                                    {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length === 0 && (
+                                       <tr><td className="p-8 text-center text-gray-500 text-xs">No pending shipments found.</td></tr>
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
+
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center px-2">
+                              <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500">Shipping Zones & Rates</h4>
+                              <button className="text-brand-purple text-xs font-bold">+ Add Zone</button>
+                           </div>
+                           <div className="grid grid-cols-1 gap-4">
+                              {shippingZones.map(zone => (
+                                 <div key={zone.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
+                                    <div className="flex justify-between items-start mb-2">
+                                       <div>
+                                          <h4 className="font-bold text-lg">{zone.name}</h4>
+                                          <p className="text-gray-400 text-xs mb-3 italic">{zone.description}</p>
+                                       </div>
+                                       <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditZone(zone)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                       {zone.rates.map(r => (
+                                          <div key={r.id} className="flex justify-between text-[11px] border-b border-white/5 pb-1 last:border-0">
+                                             <span className="text-gray-400">{r.label}</span>
+                                             <span className="font-bold text-brand-purple">KES {r.price}</span>
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
                      </div>
                   </div>
                )}
@@ -1749,10 +2337,10 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'content' && (
                   <div className="animate-fade-in-up space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Pages" value="12" icon={FileText} color="text-green-500" />
-                        <StatCard label="Published" value="24 Sections" icon={Check} color="text-blue-500" />
-                        <StatCard label="Last Update" value="2h Ago" icon={Clock} color="text-brand-purple" />
-                        <StatCard label="Issues" value="0" icon={AlertTriangle} color="text-gray-500" />
+                        <StatCard label="Active Sections" value={contentStats.activeSections.toString()} icon={FileText} color="text-green-500" />
+                        <StatCard label="Products" value={products.length.toString()} icon={Check} color="text-blue-500" />
+                        <StatCard label="Sync Status" value={contentStats.lastUpdated} icon={Clock} color="text-brand-purple" />
+                        <StatCard label="System Health" value="Stable" icon={AlertTriangle} color="text-gray-500" />
                      </div>
 
                      <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
@@ -1761,15 +2349,26 @@ const AdminDashboard: React.FC = () => {
                         <button onClick={() => setContentSubTab('footer')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'footer' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Footer & Contact</button>
                         <button onClick={() => setContentSubTab('tipjar')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'tipjar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Tip Jar</button>
                         <button onClick={() => setContentSubTab('seo')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'seo' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>SEO</button>
+                        <button onClick={() => setContentSubTab('notice')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'notice' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Notice</button>
                      </div>
 
                      <div className="flex justify-end"><button onClick={handleSaveConfig} className="bg-brand-purple px-6 py-2 rounded-lg font-bold flex gap-2"><Save size={18} /> Save Changes</button></div>
 
-                     {contentSubTab === 'home' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <InputGroup label="Hero Title" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
-                        <InputGroup label="Hero Subtitle" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
-                        <InputGroup label="CTA Text" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
-                        <InputGroup label="Hero BG Image" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+                     {contentSubTab === 'home' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-8">
+                        <div className="space-y-4">
+                           <h4 className="text-brand-cyan font-bold uppercase text-xs tracking-widest">Hero Section</h4>
+                           <InputGroup label="Hero Title" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
+                           <InputGroup label="Hero Subtitle" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
+                           <InputGroup label="CTA Text" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
+                           <InputGroup label="Hero BG Image" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+                        </div>
+
+                        <div className="space-y-4 pt-6 border-t border-white/5">
+                           <h4 className="text-brand-purple font-bold uppercase text-xs tracking-widest">Featured Mixtapes Section</h4>
+                           <InputGroup label="Section Title" value={editingConfig.home.featuredMixtapes.title} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                           <InputGroup label="Section Subtitle" value={editingConfig.home.featuredMixtapes.subtitle} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.subtitle = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                           <InputGroup label="Link Text (CTA)" value={editingConfig.home.featuredMixtapes.ctaText} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.ctaText = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                        </div>
                      </div>)}
                      {contentSubTab === 'about' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="About Title" value={editingConfig.about.title} onChange={v => updateContentField('about', 'title', v)} /><InputGroup label="Bio" type="textarea" value={editingConfig.about.bio} onChange={v => updateContentField('about', 'bio', v)} /></div>)}
                      {contentSubTab === 'footer' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
@@ -1783,6 +2382,17 @@ const AdminDashboard: React.FC = () => {
                         <InputGroup label="Message" type="textarea" value={editingConfig.home.tipJar.message} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.message = v; setEditingConfig({ ...editingConfig, home: h }) }} />
                      </div>)}
                      {contentSubTab === 'seo' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="Site Title" value={editingConfig.seo.siteTitle} onChange={v => updateContentField('seo', 'siteTitle', v)} /><InputGroup label="Meta Description" type="textarea" value={editingConfig.seo.description} onChange={v => updateContentField('seo', 'description', v)} /><InputGroup label="Keywords" value={editingConfig.seo.keywords} onChange={v => updateContentField('seo', 'keywords', v)} /></div>)}
+                     {contentSubTab === 'notice' && (
+                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                           <div className="flex items-center gap-4 mb-4">
+                              <InputGroup label="Enabled" type="checkbox" checked={editingConfig.notice?.enabled || false} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, enabled: v } })} />
+                              <div className="text-xs text-gray-400">Enable this to show a site-wide banner at the top of the page.</div>
+                           </div>
+                           <InputGroup label="Notice Title" value={editingConfig.notice?.title || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, title: v } })} />
+                           <InputGroup label="Message" type="textarea" value={editingConfig.notice?.message || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, message: v } })} />
+                           <InputGroup label="Type" options={['info', 'warning', 'error']} value={editingConfig.notice?.type || 'info'} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, type: v as any } })} />
+                        </div>
+                     )}
                   </div>
                )}
 
@@ -1807,28 +2417,56 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'payments' && (
                   <div className="animate-fade-in-up bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                     {ordersLoading ? (
-                        <div className="p-20 text-center text-gray-500">Loading payments...</div>
-                     ) : liveOrders.length === 0 ? (
+                     {paymentsLoading || ordersLoading ? (
+                        <div className="p-20 text-center text-gray-500">Loading transactions...</div>
+                     ) : combinedTransactions.length === 0 ? (
                         <div className="p-20 text-center text-gray-400 flex flex-col items-center gap-4">
                            <CreditCard size={48} className="text-gray-700" />
                            <div>
-                              <p className="text-lg font-bold">No payments found</p>
-                              <p className="text-sm">Recent transactions will appear here in real-time.</p>
+                              <p className="text-lg font-bold">No transactions found</p>
+                              <p className="text-sm">Recent payments and tips will appear here in real-time.</p>
                            </div>
                         </div>
                      ) : (
-                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Ref Code</th><th className="px-6 py-4">Date/Time</th><th className="px-6 py-4">User</th><th className="px-6 py-4">Items</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{liveOrders.map(order => (<tr key={order.id}>
-                           <td className="px-6 py-4 text-gray-500 font-mono text-xs">{order.referenceCode || 'N/A'}</td>
-                           <td className="px-6 py-4">
-                              <div className="text-white">{order.date}</div>
-                              <div className="text-xs text-gray-500">{order.time}</div>
-                           </td>
-                           <td className="px-6 py-4 font-bold">{order.customerName}</td>
-                           <td className="px-6 py-4 text-xs">{order.items.map(i => i.productName).join(', ')}</td>
-                           <td className="px-6 py-4 font-bold text-brand-purple">KES {order.total}</td>
-                           <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{order.status}</span></td></tr>))}
-                        </tbody></table>
+                        <table className="w-full text-left">
+                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
+                              <tr>
+                                 <th className="px-6 py-4">Type</th>
+                                 <th className="px-6 py-4">Ref Code</th>
+                                 <th className="px-6 py-4">Date/Time</th>
+                                 <th className="px-6 py-4">User</th>
+                                 <th className="px-6 py-4">Items</th>
+                                 <th className="px-6 py-4">Amount</th>
+                                 <th className="px-6 py-4">Status</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-white/5 text-sm">
+                              {combinedTransactions.map(tx => (
+                                 <tr key={tx.id} className="hover:bg-white/5 transition">
+                                    <td className="px-6 py-4">
+                                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
+                                          tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
+                                             'bg-purple-500/10 text-purple-500'
+                                          }`}>{tx.type}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-500 font-mono text-xs">{tx.ref || 'N/A'}</td>
+                                    <td className="px-6 py-4">
+                                       <div className="text-white">{tx.date}</div>
+                                       <div className="text-xs text-gray-500">{tx.time}</div>
+                                    </td>
+                                    <td className="px-6 py-4 font-bold">{tx.name}</td>
+                                    <td className="px-6 py-4 text-xs max-w-[200px] truncate">{tx.items}</td>
+                                    <td className="px-6 py-4 font-bold text-brand-purple">KES {tx.amount.toLocaleString()}</td>
+                                    <td className="px-6 py-4">
+                                       <span className={`text-xs px-2 py-1 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' :
+                                          tx.status === 'pending' || tx.status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                                             'bg-red-500/10 text-red-500'
+                                          }`}>{tx.status}</span>
+                                    </td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
                      )}
                   </div>
                )}
@@ -1842,7 +2480,7 @@ const AdminDashboard: React.FC = () => {
                      </div>
 
                      {newsletterSubTab === 'subscribers' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><div className="p-4 border-b border-white/5 font-bold flex justify-between"><span>Subscribers ({subscribers.length})</span><button className="text-brand-purple text-xs font-bold" onClick={() => alert('Feature coming soon')}>+ Add Manual</button></div><div className="max-h-96 overflow-y-auto"><table className="w-full text-left"><tbody className="divide-y divide-white/5 text-sm">{subscribers.map(s => (<tr key={s.id}><td className="px-6 py-3">{s.email}</td><td className="px-6 py-3 text-gray-500">{s.status}</td><td className="px-6 py-3 text-xs text-gray-600">{s.source}</td></tr>))}</tbody></table></div></div>
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><div className="p-4 border-b border-white/5 font-bold flex justify-between"><div className="flex items-center gap-2"><span>Subscribers ({subscribers.length})</span>{subscribersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</div><button className="text-brand-purple text-xs font-bold" onClick={() => alert('Feature coming soon')}>+ Add Manual</button></div><div className="max-h-96 overflow-y-auto"><table className="w-full text-left"><tbody className="divide-y divide-white/5 text-sm">{subscribers.map(s => (<tr key={s.id}><td className="px-6 py-3">{s.email}</td><td className="px-6 py-3 text-gray-500">{s.status}</td><td className="px-6 py-3 text-xs text-gray-600">{s.source}</td></tr>))}</tbody></table></div></div>
                      )}
 
                      {newsletterSubTab === 'campaigns' && (
@@ -1850,7 +2488,7 @@ const AdminDashboard: React.FC = () => {
                            <div className="p-4 border-b border-white/5 font-bold flex justify-between"><span>Recent Campaigns</span><button onClick={() => alert('Feature coming soon')} className="bg-brand-purple text-white text-xs font-bold px-3 py-1 rounded">+ Create</button></div>
                            <table className="w-full text-left">
                               <tbody className="divide-y divide-white/5 text-sm">
-                                 <tr className="bg-black/20 text-gray-500 text-xs uppercase"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Opens</th></tr>
+                                 <tr className="bg-black/20 text-gray-500 text-xs uppercase"><th className="px-6 py-3 flex items-center gap-2">Name {campaignsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Opens</th></tr>
                                  {newsletterCampaigns?.map(c => (
                                     <tr key={c.id}>
                                        <td className="px-6 py-3 font-bold">{c.name}</td>
@@ -1867,12 +2505,85 @@ const AdminDashboard: React.FC = () => {
                      {newsletterSubTab === 'blast' && (
                         <div className="bg-[#15151A] p-8 rounded-xl border border-white/5">
                            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Send size={20} /> Quick Email Blast</h3>
-                           <div className="space-y-4"><InputGroup label="Subject" value={emailSubject} onChange={setEmailSubject} /><InputGroup label="Message" type="textarea" value={emailBody} onChange={setEmailBody} /><button onClick={sendCampaign} className="bg-brand-purple text-white px-6 py-3 rounded-lg font-bold">Send Now</button></div>
+                           <div className="space-y-4">
+                              <InputGroup label="Subject" value={emailSubject} onChange={setEmailSubject} />
+                              <InputGroup label="Message" type="textarea" value={emailBody} onChange={setEmailBody} />
+                              <button
+                                 onClick={sendCampaign}
+                                 disabled={isSending}
+                                 className={`bg-brand-purple text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 ${isSending ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'}`}
+                              >
+                                 {isSending ? <><RefreshCw size={20} className="animate-spin" /> Sending...</> : <><Send size={20} /> Send Now</>}
+                              </button>
+                           </div>
                         </div>
                      )}
                   </div>
                )}
 
+               {activeTab === 'messages' && (
+                  <div className="animate-fade-in-up space-y-6">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <StatCard label="Total Messages" value={contactMessages.length} icon={MessageSquare} color="text-brand-purple" />
+                        <StatCard label="New" value={contactMessages.filter(m => m.status === 'new').length} icon={Bell} color="text-brand-cyan" />
+                        <StatCard label="WhatsApp" value={contactMessages.filter(m => m.source === 'whatsapp').length} icon={MessageCircle} color="text-green-500" />
+                     </div>
+
+                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                        <table className="w-full text-left">
+                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
+                              <tr>
+                                 <th className="px-6 py-4">Sender</th>
+                                 <th className="px-6 py-4">Subject</th>
+                                 <th className="px-6 py-4">Source</th>
+                                 <th className="px-6 py-4">Status</th>
+                                 <th className="px-6 py-4">Date</th>
+                                 <th className="px-6 py-4">Actions</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-white/5 text-sm">
+                              {contactMessages.map(m => (
+                                 <tr key={m.id} className={m.status === 'new' ? 'bg-white/[0.02]' : ''}>
+                                    <td className="px-6 py-4">
+                                       <div className="font-bold">{m.name}</div>
+                                       <div className="text-[10px] text-gray-500">{m.email}</div>
+                                    </td>
+                                    <td className="px-6 py-4 truncate max-w-[200px]">{m.subject}</td>
+                                    <td className="px-6 py-4">
+                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${m.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                          {m.source}
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className={`text-[10px] px-2 py-1 rounded-full border ${m.status === 'new' ? 'border-brand-cyan text-brand-cyan bg-brand-cyan/10' : 'border-white/10 text-gray-500'}`}>
+                                          {m.status}
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-500 text-xs">{new Date(m.createdAt).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4">
+                                       <button
+                                          onClick={() => {
+                                             setSelectedMessage(m);
+                                             setActiveModal('viewMessage');
+                                             if (m.status === 'new') {
+                                                updateContactMessage(m.id, { status: 'read' });
+                                             }
+                                          }}
+                                          className="text-brand-purple hover:underline font-bold text-xs flex items-center gap-1"
+                                       >
+                                          <Eye size={14} /> View
+                                       </button>
+                                    </td>
+                                 </tr>
+                              ))}
+                              {contactMessages.length === 0 && (
+                                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No messages found.</td></tr>
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+               )}
 
                {activeTab === 'system' && (
                   <div className="animate-fade-in-up space-y-6">
@@ -1907,6 +2618,61 @@ const AdminDashboard: React.FC = () => {
                            </button>
                         </div>
 
+                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
+                           <h4 className="font-bold text-white mb-2">Music Pool Health & Maintenance</h4>
+                           <p className="text-sm text-gray-400 mb-4">
+                              Scan and repair the Music Pool tracks. Identifies tracks with missing versions or broken download links.
+                           </p>
+
+                           {scanResults.checked > 0 && (
+                              <div className="grid grid-cols-3 gap-4 mb-6">
+                                 <div className="bg-white/5 p-3 rounded border border-white/5">
+                                    <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Checked</div>
+                                    <div className="text-xl font-bold">{scanResults.checked}</div>
+                                 </div>
+                                 <div className="bg-white/5 p-3 rounded border border-white/5">
+                                    <div className="text-yellow-500 text-[10px] uppercase font-bold mb-1">Missing Vers.</div>
+                                    <div className="text-xl font-bold text-yellow-500">{scanResults.missingVersions}</div>
+                                 </div>
+                                 <div className="bg-white/5 p-3 rounded border border-white/5">
+                                    <div className="text-red-500 text-[10px] uppercase font-bold mb-1">Broken/Empty</div>
+                                    <div className="text-xl font-bold text-red-500">{scanResults.broken}</div>
+                                 </div>
+                              </div>
+                           )}
+
+                           <div className="flex flex-wrap gap-4">
+                              <button
+                                 onClick={handleScanPool}
+                                 disabled={isScanningPool}
+                                 className="bg-brand-purple hover:bg-brand-purple/80 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                              >
+                                 {isScanningPool ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
+                                 {isScanningPool ? `Scanning... (${Math.round((scanResults.checked / (poolTracks.length || 1)) * 100)}%)` : 'Scan Pool Health'}
+                              </button>
+
+                              <button
+                                 onClick={handleFixPool}
+                                 disabled={isScanningPool || scanResults.broken === 0}
+                                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                              >
+                                 <Shield size={18} />
+                                 Repair Broken Tracks
+                              </button>
+
+                              <button
+                                 onClick={async () => {
+                                    const res = await manualSync();
+                                    alert(res.message);
+                                 }}
+                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                              >
+                                 <RefreshCw size={18} />
+                                 Force Sync from Sources
+                              </button>
+                           </div>
+                        </div>
+
                         {cleanupLog.length > 0 && (
                            <div className="bg-black/40 p-4 rounded-lg border border-white/10 font-mono text-xs text-gray-400 max-h-60 overflow-y-auto">
                               {cleanupLog.map((line, i) => (
@@ -1918,57 +2684,64 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
             </div>
-         </div >
 
-         <Modal isOpen={activeModal === 'addPlan'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Plan" : "Create New Plan"}>
-            <div className="space-y-4">
-               <InputGroup label="Plan Name" value={editingPlan.name} onChange={v => setEditingPlan({ ...editingPlan, name: v })} required />
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Price (KES)" type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} required />
-                  <InputGroup label="Period (e.g. mo, yr)" value={editingPlan.period} onChange={v => setEditingPlan({ ...editingPlan, period: v })} required />
-               </div>
-               <InputGroup label="Payment Link" value={editingPlan.link || ''} onChange={v => setEditingPlan({ ...editingPlan, link: v })} placeholder="https://paystack..." />
-               <InputGroup label="Features (One per line)" type="textarea" value={planFeaturesInput} onChange={setPlanFeaturesInput} />
-               <div className="flex gap-4">
-                  <InputGroup label="Active" type="checkbox" checked={editingPlan.active} onChange={v => setEditingPlan({ ...editingPlan, active: v })} />
-                  <InputGroup label="Best Value" type="checkbox" checked={editingPlan.isBestValue} onChange={v => setEditingPlan({ ...editingPlan, isBestValue: v })} />
-               </div>
-               <div className="flex justify-end pt-4"><button onClick={handleSavePlan} disabled={isSavingPlan} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPlan && <RefreshCw className="animate-spin" size={18} />} {isSavingPlan ? "Saving..." : "Save Plan"}</button></div>
-            </div>
-         </Modal>
 
-         <Modal isOpen={activeModal === 'addRoom'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Room" : "Add Studio Room"}>
-            <div className="space-y-4">
-               <InputGroup label="Room Name" value={editingRoom.name} onChange={v => setEditingRoom({ ...editingRoom, name: v })} required />
-               <InputGroup label="Capacity" type="number" value={editingRoom.capacity} onChange={v => setEditingRoom({ ...editingRoom, capacity: Number(v) })} />
-               <InputGroup label="Description" type="textarea" value={editingRoom.description} onChange={v => setEditingRoom({ ...editingRoom, description: v })} />
-               <InputGroup label="Status" options={['active', 'maintenance']} value={editingRoom.status} onChange={v => setEditingRoom({ ...editingRoom, status: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveRoom} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Room</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'editZone'} onClose={() => setActiveModal(null)} title={`Edit Rates: ${editingZone?.name}`} size="lg">
-            <div className="space-y-6">
-               <p className="text-gray-400 text-sm mb-4">{editingZone?.description}</p>
-               {editingZone?.rates.map((rate) => (
-                  <div key={rate.id} className="bg-black/20 p-4 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                     <div className="font-bold text-white">{rate.type.toUpperCase()}</div>
-                     <InputGroup label="Price (KES)" type="number" value={rate.price} onChange={v => updateRate(rate.id, 'price', Number(v))} />
-                     <InputGroup label="Timeline" value={rate.timeline} onChange={v => updateRate(rate.id, 'timeline', v)} />
+            <Modal isOpen={activeModal === 'addPlan'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Plan" : "Create New Plan"}>
+               <div className="space-y-4">
+                  <InputGroup label="Plan Name" value={editingPlan.name} onChange={v => setEditingPlan({ ...editingPlan, name: v })} required />
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Price (KES)" type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} required />
+                     <InputGroup label="Period (e.g. mo, yr)" value={editingPlan.period} onChange={v => setEditingPlan({ ...editingPlan, period: v })} required />
                   </div>
-               ))}
-               <div className="flex justify-end pt-4"><button onClick={handleSaveZone} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Rates</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'addPoolTrack'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Track" : "Upload New Track"} size="lg">
-            <div className="space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputGroup label="Artist" value={newPoolTrack.artist} onChange={v => setNewPoolTrack({ ...newPoolTrack, artist: v })} required />
-                  <InputGroup label="Title" value={newPoolTrack.title} onChange={v => setNewPoolTrack({ ...newPoolTrack, title: v })} required />
+                  <InputGroup label="Payment Link" value={editingPlan.link || ''} onChange={v => setEditingPlan({ ...editingPlan, link: v })} placeholder="https://paystack..." />
+                  <InputGroup label="Features (One per line)" type="textarea" value={planFeaturesInput} onChange={setPlanFeaturesInput} />
+                  <div className="flex gap-4">
+                     <InputGroup label="Active" type="checkbox" checked={editingPlan.active} onChange={v => setEditingPlan({ ...editingPlan, active: v })} />
+                     <InputGroup label="Best Value" type="checkbox" checked={editingPlan.isBestValue} onChange={v => setEditingPlan({ ...editingPlan, isBestValue: v })} />
+                  </div>
+                  <div className="flex justify-end pt-4"><button onClick={handleSavePlan} disabled={isSavingPlan} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPlan && <RefreshCw className="animate-spin" size={18} />} {isSavingPlan ? "Saving..." : "Save Plan"}</button></div>
                </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="col-span-1"><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Genre</label><select value={newPoolTrack.genre} onChange={(e) => setNewPoolTrack({ ...newPoolTrack, genre: e.target.value })} className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none">{genres.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addRoom'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Room" : "Add Studio Room"}>
+               <div className="space-y-4">
+                  <InputGroup label="Room Name" value={editingRoom.name} onChange={v => setEditingRoom({ ...editingRoom, name: v })} required />
+                  <InputGroup label="Capacity" type="number" value={editingRoom.capacity} onChange={v => setEditingRoom({ ...editingRoom, capacity: Number(v) })} />
+                  <InputGroup label="Description" type="textarea" value={editingRoom.description} onChange={v => setEditingRoom({ ...editingRoom, description: v })} />
+                  <InputGroup label="Status" options={['active', 'maintenance']} value={editingRoom.status} onChange={v => setEditingRoom({ ...editingRoom, status: v })} />
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveRoom} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Room</button></div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'editZone'} onClose={() => setActiveModal(null)} title={`Edit Rates: ${editingZone?.name}`} size="lg">
+               <div className="space-y-6">
+                  <p className="text-gray-400 text-sm mb-4">{editingZone?.description}</p>
+                  {editingZone?.rates.map((rate) => (
+                     <div key={rate.id} className="bg-black/20 p-4 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div className="font-bold text-white">{rate.type.toUpperCase()}</div>
+                        <InputGroup label="Price (KES)" type="number" value={rate.price} onChange={v => updateRate(rate.id, 'price', Number(v))} />
+                        <InputGroup label="Timeline" value={rate.timeline} onChange={v => updateRate(rate.id, 'timeline', v)} />
+                     </div>
+                  ))}
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveZone} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Rates</button></div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addPoolTrack'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Track" : "Upload New Track"} size="lg">
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <InputGroup label="Artist" value={newPoolTrack.artist} onChange={v => setNewPoolTrack({ ...newPoolTrack, artist: v })} required />
+                     <InputGroup label="Title" value={newPoolTrack.title} onChange={v => setNewPoolTrack({ ...newPoolTrack, title: v })} required />
+                  </div>
+                  <div>
+                     <InputGroup
+                        label="Genre Selection"
+                        options={genres.map(g => g.name)}
+                        value={newPoolTrack.genre}
+                        onChange={v => setNewPoolTrack({ ...newPoolTrack, genre: v })}
+                        required
+                     />
+                  </div>
                   <InputGroup label="Year" type="number" value={newPoolTrack.year} onChange={v => setNewPoolTrack({ ...newPoolTrack, year: Number(v) })} />
                </div>
                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Categories / Hubs</label><div className="flex flex-wrap gap-2">{POOL_HUBS.map(hub => (<button key={hub} type="button" onClick={() => toggleTrackCategory(hub)} className={`px-3 py-1 rounded-full text-xs border transition ${newPoolTrack.category?.includes(hub) ? 'bg-brand-purple border-brand-purple text-white' : 'bg-transparent border-white/20 text-gray-400 hover:text-white'}`}>{hub}</button>))}</div></div>
@@ -1982,328 +2755,584 @@ const AdminDashboard: React.FC = () => {
                   <button onClick={() => removeVersion(version.id)} className="text-red-500 hover:text-white"><X size={16} /></button>
                </div>))}</div></div>
                <div className="flex justify-end pt-4"><button onClick={handleSavePoolTrack} disabled={isSavingPoolTrack} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPoolTrack && <RefreshCw className="animate-spin" size={18} />} {isSavingPoolTrack ? "Saving..." : "Save Track"}</button></div>
-            </div>
-         </Modal>
+            </Modal >
 
-         <Modal isOpen={activeModal === 'editGenre'} onClose={() => setActiveModal(null)} title="Edit Genre Cover">
-            <div className="space-y-6">
-               <InputGroup label="Genre Name" value={editingGenre.name} onChange={() => { }} placeholder="Genre Name" />
-               <ImageUpload label="Cover Image" value={editingGenre.coverUrl} onChange={v => setEditingGenre({ ...editingGenre, coverUrl: v })} />
-               <div className="flex justify-end"><button onClick={handleSaveGenre} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Genre</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="lg">
-            <div className="space-y-6">
-               <div className="flex gap-4 border-b border-white/10 pb-2">
-                  <button onClick={() => setProductFormTab('type')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'type' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Type</button>
-                  <button onClick={() => setProductFormTab('basic')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'basic' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Basic Info</button>
-                  {newProduct.type === 'physical' && <button onClick={() => setProductFormTab('shipping')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'shipping' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Shipping</button>}
-                  {newProduct.type === 'digital' && <button onClick={() => setProductFormTab('digital')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'digital' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Files</button>}
-                  <button onClick={() => setProductFormTab('images')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'images' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Images</button>
+            <Modal isOpen={activeModal === 'editGenre'} onClose={() => setActiveModal(null)} title="Edit Genre Cover">
+               <div className="space-y-6">
+                  <InputGroup label="Genre Name" value={editingGenre.name} onChange={() => { }} placeholder="Genre Name" />
+                  <ImageUpload label="Cover Image" value={editingGenre.coverUrl} onChange={v => setEditingGenre({ ...editingGenre, coverUrl: v })} />
+                  <div className="flex justify-end"><button onClick={handleSaveGenre} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Genre</button></div>
                </div>
+            </Modal>
 
-               {productFormTab === 'type' && (
-                  <div className="grid grid-cols-2 gap-4">
-                     <div onClick={() => updateProductField('type', 'physical')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'physical' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
-                        <Package size={32} />
-                        <h3 className="font-bold">Physical Product</h3>
-                        <p className="text-xs text-gray-400 text-center">Apparel, Equipment, Merch</p>
+            <Modal isOpen={activeModal === 'viewMessage'} onClose={() => setActiveModal(null)} title="View Contact Message">
+               {selectedMessage && (
+                  <div className="space-y-6">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                           <p className="text-xs text-gray-500 uppercase font-bold mb-1">From</p>
+                           <p className="font-bold text-white text-lg">{selectedMessage.name}</p>
+                           <p className="text-gray-400 text-sm">{selectedMessage.email}</p>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                           <p className="text-xs text-gray-500 uppercase font-bold mb-1">Source & Status</p>
+                           <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-xs capitalize ${selectedMessage.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                 {selectedMessage.source}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-xs capitalize bg-white/10 text-gray-300">
+                                 {selectedMessage.status}
+                              </span>
+                           </div>
+                           <p className="text-gray-500 text-xs mt-2">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
+                        </div>
                      </div>
-                     <div onClick={() => updateProductField('type', 'digital')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'digital' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
-                        <Download size={32} />
-                        <h3 className="font-bold">Digital Product</h3>
-                        <p className="text-xs text-gray-400 text-center">Music, Samples, Software</p>
+
+                     <div className="bg-white/5 p-6 rounded-xl border border-white/5">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-3">Subject</p>
+                        <p className="text-white font-bold text-xl mb-4">{selectedMessage.subject}</p>
+                        <div className="w-full h-px bg-white/10 mb-4" />
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-2">Message</p>
+                        <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">{selectedMessage.message}</p>
+                     </div>
+
+                     <div className="flex gap-4">
+                        <a
+                           href={`mailto:${selectedMessage.email}?subject=RE: ${selectedMessage.subject}`}
+                           className="flex-1 bg-brand-purple hover:bg-brand-purple/80 text-white py-3 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2"
+                        >
+                           <Mail size={18} /> Reply via Email
+                        </a>
+                        {selectedMessage.source === 'whatsapp' && (
+                           <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all">
+                              <MessageCircle size={18} /> Open WhatsApp
+                           </button>
+                        )}
+                        <button
+                           onClick={() => {
+                              updateContactMessage(selectedMessage.id, { status: 'archived' });
+                              setActiveModal(null);
+                           }}
+                           className="px-6 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 py-3 rounded-xl font-bold transition-all"
+                        >
+                           Archive
+                        </button>
                      </div>
                   </div>
                )}
+            </Modal>
 
-               {productFormTab === 'basic' && (
-                  <div className="space-y-4">
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required />
-                        <InputGroup label="Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
-                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <InputGroup label="Category" options={['Apparel', 'Accessories', 'Software', 'Samples', 'Laptops']} value={newProduct.category} onChange={v => updateProductField('category', v)} />
-                        <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
-                     </div>
+            <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="lg">
+               <div className="space-y-6">
+                  <div className="flex gap-4 border-b border-white/10 pb-2">
+                     <button onClick={() => setProductFormTab('type')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'type' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Type</button>
+                     <button onClick={() => setProductFormTab('basic')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'basic' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Basic Info</button>
+                     {newProduct.type === 'physical' && <button onClick={() => setProductFormTab('shipping')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'shipping' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Shipping</button>}
+                     {newProduct.type === 'digital' && <button onClick={() => setProductFormTab('digital')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'digital' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Files</button>}
+                     <button onClick={() => setProductFormTab('images')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'images' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Images</button>
+                  </div>
 
-                     {/* OS Selection for Software category */}
-                     {newProduct.category === 'Software' && (
-                        <div className="bg-purple-500/10 p-4 rounded-lg border border-purple-500/20">
+                  {productFormTab === 'type' && (
+                     <div className="grid grid-cols-2 gap-4">
+                        <div onClick={() => updateProductField('type', 'physical')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'physical' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
+                           <Package size={32} />
+                           <h3 className="font-bold">Physical Product</h3>
+                           <p className="text-xs text-gray-400 text-center">Apparel, Equipment, Merch</p>
+                        </div>
+                        <div onClick={() => updateProductField('type', 'digital')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'digital' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
+                           <Download size={32} />
+                           <h3 className="font-bold">Digital Product</h3>
+                           <p className="text-xs text-gray-400 text-center">Music, Samples, Software</p>
+                        </div>
+                     </div>
+                  )}
+
+                  {productFormTab === 'basic' && (
+                     <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required />
+                           <InputGroup label="Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <InputGroup
-                              label="Operating System"
-                              options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
-                              value={newProduct.os || 'None'}
-                              onChange={v => updateProductField('os', v)}
+                              label="Category"
+                              options={[
+                                 'Head Phones & Ear Buds',
+                                 'Laptops',
+                                 'Gaming',
+                                 'CPUs',
+                                 'Monitors',
+                                 'Printers',
+                                 'Speakers',
+                                 'All-In-One Desktops',
+                                 'Tablets',
+                                 'Computer Accessories',
+                                 'Mobile Phones',
+                                 'Apparel',
+                                 'Accessories',
+                                 'Software',
+                                 'Samples',
+                                 'Music Production',
+                                 'Studio Furniture',
+                                 'Vinyl Records',
+                                 'Digital Downloads',
+                                 'Hard Drives/USB',
+                                 'DJ Lighting',
+                                 'Microphones',
+                                 'Studio Monitors',
+                                 'Cables',
+                                 'Merchandise',
+                                 'DJ Controllers',
+                                 'Other'
+                              ]}
+                              value={newProduct.category}
+                              onChange={v => updateProductField('category', v)}
+                           />
+                           {newProduct.type === 'physical' && (
+                              <InputGroup label="Condition" options={['new', 'refurbished']} value={newProduct.condition || 'new'} onChange={v => updateProductField('condition', v)} />
+                           )}
+                           <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
+                        </div>
+
+                        {/* OS Selection for Software category */}
+                        {newProduct.category === 'Software' && (
+                           <div className="bg-purple-500/10 p-4 rounded-lg border border-purple-500/20">
+                              <InputGroup
+                                 label="Operating System"
+                                 options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
+                                 value={newProduct.os || 'None'}
+                                 onChange={v => updateProductField('os', v)}
+                              />
+                           </div>
+                        )}
+
+                        {newProduct.type === 'physical' && <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />}
+                        <div className="space-y-2">
+                           <InputGroup
+                              label="Description"
+                              type="textarea"
+                              value={newProduct.description}
+                              onChange={(v) => updateProductField('description', v)}
+                              placeholder="Product description... (Rich text disabled for stability)"
                            />
                         </div>
-                     )}
+                        <InputGroup
+                           label={newProduct.type === 'digital' ? 'Versions (comma separated)' : 'Variants (comma separated)'}
+                           value={variantsInput}
+                           onChange={setVariantsInput}
+                           placeholder={newProduct.type === 'digital' ? 'e.g. v1.0, v2.0, Pro, Lite' : 'e.g. S, M, L, XL or Red, Blue'}
+                        />
+                     </div>
+                  )}
 
-                     {newProduct.type === 'physical' && <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />}
-                     <InputGroup label="Full Description" type="textarea" value={newProduct.description} onChange={v => updateProductField('description', v)} />
+                  {productFormTab === 'digital' && (
+                     <div className="space-y-4">
+                        <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
+                           <h4 className="font-bold text-blue-400 mb-4">Digital Delivery</h4>
+                           <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} />
+                           <InputGroup label="Access Password (Optional)" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} />
+                           <InputGroup label="Access Control" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
+
+                           <div className="mt-4 pt-4 border-t border-blue-500/20">
+                              <InputGroup
+                                 label="Free Download"
+                                 type="checkbox"
+                                 checked={newProduct.isFree || false}
+                                 onChange={v => updateProductField('isFree', v)}
+                                 helperText="Check this if the product is completely free (price will still be shown but marked as free)"
+                              />
+                           </div>
+                        </div>
+                     </div>
+                  )}
+
+                  {productFormTab === 'shipping' && (
+                     <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                           <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} />
+                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} />
+                           <InputGroup label="SKU" value={newProduct.sku} onChange={v => updateProductField('sku', v)} />
+                        </div>
+                        <InputGroup label="Requires Shipping" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} />
+                     </div>
+                  )}
+
+                  {productFormTab === 'images' && (
+                     <div className="space-y-4">
+                        <ImageUpload label="Main Product Image" value={newProduct.image} onChange={v => updateProductField('image', v)} required />
+                        <MultiImageUpload label="Gallery Images" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
+                     </div>
+                  )}
+
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveProduct} disabled={isSavingProduct} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingProduct && <RefreshCw className="animate-spin" size={18} />} {isSavingProduct ? "Saving..." : "Save Product"}</button></div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addMixtape'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Mixtape" : "Upload New Mixtape"} size="lg">
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <InputGroup label="Mixtape Title" value={newMixtape.title} onChange={v => updateMixtapeField('title', v)} required />
+                     <InputGroup label="Genre" options={MIXTAPE_GENRE_NAMES} value={newMixtape.genre} onChange={v => updateMixtapeField('genre', v)} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <InputGroup label="Release Date" type="date" value={newMixtape.releaseDate} onChange={v => updateMixtapeField('releaseDate', v)} />
+                     <InputGroup label="Duration" value={newMixtape.duration} onChange={v => updateMixtapeField('duration', v)} placeholder="e.g. 1:05:00" />
+                     <InputGroup label="Status" options={['draft', 'published']} value={newMixtape.status} onChange={v => updateMixtapeField('status', v)} />
+                  </div>
+                  <ImageUpload label="Cover Artwork" value={newMixtape.coverUrl} onChange={v => updateMixtapeField('coverUrl', v)} required />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <InputGroup
-                        label={newProduct.type === 'digital' ? 'Versions (comma separated)' : 'Variants (comma separated)'}
-                        value={variantsInput}
-                        onChange={setVariantsInput}
-                        placeholder={newProduct.type === 'digital' ? 'e.g. v1.0, v2.0, Pro, Lite' : 'e.g. S, M, L, XL or Red, Blue'}
+                        label="Stream URL (Audio Player)"
+                        value={newMixtape.audioUrl}
+                        onChange={v => updateMixtapeField('audioUrl', v)}
+                        helperText="Supports Hearthis.at, SoundCloud, Mixcloud, or direct MP3 links."
+                     />
+                     <InputGroup label="Download Link (MP3)" value={newMixtape.downloadUrl} onChange={v => updateMixtapeField('downloadUrl', v)} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <InputGroup label="Video URL (MP4/YouTube)" value={newMixtape.videoDownloadUrl} onChange={v => updateMixtapeField('videoDownloadUrl', v)} />
+                     <InputGroup label="Download Type" options={['free', 'logged_in', 'music_pool']} value={newMixtape.downloadType} onChange={v => updateMixtapeField('downloadType', v)} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <InputGroup label="Exclusive to Subscribers" type="checkbox" checked={newMixtape.isExclusive} onChange={v => updateMixtapeField('isExclusive', v)} />
+                     <InputGroup label="Featured on Home" type="checkbox" checked={newMixtape.isFeatured} onChange={v => updateMixtapeField('isFeatured', v)} />
+                  </div>
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveMixtape} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Mixtape</button></div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addCoupon'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Coupon" : "Create New Coupon"}>
+               <div className="space-y-4">
+                  <InputGroup label="Coupon Code" value={newCoupon.code} onChange={v => setNewCoupon({ ...newCoupon, code: v.toUpperCase() })} required />
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Type" options={['percentage', 'fixed']} value={newCoupon.discountType} onChange={v => setNewCoupon({ ...newCoupon, discountType: v })} />
+                     <InputGroup label="Value" type="number" value={newCoupon.discountValue} onChange={v => setNewCoupon({ ...newCoupon, discountValue: Number(v) })} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Applies To" options={['store', 'subscription', 'booking', 'all']} value={newCoupon.appliesTo} onChange={v => setNewCoupon({ ...newCoupon, appliesTo: v })} />
+                     <InputGroup label="Expiry Date" type="date" value={newCoupon.expiryDate} onChange={v => setNewCoupon({ ...newCoupon, expiryDate: v })} />
+                  </div>
+
+                  {newCoupon.appliesTo === 'subscription' && (
+                     <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Applicable Plans</label>
+                        <div className="flex flex-wrap gap-2">
+                           {subscriptionPlans.map(plan => (
+                              <button
+                                 key={plan.id}
+                                 onClick={() => {
+                                    const current = newCoupon.applicablePlans || [];
+                                    const next = current.includes(plan.id) ? current.filter(id => id !== plan.id) : [...current, plan.id];
+                                    setNewCoupon({ ...newCoupon, applicablePlans: next });
+                                 }}
+                                 className={`px-3 py-1 rounded text-xs border ${newCoupon.applicablePlans?.includes(plan.id) ? 'bg-brand-purple border-brand-purple text-white' : 'border-white/20 text-gray-400'}`}
+                              >
+                                 {plan.name}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+
+                  <InputGroup label="Usage Limit" type="number" value={newCoupon.usageLimit} onChange={v => setNewCoupon({ ...newCoupon, usageLimit: Number(v) })} />
+                  <InputGroup label="Active" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} />
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveCoupon} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Coupon</button></div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'shipOrder'} onClose={() => !isShipping && setActiveModal(null)} title="Mark Order Shipped">
+               <div className="space-y-4">
+                  <p className="text-gray-400 text-sm mb-4">Update shipping for order <b>#{selectedOrder?.id}</b></p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Delivery Method" value={shippingDetails.deliveryMethod} onChange={v => setShippingDetails({ ...shippingDetails, deliveryMethod: v })} placeholder="e.g. Air Freight, Pickup" />
+                     <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
+                  </div>
+
+                  <InputGroup label="Pickup/Delivery Location" value={shippingDetails.pickupLocation} onChange={v => setShippingDetails({ ...shippingDetails, pickupLocation: v })} placeholder="Where should the user collect it?" />
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
+                     <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
+                  </div>
+
+                  <div className="space-y-2">
+                     <label className="text-xs font-bold text-gray-500 uppercase">Receipt / Waybill Image</label>
+                     <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                        className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-gray-400 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-purple/20 file:text-brand-purple hover:file:bg-brand-purple/30"
+                     />
+                     {receiptFile && <p className="text-[10px] text-green-500">Selected: {receiptFile.name}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                     <label className="text-xs font-bold text-gray-500 uppercase">Admin Message to User</label>
+                     <textarea
+                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50"
+                        placeholder="Optional message for the customer..."
+                        value={shippingDetails.adminMessage}
+                        onChange={(e) => setShippingDetails({ ...shippingDetails, adminMessage: e.target.value })}
                      />
                   </div>
-               )}
 
-               {productFormTab === 'digital' && (
-                  <div className="space-y-4">
-                     <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
-                        <h4 className="font-bold text-blue-400 mb-4">Digital Delivery</h4>
-                        <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} />
-                        <InputGroup label="Access Password (Optional)" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} />
-                        <InputGroup label="Access Control" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
+                  <div className="flex justify-end pt-4">
+                     <button
+                        onClick={handleShipOrder}
+                        disabled={isShipping}
+                        className={`px-8 py-3 rounded-lg font-bold text-white flex items-center gap-2 transition ${isShipping ? 'bg-gray-600 cursor-not-allowed' : 'bg-brand-purple hover:bg-brand-purple/80 hover:scale-[1.02]'}`}
+                     >
+                        {isShipping ? <RefreshCw size={18} className="animate-spin" /> : <Truck size={18} />}
+                        {isShipping ? 'Shipping...' : 'Confirm Shipment'}
+                     </button>
+                  </div>
+               </div>
+            </Modal>
 
-                        <div className="mt-4 pt-4 border-t border-blue-500/20">
-                           <InputGroup
-                              label="Free Download"
-                              type="checkbox"
-                              checked={newProduct.isFree || false}
-                              onChange={v => updateProductField('isFree', v)}
-                              helperText="Check this if the product is completely free (price will still be shown but marked as free)"
-                           />
-                        </div>
+            <Modal isOpen={activeModal === 'editOrderStatus'} onClose={() => setActiveModal(null)} title={`Edit Order: #${selectedOrder?.id}`}>
+               <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Customer</p>
+                        <p className="text-sm font-bold">{selectedOrder?.customerName}</p>
+                        <p className="text-[10px] text-gray-400">{selectedOrder?.customerEmail}</p>
+                     </div>
+                     <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Amount</p>
+                        <p className="text-sm font-bold text-brand-purple">KES {selectedOrder?.total.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-400 uppercase">{selectedOrder?.paymentStatus}</p>
                      </div>
                   </div>
-               )}
 
-               {productFormTab === 'shipping' && (
-                  <div className="space-y-4">
-                     <div className="grid grid-cols-2 gap-4">
-                        <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} />
-                        <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} />
-                        <InputGroup label="SKU" value={newProduct.sku} onChange={v => updateProductField('sku', v)} />
+                  <div className="bg-black/20 rounded-lg border border-white/5 overflow-hidden">
+                     <div className="px-4 py-2 border-b border-white/5 bg-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold">Purchased Items</p>
                      </div>
-                     <InputGroup label="Requires Shipping" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} />
-                  </div>
-               )}
-
-               {productFormTab === 'images' && (
-                  <div className="space-y-4">
-                     <ImageUpload label="Main Product Image" value={newProduct.image} onChange={v => updateProductField('image', v)} required />
-                     <MultiImageUpload label="Gallery Images" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
-                  </div>
-               )}
-
-               <div className="flex justify-end pt-4"><button onClick={handleSaveProduct} disabled={isSavingProduct} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingProduct && <RefreshCw className="animate-spin" size={18} />} {isSavingProduct ? "Saving..." : "Save Product"}</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'addMixtape'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Mixtape" : "Upload New Mixtape"} size="lg">
-            <div className="space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputGroup label="Mixtape Title" value={newMixtape.title} onChange={v => updateMixtapeField('title', v)} required />
-                  <InputGroup label="Genre" options={['Afrobeats', 'Amapiano', 'Hip Hop / Trap', 'Reggae', 'Dancehall']} value={newMixtape.genre} onChange={v => updateMixtapeField('genre', v)} />
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <InputGroup label="Release Date" type="date" value={newMixtape.releaseDate} onChange={v => updateMixtapeField('releaseDate', v)} />
-                  <InputGroup label="Duration" value={newMixtape.duration} onChange={v => updateMixtapeField('duration', v)} placeholder="e.g. 1:05:00" />
-                  <InputGroup label="Status" options={['draft', 'published']} value={newMixtape.status} onChange={v => updateMixtapeField('status', v)} />
-               </div>
-               <ImageUpload label="Cover Artwork" value={newMixtape.coverUrl} onChange={v => updateMixtapeField('coverUrl', v)} required />
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputGroup label="Stream URL (Audio Player)" value={newMixtape.audioUrl} onChange={v => updateMixtapeField('audioUrl', v)} />
-                  <InputGroup label="Download Link (MP3)" value={newMixtape.downloadUrl} onChange={v => updateMixtapeField('downloadUrl', v)} />
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputGroup label="Video URL (MP4/YouTube)" value={newMixtape.videoDownloadUrl} onChange={v => updateMixtapeField('videoDownloadUrl', v)} />
-                  <InputGroup label="Download Type" options={['free', 'logged_in', 'music_pool']} value={newMixtape.downloadType} onChange={v => updateMixtapeField('downloadType', v)} />
-               </div>
-               <InputGroup label="Exclusive to Subscribers" type="checkbox" checked={newMixtape.isExclusive} onChange={v => updateMixtapeField('isExclusive', v)} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveMixtape} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Mixtape</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'addCoupon'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Coupon" : "Create New Coupon"}>
-            <div className="space-y-4">
-               <InputGroup label="Coupon Code" value={newCoupon.code} onChange={v => setNewCoupon({ ...newCoupon, code: v.toUpperCase() })} required />
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Type" options={['percentage', 'fixed']} value={newCoupon.discountType} onChange={v => setNewCoupon({ ...newCoupon, discountType: v })} />
-                  <InputGroup label="Value" type="number" value={newCoupon.discountValue} onChange={v => setNewCoupon({ ...newCoupon, discountValue: Number(v) })} />
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Applies To" options={['store', 'subscription', 'booking', 'all']} value={newCoupon.appliesTo} onChange={v => setNewCoupon({ ...newCoupon, appliesTo: v })} />
-                  <InputGroup label="Expiry Date" type="date" value={newCoupon.expiryDate} onChange={v => setNewCoupon({ ...newCoupon, expiryDate: v })} />
-               </div>
-
-               {newCoupon.appliesTo === 'subscription' && (
-                  <div>
-                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Applicable Plans</label>
-                     <div className="flex flex-wrap gap-2">
-                        {subscriptionPlans.map(plan => (
-                           <button
-                              key={plan.id}
-                              onClick={() => {
-                                 const current = newCoupon.applicablePlans || [];
-                                 const next = current.includes(plan.id) ? current.filter(id => id !== plan.id) : [...current, plan.id];
-                                 setNewCoupon({ ...newCoupon, applicablePlans: next });
-                              }}
-                              className={`px-3 py-1 rounded text-xs border ${newCoupon.applicablePlans?.includes(plan.id) ? 'bg-brand-purple border-brand-purple text-white' : 'border-white/20 text-gray-400'}`}
-                           >
-                              {plan.name}
-                           </button>
+                     <div className="divide-y divide-white/5 max-h-[200px] overflow-y-auto">
+                        {selectedOrder?.items.map((item, idx) => (
+                           <div key={idx} className="px-4 py-3 flex justify-between items-center text-sm">
+                              <div className="flex items-center gap-2">
+                                 <span className={`w-2 h-2 rounded-full ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} />
+                                 <span className="font-medium text-white">{item.productName}</span>
+                              </div>
+                              <div className="text-gray-400">
+                                 {item.quantity} x KES {item.price.toLocaleString()}
+                              </div>
+                           </div>
                         ))}
+                        {(!selectedOrder?.items || selectedOrder.items.length === 0) && (
+                           <div className="px-4 py-8 text-center text-gray-500 italic text-xs">
+                              No item details available
+                           </div>
+                        )}
+                     </div>
+                     <div className="bg-white/5 px-4 py-3 border-t border-white/5 space-y-1">
+                        <div className="flex justify-between text-xs">
+                           <span className="text-gray-400">Subtotal:</span>
+                           <span className="text-white">KES {(selectedOrder?.subtotal || selectedOrder?.total || 0).toLocaleString()}</span>
+                        </div>
+                        {selectedOrder?.discountAmount ? (
+                           <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">Discount {selectedOrder?.couponCode ? `(${selectedOrder.couponCode})` : ''}:</span>
+                              <span className="text-red-500">- KES {selectedOrder.discountAmount.toLocaleString()}</span>
+                           </div>
+                        ) : null}
+                        {selectedOrder?.shippingCost ? (
+                           <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">Shipping:</span>
+                              <span className="text-white">KES {selectedOrder.shippingCost.toLocaleString()}</span>
+                           </div>
+                        ) : null}
+                        <div className="flex justify-between text-sm font-bold pt-1 border-t border-white/10 mt-1">
+                           <span className="text-white">Total:</span>
+                           <span className="text-brand-purple">KES {(selectedOrder?.total || 0).toLocaleString()}</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  <InputGroup
+                     label="Order Status"
+                     options={['pending', 'processing', 'shipped', 'completed', 'cancelled']}
+                     value={selectedOrder?.status || 'pending'}
+                     onChange={async (v) => {
+                        if (!selectedOrder) return;
+                        try {
+                           await updateOrder(selectedOrder.id, { status: v });
+                           setSelectedOrder({ ...selectedOrder, status: v });
+                           alert(`Order status updated to ${v}`);
+                        } catch (err: any) {
+                           alert("Update failed: " + err.message);
+                        }
+                     }}
+                  />
+
+                  <div className="flex justify-end pt-4">
+                     <button onClick={() => setActiveModal(null)} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Done</button>
+                  </div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'userDetail'} onClose={() => setActiveModal(null)} title="User Profile" size="lg">
+               {selectedUser && (
+                  <div className="space-y-8">
+                     <div className="flex items-center gap-6 pb-6 border-b border-white/5">
+                        <div className="w-20 h-20 bg-gray-800 rounded-full overflow-hidden">
+                           {selectedUser.avatarUrl ? <img src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto mt-5 text-gray-500" />}
+                        </div>
+                        <div>
+                           <h2 className="text-2xl font-bold text-white">{selectedUser.name}</h2>
+                           <p className="text-gray-400">{selectedUser.email}</p>
+                           <div className="flex gap-2 mt-2">
+                              <span className="bg-white/10 px-2 py-1 rounded text-xs capitalize">{selectedUser.role}</span>
+                              {selectedUser.isSubscriber && <span className="bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs">Subscriber ({selectedUser.subscriptionPlan})</span>}
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                           <h3 className="font-bold text-white mb-4">Account Status</h3>
+                           <div className="space-y-2 text-sm">
+                              <p className="text-gray-400 flex justify-between"><span>Status:</span> <span className="text-white capitalize">{selectedUser.status}</span></p>
+                              <p className="text-gray-400 flex justify-between"><span>Last Login:</span> <span className="text-white">{selectedUser.lastLogin}</span></p>
+                              {selectedUser.isSubscriber && selectedUser.subscriptionExpiry && (() => {
+                                 const expiryDate = new Date(selectedUser.subscriptionExpiry);
+                                 const now = new Date();
+                                 const diffMs = expiryDate.getTime() - now.getTime();
+                                 const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                 const diffMonths = Math.floor(diffDays / 30);
+
+                                 let timeRemaining = '';
+                                 let statusColor = 'text-green-500';
+
+                                 if (diffDays < 0) {
+                                    timeRemaining = 'Expired';
+                                    statusColor = 'text-red-500';
+                                 } else if (diffDays === 0) {
+                                    timeRemaining = 'Expires today';
+                                    statusColor = 'text-yellow-500';
+                                 } else if (diffDays < 7) {
+                                    timeRemaining = `${diffDays} day${diffDays > 1 ? 's' : ''} left`;
+                                    statusColor = 'text-yellow-500';
+                                 } else if (diffDays < 30) {
+                                    timeRemaining = `${diffDays} days left`;
+                                    statusColor = 'text-green-500';
+                                 } else {
+                                    timeRemaining = `${diffMonths} month${diffMonths > 1 ? 's' : ''} (${diffDays} days) left`;
+                                    statusColor = 'text-green-500';
+                                 }
+
+                                 return (
+                                    <>
+                                       <p className="text-gray-400 flex justify-between">
+                                          <span>Expiry Date:</span>
+                                          <span className="text-white">{expiryDate.toLocaleDateString()}</span>
+                                       </p>
+                                       <p className="text-gray-400 flex justify-between">
+                                          <span>Time Remaining:</span>
+                                          <span className={`font-bold ${statusColor}`}>{timeRemaining}</span>
+                                       </p>
+                                    </>
+                                 );
+                              })()}
+                           </div>
+                        </div>
+                        <div>
+                           <h3 className="font-bold text-white mb-4">Admin Actions</h3>
+                           <div className="flex flex-col gap-4">
+                              <div className="flex flex-wrap gap-2">
+                                 <button onClick={() => handleUserAction(selectedUser.id, 'reset')} className="px-3 py-2 bg-white/10 rounded hover:bg-white/20 text-xs">Reset Password</button>
+                                 <button onClick={() => handleUserAction(selectedUser.id, 'ban')} className="px-3 py-2 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 text-xs text-center flex items-center gap-1"><UserX size={12} /> Suspend</button>
+                                 <button onClick={() => handleUserAction(selectedUser.id, 'activate')} className="px-3 py-2 bg-green-500/20 text-green-500 rounded hover:bg-green-500/30 text-xs">Activate</button>
+                                 <button onClick={() => handleUserAction(selectedUser.id, 'delete')} className="px-3 py-2 bg-red-600/20 text-red-600 rounded hover:bg-red-600/30 text-xs flex items-center gap-1"><Trash2 size={12} /> Remove User</button>
+                              </div>
+
+                              <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3">
+                                 <h4 className="text-xs font-bold text-brand-purple uppercase tracking-wider">Grant Manual Access</h4>
+                                 <div className="flex gap-2">
+                                    <select
+                                       value={grantPlan}
+                                       onChange={(e) => setGrantPlan(e.target.value)}
+                                       className="bg-[#15151A] border border-white/10 text-white rounded-lg px-3 py-2 text-xs flex-1 outline-none focus:border-brand-purple"
+                                    >
+                                       <option value="weekly">1 Week</option>
+                                       <option value="monthly">1 Month</option>
+                                       <option value="3months">3 Months</option>
+                                       <option value="6months">6 Months</option>
+                                       <option value="yearly">1 Year</option>
+                                    </select>
+                                    <button
+                                       onClick={() => handleUserAction(selectedUser.id, 'grant_pool', grantPlan)}
+                                       className="px-4 py-2 bg-brand-purple text-white rounded-lg hover:bg-brand-purple/80 text-xs font-bold transition-all"
+                                    >
+                                       Grant Pool Access
+                                    </button>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div>
+                        <h3 className="font-bold text-white mb-4">Recent History</h3>
+                        <div className="bg-black/20 rounded-lg p-4 text-center text-gray-500 text-sm">
+                           User history logs (orders, downloads) would appear here.
+                        </div>
                      </div>
                   </div>
                )}
+            </Modal>
 
-               <InputGroup label="Usage Limit" type="number" value={newCoupon.usageLimit} onChange={v => setNewCoupon({ ...newCoupon, usageLimit: Number(v) })} />
-               <InputGroup label="Active" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveCoupon} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Coupon</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'shipOrder'} onClose={() => !isShipping && setActiveModal(null)} title="Mark Order Shipped">
-            <div className="space-y-4">
-               <p className="text-gray-400 text-sm mb-4">Update shipping for order <b>#{selectedOrder?.id}</b></p>
-
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Delivery Method" value={shippingDetails.deliveryMethod} onChange={v => setShippingDetails({ ...shippingDetails, deliveryMethod: v })} placeholder="e.g. Air Freight, Pickup" />
-                  <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
-               </div>
-
-               <InputGroup label="Pickup/Delivery Location" value={shippingDetails.pickupLocation} onChange={v => setShippingDetails({ ...shippingDetails, pickupLocation: v })} placeholder="Where should the user collect it?" />
-
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
-                  <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
-               </div>
-
-               <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Receipt / Waybill Image</label>
-                  <input
-                     type="file"
-                     accept="image/*"
-                     onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                     className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-gray-400 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-purple/20 file:text-brand-purple hover:file:bg-brand-purple/30"
-                  />
-                  {receiptFile && <p className="text-[10px] text-green-500">Selected: {receiptFile.name}</p>}
-               </div>
-
-               <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Admin Message to User</label>
-                  <textarea
-                     className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50"
-                     placeholder="Optional message for the customer..."
-                     value={shippingDetails.adminMessage}
-                     onChange={(e) => setShippingDetails({ ...shippingDetails, adminMessage: e.target.value })}
-                  />
-               </div>
-
-               <div className="flex justify-end pt-4">
-                  <button
-                     onClick={handleShipOrder}
-                     disabled={isShipping}
-                     className={`px-8 py-3 rounded-lg font-bold text-white flex items-center gap-2 transition ${isShipping ? 'bg-gray-600 cursor-not-allowed' : 'bg-brand-purple hover:bg-brand-purple/80 hover:scale-[1.02]'}`}
-                  >
-                     {isShipping ? <RefreshCw size={18} className="animate-spin" /> : <Truck size={18} />}
-                     {isShipping ? 'Shipping...' : 'Confirm Shipment'}
-                  </button>
-               </div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'userDetail'} onClose={() => setActiveModal(null)} title="User Profile" size="lg">
-            {selectedUser && (
-               <div className="space-y-8">
-                  <div className="flex items-center gap-6 pb-6 border-b border-white/5">
-                     <div className="w-20 h-20 bg-gray-800 rounded-full overflow-hidden">
-                        {selectedUser.avatarUrl ? <img src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto mt-5 text-gray-500" />}
-                     </div>
-                     <div>
-                        <h2 className="text-2xl font-bold text-white">{selectedUser.name}</h2>
-                        <p className="text-gray-400">{selectedUser.email}</p>
-                        <div className="flex gap-2 mt-2">
-                           <span className="bg-white/10 px-2 py-1 rounded text-xs capitalize">{selectedUser.role}</span>
-                           {selectedUser.isSubscriber && <span className="bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs">Subscriber ({selectedUser.subscriptionPlan})</span>}
-                        </div>
-                     </div>
+            <Modal isOpen={activeModal === 'addBooking'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Booking" : "New Manual Booking"}>
+               <div className="space-y-4">
+                  <InputGroup label="Client Name" value={newBooking.clientName} onChange={v => setNewBooking({ ...newBooking, clientName: v })} required />
+                  <InputGroup label="Service Type" value={newBooking.serviceType} onChange={v => setNewBooking({ ...newBooking, serviceType: v })} />
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Date" type="date" value={newBooking.date} onChange={v => setNewBooking({ ...newBooking, date: v })} />
+                     <InputGroup label="Time" type="time" value={newBooking.time} onChange={v => setNewBooking({ ...newBooking, time: v })} />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div>
-                        <h3 className="font-bold text-white mb-4">Account Status</h3>
-                        <div className="space-y-2 text-sm">
-                           <p className="text-gray-400 flex justify-between"><span>Status:</span> <span className="text-white capitalize">{selectedUser.status}</span></p>
-                           <p className="text-gray-400 flex justify-between"><span>Last Login:</span> <span className="text-white">{selectedUser.lastLogin}</span></p>
-                           <p className="text-gray-400 flex justify-between"><span>Expiry:</span> <span className="text-white">{selectedUser.subscriptionExpiry || 'N/A'}</span></p>
-                        </div>
-                     </div>
-                     <div>
-                        <h3 className="font-bold text-white mb-4">Admin Actions</h3>
-                        <div className="flex flex-wrap gap-2">
-                           <button onClick={() => handleUserAction(selectedUser.id, 'reset')} className="px-3 py-2 bg-white/10 rounded hover:bg-white/20 text-xs">Reset Password</button>
-                           <button onClick={() => handleUserAction(selectedUser.id, 'ban')} className="px-3 py-2 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 text-xs">Suspend User</button>
-                           <button onClick={() => handleUserAction(selectedUser.id, 'activate')} className="px-3 py-2 bg-green-500/20 text-green-500 rounded hover:bg-green-500/30 text-xs">Activate User</button>
-                           <button onClick={() => handleUserAction(selectedUser.id, 'grant_pool')} className="px-3 py-2 bg-brand-purple/20 text-brand-purple rounded hover:bg-brand-purple/30 text-xs">Grant Pool Access</button>
-                        </div>
-                     </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <InputGroup label="Amount" type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
+                     <InputGroup label="Status" options={['pending', 'confirmed', 'completed', 'cancelled']} value={newBooking.status} onChange={v => setNewBooking({ ...newBooking, status: v })} />
                   </div>
-
-                  <div>
-                     <h3 className="font-bold text-white mb-4">Recent History</h3>
-                     <div className="bg-black/20 rounded-lg p-4 text-center text-gray-500 text-sm">
-                        User history logs (orders, downloads) would appear here.
-                     </div>
-                  </div>
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveBooking} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Booking</button></div>
                </div>
-            )}
-         </Modal>
+            </Modal>
 
-         <Modal isOpen={activeModal === 'addBooking'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Booking" : "New Manual Booking"}>
-            <div className="space-y-4">
-               <InputGroup label="Client Name" value={newBooking.clientName} onChange={v => setNewBooking({ ...newBooking, clientName: v })} required />
-               <InputGroup label="Service Type" value={newBooking.serviceType} onChange={v => setNewBooking({ ...newBooking, serviceType: v })} />
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Date" type="date" value={newBooking.date} onChange={v => setNewBooking({ ...newBooking, date: v })} />
-                  <InputGroup label="Time" type="time" value={newBooking.time} onChange={v => setNewBooking({ ...newBooking, time: v })} />
+            <Modal isOpen={activeModal === 'addSessionType'} onClose={() => setActiveModal(null)} title="Manage Session Type">
+               <div className="space-y-4">
+                  <InputGroup label="Service Name" value={newSessionType.name} onChange={v => setNewSessionType({ ...newSessionType, name: v })} required />
+                  <InputGroup label="Price (KES)" type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
+                  <InputGroup label="Duration (Hours)" type="number" value={newSessionType.duration} onChange={v => setNewSessionType({ ...newSessionType, duration: Number(v) })} />
+                  <InputGroup label="Description" type="textarea" value={newSessionType.description} onChange={v => setNewSessionType({ ...newSessionType, description: v })} />
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveSessionType} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Service</button></div>
                </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <InputGroup label="Amount" type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
-                  <InputGroup label="Status" options={['pending', 'confirmed', 'completed', 'cancelled']} value={newBooking.status} onChange={v => setNewBooking({ ...newBooking, status: v })} />
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addEquipment'} onClose={() => setActiveModal(null)} title="Manage Equipment">
+               <div className="space-y-4">
+                  <InputGroup label="Equipment Name" value={newEquipment.name} onChange={v => setNewEquipment({ ...newEquipment, name: v })} required />
+                  <InputGroup label="Category" options={['Microphones', 'Monitoring & Acoustics', 'Hardware & Interface', 'Other']} value={newEquipment.category} onChange={v => setNewEquipment({ ...newEquipment, category: v })} />
+                  <ImageUpload label="Equipment Image" value={newEquipment.image} onChange={v => setNewEquipment({ ...newEquipment, image: v })} />
+                  <InputGroup label="Description" type="textarea" value={newEquipment.description} onChange={v => setNewEquipment({ ...newEquipment, description: v })} />
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveEquipment} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Equipment</button></div>
                </div>
-               <div className="flex justify-end pt-4"><button onClick={handleSaveBooking} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Booking</button></div>
-            </div>
-         </Modal>
+            </Modal>
 
-         <Modal isOpen={activeModal === 'addSessionType'} onClose={() => setActiveModal(null)} title="Manage Session Type">
-            <div className="space-y-4">
-               <InputGroup label="Service Name" value={newSessionType.name} onChange={v => setNewSessionType({ ...newSessionType, name: v })} required />
-               <InputGroup label="Price (KES)" type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
-               <InputGroup label="Duration (Hours)" type="number" value={newSessionType.duration} onChange={v => setNewSessionType({ ...newSessionType, duration: Number(v) })} />
-               <InputGroup label="Description" type="textarea" value={newSessionType.description} onChange={v => setNewSessionType({ ...newSessionType, description: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveSessionType} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Service</button></div>
-            </div>
-         </Modal>
+            <Modal isOpen={activeModal === 'addChannel'} onClose={() => setActiveModal(null)} title="Manage Telegram Channel">
+               <div className="space-y-4">
+                  <InputGroup label="Channel Name" value={newChannel.name} onChange={v => setNewChannel({ ...newChannel, name: v })} required />
+                  <InputGroup label="Channel ID" value={newChannel.channelId} onChange={v => setNewChannel({ ...newChannel, channelId: v })} placeholder="-100..." />
+                  <InputGroup label="Genre / Category" value={newChannel.genre} onChange={v => setNewChannel({ ...newChannel, genre: v })} />
+                  <InputGroup label="Invite Link" value={newChannel.inviteLink} onChange={v => setNewChannel({ ...newChannel, inviteLink: v })} />
+                  <InputGroup label="Active" type="checkbox" checked={newChannel.active} onChange={v => setNewChannel({ ...newChannel, active: v })} />
+                  <div className="flex justify-end pt-4"><button onClick={handleSaveChannel} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Channel</button></div>
+               </div>
+            </Modal>
 
-         <Modal isOpen={activeModal === 'addEquipment'} onClose={() => setActiveModal(null)} title="Manage Equipment">
-            <div className="space-y-4">
-               <InputGroup label="Equipment Name" value={newEquipment.name} onChange={v => setNewEquipment({ ...newEquipment, name: v })} required />
-               <InputGroup label="Category" options={['Microphones', 'Monitoring & Acoustics', 'Hardware & Interface', 'Other']} value={newEquipment.category} onChange={v => setNewEquipment({ ...newEquipment, category: v })} />
-               <ImageUpload label="Equipment Image" value={newEquipment.image} onChange={v => setNewEquipment({ ...newEquipment, image: v })} />
-               <InputGroup label="Description" type="textarea" value={newEquipment.description} onChange={v => setNewEquipment({ ...newEquipment, description: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveEquipment} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Equipment</button></div>
-            </div>
-         </Modal>
-
-         <Modal isOpen={activeModal === 'addChannel'} onClose={() => setActiveModal(null)} title="Manage Telegram Channel">
-            <div className="space-y-4">
-               <InputGroup label="Channel Name" value={newChannel.name} onChange={v => setNewChannel({ ...newChannel, name: v })} required />
-               <InputGroup label="Channel ID" value={newChannel.channelId} onChange={v => setNewChannel({ ...newChannel, channelId: v })} placeholder="-100..." />
-               <InputGroup label="Genre / Category" value={newChannel.genre} onChange={v => setNewChannel({ ...newChannel, genre: v })} />
-               <InputGroup label="Invite Link" value={newChannel.inviteLink} onChange={v => setNewChannel({ ...newChannel, inviteLink: v })} />
-               <InputGroup label="Active" type="checkbox" checked={newChannel.active} onChange={v => setNewChannel({ ...newChannel, active: v })} />
-               <div className="flex justify-end pt-4"><button onClick={handleSaveChannel} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Channel</button></div>
-            </div>
-         </Modal>
-
-      </div >
+         </div>
+      </div>
    );
 };
 

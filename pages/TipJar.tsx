@@ -12,13 +12,18 @@ const TipJar: React.FC = () => {
 
   const presets = [100, 200, 500, 1000];
 
-  const config = {
+  const paystackConfig = {
     reference: `tip_${(new Date()).getTime()}`,
     email: user?.email || "guest_tipper@djflowerz.com",
     amount: (Number(amount) || 0) * 100, // Amount in KES cents
     publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_fd545124e451381254315431543', // Fallback or throw error
     currency: 'KES',
     metadata: {
+      type: 'tip', // Added for webhook processing
+      userId: user?.id,
+      userEmail: user?.email,
+      customerName: user?.name || 'Guest Tipper',
+      message: message, // Flattened for easier access
       custom_fields: [
         {
           display_name: "Message",
@@ -29,7 +34,7 @@ const TipJar: React.FC = () => {
     }
   };
 
-  const initializePayment = usePaystackPayment(config);
+  const initializePayment = usePaystackPayment(paystackConfig);
 
   const onSuccess = (reference: any) => {
     navigate('/success', {
@@ -38,7 +43,8 @@ const TipJar: React.FC = () => {
         reference: reference.reference,
         amount: Number(amount),
         message: message,
-        email: user?.email
+        email: user?.email,
+        customerName: user?.name || 'Guest Tipper'
       }
     });
     setAmount('');

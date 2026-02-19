@@ -48,6 +48,7 @@ export interface Mixtape {
   updatedAt?: string;
 }
 
+
 export interface ProductVariant {
   name: string;
   options: string[];
@@ -57,7 +58,7 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
-  type: 'physical' | 'digital';
+  type: 'physical' | 'digital' | 'subscription';
   category: string;
   os?: 'macOS' | 'Windows' | 'Android' | 'iOS' | 'Linux' | 'None';
   shortDescription: string;
@@ -78,6 +79,7 @@ export interface Product {
   variants?: string[];
   trackStock: boolean;
   stock: number;
+  inventory?: number;
   lowStockThreshold?: number;
   sku?: string;
   weight?: string;
@@ -96,10 +98,24 @@ export interface Product {
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;
+  condition?: 'new' | 'refurbished';
+  reviews?: Review[];
   status: 'draft' | 'published' | 'hidden';
-  inventory?: number;
+  rating?: number;
+  commentsCount?: number;
+  sharesCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface Review {
+  id: string;
+  userId: string;
+  userName: string;
+  rating: number; // 1-5
+  comment: string;
+  date: string;
+  verifiedPurchase?: boolean;
 }
 
 export interface User {
@@ -120,6 +136,10 @@ export interface User {
   phoneNumber?: string;
   downloadsToday?: number;
   lastDownloadDate?: string; // ISO date string YYYY-MM-DD
+  balance?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  presenceStatus?: 'online' | 'offline';
 }
 
 export interface Subscription {
@@ -151,7 +171,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   variant?: string;
-  type: 'physical' | 'digital';
+  type: 'physical' | 'digital' | 'subscription';
 }
 
 export interface Order {
@@ -174,6 +194,13 @@ export interface Order {
   adminMessage?: string;
   shippedAt?: string;
   deliveryMethod?: string;
+  requiresShipping?: boolean;
+  subtotal?: number;
+  discountAmount?: number;
+  shippingCost?: number;
+  couponCode?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Coupon {
@@ -443,5 +470,46 @@ export interface SiteConfig {
   about: AboutConfig;
   legal: LegalConfig;
   footer: { description: string; copyright: string };
+  referralSettings?: ReferralSettings;
   seo: SEOConfig;
+  notice?: {
+    enabled: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'error';
+  };
 }
+
+export interface ReferralSettings {
+  newUserDiscount: number;
+  newUserDiscountType: 'flat' | 'percentage';
+  referrerRewardAmount: number;
+  rewardType: 'flat' | 'percentage';
+  enabled: boolean;
+}
+
+export interface ReferralLog {
+  id: string;
+  referrerId: string;
+  refereeId: string;
+  referrerName: string;
+  refereeName: string;
+  planPurchased: string;
+  discountApplied: number;
+  rewardIssued: boolean;
+  createdAt: string;
+  status: 'pending' | 'completed';
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'new' | 'read' | 'replied' | 'archived';
+  source: 'web' | 'whatsapp' | 'ai';
+  userId?: string;
+  createdAt: string;
+}
+

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShoppingCart, MessageCircle, ChevronRight, Minus, Plus } from 'lucide-react';
+import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +33,21 @@ const ProductDetails: React.FC = () => {
       setSelectedVariant(product.variants[0]);
    }
 
+   const [activeImage, setActiveImage] = useState(product.image || (product.images?.[0] || ''));
+   const allImages = Array.from(new Set([product.image, ...(product.images || [])].filter(Boolean)));
+
+   const nextImage = () => {
+      const currentIndex = allImages.indexOf(activeImage);
+      const nextIndex = (currentIndex + 1) % allImages.length;
+      setActiveImage(allImages[nextIndex]);
+   };
+
+   const prevImage = () => {
+      const currentIndex = allImages.indexOf(activeImage);
+      const prevIndex = (currentIndex - 1 + allImages.length) % allImages.length;
+      setActiveImage(allImages[prevIndex]);
+   };
+
    const handleAddToCart = () => {
       addToCart(product, quantity, selectedVariant);
    };
@@ -56,15 +71,36 @@ const ProductDetails: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                {/* Gallery */}
                <div className="space-y-4">
-                  <div className="aspect-square bg-gray-800 rounded-2xl overflow-hidden border border-white/5">
-                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  <div className="relative aspect-square bg-gray-800 rounded-2xl overflow-hidden border border-white/5 group">
+                     <img src={activeImage} alt={product.name} className="w-full h-full object-cover transition duration-500" />
+
+                     {allImages.length > 1 && (
+                        <>
+                           <button
+                              onClick={prevImage}
+                              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition hover:bg-brand-purple"
+                           >
+                              <ChevronLeft size={20} />
+                           </button>
+                           <button
+                              onClick={nextImage}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition hover:bg-brand-purple"
+                           >
+                              <ChevronRight size={20} />
+                           </button>
+                        </>
+                     )}
                   </div>
-                  {product.images && (
-                     <div className="grid grid-cols-4 gap-4">
-                        {product.images.map((img, i) => (
-                           <div key={i} className="aspect-square rounded-lg overflow-hidden border border-white/10 cursor-pointer hover:border-brand-purple transition">
-                              <img src={img} alt="Thumbnail" className="w-full h-full object-cover" />
-                           </div>
+                  {allImages.length > 1 && (
+                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                        {allImages.map((img, i) => (
+                           <button
+                              key={i}
+                              onClick={() => setActiveImage(img)}
+                              className={`aspect-square rounded-lg overflow-hidden border transition ${activeImage === img ? 'border-brand-purple ring-1 ring-brand-purple' : 'border-white/10 hover:border-white/30'}`}
+                           >
+                              <img src={img} alt={`Thumb ${i}`} className="w-full h-full object-cover" />
+                           </button>
                         ))}
                      </div>
                   )}
@@ -73,11 +109,19 @@ const ProductDetails: React.FC = () => {
                {/* Info */}
                <div>
                   <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">{product.name}</h1>
-                  <div className="text-2xl font-bold text-brand-purple mb-6">{product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}</div>
+                  <div className="flex items-center gap-4 mb-6">
+                     <span className="text-2xl font-bold text-brand-purple">{product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}</span>
+                     {product.condition && (
+                        <span className={`px-2 py-1 text-xs font-bold uppercase rounded ${product.condition === 'new' ? 'bg-green-500/20 text-green-500 border border-green-500/20' : 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20'}`}>
+                           {product.condition}
+                        </span>
+                     )}
+                  </div>
 
-                  <p className="text-gray-300 leading-relaxed mb-8">
-                     {product.description || "High quality product from the DJ Flowerz collection."}
-                  </p>
+                  <div
+                     className="text-gray-300 leading-relaxed mb-8 prose prose-invert max-w-none"
+                     dangerouslySetInnerHTML={{ __html: product.description || "High quality product from the DJ Flowerz collection." }}
+                  />
 
                   {/* Variants */}
                   {product.variants && (
@@ -141,6 +185,48 @@ const ProductDetails: React.FC = () => {
                         <span className="text-white">{product.type === 'digital' ? 'Instant Download' : 'Usually ships in 2-3 days'}</span>
                      </div>
                   </div>
+               </div>
+            </div>
+
+            {/* Reviews Section */}
+            <div className="mt-20 border-t border-white/5 pt-12">
+               <h2 className="text-2xl font-bold text-white mb-8">Customer Reviews</h2>
+               <div className="bg-[#15151A] rounded-xl p-6 border border-white/5 text-center py-12">
+                  <div className="text-yellow-500 mb-2 flex justify-center gap-1">
+                     {[1, 2, 3, 4, 5].map(star => (
+                        <svg key={star} className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+                     ))}
+                  </div>
+                  <p className="text-gray-400 mb-6">No reviews yet. Be the first to review this product!</p>
+                  <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg font-bold transition">Write a Review</button>
+               </div>
+            </div>
+
+            {/* Similar Products */}
+            <div className="mt-20 border-t border-white/5 pt-12">
+               <h2 className="text-2xl font-bold text-white mb-8">Similar Products</h2>
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4).map(similar => (
+                     <Link key={similar.id} to={`/store/${similar.id}`} className="block bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition group">
+                        <div className="aspect-square bg-gray-800 overflow-hidden relative">
+                           <img src={similar.image} alt={similar.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                           {similar.condition && (
+                              <div className="absolute top-2 right-2">
+                                 <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded ${similar.condition === 'new' ? 'bg-green-500/90 text-white' : 'bg-yellow-500/90 text-white'}`}>
+                                    {similar.condition}
+                                 </span>
+                              </div>
+                           )}
+                        </div>
+                        <div className="p-4">
+                           <h3 className="text-white font-bold truncate mb-1">{similar.name}</h3>
+                           <p className="text-brand-purple font-bold text-sm">KES {similar.price.toLocaleString()}</p>
+                        </div>
+                     </Link>
+                  ))}
+                  {products.filter(p => p.category === product.category && p.id !== product.id).length === 0 && (
+                     <p className="text-gray-500 col-span-full text-center py-8">No similar products found.</p>
+                  )}
                </div>
             </div>
          </div>

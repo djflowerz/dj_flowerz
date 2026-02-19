@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 const Store: React.FC = () => {
   const { user } = useAuth();
   const { addToCart } = useCart();
-  const { products, siteConfig, productsError } = useData();
+  const { products, siteConfig, productsError, hasQuotaExceeded } = useData();
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,19 +22,23 @@ const Store: React.FC = () => {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // Constants
-  const categories = ['All', 'Laptops', 'Desktops', 'Components', 'Accessories', 'Software', 'Samples', 'Apparel'];
+  const categories = ['All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'];
   const types = ['all', 'digital', 'physical'];
   const prices = ['All', 'Free', 'Paid'];
   const osOptions = ['All', 'macOS', 'Windows', 'Android'];
   const sortOptions = ['Newest', 'Hot', 'Price: Low', 'Price: High'];
 
   // Helper to map existing categories for demo consistency
-  const getDisplayCategory = (prodCat: string) => {
-    if (!prodCat) return '';
-    if (prodCat === 'merch') return 'Apparel';
-    if (prodCat === 'digital') return 'Software';
-    if (prodCat === 'equipment') return 'Accessories';
-    return prodCat;
+  const getDisplayCategory = (cat: string) => {
+    if (!cat) return 'Other';
+    if (['Head Phones & Ear Buds', 'Speakers', 'Studio Monitors', 'Microphones', 'Cables', 'Studio Furniture'].includes(cat)) return 'Audio Equipment';
+    if (['DJ Controllers', 'Vinyl Records', 'DJ Lighting'].includes(cat)) return 'DJ Equipment';
+
+    // Legacy mappings
+    if (cat === 'merch') return 'Apparel';
+    if (cat === 'digital') return 'Software';
+    if (cat === 'equipment') return 'Accessories';
+    return cat;
   };
 
   const getProductType = (prod: any) => {
@@ -51,6 +55,7 @@ const Store: React.FC = () => {
     // Admin can see 'draft' and 'hidden' products to verify uploads.
     if (!user?.isAdmin) {
       if (product.status === 'hidden' || product.status === 'draft') return false;
+      if (product.isActive === false) return false;
     }
 
     // Search - Defensive check for name
@@ -244,7 +249,7 @@ const Store: React.FC = () => {
 
           {/* Product Grid */}
           <div className="flex-1">
-            {productsError && (
+            {(productsError || hasQuotaExceeded) && (
               <div className="mb-8 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
                 <p className="font-bold flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />

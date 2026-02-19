@@ -5,6 +5,8 @@ Your webhook URL is configured as:
 ```
 https://dj-flowerz.vercel.app/api/paystack/webhook
 ```
+*(Note: Use this URL in your Paystack Dashboard settings)*
+```
 
 ## Webhook Events to Subscribe To
 

@@ -25,6 +25,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/AdminDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
@@ -74,18 +75,19 @@ const App: React.FC = () => {
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/success" element={<Success />} />
+                  <Route path="/success/:id" element={<Success />} />
                   <Route path="/bookings" element={<Bookings />} />
                   <Route path="/recording-sessions" element={<RecordingSessions />} />
                   <Route path="/sessions" element={<Sessions />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/tip-jar" element={<TipJar />} />
-                  <Route path="/account" element={<Account />} />
+                  <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
-                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
                 </Routes>
               </Layout>
             </Router>

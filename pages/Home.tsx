@@ -7,11 +7,11 @@ import { useAuth } from '../context/AuthContext';
 
 const Home: React.FC = () => {
    const { user } = useAuth();
-   const { siteConfig, mixtapes, products, youtubeVideos } = useData();
+   const { siteConfig, mixtapes, products, youtubeVideos, addSubscriber } = useData();
    const { playTrack, currentTrack, isPlaying } = usePlayer();
    const { hero, home } = siteConfig;
 
-   const featuredMixtapes = mixtapes.slice(0, 3);
+   const featuredMixtapes = mixtapes.slice(0, 4);
    const displayProducts = [...products]
       .filter(p => {
          if (user?.isAdmin) return true;
@@ -64,7 +64,7 @@ const Home: React.FC = () => {
                   <Link to="/mixtapes" className="text-brand-cyan flex items-center gap-2 hover:underline font-bold">{home.featuredMixtapes.ctaText} <ArrowRight size={18} /></Link>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {featuredMixtapes.map((mix) => (
                      <div key={mix.id} className="group relative bg-[#15151A] rounded-xl overflow-hidden hover:-translate-y-2 transition duration-300 border border-white/5 shadow-lg hover:shadow-brand-purple/10">
                         <div className="relative aspect-square">
@@ -72,19 +72,19 @@ const Home: React.FC = () => {
                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-4 backdrop-blur-sm">
                               <button
                                  onClick={() => playTrack(mix)}
-                                 className="w-16 h-16 rounded-full bg-brand-purple text-white flex items-center justify-center hover:scale-110 transition shadow-[0_0_20px_rgba(123,92,255,0.5)]"
+                                 className="w-10 h-10 rounded-full bg-brand-purple text-white flex items-center justify-center hover:scale-110 transition shadow-[0_0_20px_rgba(123,92,255,0.5)]"
                               >
-                                 {currentTrack?.id === mix.id && isPlaying ? <div className="w-4 h-4 bg-white animate-pulse" /> : <Play size={28} fill="white" className="ml-1" />}
+                                 {currentTrack?.id === mix.id && isPlaying ? <div className="w-2 h-2 bg-white animate-pulse" /> : <Play size={16} fill="white" className="ml-0.5" />}
                               </button>
                            </div>
                         </div>
-                        <div className="p-6">
+                        <div className="p-4">
                            <Link to={`/mixtapes/${mix.id}`} className="block hover:text-brand-cyan transition">
-                              <h3 className="text-xl font-bold text-white mb-2 truncate">{mix.title}</h3>
+                              <h3 className="text-base font-bold text-white mb-2 truncate">{mix.title}</h3>
                            </Link>
-                           <div className="flex justify-between items-center text-sm text-gray-400">
-                              <span className="px-2 py-1 bg-white/5 rounded border border-white/10">{mix.genre}</span>
-                              <span className="flex items-center gap-1"><Music size={14} /> {mix.duration}</span>
+                           <div className="flex justify-between items-center text-[10px] text-gray-400">
+                              <span className="px-1.5 py-0.5 bg-white/5 rounded border border-white/10 uppercase tracking-wider">{mix.genre}</span>
+                              <span className="flex items-center gap-1"><Music size={10} /> {mix.duration}</span>
                            </div>
                         </div>
                      </div>
@@ -245,13 +245,50 @@ const Home: React.FC = () => {
                <Mail size={48} className="text-brand-purple mx-auto mb-6" />
                <h2 className="text-3xl font-bold text-white mb-4">Join The Community</h2>
                <p className="text-gray-400 mb-8">Get exclusive access to free downloads, event updates, and discount codes.</p>
-               <form className="flex flex-col sm:flex-row gap-4">
+               <form
+                  className="flex flex-col sm:flex-row gap-4"
+                  onSubmit={async (e) => {
+                     e.preventDefault();
+                     const email = (e.currentTarget.elements[0] as HTMLInputElement).value;
+                     if (!email) return;
+
+                     const btn = e.currentTarget.querySelector('button');
+                     if (btn) {
+                        btn.disabled = true;
+                        btn.textContent = 'Joining...';
+                     }
+
+                     try {
+                        // 1. Sync with MailerLite (External)
+                        const { MailerLiteService } = await import('../services/MailerLiteService');
+                        const result = await MailerLiteService.subscribe({ email });
+
+                        // 2. Clear to local DB (Admin Dashboard Visibility)
+                        await addSubscriber(email, 'Homepage Newsletter');
+
+                        if (result.success) {
+                           alert('Successfully joined the community!');
+                           (e.target as HTMLFormElement).reset();
+                        } else {
+                           alert('Error: ' + result.error);
+                        }
+                     } catch (err) {
+                        alert('Something went wrong. Please try again.');
+                     } finally {
+                        if (btn) {
+                           btn.disabled = false;
+                           btn.textContent = 'Subscribe';
+                        }
+                     }
+                  }}
+               >
                   <input
                      type="email"
+                     required
                      placeholder="Enter your email address"
                      className="flex-1 bg-black/30 border border-white/10 rounded-lg px-6 py-4 text-white focus:outline-none focus:border-brand-purple"
                   />
-                  <button className="px-8 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition">
+                  <button type="submit" className="px-8 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition">
                      Subscribe
                   </button>
                </form>
