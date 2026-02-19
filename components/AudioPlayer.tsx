@@ -23,7 +23,7 @@ const AudioPlayer: React.FC = () => {
 
   const togglePlay = () => {
     if (isPlaying) {
-      setCurrentTrack(null); // Requirement: Close player if paused
+      pauseTrack();
     } else {
       resumeTrack();
     }
