@@ -110,7 +110,7 @@ const Home: React.FC = () => {
                   {displayProducts.map((product) => (
                      <Link to={`/store/${product.id}`} key={product.id} className="group">
                         <div className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition relative">
-                           <div className="aspect-square bg-gray-800 relative">
+                           <div className="aspect-square bg-white relative">
                               <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                               {product.isHot && (
                                  <div className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg uppercase tracking-wider z-10">
