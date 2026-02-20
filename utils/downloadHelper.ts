@@ -6,7 +6,7 @@ interface DownloadOptions {
     trackId?: string;
     artist?: string;
     title?: string;
-    type?: 'track' | 'mixtape_audio' | 'mixtape_video';
+    type?: 'track' | 'mixtape_audio' | 'mixtape_video' | 'digital_product';
     orderId?: string;
 }
 
