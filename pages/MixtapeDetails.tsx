@@ -23,8 +23,19 @@ const MixtapeDetails: React.FC = () => {
    const { user } = useAuth();
 
    // Find mix (mock logic)
-   const mixtape = mixtapes.find(m => m.id === id) || mixtapes[0];
+   // Find mix by ID or Slug
+   const mixtape = mixtapes.find(m => m.id === id || m.slug === id) || mixtapes[0];
    const isCurrent = currentTrack?.id === mixtape.id;
+
+   console.log(`[MixtapeDetails] Total mixtapes: ${mixtapes.length}`);
+   console.log(`[MixtapeDetails] ID from URL: "${id}"`);
+   if (mixtape) {
+      console.log(`[MixtapeDetails] Found mix title: "${mixtape.title}", ID: "${mixtape.id}"`);
+      console.log(`[MixtapeDetails] URLs - Audio: "${mixtape.audioUrl}", Download: "${mixtape.downloadUrl}"`);
+      console.log(`[MixtapeDetails] Duration: "${mixtape.duration}"`);
+   } else {
+      console.log(`[MixtapeDetails] No mixtape found at all!`);
+   }
 
    // Mock Comments State
    const [comments, setComments] = useState<Comment[]>([]);
