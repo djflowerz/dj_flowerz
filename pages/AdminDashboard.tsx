@@ -2254,9 +2254,11 @@ const AdminDashboard: React.FC = () => {
                                  <td className="px-6 py-4 text-gray-400">{u.email}</td>
                                  <td className="px-6 py-4 capitalize">{u.role}</td>
                                  <td className="px-6 py-4 text-xs text-gray-500">
-                                    {u.isSubscriber ? (
+                                    {(u.isSubscriber || u.subscriptionExpiry) ? (
                                        <div className="flex flex-col gap-1">
-                                          <span className="text-green-500 font-bold">Active ({u.subscriptionPlan})</span>
+                                          <span className={`${u.isSubscriber ? 'text-green-500' : 'text-gray-400'} font-bold`}>
+                                             {u.isSubscriber ? `Active (${u.subscriptionPlan || 'Pro'})` : 'Expired'}
+                                          </span>
                                           {u.subscriptionExpiry && <CountdownTimer expiryDate={u.subscriptionExpiry} />}
                                        </div>
                                     ) : 'None'}
