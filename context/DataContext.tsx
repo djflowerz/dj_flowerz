@@ -252,25 +252,7 @@ const mapSupabaseGeneric = (item: any): any => ({
 
 const mapSupabaseProduct = (p: any): Product => {
   const images = p.images || (p.image ? [p.image] : []);
-
-  // Restore: Use p.image as primary if available. 
-  // This ensures the user's intended "main" image is respected.
-  let mainImage = p.image || images[0] || '';
-
-  // Alignment: If we have multiple images, and the user specifically wants 
-  // "same direction" (e.g., front-facing), we look for that keyword as a preferred fallback.
-  if (images.length > 1 && (!p.image || !p.image.toLowerCase().includes('front'))) {
-    const frontImage = images.find((img: string) =>
-      img.toLowerCase().includes('front') ||
-      img.toLowerCase().includes('main') ||
-      img.toLowerCase().includes('primary')
-    );
-    // Only override if p.image was null or specifically not a "front" image
-    if (frontImage && (!p.image || !p.image.includes(frontImage))) {
-      // However, the user said "RESTORE", so I will only use this if p.image is null.
-      if (!p.image) mainImage = frontImage;
-    }
-  }
+  const mainImage = p.image || images[0] || '';
 
   return {
     ...p,
@@ -284,7 +266,6 @@ const mapSupabaseProduct = (p: any): Product => {
     stock: p.inventory || 0,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
-    // Digital download fields - map snake_case DB columns to camelCase
     digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
     downloadPassword: p.download_password || p.downloadPassword || '',
     secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
