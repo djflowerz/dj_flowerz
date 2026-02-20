@@ -27,11 +27,7 @@ const MixtapeDetails: React.FC = () => {
    const isCurrent = currentTrack?.id === mixtape.id;
 
    // Mock Comments State
-   const [comments, setComments] = useState<Comment[]>([
-      { id: '1', user: 'Brian M.', text: 'This transition at 15:00 is insane! 🔥', date: '2 days ago', rating: 5 },
-      { id: '2', user: 'Sarah J.', text: 'Always bringing the best vibes. Love this set.', date: '1 week ago', rating: 5 },
-      { id: '3', user: 'Club Hopper', text: 'Need the tracklist for the song at 45min please!', date: '1 week ago', rating: 4 },
-   ]);
+   const [comments, setComments] = useState<Comment[]>([]);
    const [newComment, setNewComment] = useState('');
    const [userRating, setUserRating] = useState(0);
 
@@ -116,9 +112,11 @@ const MixtapeDetails: React.FC = () => {
                   <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 leading-tight">{mixtape.title}</h1>
 
                   <div className="flex items-center gap-6 text-gray-400 mb-8 text-sm">
-                     <span className="flex items-center gap-2"><Calendar size={16} /> {mixtape.date || 'Oct 2023'}</span>
+                     <span className="flex items-center gap-2"><Calendar size={16} /> {mixtape.releaseDate ? new Date(mixtape.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : (mixtape.date || 'New Mix')}</span>
                      <span className="flex items-center gap-2"><Clock size={16} /> {mixtape.duration}</span>
-                     <span className="flex items-center gap-1"><Star size={16} className="text-brand-purple" fill="currentColor" /> 4.8 (120 Reviews)</span>
+                     {mixtape.tracklist?.length > 0 && (
+                        <span className="flex items-center gap-1"><Music size={16} className="text-brand-purple" /> {mixtape.tracklist.length} Tracks</span>
+                     )}
                   </div>
 
                   <p className="text-gray-300 text-lg mb-8 leading-relaxed">
@@ -161,46 +159,36 @@ const MixtapeDetails: React.FC = () => {
 
                   {/* Tracklist Preview */}
                   <div className="bg-[#15151A] rounded-xl p-6 border border-white/5">
-                     <h3 className="font-bold text-white mb-4">Tracklist Highlights</h3>
-                     <ul className="space-y-3 text-sm text-gray-400">
-                        <li className="flex justify-between"><span>1. Intro - Party Starter</span> <span>00:00</span></li>
-                        <li className="flex justify-between"><span>2. Hit Song Remix - Artist A</span> <span>02:15</span></li>
-                        <li className="flex justify-between"><span>3. Viral Sound - Artist B</span> <span>05:40</span></li>
-                        <li className="pt-2 text-brand-purple cursor-pointer hover:underline">View full tracklist</li>
-                     </ul>
+                     <h3 className="font-bold text-white mb-4">Tracklist</h3>
+                     {mixtape.tracklist && mixtape.tracklist.length > 0 ? (
+                        <ul className="space-y-3 text-sm text-gray-400 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                           {mixtape.tracklist.map((track, index) => (
+                              <li key={track.id || index} className="flex justify-between items-center gap-4 py-1 border-b border-white/5 last:border-0">
+                                 <div className="flex gap-3">
+                                    <span className="text-gray-600 w-4">{index + 1}.</span>
+                                    <span className="text-gray-300 font-medium">{track.title} {track.artist ? `- ${track.artist}` : ''}</span>
+                                 </div>
+                                 <span className="text-xs font-mono">{track.timestamp}</span>
+                              </li>
+                           ))}
+                        </ul>
+                     ) : (
+                        <p className="text-sm text-gray-500 italic">No tracklist available for this mix.</p>
+                     )}
                   </div>
                </div>
             </div>
 
-            {/* Comments & Ratings Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 border-t border-white/10 pt-16">
                <div className="lg:col-span-2">
                   <div className="flex items-center gap-3 mb-8">
                      <MessageSquare className="text-brand-purple" size={24} />
-                     <h2 className="text-2xl font-bold text-white">Comments & Reviews</h2>
+                     <h2 className="text-2xl font-bold text-white">Comments</h2>
                      <span className="bg-white/10 text-xs px-2 py-1 rounded-full text-gray-300">{comments.length}</span>
                   </div>
 
                   {/* Comment Form */}
                   <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 mb-10">
-                     <div className="mb-4">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Rate this mix</label>
-                        <div className="flex gap-2">
-                           {[1, 2, 3, 4, 5].map((star) => (
-                              <button
-                                 key={star}
-                                 onClick={() => setUserRating(star)}
-                                 className="transition hover:scale-110"
-                              >
-                                 <Star
-                                    size={24}
-                                    className={star <= userRating ? "text-yellow-500" : "text-gray-600"}
-                                    fill={star <= userRating ? "currentColor" : "none"}
-                                 />
-                              </button>
-                           ))}
-                        </div>
-                     </div>
                      <form onSubmit={handlePostComment} className="relative">
                         <textarea
                            value={newComment}
@@ -220,7 +208,7 @@ const MixtapeDetails: React.FC = () => {
 
                   {/* Comments List */}
                   <div className="space-y-6">
-                     {comments.map((comment) => (
+                     {comments.length > 0 ? comments.map((comment) => (
                         <div key={comment.id} className="flex gap-4 p-4 rounded-xl hover:bg-white/5 transition border border-transparent hover:border-white/5">
                            <div className="flex-shrink-0">
                               {comment.avatar ? (
@@ -237,45 +225,27 @@ const MixtapeDetails: React.FC = () => {
                                     <h4 className="font-bold text-white text-sm">{comment.user}</h4>
                                     <p className="text-xs text-gray-500">{comment.date}</p>
                                  </div>
-                                 {comment.rating && (
-                                    <div className="flex gap-0.5">
-                                       {[...Array(5)].map((_, i) => (
-                                          <Star key={i} size={12} className={i < comment.rating! ? "text-yellow-500" : "text-gray-700"} fill={i < comment.rating! ? "currentColor" : "none"} />
-                                       ))}
-                                    </div>
-                                 )}
                               </div>
                               <p className="text-gray-300 text-sm leading-relaxed">{comment.text}</p>
                            </div>
                         </div>
-                     ))}
+                     )) : (
+                        <p className="text-gray-500 italic text-center py-8">Be the first to comment!</p>
+                     )}
                   </div>
                </div>
 
                {/* Sidebar Stats */}
                <div className="lg:col-span-1">
                   <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 sticky top-24">
-                     <h3 className="font-bold text-white mb-6">Rating Summary</h3>
-                     <div className="text-center mb-6">
-                        <div className="text-5xl font-bold text-white mb-2">4.8</div>
-                        <div className="flex justify-center gap-1 mb-2">
-                           {[1, 2, 3, 4, 5].map((s) => <Star key={s} size={20} className="text-yellow-500" fill="currentColor" />)}
-                        </div>
-                        <p className="text-sm text-gray-500">Based on 120 ratings</p>
-                     </div>
-
-                     <div className="space-y-2 mb-6">
-                        {[5, 4, 3, 2, 1].map((num) => (
-                           <div key={num} className="flex items-center gap-3 text-xs">
-                              <span className="w-3 text-white font-bold">{num}</span>
-                              <Star size={10} className="text-gray-500" />
-                              <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                 <div className="h-full bg-yellow-500" style={{ width: num === 5 ? '70%' : num === 4 ? '20%' : '5%' }}></div>
-                              </div>
-                              <span className="w-8 text-right text-gray-500">{num === 5 ? '70%' : num === 4 ? '20%' : '5%'}</span>
-                           </div>
-                        ))}
-                     </div>
+                     <h3 className="font-bold text-white mb-6">Share this Mix</h3>
+                     <p className="text-gray-400 text-sm mb-6">Help us reach more listeners by sharing this mixtape with your friends.</p>
+                     <button
+                        onClick={handleShare}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg hover:bg-brand-purple/20 transition font-bold"
+                     >
+                        <Share2 size={20} /> Share Now
+                     </button>
                   </div>
                </div>
             </div>
