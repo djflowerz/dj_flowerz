@@ -150,7 +150,7 @@ const Mixtapes: React.FC = () => {
                            </Link>
                            <div className="flex justify-between items-center text-xs text-gray-400 mb-3">
                               <span className="bg-white/5 px-2 py-0.5 rounded">{mix.genre}</span>
-                              <span className="flex items-center gap-1"><Calendar size={12} /> {mix.date || '2023'}</span>
+                              <span className="flex items-center gap-1"><Calendar size={12} /> {mix.releaseDate ? new Date(mix.releaseDate).getFullYear() : (mix.date || '2023')}</span>
                            </div>
                            <div className="mt-auto pt-3 border-t border-white/5 flex justify-between items-center">
                               <button
