@@ -67,21 +67,39 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const setupAudio = async () => {
       let url = currentTrack.audioUrl;
+      console.log(`[Player] Setting up track: ${currentTrack.title}`, { url });
 
       // Handle Hearthis.at URLs
       const hearthisParams = parseHearthisUrl(url);
       if (hearthisParams) {
+        console.log(`[Player] Detected Hearthis.at URL, resolving components...`, hearthisParams);
         const trackData = await fetchHearthisTrack(hearthisParams.artist, hearthisParams.track);
         if (trackData) {
+          console.log(`[Player] Hearthis resolution success:`, {
+            stream: trackData.stream_url,
+            download: trackData.download_url,
+            preview: trackData.preview_url
+          });
           // Priority: Stream > Download > Preview
           url = trackData.stream_url || trackData.download_url || trackData.preview_url || url;
+        } else {
+          console.warn(`[Player] Hearthis resolution failed for: ${url}. Falling back to original URL.`);
         }
       }
 
       if (audioRef.current) {
+        console.log(`[Player] Loading audio source: ${url}`);
         audioRef.current.src = url;
+        audioRef.current.load(); // Ensure new source is loaded
+
         if (isPlaying) {
-          audioRef.current.play().catch(err => console.error("Playback failed:", err));
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              console.error("[Player] Playback failed:", err);
+              setIsPlaying(false);
+            });
+          }
         }
       }
     };
@@ -90,9 +108,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [currentTrack]);
 
   useEffect(() => {
-    if (audioRef.current) {
+    if (audioRef.current && audioRef.current.src) {
       if (isPlaying) {
-        audioRef.current.play().catch(err => console.error("Playback failed:", err));
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error("[Player] Playback toggle failed:", err);
+            setIsPlaying(false);
+          });
+        }
       } else {
         audioRef.current.pause();
       }
