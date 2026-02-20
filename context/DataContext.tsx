@@ -276,6 +276,7 @@ const mapSupabaseMixtape = (m: any): Mixtape => ({
   ...m,
   coverUrl: m.cover_url,
   audioUrl: m.audio_url,
+  duration: m.duration,
   releaseDate: m.release_date,
   previewStartTime: m.preview_start_time,
   allowFullStream: m.allow_full_stream,
