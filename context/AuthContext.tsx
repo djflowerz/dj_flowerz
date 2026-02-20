@@ -158,6 +158,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: newProfile.role as any,
             isAdmin: newProfile.role === 'admin',
             isSubscriber: newProfile.is_subscriber,
+            subscriptionPlan: newProfile.subscription_plan,
+            subscriptionExpiry: newProfile.subscription_expiry,
             avatarUrl: newProfile.avatar_url,
             referralCode: newProfile.referral_code,
             createdAt: newProfile.created_at,
