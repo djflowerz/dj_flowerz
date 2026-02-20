@@ -59,9 +59,9 @@ export default async function handler(req: Request) {
     let user: any = null;
     let profile: any = null;
 
-    // 1. Verification Strategy: Auth Token OR Order ID
+    // 1. Verification Strategy: Auth Token OR Order ID OR Public Mixtape
     if (orderId) {
-        // Verify Order-based download
+        // ... (existing order logic)
         const { data: order, error: orderError } = await supabaseAdmin
             .from('orders')
             .select('*')
@@ -72,44 +72,49 @@ export default async function handler(req: Request) {
             return new Response('Order not found or invalid', { status: 404 });
         }
 
-        // Verify that the order contains the product being requested
-        // Note: For mixtapes, trackId might be the mixtape ID.
         const hasProduct = order.items?.some((item: any) =>
             item.productId === trackId || item.id === trackId || item.trackId === trackId
         );
 
         if (!hasProduct && type !== 'mixtape_audio' && type !== 'mixtape_video') {
-            // Stronger check for tracks/store items
             return new Response('Product not found in this order', { status: 403 });
         }
 
-        // For order based downloads, we use the customer email as the "user" identity if possible
         user = { id: order.user_id || 'guest', email: order.customer_email };
     } else {
-        // Standard Auth Token verification
         const authHeader = req.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return new Response('Unauthorized: No token provided', { status: 401 });
-        }
-        const token = authHeader.split(' ')[1];
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
-        const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-        if (authError || !authUser) {
-            return new Response('Unauthorized: Invalid token', { status: 401 });
+        if (token) {
+            const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+            if (!authError && authUser) {
+                user = authUser;
+                const { data: p } = await supabaseAdmin
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .maybeSingle();
+                profile = p;
+            }
         }
-        user = authUser;
 
-        // Fetch Profile for subscriber check
-        const { data: p, error: pError } = await supabaseAdmin
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+        // If no user/profile, check if this is a free mixtape public download
+        if (!profile && (type === 'mixtape_audio' || type === 'mixtape_video')) {
+            const { data: mixtape, error: mError } = await supabaseAdmin
+                .from('mixtapes')
+                .select('id, download_type, allow_download')
+                .eq('id', trackId)
+                .maybeSingle();
 
-        if (pError || !p) {
-            return new Response('Profile not found', { status: 404 });
+            if (mixtape && mixtape.allow_download && mixtape.download_type === 'free') {
+                // Allow public download
+                console.log(`[Download] Allowing public download for free mixtape: ${trackId}`);
+            } else if (!user) {
+                return new Response('Authentication required for this content', { status: 401 });
+            }
+        } else if (!user && !orderId) {
+            return new Response('Unauthorized: Login required', { status: 401 });
         }
-        profile = p;
     }
 
     // 2. Privilege Check
