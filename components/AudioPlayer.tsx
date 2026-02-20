@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Download, X } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
+import { isUserSubscriber } from '../utils/authHelpers';
 
 const AudioPlayer: React.FC = () => {
   const {
@@ -119,7 +120,7 @@ const AudioPlayer: React.FC = () => {
             />
           </div>
 
-          {user?.isSubscriber || !currentTrack.isExclusive ? (
+          {isUserSubscriber(user) || !currentTrack.isExclusive ? (
             <button className="px-4 py-2 bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan hover:bg-brand-cyan hover:text-black transition-all rounded text-[10px] uppercase font-bold tracking-widest flex items-center gap-2">
               <Download size={14} /> <span className="hidden lg:inline">Download</span>
             </button>
