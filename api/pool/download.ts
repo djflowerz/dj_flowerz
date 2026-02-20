@@ -163,13 +163,36 @@ export default async function handler(req: Request) {
 
     const statsPromise = type === 'track' ? supabaseAdmin.rpc('increment_download_count', { t_id: trackId }) : Promise.resolve();
 
-    // 5. Fetch and Proxy
+    // 5. Fetch and Proxy OR Redirect
     try {
+        // EXECUTE DB updates before potential redirect/proxy
+        await Promise.all([updatePromise, logPromise, statsPromise]);
+
+        // OPTIMIZATION: For free mixtapes, redirect directly to avoid Edge function timeout (usually 30s)
+        // Large mixtapes (100MB+) often get cut off by the proxy limit.
+        if ((type === 'mixtape_audio' || type === 'mixtape_video') && !orderId) {
+            // Further verify it's a free mixtape
+            const { data: mixtape } = await supabaseAdmin
+                .from('mixtapes')
+                .select('download_type')
+                .eq('id', trackId)
+                .maybeSingle();
+
+            if (mixtape?.download_type === 'free') {
+                console.log(`[Download] Redirecting to source for free mixtape: ${trackId}`);
+                return new Response(null, {
+                    status: 302,
+                    headers: {
+                        'Location': fileUrl,
+                        'Cache-Control': 'no-store, no-cache, must-revalidate',
+                        'X-Redirect-FileName': fileName // Info for client if needed
+                    }
+                });
+            }
+        }
+
         const response = await fetch(fileUrl);
         if (!response.ok) throw new Error('Failed to fetch from source');
-
-        // Execute DB updates
-        await Promise.all([updatePromise, logPromise, statsPromise]);
 
         const headers = new Headers(response.headers);
         headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
