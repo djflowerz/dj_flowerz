@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
+import { isUserSubscriber, getSubscriptionTimeLeft } from '../utils/authHelpers';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import MFAEnrollment from '../components/MFAEnrollment';
 import ReauthModal from '../components/ReauthModal';
@@ -400,10 +401,10 @@ const Account: React.FC = () => {
 
                       <div className="flex items-center justify-between mb-4 relative">
                         <h3 className="font-bold text-white text-lg flex items-center gap-2"><CreditCard size={18} className="text-brand-cyan" /> Current Plan</h3>
-                        {user.isSubscriber && <span className="bg-green-500/10 text-green-500 text-xs font-bold px-2 py-1 rounded border border-green-500/20">ACTIVE</span>}
+                        {isUserSubscriber(user) && <span className="bg-green-500/10 text-green-500 text-xs font-bold px-2 py-1 rounded border border-green-500/20">ACTIVE</span>}
                       </div>
 
-                      {user.isSubscriber ? (
+                      {isUserSubscriber(user) ? (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                           <div>
                             <p className="text-brand-cyan font-bold text-2xl capitalize flex items-center gap-2 mb-1">
