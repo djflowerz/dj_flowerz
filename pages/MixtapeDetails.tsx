@@ -140,7 +140,14 @@ const MixtapeDetails: React.FC = () => {
 
                   <div className="flex flex-col sm:flex-row gap-4 mb-8">
                      <button
-                        onClick={() => handleDownload(mixtape.audioUrl, 'mixtape_audio')}
+                        onClick={() => {
+                           const url = mixtape.downloadUrl || mixtape.audioUrl;
+                           if (url) {
+                              handleDownload(url, 'mixtape_audio');
+                           } else {
+                              alert("No download URL found for this mixtape.");
+                           }
+                        }}
                         className="flex-1 px-6 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition text-center flex items-center justify-center gap-2"
                      >
                         <Music size={20} /> Download Audio (MP3)
