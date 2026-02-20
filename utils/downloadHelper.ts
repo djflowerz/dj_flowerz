@@ -19,8 +19,8 @@ export async function downloadFileSecurely(url: string, options: DownloadOptions
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
 
-        if (!token && !options.orderId) {
-            throw new Error("Authentication required for downloads.");
+        if (!token && !options.orderId && options.type === 'track') {
+            throw new Error("Authentication required to download tracks from the library.");
         }
 
         // Construct proxy URL
