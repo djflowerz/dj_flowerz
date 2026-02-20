@@ -465,7 +465,7 @@ const getTableName = (colName: string): string => {
     'subscriptionPlans': 'subscription_plans',
     'shippingZones': 'shipping_zones',
     'genres': 'genres',
-    'youtubeVideos': 'youtube_videos',
+    'youtubeVideos': 'videos',
     'orders': 'orders',
     'users': 'profiles',
     'subscriptions': 'subscriptions',
@@ -577,7 +577,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Restricted Collections (Subscriber/Admin) - Supabase handles large music pool library
   const [poolTracks, setPoolTracks] = useState<Track[]>([]);
-  const [poolLimit, setPoolLimit] = useState(60000); // Load all tracks (up to 60k)
+  const [poolLimit, setPoolLimit] = useState(5000); // Reduced from 60k to prevent timeouts
   const [poolError, setPoolError] = useState<string | null>(null);
   const [poolLoading, setPoolLoading] = useState(false);
 
