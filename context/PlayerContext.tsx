@@ -83,7 +83,13 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           // Priority: Stream > Download > Preview
           url = trackData.stream_url || trackData.download_url || trackData.preview_url || url;
         } else {
-          console.warn(`[Player] Hearthis resolution failed for: ${url}. Falling back to original URL.`);
+          console.warn(`[Player] Hearthis resolution failed for: ${url}. Trying automatic stream fallback.`);
+          // Fallback pattern: https://hearthis.at/artist/slug/listen/
+          // This often works for public tracks without an API key
+          const cleanUrl = url.split('?')[0];
+          const fallbackUrl = cleanUrl.endsWith('/') ? `${cleanUrl}listen/` : `${cleanUrl}/listen/`;
+          console.log(`[Player] Fallback URL: ${fallbackUrl}`);
+          url = fallbackUrl;
         }
       }
 
