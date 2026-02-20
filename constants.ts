@@ -99,37 +99,7 @@ export const TRACK_TYPES = [
 // All data below will be fetched from Firebase Firestore
 export const POOL_TRACKS: Track[] = [];
 
-export const FEATURED_MIXTAPES: Mixtape[] = [
-  {
-    id: 'sample-1',
-    title: 'Amapiano Winter Vibez',
-    slug: 'amapiano-winter-vibez',
-    genre: 'Kenyan Amapiano',
-    description: 'A smooth journey through the latest Amapiano hits from Kenya and South Africa.',
-    releaseDate: '2023-11-01',
-    status: 'published',
-    coverUrl: 'https://images.unsplash.com/photo-1571266028243-371695039148?auto=format&fit=crop&q=80&w=1000',
-    audioUrl: 'https://hearthis.at/dj-flowerz/sample-mixtape/',
-    duration: '58:45',
-    allowFullStream: true,
-    allowDownload: true,
-    downloadType: 'free',
-    streamQuality: 'standard',
-    tracklist: [
-      { id: 't1', position: 1, artist: 'Artist A', title: 'Song 1', timestamp: '00:00' },
-      { id: 't2', position: 2, artist: 'Artist B', title: 'Song 2', timestamp: '05:30' }
-    ],
-    isFeatured: true,
-    showInGallery: true,
-    showInMusicPool: true,
-    tags: ['Amapiano', '2023', 'Kenya'],
-    enableComments: true,
-    requireLoginToComment: false,
-    moderateComments: false,
-    isExclusive: false,
-    date: 'Nov 2023'
-  }
-];
+export const FEATURED_MIXTAPES: Mixtape[] = [];
 
 export const PRODUCTS: Product[] = [];
 
