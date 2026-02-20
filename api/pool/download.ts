@@ -19,7 +19,9 @@ const TRUSTED_DOMAINS = [
     'cdn.vicknickvideopool.com',
     'vicknickvideopool.com',
     'firebasestorage.googleapis.com',
-    'pub-59a613f808794c48972e0d794770331f.r2.dev' // Just in case R2 is still used
+    'pub-59a613f808794c48972e0d794770331f.r2.dev',
+    'hearthis.at',
+    'r2.vicknickvideopool.com'
 ];
 
 export default async function handler(req: Request) {
