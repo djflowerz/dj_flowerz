@@ -12,6 +12,7 @@ import {
 import { Link } from 'react-router-dom';
 import { POOL_HUBS, POOL_YEARS, MONTHS } from '../constants';
 import SubscribeButton from '../components/SubscribeButton';
+import { isUserSubscriber } from '../utils/authHelpers';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 
 // Add 'New' to POOL_HUBS if not present, or handled in UI
@@ -45,7 +46,7 @@ const MusicPool: React.FC = () => {
       setIsApplying(false);
    };
    const { pauseTrack: pauseGlobalTrack } = usePlayer();
-   const isUnlocked = user?.isSubscriber || user?.isAdmin;
+   const isUnlocked = isUserSubscriber(user);
 
    // View State
    const [activeCategory, setActiveCategory] = useState('All');
@@ -92,8 +93,8 @@ const MusicPool: React.FC = () => {
          return;
       }
 
-      if (!user.isSubscriber && !user.isAdmin) {
-         alert("Subscription required to download.");
+      if (!isUserSubscriber(user)) {
+         alert("Subscription required or expired. Please renew to download.");
          return;
       }
 
