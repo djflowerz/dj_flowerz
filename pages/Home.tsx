@@ -12,16 +12,25 @@ const Home: React.FC = () => {
    const { hero, home } = siteConfig;
 
    const featuredMixtapes = mixtapes.slice(0, 4);
-   const displayProducts = [...products]
-      .filter(p => {
+
+   const [displayProducts, setDisplayProducts] = React.useState<any[]>(products.slice(0, 4));
+
+   React.useEffect(() => {
+      const activeProducts = products.filter(p => {
          if (user?.isAdmin) return true;
          return p.status !== 'hidden' && p.status !== 'draft';
-      })
-      .sort((a, b) => {
-         if (a.isHot !== b.isHot) return a.isHot ? -1 : 1;
-         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      })
-      .slice(0, 4);
+      });
+
+      const shuffleProducts = () => {
+         if (activeProducts.length === 0) return;
+         const shuffled = [...activeProducts].sort(() => 0.5 - Math.random());
+         setDisplayProducts(shuffled.slice(0, 4));
+      };
+
+      shuffleProducts();
+      const interval = setInterval(shuffleProducts, 5000);
+      return () => clearInterval(interval);
+   }, [products, user]);
 
    return (
       <div className="pb-20">
@@ -120,7 +129,18 @@ const Home: React.FC = () => {
                            </div>
                            <div className="p-4">
                               <h3 className="text-white font-bold truncate mb-1 group-hover:text-brand-purple transition">{product.name}</h3>
-                              <p className="text-brand-cyan font-bold">KES {product.price.toLocaleString()}</p>
+                              <div className="flex items-center gap-2">
+                                 <p className="text-brand-cyan font-bold">
+                                    {product.discountPrice && product.discountPrice > 0
+                                       ? `KES ${product.discountPrice.toLocaleString()}`
+                                       : (product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`)}
+                                 </p>
+                                 {product.discountPrice && product.discountPrice > 0 && (
+                                    <p className="text-gray-500 line-through text-[10px]">
+                                       KES {product.price.toLocaleString()}
+                                    </p>
+                                 )}
+                              </div>
                            </div>
                         </div>
                      </Link>
