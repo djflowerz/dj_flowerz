@@ -346,8 +346,8 @@ const MusicPool: React.FC = () => {
                               <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                  <Shield size={24} className="text-red-500" />
                               </div>
-                              <p className="font-bold text-lg mb-1">Database Quota Exceeded</p>
-                              <p className="text-sm opacity-80 max-w-md mx-auto">We've reached our daily usage limit for data fetching. Some tracks may not appear until the quota resets. Please try again tomorrow!</p>
+                              <p className="font-bold text-lg mb-1">Database High Traffic</p>
+                              <p className="text-sm opacity-80 max-w-md mx-auto">Our database is currently experiencing high traffic. Some tracks may not appear immediately. Please try refreshing or try again in a few moments.</p>
                            </div>
                         )}
 
