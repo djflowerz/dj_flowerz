@@ -54,9 +54,34 @@ AND title ILIKE '%Amapiano%'
 AND NOT (category @> ARRAY['Afro Amapiano DANCEHALL REFIX']);
 
 
--- 2. SECURITY: Search Path Hardening
+-- 2. SECURITY: Search Path Hardening & Triggers
 -- --------------------------------------------------
--- Protects against hijacking of SECURITY DEFINER functions
+
+-- 2.1 Ensure the Profile Trigger Function exists
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, email, role, avatar_url, created_at, updated_at)
+  VALUES (
+    new.id, 
+    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'User'), 
+    new.email, 
+    'user',
+    COALESCE(new.raw_user_meta_data->>'avatar_url', 'https://ui-avatars.com/api/?name=User&background=random'),
+    NOW(),
+    NOW()
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 2.2 Re-attach trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 2.3 Hardening (Protects against hijacking of SECURITY DEFINER functions)
 ALTER FUNCTION public.issue_referral_reward SET search_path = public;
 ALTER FUNCTION public.handle_new_user SET search_path = public;
 
