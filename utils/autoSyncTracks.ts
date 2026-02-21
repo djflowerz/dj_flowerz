@@ -147,7 +147,10 @@ function transformToR2Track(
         'Afro House', 'Club Edits', 'Dancehall Remixes', 'Amapiano',
         'Reggae Fussion', 'HYPE EDITS', 'Remix & Mashups', 'R2 Pool',
         'REMIXAH', 'DANCEHALL REFIX', 'AFROBEATS', 'HIP HOP EX',
-        'VICKNICK', 'VIDEO POOL'
+        'VICKNICK', 'VIDEO POOL', 'Kenya Love Songs', 'Kikuyu Gospel',
+        'Bongo', 'TBT', 'Kenya Love Songs (Hype)', 'Kenya Love Songs (Low Hype)',
+        'Kikuyu Gospel (Kigoco)', 'Bongo TZ Hype', 'Bongo Flava (TBT) (TZ) Hype',
+        'Bongo Flava (TBT) (TZ)Low Hype'
     ];
 
     // Common separators in filenames
