@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
@@ -48,8 +48,10 @@ const ProductDetails: React.FC = () => {
       setActiveImage(allImages[prevIndex]);
    };
 
+   const navigate = useNavigate();
    const handleAddToCart = () => {
       addToCart(product, quantity, selectedVariant);
+      navigate('/cart');
    };
 
    const whatsappMessage = `Hi, I'm interested in ${product.name} (${selectedVariant || 'Standard'}). Is it available?`;
@@ -217,7 +219,15 @@ const ProductDetails: React.FC = () => {
                      ))}
                   </div>
                   <p className="text-gray-400 mb-6">No reviews yet. Be the first to review this product!</p>
-                  <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg font-bold transition">Write a Review</button>
+                  <button
+                     onClick={() => {
+                        const reviewMsg = encodeURIComponent(`Hi DJ Flowerz, I'd like to leave a review for "${product.name}".\nRating: ⭐️⭐️⭐️⭐️⭐️\nComment: `);
+                        window.open(`https://wa.me/${siteConfig.contact.whatsapp.replace(/\D/g, '')}?text=${reviewMsg}`, '_blank');
+                     }}
+                     className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg font-bold transition"
+                  >
+                     Write a Review
+                  </button>
                </div>
             </div>
 
