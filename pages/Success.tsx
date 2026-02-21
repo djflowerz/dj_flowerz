@@ -44,10 +44,10 @@ const Success: React.FC = () => {
 
    useEffect(() => {
       // Safety redirect if no order data and no recovery ref
-      if (!location.state && !id) {
+      if (location.pathname.includes('/success') && !location.state && !id) {
          navigate('/store');
       }
-   }, [location.state, id, navigate]);
+   }, [location.pathname, location.state, id, navigate]);
 
    useEffect(() => {
       // Clear cart if we just came from checkout
