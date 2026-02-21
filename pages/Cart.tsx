@@ -141,7 +141,8 @@ const Cart: React.FC = () => {
             price: item.price,
             type: item.type || 'digital',
             digitalFileUrl: item.digitalFileUrl || '',
-            downloadPassword: item.downloadPassword || ''
+            downloadPassword: item.downloadPassword || '',
+            downloadUrl: item.digitalFileUrl || ''
          }))),
          custom_fields: [
             { display_name: "First Name", variable_name: "first_name", value: firstName },
@@ -163,7 +164,14 @@ const Cart: React.FC = () => {
       setIsProcessing(false);
       // Order Data
       const orderData = {
-         items: [...items], // Copy items before clearing
+         items: items.map(item => ({
+            ...item,
+            productId: item.id,
+            productName: item.name,
+            downloadUrl: item.digitalFileUrl || '',
+            digitalFileUrl: item.digitalFileUrl || '',
+            downloadPassword: item.downloadPassword || ''
+         })), // Copy items before clearing
          total: finalTotal,
          subtotal: cartSubtotal,
          shippingCost: shippingCost,
