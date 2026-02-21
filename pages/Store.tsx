@@ -306,8 +306,17 @@ const Store: React.FC = () => {
                         </div>
 
                         <div className="mt-auto pt-3 md:pt-4 border-t border-white/5">
-                          <div className="text-base md:text-xl font-bold text-white mb-2 md:mb-3">
-                            {product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}
+                          <div className="flex items-center gap-2 mb-2 md:mb-3">
+                            <div className="text-base md:text-xl font-bold text-white">
+                              {product.discountPrice && product.discountPrice > 0
+                                ? `KES ${product.discountPrice.toLocaleString()}`
+                                : (product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`)}
+                            </div>
+                            {product.discountPrice && product.discountPrice > 0 && (
+                              <div className="text-gray-500 line-through text-[10px] md:text-xs">
+                                KES {product.price.toLocaleString()}
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
                             <button
