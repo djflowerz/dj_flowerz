@@ -29,8 +29,12 @@ const ProductDetails: React.FC = () => {
    }
 
    // Set default variant if exists and not selected
-   if (product.variants && product.variants.length > 0 && !selectedVariant) {
-      setSelectedVariant(product.variants[0]);
+   if (!selectedVariant) {
+      if (product.variantGroups && product.variantGroups.length > 0 && product.variantGroups[0].variants.length > 0) {
+         setSelectedVariant(product.variantGroups[0].variants[0].name);
+      } else if (product.variants && product.variants.length > 0) {
+         setSelectedVariant(product.variants[0]);
+      }
    }
 
    const [activeImage, setActiveImage] = useState(product.image || (product.images?.[0] || ''));
@@ -112,7 +116,37 @@ const ProductDetails: React.FC = () => {
                <div>
                   <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">{product.name}</h1>
                   <div className="flex items-center gap-4 mb-6">
-                     <span className="text-2xl font-bold text-brand-purple">{product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}</span>
+                     {(() => {
+                        let displayPrice = product.price;
+                        let originalPrice = product.compareAtPrice;
+
+                        // If variant is selected, use variant price
+                        if (selectedVariant && product.variantGroups) {
+                           for (const group of product.variantGroups) {
+                              const v = group.variants.find(varnt => varnt.name === selectedVariant);
+                              if (v) {
+                                 displayPrice = v.price;
+                                 break;
+                              }
+                           }
+                        } else if (product.discountPrice && product.discountPrice > 0) {
+                           displayPrice = product.discountPrice;
+                           originalPrice = product.price;
+                        }
+
+                        return (
+                           <>
+                              <span className="text-2xl font-bold text-brand-purple">
+                                 {displayPrice === 0 ? 'Free' : `KES ${displayPrice.toLocaleString()}`}
+                              </span>
+                              {originalPrice && originalPrice > displayPrice && (
+                                 <span className="text-gray-500 line-through text-lg">
+                                    KES {originalPrice.toLocaleString()}
+                                 </span>
+                              )}
+                           </>
+                        );
+                     })()}
                      {product.condition && (
                         <span className={`px-2 py-1 text-xs font-bold uppercase rounded ${product.condition === 'new' ? 'bg-green-500/20 text-green-500 border border-green-500/20' : 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20'}`}>
                            {product.condition}
@@ -126,7 +160,31 @@ const ProductDetails: React.FC = () => {
                   />
 
                   {/* Variants */}
-                  {product.variants && (
+                  {product.variantGroups && product.variantGroups.length > 0 && (
+                     <div className="space-y-6 mb-8">
+                        {product.variantGroups.map(group => (
+                           <div key={group.name}>
+                              <label className="block text-sm font-bold text-gray-400 mb-3">Select {group.name}:</label>
+                              <div className="flex flex-wrap gap-3">
+                                 {group.variants.map(v => (
+                                    <button
+                                       key={v.id}
+                                       onClick={() => setSelectedVariant(v.name)}
+                                       className={`px-4 py-2 rounded-lg border text-sm font-bold transition ${selectedVariant === v.name ? 'bg-white text-black border-white' : 'bg-transparent text-gray-400 border-white/10 hover:border-white/50'}`}
+                                    >
+                                       <div className="flex flex-col items-center">
+                                          <span>{v.name}</span>
+                                          <span className="text-[10px] opacity-70">KES {v.price.toLocaleString()}</span>
+                                       </div>
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                  )}
+
+                  {(!product.variantGroups || product.variantGroups.length === 0) && product.variants && product.variants.length > 0 && (
                      <div className="mb-8">
                         <label className="block text-sm font-bold text-gray-400 mb-3">Select Option:</label>
                         <div className="flex flex-wrap gap-3">
@@ -249,7 +307,18 @@ const ProductDetails: React.FC = () => {
                         </div>
                         <div className="p-4">
                            <h3 className="text-white font-bold truncate mb-1">{similar.name}</h3>
-                           <p className="text-brand-purple font-bold text-sm">KES {similar.price.toLocaleString()}</p>
+                           <div className="flex items-center gap-2">
+                              <p className="text-brand-purple font-bold text-sm">
+                                 {similar.discountPrice && similar.discountPrice > 0
+                                    ? `KES ${similar.discountPrice.toLocaleString()}`
+                                    : (similar.price === 0 ? 'Free' : `KES ${similar.price.toLocaleString()}`)}
+                              </p>
+                              {similar.discountPrice && similar.discountPrice > 0 && (
+                                 <p className="text-gray-500 line-through text-[10px]">
+                                    KES {similar.price.toLocaleString()}
+                                 </p>
+                              )}
+                           </div>
                         </div>
                      </Link>
                   ))}
