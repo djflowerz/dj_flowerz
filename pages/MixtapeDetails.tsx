@@ -150,28 +150,8 @@ const MixtapeDetails: React.FC = () => {
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                     <button
-                        onClick={() => {
-                           const url = mixtape.downloadUrl || mixtape.audioUrl;
-                           if (url) {
-                              handleDownload(url, 'mixtape_audio');
-                           } else {
-                              alert("No download URL found for this mixtape.");
-                           }
-                        }}
-                        className="flex-1 px-6 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition text-center flex items-center justify-center gap-2"
-                     >
-                        <Music size={20} /> Download Audio (MP3)
-                     </button>
-                     <button
-                        onClick={() => mixtape.videoDownloadUrl && handleDownload(mixtape.videoDownloadUrl, 'mixtape_video')}
-                        className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition text-center flex items-center justify-center gap-2 disabled:opacity-50"
-                        disabled={!mixtape.videoDownloadUrl}
-                     >
-                        <Video size={20} /> Download Video (MP4)
-                     </button>
-                     <button onClick={handleShare} className="px-6 py-4 bg-[#15151A] border border-white/20 text-gray-300 font-bold rounded-lg hover:text-white transition flex items-center justify-center">
-                        <Share2 size={20} />
+                     <button onClick={handleShare} className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition flex items-center justify-center gap-2">
+                        <Share2 size={20} /> Share Mixtape
                      </button>
                   </div>
 
