@@ -148,14 +148,13 @@ const MusicPool: React.FC = () => {
 
          const matchesCategory = activeCategory === 'All' ||
             (activeCategory === 'New' && categories.some(c => c.toLowerCase() === 'new')) ||
-            categories.some(c => c.includes(activeCategory.toLowerCase()) || activeCategory.toLowerCase().includes(c));
+            categories.some(c => c !== '' && (c.includes(activeCategory.toLowerCase()) || activeCategory.toLowerCase().includes(c)));
 
          const matchesYear = selectedYear === 'All' || Number(track.year) === Number(selectedYear);
 
          const matchesGenre = selectedGenre === 'All' ||
-            genre.includes(selectedGenre.toLowerCase()) ||
-            selectedGenre.toLowerCase().includes(genre) ||
-            categories.some(c => c.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(c));
+            (genre !== '' && (genre.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(genre))) ||
+            categories.some(c => c !== '' && (c.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(c)));
 
          // Month filtering for year-based categories
          // Month filtering for year-based categories
