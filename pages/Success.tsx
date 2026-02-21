@@ -211,6 +211,13 @@ const Success: React.FC = () => {
 
                   setOrderData({
                      ...mappedOrder,
+                     items: mappedOrder.items.map((item: any) => ({
+                        ...item,
+                        // Ensure fields consistent for UI
+                        digitalFileUrl: item.digitalFileUrl || item.downloadUrl,
+                        downloadUrl: item.downloadUrl || item.digitalFileUrl,
+                        downloadPassword: item.downloadPassword || item.password
+                     })),
                      type: 'store', // Treat fetched orders as store orders for layout
                      orderId: data.id
                   });
