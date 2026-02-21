@@ -571,18 +571,23 @@ const MusicPool: React.FC = () => {
                         )}
 
                         <div className="flex flex-col items-center gap-3 py-8 border-t border-white/5 bg-black/5">
-                           <p className="text-xs text-gray-500 font-medium underline underline-offset-4 decoration-brand-purple/30">Total Library Browser</p>
-                           {poolTracks.length < 45000 && (
+                           <p className="text-xs text-gray-500 font-medium underline underline-offset-4 decoration-brand-purple/30">Library Status</p>
+                           {poolLoading ? (
+                              <div className="flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 text-white rounded-2xl font-bold">
+                                 <RefreshCw size={18} className="text-brand-purple animate-spin" />
+                                 Fetching tracks from database... ({poolTracks.length.toLocaleString()} loaded)
+                              </div>
+                           ) : (
                               <button
-                                 onClick={() => loadMorePoolTracks(5000)}
+                                 onClick={() => refreshPoolTracks()}
                                  className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-2xl font-bold hover:bg-white/10 hover:border-brand-purple transition-all duration-300 flex items-center gap-2 group"
                               >
-                                 <Layers size={18} className="text-brand-purple group-hover:scale-110 transition-transform" />
-                                 Fetch Remaining Tracks from Database (Current: {poolTracks.length.toLocaleString()})
+                                 <Database size={18} className="text-brand-purple group-hover:scale-110 transition-transform" />
+                                 Refresh Library ({poolTracks.length.toLocaleString()} total tracks)
                               </button>
                            )}
                            <p className="text-[10px] text-gray-600 uppercase tracking-widest font-black opacity-50">
-                              {poolTracks.length >= 45000 ? "Full Library Loaded" : "Fetching additional tracks in the background"}
+                              {poolLoading ? "Loading more tracks in background..." : "The library now loads all available tracks automatically"}
                            </p>
                         </div>
 
@@ -640,21 +645,6 @@ const MusicPool: React.FC = () => {
                            <p className="text-gray-500 text-xs font-medium">
                               Showing tracks <span className="text-white font-bold">{((currentPage - 1) * tracksPerPage) + 1}</span> - <span className="text-white font-bold">{Math.min(currentPage * tracksPerPage, filteredTracks.length)}</span> of <span className="text-white font-bold">{filteredTracks.length}</span> results
                            </p>
-
-                           {filteredTracks.length >= 1000 && (
-                              <button
-                                 onClick={() => loadMorePoolTracks(2000)}
-                                 disabled={poolLoading}
-                                 className="flex items-center gap-2 px-8 py-3 bg-brand-purple/10 border border-brand-purple/30 text-brand-purple rounded-xl font-bold hover:bg-brand-purple/20 transition-all disabled:opacity-50"
-                              >
-                                 {poolLoading ? (
-                                    <RefreshCw className="animate-spin" size={18} />
-                                 ) : (
-                                    <Database size={18} />
-                                 )}
-                                 Load More From Full Library (45k+ Tracks)
-                              </button>
-                           )}
                         </div>
                      </div>
                   </div>
