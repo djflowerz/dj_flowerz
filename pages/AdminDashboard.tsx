@@ -256,7 +256,7 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantOptions: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
+   id: '', name: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -914,7 +914,7 @@ const AdminDashboard: React.FC = () => {
    const openEditProduct = (product: Product) => {
       setIsEditing(true);
       setNewProduct(product);
-      setVariantsInput(product.variants?.join(', ') || '');
+      setVariantsInput((product.variants || []).join(', '));
       setProductFormTab('basic');
       setActiveModal('addProduct');
    };
@@ -923,14 +923,13 @@ const AdminDashboard: React.FC = () => {
       if (isSavingProduct) return;
       setIsSavingProduct(true);
       try {
-         const variantsArray = variantsInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
          const now = new Date().toISOString();
 
          const productToSave: Product = {
             ...newProduct,
+            variants: variantsInput.split(',').map(v => v.trim()).filter(Boolean),
             whatsappEnabled: true,
-            variants: variantsArray,
-            hasVariants: variantsArray.length > 0,
+            hasVariants: (newProduct.variantGroups || []).length > 0 || variantsInput.trim().length > 0,
             updatedAt: now
          };
 
@@ -1855,16 +1854,37 @@ const AdminDashboard: React.FC = () => {
                                           {p.category === 'Software' && p.os && p.os !== 'None' && (
                                              <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
                                           )}
-                                          {p.variantOptions && p.variantOptions.length > 0 && (
+                                          {((p.variantGroups && p.variantGroups.length > 0) || (p.variantOptions && p.variantOptions.length > 0)) && (
                                              <div className="text-xs text-gray-500 mt-1">
-                                                {p.type === 'digital' ? 'Versions' : 'Variants'}: {p.variantOptions.map(v => v.name).join(', ')}
+                                                {p.variantGroups && p.variantGroups.length > 0 ? (
+                                                   `${p.variantGroups.length} Group(s), ${p.variantGroups.reduce((acc, g) => acc + g.variants.length, 0)} Variants`
+                                                ) : (
+                                                   `${p.type === 'digital' ? 'Versions' : 'Variants'}: ${(p.variants || []).join(', ')}`
+                                                )}
                                              </div>
                                           )}
                                        </td>
                                        <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
                                        <td className="px-6 py-4"><span className="text-gray-400 text-xs">{p.category}</span></td>
-                                       <td className="px-6 py-4">KES {p.price.toLocaleString()}</td>
-                                       <td className="px-6 py-4">{p.type === 'digital' ? '∞' : p.stock}</td>
+                                       <td className="px-6 py-4">
+                                          <div className="flex flex-col">
+                                             <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-500 line-through text-xs' : 'text-white font-bold'}>
+                                                KES {p.price.toLocaleString()}
+                                             </span>
+                                             {p.discountPrice && p.discountPrice > 0 && (
+                                                <span className="text-brand-purple font-bold">
+                                                   KES {p.discountPrice.toLocaleString()}
+                                                </span>
+                                             )}
+                                          </div>
+                                       </td>
+                                       <td className="px-6 py-4">
+                                          {p.type === 'digital' ? '∞' : (
+                                             p.variantGroups && p.variantGroups.length > 0 ? (
+                                                p.variantGroups.reduce((acc, g) => acc + g.variants.reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                             ) : p.stock
+                                          )}
+                                       </td>
                                        <td className="px-6 py-4">
                                           <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
                                              p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
@@ -2834,6 +2854,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="flex gap-4 border-b border-white/10 pb-2">
                      <button onClick={() => setProductFormTab('type')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'type' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Type</button>
                      <button onClick={() => setProductFormTab('basic')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'basic' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Basic Info</button>
+                     <button onClick={() => setProductFormTab('variants')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'variants' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Variants</button>
                      {newProduct.type === 'physical' && <button onClick={() => setProductFormTab('shipping')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'shipping' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Shipping</button>}
                      {newProduct.type === 'digital' && <button onClick={() => setProductFormTab('digital')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'digital' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Files</button>}
                      <button onClick={() => setProductFormTab('images')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'images' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Images</button>
@@ -2856,9 +2877,11 @@ const AdminDashboard: React.FC = () => {
 
                   {productFormTab === 'basic' && (
                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required />
-                           <InputGroup label="Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
+                        <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                           <InputGroup label="Base Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
+                           <InputGroup label="Discount Price (Opt)" type="number" value={newProduct.discountPrice || 0} onChange={v => updateProductField('discountPrice', Number(v))} />
+                           <InputGroup label="Compare At Price" type="number" value={newProduct.compareAtPrice || 0} onChange={v => updateProductField('compareAtPrice', Number(v))} />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <InputGroup
@@ -2929,6 +2952,138 @@ const AdminDashboard: React.FC = () => {
                            onChange={setVariantsInput}
                            placeholder={newProduct.type === 'digital' ? 'e.g. v1.0, v2.0, Pro, Lite' : 'e.g. S, M, L, XL or Red, Blue'}
                         />
+                     </div>
+                  )}
+
+                  {productFormTab === 'variants' && (
+                     <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                           <h4 className="font-bold text-gray-400 uppercase text-xs">Product Variants</h4>
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 const next = [...(newProduct.variantGroups || [])];
+                                 next.push({ name: 'New Group', variants: [] });
+                                 updateProductField('variantGroups', next);
+                              }}
+                              className="px-3 py-1 bg-brand-purple/20 text-brand-purple rounded text-xs font-bold hover:bg-brand-purple/30 transition"
+                           >
+                              + Add Group
+                           </button>
+                        </div>
+
+                        {(newProduct.variantGroups || []).length === 0 && (
+                           <div className="text-center py-8 bg-black/20 rounded-xl border border-dashed border-white/10">
+                              <p className="text-gray-500 text-sm italic">No variants defined for this product.</p>
+                           </div>
+                        )}
+
+                        {(newProduct.variantGroups || []).map((group, gIdx) => (
+                           <div key={gIdx} className="bg-black/20 p-4 rounded-xl border border-white/10 space-y-4">
+                              <div className="flex justify-between items-start gap-4">
+                                 <div className="flex-1">
+                                    <InputGroup
+                                       label="Group Name"
+                                       value={group.name}
+                                       onChange={v => {
+                                          const next = [...(newProduct.variantGroups || [])];
+                                          next[gIdx].name = v;
+                                          updateProductField('variantGroups', next);
+                                       }}
+                                       placeholder="e.g. Storage, Color, Size"
+                                    />
+                                 </div>
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const next = (newProduct.variantGroups || []).filter((_, i) => i !== gIdx);
+                                       updateProductField('variantGroups', next);
+                                    }}
+                                    className="text-red-500 hover:text-red-400 mt-7"
+                                 >
+                                    <Trash2 size={18} />
+                                 </button>
+                              </div>
+
+                              <div className="space-y-2">
+                                 <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Options</label>
+                                    <button
+                                       type="button"
+                                       onClick={() => {
+                                          const next = [...(newProduct.variantGroups || [])];
+                                          next[gIdx].variants.push({
+                                             id: `v${Date.now()}`,
+                                             name: '',
+                                             price: newProduct.price,
+                                             stock: newProduct.stock || 0
+                                          });
+                                          updateProductField('variantGroups', next);
+                                       }}
+                                       className="text-brand-purple text-[10px] font-bold hover:underline"
+                                    >
+                                       + Add Option
+                                    </button>
+                                 </div>
+
+                                 {group.variants.map((variant, vIdx) => (
+                                    <div key={vIdx} className="grid grid-cols-12 gap-2 items-end bg-white/5 p-2 rounded-lg">
+                                       <div className="col-span-5">
+                                          <input
+                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                                             placeholder="Name (e.g. 1TB)"
+                                             value={variant.name}
+                                             onChange={e => {
+                                                const next = [...(newProduct.variantGroups || [])];
+                                                next[gIdx].variants[vIdx].name = e.target.value;
+                                                updateProductField('variantGroups', next);
+                                             }}
+                                          />
+                                       </div>
+                                       <div className="col-span-4">
+                                          <input
+                                             type="number"
+                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                                             placeholder="Price"
+                                             value={variant.price}
+                                             onChange={e => {
+                                                const next = [...(newProduct.variantGroups || [])];
+                                                next[gIdx].variants[vIdx].price = Number(e.target.value);
+                                                updateProductField('variantGroups', next);
+                                             }}
+                                          />
+                                       </div>
+                                       <div className="col-span-2">
+                                          <input
+                                             type="number"
+                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                                             placeholder="Stock"
+                                             value={variant.stock}
+                                             onChange={e => {
+                                                const next = [...(newProduct.variantGroups || [])];
+                                                next[gIdx].variants[vIdx].stock = Number(e.target.value);
+                                                updateProductField('variantGroups', next);
+                                             }}
+                                          />
+                                       </div>
+                                       <div className="col-span-1 flex justify-center pb-1">
+                                          <button
+                                             type="button"
+                                             onClick={() => {
+                                                const next = [...(newProduct.variantGroups || [])];
+                                                next[gIdx].variants = next[gIdx].variants.filter((_, i) => i !== vIdx);
+                                                updateProductField('variantGroups', next);
+                                             }}
+                                             className="text-gray-500 hover:text-red-500"
+                                          >
+                                             <X size={14} />
+                                          </button>
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        ))}
                      </div>
                   )}
 
