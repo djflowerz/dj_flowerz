@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube } from 'lucide-react';
+import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
@@ -37,11 +37,6 @@ const MixtapeDetails: React.FC = () => {
       console.log(`[MixtapeDetails] No mixtape found at all!`);
    }
 
-   // Mock Comments State
-   const [comments, setComments] = useState<Comment[]>([]);
-   const [newComment, setNewComment] = useState('');
-   const [userRating, setUserRating] = useState(0);
-
    const handleShare = () => {
       if (navigator.share) {
          navigator.share({
@@ -52,24 +47,6 @@ const MixtapeDetails: React.FC = () => {
       } else {
          alert('Link copied to clipboard!');
       }
-   };
-
-   const handlePostComment = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!newComment.trim()) return;
-
-      const comment: Comment = {
-         id: Date.now().toString(),
-         user: user?.name || 'Guest User',
-         text: newComment,
-         date: 'Just now',
-         avatar: user?.avatarUrl,
-         rating: userRating > 0 ? userRating : undefined
-      };
-
-      setComments([comment, ...comments]);
-      setNewComment('');
-      setUserRating(0);
    };
 
    const handleDownload = async (url: string, type: 'mixtape_audio' | 'mixtape_video') => {
@@ -191,55 +168,27 @@ const MixtapeDetails: React.FC = () => {
                <div className="lg:col-span-2">
                   <div className="flex items-center gap-3 mb-8">
                      <MessageSquare className="text-brand-purple" size={24} />
-                     <h2 className="text-2xl font-bold text-white">Comments</h2>
-                     <span className="bg-white/10 text-xs px-2 py-1 rounded-full text-gray-300">{comments.length}</span>
+                     <h2 className="text-2xl font-bold text-white">Comments & Feedback</h2>
                   </div>
 
-                  {/* Comment Form */}
-                  <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 mb-10">
-                     <form onSubmit={handlePostComment} className="relative">
-                        <textarea
-                           value={newComment}
-                           onChange={(e) => setNewComment(e.target.value)}
-                           placeholder="Leave a comment..."
-                           className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white resize-none focus:outline-none focus:border-brand-purple h-28"
-                        ></textarea>
-                        <button
-                           type="submit"
-                           className="absolute bottom-4 right-4 bg-brand-purple text-white p-2 rounded-lg hover:bg-purple-600 transition disabled:opacity-50"
-                           disabled={!newComment.trim()}
-                        >
-                           <Send size={18} />
-                        </button>
-                     </form>
-                  </div>
+                  <div className="bg-[#15151A] p-10 rounded-2xl border border-white/5 mb-10 text-center flex flex-col items-center">
+                     <MessageCircle size={48} className="text-brand-purple mb-4" />
+                     <h3 className="text-xl font-bold text-white mb-2">What do you think of this mix?</h3>
+                     <p className="text-gray-400 mb-8 max-w-md">
+                        Drop us a message directly on WhatsApp to let us know your thoughts, request similar tracks, or leave a review for DJ Flowerz.
+                     </p>
 
-                  {/* Comments List */}
-                  <div className="space-y-6">
-                     {comments.length > 0 ? comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-4 p-4 rounded-xl hover:bg-white/5 transition border border-transparent hover:border-white/5">
-                           <div className="flex-shrink-0">
-                              {comment.avatar ? (
-                                 <img src={comment.avatar} alt={comment.user} className="w-10 h-10 rounded-full" />
-                              ) : (
-                                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-gray-400">
-                                    <User size={20} />
-                                 </div>
-                              )}
-                           </div>
-                           <div className="flex-1">
-                              <div className="flex justify-between items-start mb-1">
-                                 <div>
-                                    <h4 className="font-bold text-white text-sm">{comment.user}</h4>
-                                    <p className="text-xs text-gray-500">{comment.date}</p>
-                                 </div>
-                              </div>
-                              <p className="text-gray-300 text-sm leading-relaxed">{comment.text}</p>
-                           </div>
-                        </div>
-                     )) : (
-                        <p className="text-gray-500 italic text-center py-8">Be the first to comment!</p>
-                     )}
+                     <button
+                        onClick={() => {
+                           const msg = encodeURIComponent(`Hi DJ Flowerz, I'm listening to your mix "${mixtape.title}".\n\nMy thoughts: `);
+                           const whatsappNumber = mixtape.whatsappNumber || '254707173166'; // fallback if siteConfig not available immediately
+                           window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, '_blank');
+                        }}
+                        className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-bold transition flex items-center justify-center gap-3 shadow-lg shadow-green-500/20"
+                     >
+                        <MessageCircle size={20} />
+                        Leave a Comment via WhatsApp
+                     </button>
                   </div>
                </div>
 
