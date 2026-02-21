@@ -18,17 +18,32 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const addToCart = (product: Product, quantity: number = 1, variant?: string) => {
+  const addToCart = (product: Product, quantity: number = 1, variantId?: string) => {
     setItems(prev => {
-      const existing = prev.find(item => item.id === product.id && item.selectedVariant === variant);
+      // Find the specific variant if variantId is provided
+      let itemPrice = product.discountPrice && product.discountPrice > 0 ? product.discountPrice : product.price;
+      let variantName = '';
+
+      if (variantId && product.variantGroups) {
+        for (const group of product.variantGroups) {
+          const v = group.variants.find(v => v.id === variantId || v.name === variantId);
+          if (v) {
+            itemPrice = v.price;
+            variantName = v.name;
+            break;
+          }
+        }
+      }
+
+      const existing = prev.find(item => item.id === product.id && item.selectedVariant === (variantName || variantId));
       if (existing) {
-        return prev.map(item => 
-          (item.id === product.id && item.selectedVariant === variant) 
-          ? { ...item, quantity: item.quantity + quantity } 
-          : item
+        return prev.map(item =>
+          (item.id === product.id && item.selectedVariant === (variantName || variantId))
+            ? { ...item, quantity: item.quantity + quantity, price: itemPrice }
+            : item
         );
       }
-      return [...prev, { ...product, quantity, selectedVariant: variant }];
+      return [...prev, { ...product, price: itemPrice, quantity, selectedVariant: variantName || variantId }];
     });
   };
 
@@ -46,14 +61,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Price Calculation Logic
   // Prices are Tax Inclusive
   const cartSubtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  
+
   // Back-calculate tax from the inclusive total (VAT 16%)
   // Formula: Tax = Total - (Total / 1.16)
-  const taxAmount = cartSubtotal - (cartSubtotal / 1.16); 
-  
+  const taxAmount = cartSubtotal - (cartSubtotal / 1.16);
+
   // Total is just the subtotal since tax is already inside
   const cartTotal = cartSubtotal;
-  
+
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
