@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus } from 'lucide-react';
+import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -159,14 +159,33 @@ const ProductDetails: React.FC = () => {
                      >
                         <ShoppingCart size={20} /> {product.price === 0 ? 'Get Now' : 'Add to Cart'}
                      </button>
-                     <a
-                        href={whatsappLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-4 bg-[#25D366] text-white font-bold rounded-lg hover:bg-[#20bd5a] transition flex items-center justify-center gap-2"
-                     >
-                        <MessageCircle size={20} /> WhatsApp
-                     </a>
+                     <div className="flex-1 flex gap-2">
+                        <a
+                           href={whatsappLink}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="flex-[3] py-4 bg-[#25D366] text-white font-bold rounded-lg hover:bg-[#20bd5a] transition flex items-center justify-center gap-2"
+                        >
+                           <MessageCircle size={20} /> WhatsApp
+                        </a>
+                        <button
+                           onClick={() => {
+                              if (navigator.share) {
+                                 navigator.share({
+                                    title: product.name,
+                                    text: `Check out ${product.name} on DJ Flowerz!`,
+                                    url: window.location.href
+                                 }).catch(console.error);
+                              } else {
+                                 navigator.clipboard.writeText(window.location.href);
+                                 alert('Link copied to clipboard!');
+                              }
+                           }}
+                           className="flex-1 py-4 bg-white/10 text-white rounded-lg font-bold hover:bg-white/20 transition flex items-center justify-center"
+                        >
+                           <Share2 size={20} />
+                        </button>
+                     </div>
                   </div>
 
                   <div className="bg-[#15151A] rounded-xl p-6 border border-white/5 text-sm text-gray-400 space-y-2">
