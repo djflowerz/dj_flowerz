@@ -1373,7 +1373,7 @@ const AdminDashboard: React.FC = () => {
                {(poolError || productsError || mixtapesError) && (
                   <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-3">
                      <div className="w-2 h-2 bg-red-500 rounded-full" />
-                     <p><strong>Warning:</strong> The database has reached its daily usage quota. Some data matches may not display correctly until the quota resets. Consider upgrading your Firebase plan if this occurs frequently.</p>
+                     <p><strong>Warning:</strong> The database is currently experiencing high traffic. Some data matches may not display correctly until traffic subsides.</p>
                   </div>
                )}
 
