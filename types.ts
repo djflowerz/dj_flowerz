@@ -50,8 +50,17 @@ export interface Mixtape {
 
 
 export interface ProductVariant {
-  name: string;
-  options: string[];
+  id: string;
+  name: string; // e.g. "1TB", "Gold", "Large"
+  price: number;
+  stock: number;
+  sku?: string;
+  image?: string;
+}
+
+export interface ProductVariantGroup {
+  name: string; // e.g. "Storage", "Color", "Size"
+  variants: ProductVariant[];
 }
 
 export interface Product {
@@ -63,7 +72,8 @@ export interface Product {
   os?: 'macOS' | 'Windows' | 'Android' | 'iOS' | 'Linux' | 'None';
   shortDescription: string;
   description: string;
-  price: number;
+  price: number; // Base price or starting price
+  discountPrice?: number; // Special offer price
   compareAtPrice?: number;
   currency: string;
   isActive: boolean;
@@ -75,10 +85,10 @@ export interface Product {
   videoUrl?: string;
   imageAlt?: string;
   hasVariants: boolean;
-  variantOptions?: ProductVariant[];
-  variants?: string[];
+  variantGroups?: ProductVariantGroup[]; // New structure
+  variants?: string[]; // Legacy support
   trackStock: boolean;
-  stock: number;
+  stock: number; // Total stock if no variants, or sum of variant stocks
   inventory?: number;
   lowStockThreshold?: number;
   sku?: string;
