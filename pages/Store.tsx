@@ -4,11 +4,12 @@ import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, Share2 } f
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Store: React.FC = () => {
   const { user } = useAuth();
   const { addToCart } = useCart();
+  const navigate = useNavigate();
   const { products, siteConfig, productsError, hasQuotaExceeded } = useData();
 
   // Filter States
@@ -310,10 +311,13 @@ const Store: React.FC = () => {
                           </div>
                           <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
                             <button
-                              onClick={() => addToCart(product)}
+                              onClick={() => {
+                                addToCart(product);
+                                navigate('/cart');
+                              }}
                               className="flex items-center justify-center gap-1.5 py-2 bg-brand-purple text-white rounded-lg font-bold text-xs md:text-sm hover:bg-purple-600 transition"
                             >
-                              <ShoppingCart size={14} className="md:w-4 md:h-4" /> {product.price === 0 ? 'Get' : 'Cart'}
+                              <ShoppingCart size={14} className="md:w-4 md:h-4" /> {product.price === 0 ? 'Get Now' : 'Buy Now'}
                             </button>
                             <div className="grid grid-cols-2 gap-2">
                               <a
