@@ -106,7 +106,7 @@ const Mixtapes: React.FC = () => {
                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                      Service Interruption
                   </p>
-                  <p className="text-sm opacity-80">Our database is currently experiencing high traffic and has hit its daily usage quota. Some mixtapes may not be visible. Please try again later or contact us if you need help!</p>
+                  <p className="text-sm opacity-80">Our database is currently experiencing high traffic. Some mixtapes may not be visible. Please try again later or contact us if you need help!</p>
                </div>
             )}
 
@@ -167,9 +167,6 @@ const Mixtapes: React.FC = () => {
                               >
                                  {currentTrack?.id === mix.id && isPlaying ? <>Pause</> : <><Play size={12} /> Play Now</>}
                               </button>
-                              <Link to={`/mixtapes/${mix.id}`} className="text-gray-400 hover:text-white transition flex items-center gap-1 text-xs">
-                                 <Download size={14} /> Download
-                              </Link>
                            </div>
                         </div>
                      </div>
