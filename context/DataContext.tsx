@@ -260,7 +260,9 @@ const mapSupabaseProduct = (p: any): Product => {
     images: images,
     isActive: p.is_active,
     isHot: p.is_featured,
+    discountPrice: p.discount_price,
     compareAtPrice: p.sale_price,
+    variantGroups: p.variant_groups || [],
     variantOptions: p.variants || [],
     variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : [],
     stock: p.inventory || 0,
@@ -889,13 +891,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         slug: rest.slug,
         type: rest.type,
         price: rest.price,
+        discount_price: rest.discountPrice,
         sale_price: rest.compareAtPrice,
         description: rest.description,
         image: mainImage,
         images: finalImages,
         category: rest.category,
         inventory: rest.inventory || rest.stock || 0,
-        variants: rest.variantOptions,
+        variant_groups: rest.variantGroups,
+        variants: rest.variants,
         is_featured: rest.isHot || false,
         is_active: rest.isActive !== undefined ? rest.isActive : true,
         digital_file_url: rest.digitalFileUrl || '',
@@ -933,6 +937,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.downloadPassword) updateData.download_password = data.downloadPassword;
     if (data.visibility) updateData.visibility = data.visibility;
     if (data.isFree !== undefined) updateData.is_free = data.isFree;
+    if (data.discountPrice !== undefined) updateData.discount_price = data.discountPrice;
+    if (data.compareAtPrice !== undefined) updateData.sale_price = data.compareAtPrice;
+    if (data.variantGroups !== undefined) updateData.variant_groups = data.variantGroups;
+    if (data.variants !== undefined) updateData.variants = data.variants;
     if (data.metaTitle) updateData.meta_title = data.metaTitle;
     if (data.metaDescription) updateData.meta_description = data.metaDescription;
 
