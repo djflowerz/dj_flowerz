@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown } from 'lucide-react';
+import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, Share2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -315,14 +315,33 @@ const Store: React.FC = () => {
                             >
                               <ShoppingCart size={14} className="md:w-4 md:h-4" /> {product.price === 0 ? 'Get' : 'Cart'}
                             </button>
-                            <a
-                              href={`https://wa.me/${siteConfig.contact.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}. Is it available?`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center gap-1.5 py-2 bg-[#25D366] text-white rounded-lg font-bold text-xs md:text-sm hover:bg-[#20bd5a] transition"
-                            >
-                              <MessageCircle size={14} className="md:w-4 md:h-4" /> <span className="sm:hidden lg:inline">Chat</span><span className="hidden sm:inline lg:hidden">WA</span>
-                            </a>
+                            <div className="grid grid-cols-2 gap-2">
+                              <a
+                                href={`https://wa.me/${siteConfig.contact.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I'm interested in ${product.name}. Is it available?`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1.5 py-2 bg-[#25D366] text-white rounded-lg font-bold text-xs md:text-sm hover:bg-[#20bd5a] transition"
+                              >
+                                <MessageCircle size={14} className="md:w-4 md:h-4" /> <span className="sm:hidden lg:inline">Chat</span><span className="hidden sm:inline lg:hidden">WA</span>
+                              </a>
+                              <button
+                                onClick={() => {
+                                  if (navigator.share) {
+                                    navigator.share({
+                                      title: product.name,
+                                      text: `Check out ${product.name} on DJ Flowerz!`,
+                                      url: `${window.location.origin}/store/${product.id}`
+                                    }).catch(console.error);
+                                  } else {
+                                    navigator.clipboard.writeText(`${window.location.origin}/store/${product.id}`);
+                                    alert('Link copied to clipboard!');
+                                  }
+                                }}
+                                className="flex items-center justify-center gap-1.5 py-2 bg-white/10 text-white rounded-lg font-bold text-xs md:text-sm hover:bg-white/20 transition"
+                              >
+                                <Share2 size={14} className="md:w-4 md:h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
