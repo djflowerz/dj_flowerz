@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User } from 'lucide-react';
+import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
@@ -153,6 +153,16 @@ const MixtapeDetails: React.FC = () => {
                      <button onClick={handleShare} className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition flex items-center justify-center gap-2">
                         <Share2 size={20} /> Share Mixtape
                      </button>
+                     {mixtape.youtubeUrl && (
+                        <a
+                           href={mixtape.youtubeUrl}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="flex-1 px-6 py-4 bg-red-600/10 border border-red-600/30 text-white font-bold rounded-lg hover:bg-red-600/20 transition flex items-center justify-center gap-2"
+                        >
+                           <Youtube size={20} className="text-red-500" /> Watch on YouTube
+                        </a>
+                     )}
                   </div>
 
                   {/* Tracklist Preview */}
