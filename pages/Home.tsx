@@ -170,7 +170,7 @@ const Home: React.FC = () => {
                   <h2 className="text-3xl font-display font-bold text-white flex items-center gap-3">
                      <Youtube size={32} className="text-red-500" /> Latest Videos
                   </h2>
-                  <a href="#" className="hidden md:flex px-4 py-2 bg-red-600 text-white rounded-full text-sm font-bold hover:bg-red-700 transition">
+                  <a href="https://www.youtube.com/@dj_flowerz" target="_blank" rel="noopener noreferrer" className="hidden md:flex px-4 py-2 bg-red-600 text-white rounded-full text-sm font-bold hover:bg-red-700 transition">
                      Subscribe on YouTube
                   </a>
                </div>
