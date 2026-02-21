@@ -577,24 +577,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Restricted Collections (Subscriber/Admin) - Supabase handles large music pool library
   const [poolTracks, setPoolTracks] = useState<Track[]>([]);
-  const [poolLimit, setPoolLimit] = useState(5000); // Reduced from 60k to prevent timeouts
   const [poolError, setPoolError] = useState<string | null>(null);
   const [poolLoading, setPoolLoading] = useState(false);
 
-  const fetchPoolTracks = async (limit: number) => {
+  const fetchPoolTracks = async () => {
     // We allow everyone to see the tracks list (public read access via Supabase RLS assumed)
     setPoolLoading(true);
     try {
-      // Direct Supabase call instead of API to avoid token issues and simplify
-      const { data, error } = await supabase
-        .from('pool_tracks')
-        .select('*')
-        .order('date_added', { ascending: false })
-        .limit(limit);
+      let allFetchedTracks: Track[] = [];
+      const PAGE_SIZE = 10000;
+      let page = 0;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        // Direct Supabase call instead of API to avoid token issues and simplify
+        const { data, error } = await supabase
+          .from('pool_tracks')
+          .select('*')
+          .order('date_added', { ascending: false })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      setPoolTracks((data || []).map(mapSupabaseTrack));
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const mapped = data.map(mapSupabaseTrack);
+        allFetchedTracks = [...allFetchedTracks, ...mapped];
+
+        // Update state progressively so user sees tracks immediately
+        const currentTracks = allFetchedTracks;
+        setPoolTracks([...currentTracks]);
+
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          page++;
+          // Optional: Add a small delay if needed to keep UI responsive, 
+          // but usually not necessary for 10k chunks
+        }
+      }
+
       setPoolError(null);
     } catch (err: any) {
       console.error("Pool Fetch Error:", err.message);
@@ -605,15 +630,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    fetchPoolTracks(poolLimit);
-  }, [isSubscriber, isAdmin, poolLimit]);
+    fetchPoolTracks();
+  }, [isSubscriber, isAdmin]);
 
-  const loadMorePoolTracks = (count: number = 1000) => {
-    setPoolLimit(prev => prev + count);
+  const loadMorePoolTracks = () => {
+    // With progressive loading, we might not need this, but we can use it to force a refresh
+    fetchPoolTracks();
   };
 
   const refreshPoolTracks = () => {
-    fetchPoolTracks(poolLimit);
+    fetchPoolTracks();
   };
 
   // Admin Only Collections (Supabase)
