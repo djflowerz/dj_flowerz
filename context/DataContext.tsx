@@ -70,7 +70,7 @@ const INITIAL_CONFIG: SiteConfig = {
   notice: {
     enabled: false,
     title: "Service Interruption",
-    message: "Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later.",
+    message: "Our database is currently experiencing high traffic. Some products may not be visible. Please try again later.",
     type: "error"
   }
 };
