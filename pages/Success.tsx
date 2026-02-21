@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, Link, Navigate, useParams } from 'react-router-dom';
+import { useLocation, Link, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, ShoppingBag, Copy, CreditCard, Calendar, Loader2, ExternalLink, MessageCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
@@ -38,8 +38,16 @@ const Success: React.FC = () => {
    const { siteConfig, issueReferralReward, addSubscriber } = useData();
    const { id } = useParams<{ id: string }>();
    const location = useLocation();
+   const navigate = useNavigate();
    const [loading, setLoading] = useState(!!id);
    const [orderData, setOrderData] = useState<any>(location.state);
+
+   useEffect(() => {
+      // Safety redirect if no order data and no recovery ref
+      if (!location.state && !id) {
+         navigate('/store');
+      }
+   }, [location.state, id, navigate]);
 
    useEffect(() => {
       // Clear cart if we just came from checkout
