@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Play, Download, Search, Video, Music, Calendar } from 'lucide-react';
+import { Play, Download, Search, Video, Music, Calendar, Youtube } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
@@ -167,6 +167,17 @@ const Mixtapes: React.FC = () => {
                               >
                                  {currentTrack?.id === mix.id && isPlaying ? <>Pause</> : <><Play size={12} /> Play Now</>}
                               </button>
+
+                              {mix.youtubeUrl && (
+                                 <a
+                                    href={mix.youtubeUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-red-500 hover:text-white transition uppercase flex items-center gap-1"
+                                 >
+                                    <Youtube size={12} /> YouTube
+                                 </a>
+                              )}
                            </div>
                         </div>
                      </div>
