@@ -60,6 +60,39 @@ export async function downloadFileSecurely(url: string, options: DownloadOptions
             throw new Error(errorText || `Download failed with status ${response.status}`);
         }
 
+        const remaining = response.headers.get('X-Downloads-Remaining');
+        if (remaining !== null) {
+            console.log(`[System] Unique tracks remaining in 24h window: ${remaining}`);
+        }
+
+        const contentType = response.headers.get('Content-Type') || '';
+
+        // Handle JSON response (Redirection / Direct Download Instruction)
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+
+            if (data.remaining !== undefined) {
+                console.log(`[System] Unique tracks remaining in 24h window: ${data.remaining}`);
+            }
+
+            if (data.redirectUrl) {
+                console.log(`[Download] Received redirect URL: ${data.redirectUrl}`);
+
+                // Trigger native browser download via anchor tag
+                const link = document.createElement('a');
+                link.href = data.redirectUrl;
+                link.download = data.fileName || options.fileName || 'download';
+                // For cross-origin downloads, some browsers might ignore 'download' attribute
+                // so we use _blank as a fallback if necessary, but href usually works.
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                return { success: true };
+            }
+        }
+
         const blob = await response.blob();
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
