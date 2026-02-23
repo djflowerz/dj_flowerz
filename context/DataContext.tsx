@@ -504,9 +504,6 @@ const SUPABASE_COLLECTIONS = [
   'contact_messages',
   'newsletter_subscribers',
   'tips',
-  'products',
-  'mixtapes',
-  'genres',
   'videos',
   'pool_tracks'
 ];
@@ -886,7 +883,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: product.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    setProducts((prev) => [mappedProduct, ...prev.filter(p => p.id !== finalId)]);
+    const updatedProducts = [mappedProduct, ...products.filter(p => p.id !== finalId)];
+    setProducts(updatedProducts);
+
+    // Sync to R2
+    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
+
     refreshProducts();
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
@@ -926,7 +928,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sbError) throw sbError;
 
     // Optimistic Update
-    setProducts((prev) => prev.map(p => p.id === id ? { ...p, ...data } : p));
+    const updatedProducts = products.map(p => p.id === id ? { ...p, ...data } : p);
+    setProducts(updatedProducts);
+
+    // Sync to R2
+    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
+
     refreshProducts();
   };
   const deleteProduct = async (id: string) => {
@@ -939,7 +946,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sbError) throw sbError;
 
     console.log(`Product ${id} deleted successfully from Supabase`);
-    setProducts((prev) => prev.filter(p => p.id !== id));
+    const updatedProducts = products.filter(p => p.id !== id);
+    setProducts(updatedProducts);
+
+    // Sync to R2
+    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
+
     refreshProducts();
   };
 
@@ -995,7 +1007,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: mixtape.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    setMixtapes(prev => [mapped, ...prev.filter(m => m.id !== finalId)]);
+    const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
+    setMixtapes(updatedMixtapes);
+
+    // Sync to R2
+    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
+
     refreshMixtapes();
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
@@ -1022,7 +1039,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (sbError) throw sbError;
     // Optimistic Update
-    setMixtapes(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
+    const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data } : m);
+    setMixtapes(updatedMixtapes);
+
+    // Sync to R2
+    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
+
     refreshMixtapes();
   };
   const deleteMixtape = async (id: string) => {
@@ -1034,7 +1056,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sbError) throw sbError;
 
     console.log(`Mixtape ${id} deleted successfully from Supabase`);
-    setMixtapes(prev => prev.filter(m => m.id !== id));
+    const updatedMixtapes = mixtapes.filter(m => m.id !== id);
+    setMixtapes(updatedMixtapes);
+
+    // Sync to R2
+    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
+
     refreshMixtapes();
   };
 
@@ -1106,6 +1133,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const { error: sbError } = await supabase.from('genres').update(updateData).eq('id', id);
     if (sbError) throw sbError;
+
+    // Keep R2 in sync
+    const updatedGenres = genres.map(g => g.id === id ? { ...g, ...data } : g);
+    setGenres(updatedGenres);
+    saveToR2('genres', updatedGenres).catch(err => console.error("R2 Sync Error:", err));
   };
 
   const addBooking = async (booking: Booking) => {
