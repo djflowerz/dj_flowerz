@@ -987,6 +987,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
     if (sbError) throw sbError;
+
+    // Optimistic / Fallback Update
+    const mapped: Mixtape = {
+      ...mixtape,
+      id: finalId,
+      createdAt: mixtape.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setMixtapes(prev => [mapped, ...prev.filter(m => m.id !== finalId)]);
     refreshMixtapes();
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
@@ -1012,6 +1021,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', id);
 
     if (sbError) throw sbError;
+    // Optimistic Update
+    setMixtapes(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
     refreshMixtapes();
   };
   const deleteMixtape = async (id: string) => {
@@ -1023,6 +1034,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sbError) throw sbError;
 
     console.log(`Mixtape ${id} deleted successfully from Supabase`);
+    setMixtapes(prev => prev.filter(m => m.id !== id));
     refreshMixtapes();
   };
 
