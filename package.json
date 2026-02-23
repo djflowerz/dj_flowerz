@@ -9,9 +9,12 @@
     "preview": "vite preview",
     "sync-tracks": "tsx scripts/sync-tracks.ts",
     "export-pool-tracks": "tsx --env-file=.env scripts/export-pool-tracks.ts",
-    "migrate-supabase": "tsx --env-file=.env scripts/migrate-to-supabase.ts"
+    "migrate-supabase": "tsx --env-file=.env scripts/migrate-to-supabase.ts",
+    "db:export-r2": "npx tsx scripts/export-to-r2.ts",
+    "db:upload-r2": "npx tsx scripts/upload-to-r2.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.995.0",
     "@supabase/supabase-js": "^2.95.3",
     "@types/micro": "^7.3.7",
     "@types/pg": "^8.16.0",

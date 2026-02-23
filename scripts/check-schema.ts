@@ -8,19 +8,14 @@ const supabase = createClient(
 );
 
 async function checkSchema() {
-    console.log('Checking profiles columns...');
-    const { data, error } = await supabase.rpc('get_table_columns', { table_name: 'profiles' });
-
-    if (error) {
-        // Fallback: query a row and check keys
-        const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
-        if (row) {
-            console.log('Columns found via row inspection:', Object.keys(row));
-        } else {
-            console.error('Could not determine columns. Error:', error.message);
-        }
+    const tableName = process.argv[2] || 'profiles';
+    console.log(`Checking ${tableName} columns...`);
+    const { data: row } = await supabase.from(tableName).select('*').limit(1).single();
+    if (row) {
+        console.log('Columns found:', Object.keys(row));
+        console.log('Sample row:', row);
     } else {
-        console.log('Columns:', data);
+        console.log('No rows found to inspect or error occurred.');
     }
 }
 

@@ -49,29 +49,69 @@ BEGIN
     USING ( auth.uid()::text = user_id::text );
     
     -- PROFILES
-    -- Allow everyone to read profiles (needed for public pages/comments/etc)
     ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS "Enable read access for all users" ON "public"."profiles";
-    
+    DROP POLICY IF EXISTS "Enable all for admin" ON "public"."profiles";
+    DROP POLICY IF EXISTS "Enable update for own profile" ON "public"."profiles";
+    DROP POLICY IF EXISTS "Enable insert for own profile" ON "public"."profiles";
+
+    CREATE POLICY "Enable all for admin" ON "public"."profiles"
+    AS PERMISSIVE FOR ALL
+    TO authenticated
+    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
+    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+
     CREATE POLICY "Enable read access for all users" ON "public"."profiles"
     AS PERMISSIVE FOR SELECT
     TO public
     USING ( true );
     
-    DROP POLICY IF EXISTS "Enable update for users based on email" ON "public"."profiles";
-    DROP POLICY IF EXISTS "Enable update for own profile" ON "public"."profiles";
-
     CREATE POLICY "Enable update for own profile" ON "public"."profiles"
     AS PERMISSIVE FOR UPDATE
     TO authenticated
     USING ( auth.uid()::text = id::text )
     WITH CHECK ( auth.uid()::text = id::text );
 
-    DROP POLICY IF EXISTS "Enable insert for own profile" ON "public"."profiles";
     CREATE POLICY "Enable insert for own profile" ON "public"."profiles"
     AS PERMISSIVE FOR INSERT
     TO authenticated
     WITH CHECK ( auth.uid()::text = id::text );
+
+    -- ORDERS
+    ALTER TABLE "public"."orders" ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Enable all for admin" ON "public"."orders";
+    DROP POLICY IF EXISTS "Enable read for own" ON "public"."orders";
+
+    CREATE POLICY "Enable all for admin" ON "public"."orders"
+    AS PERMISSIVE FOR ALL
+    TO authenticated
+    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
+    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+
+    CREATE POLICY "Enable read for own" ON "public"."orders"
+    AS PERMISSIVE FOR SELECT
+    TO authenticated
+    USING ( auth.uid()::text = user_id::text );
+
+    -- NEWSLETTER SUBSCRIBERS
+    ALTER TABLE "public"."newsletter_subscribers" ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Enable all for admin" ON "public"."newsletter_subscribers";
+    
+    CREATE POLICY "Enable all for admin" ON "public"."newsletter_subscribers"
+    AS PERMISSIVE FOR ALL
+    TO authenticated
+    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
+    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+
+    -- CONTACT MESSAGES
+    ALTER TABLE "public"."contact_messages" ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Enable all for admin" ON "public"."contact_messages";
+    
+    CREATE POLICY "Enable all for admin" ON "public"."contact_messages"
+    AS PERMISSIVE FOR ALL
+    TO authenticated
+    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
+    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
 
 END $$;
 `;

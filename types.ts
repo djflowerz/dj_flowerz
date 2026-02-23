@@ -156,6 +156,7 @@ export interface Subscription {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   planId: string; // weekly, monthly, etc.
   amount: number;
   startDate: string;

@@ -16,24 +16,15 @@ if not SUPABASE_KEY:
 
 # List of requested genres for matching
 REQUESTED_GENRES = [
-    "New Uploads", "Remix & Mashups Hub", "Redrums Video Remixes", "Riddimz F'",
-    "3-step Amapiano", "South Africa Amapiano", "Reggae Covers", "Afrobeats (TBT)",
-    "Mugithi Covers", "Taarabu", "Afro Amapiano", "Mugithi Kikuyu", "Souls",
-    "East Africa TBT (Low Hype)", "East Africa TBT (Hype)", "Urban Pop (Low Hype)",
-    "Urban Pop (Hype)", "EDMs", "Urban Pop", "Gospel Urban", "Drill Rhumba",
-    "Kenyan Love Songs (Low Hype)", "Kenyan Love Songs Hype", "RnB (Low Hype)",
-    "Dancehall (Low Hype)", "Bongo TZ Hype", "UG Music", "Dancehall (Hype)",
-    "RnB (Hype)", "Ragga (Low Hype)", "Afrobeats (Naija) Hype", "Ragga Hype",
-    "HipHop", "Basshall Dancehall", "Kikuyu Gospel (Kigocco)", "Arbantone & Gengetone",
-    "Rhumba", "Bongo Hype", "Reggae Hype", "Reggae Videos", "254 Pop Sound",
-    "Crunk", "Roots Hype", "Reggae Gospel", "90's Hits", "Luo Hits",
-    "Tanzania Amapiano", "Kenyan Amapiano", "Urban Amapiano", "Dombolo",
-    "Bongo Flava (TBT) Hype", "Bongo TBT Low Hype", "House", "Techno", "Jazz",
-    "Classical", "Pop", "Rock", "Metal", "Country", "Blues", "Funk", "Disco",
-    "Afro-House", "Deep House", "Moombahton", "Afrobeat (Oldies)", "Baila",
-    "Soca", "Zouk", "Kwaito", "Gqom", "Trap", "K-Pop", "Latin Pop", "Salsa",
-    "Bachata", "Kizomba", "Semba", "Makossa", "Highlife", "Hiplife", "Bongo Mixes",
-    "Coupe Decale", "Drill", "Grime", "Rumba Congolaise", "Ethio-Jazz", "Habesha Mix"
+    "New Uploads", "Kenyan Love Songs (Low Hype)", "Kenyan Love Songs Hype",
+    "Kikuyu Gospel (Kigocco)", "Bongo Flava (TBT) Hype", "Bongo TBT Low Hype",
+    "Afrobeat (Oldies)", "Remix & Mashups Hub", "Redrums Video Remixes", "Riddimz F'",
+    "2026 VIDEO POOL EDITS", "2025 VIDEO POOL EDITS", "2024 VIDEO POOL EDITS",
+    "2023 VIDEO POOL EDITS", "2022 VIDEO POOL EDITS", "2021 VIDEO POOL EDITS",
+    "2020 VIDEO POOL EDITS", "Riddim Videos", "Afrohouse", "Reggae Fussion",
+    "Amapiano", "Dancehall Edits", "Club Edits", "HYPE EDITS", "RnB Remixes",
+    "3 Step Amapiano", "South Africa Amapiano", "Reggae Covers", "Afro Beats (TBT)",
+    "Mugithi Covers (Kikuyu)", "Taarabu", "Afro Amapiano"
 ]
 
 # Pre-calculate clean versions of requested genres for speed

@@ -19,16 +19,16 @@ You must add these environment variables in your Vercel Project Settings (`Setti
 
 | Variable Name | Value | Purpose |
 |---------------|-------|---------|
-| `PAYSTACK_SECRET_KEY` | `sk_live_...` | Your Paystack Live Secret Key |
-| `REACT_APP_PAYSTACK_PUBLIC_KEY` | `pk_live_...` | For frontend payments |
+| `PAYSTACK_SECRET_KEY` | `YOUR_SECRET_KEY` | Your Paystack Live Secret Key |
+| `REACT_APP_PAYSTACK_PUBLIC_KEY` | `YOUR_PUBLIC_KEY` | For frontend payments |
 | `FIREBASE_SERVICE_ACCOUNT` | `{"type": "service_account", ...}` | **Critical!** (See below) |
-| `VITE_FIREBASE_API_KEY` | `AIza...` | Your Firebase Web API Key |
-| `VITE_FIREBASE_PROJECT_ID` | `flowpay-401a4` | Your Firebase Project ID |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `flowpay-401a4.firebasestorage.app` | For track downloads |
+| `VITE_FIREBASE_API_KEY` | `YOUR_API_KEY` | Your Firebase Web API Key |
+| `VITE_FIREBASE_PROJECT_ID` | `YOUR_PROJECT_ID` | Your Firebase Project ID |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `YOUR_STORAGE_BUCKET` | For track downloads |
 
-| VITE_SUPABASE_URL | `https://...` | Supabase API URL |
-| VITE_SUPABASE_ANON_KEY | `eyJhbGci...` | For frontend database access |
-| SUPABASE_SERVICE_ROLE_KEY | `sb_secret_...` | For backend (webhook) updates |
+| VITE_SUPABASE_URL | `https://your-project.supabase.co` | Supabase API URL |
+| VITE_SUPABASE_ANON_KEY | `YOUR_ANON_KEY` | For frontend database access |
+| SUPABASE_SERVICE_ROLE_KEY | `YOUR_SERVICE_ROLE_KEY` | For backend (webhook) updates |
 | SUPABASE_DB_URL | `postgresql://...` | For direct database access |
 
 ### How to get the `FIREBASE_SERVICE_ACCOUNT` JSON:
