@@ -6,6 +6,8 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../utils/supabase';
 import { withRetry } from '../utils/supabaseRetry';
 import { useSupabaseCollection } from '../hooks/useSupabaseCollection';
+import { useR2Collection } from '../hooks/useR2Collection';
+import { fetchFromR2, saveToR2 } from '../utils/r2';
 
 
 
@@ -490,6 +492,20 @@ const getTableName = (colName: string): string => {
   return mapping[colName] || colName;
 };
 
+const SUPABASE_COLLECTIONS = [
+  'profiles',
+  'subscriptions',
+  'referral_stats',
+  'referral_logs',
+  'users',
+  'orders',
+  'payments',
+  'bookings',
+  'contact_messages',
+  'newsletter_subscribers',
+  'tips'
+];
+
 const useCollection = <T extends { id: string }>(
   colName: string,
   initialData: T[],
@@ -501,30 +517,42 @@ const useCollection = <T extends { id: string }>(
   isRealtime: boolean = true
 ) => {
   const tableName = getTableName(colName);
+  const isSupabase = SUPABASE_COLLECTIONS.includes(tableName);
 
-  // Map common field names
-  const sbOrderBy = orderByField === 'createdAt' ? 'created_at' :
-    orderByField === 'updatedAt' ? 'updated_at' :
-      orderByField === 'dateSubscribed' ? 'date_subscribed' :
-        orderByField === 'startDate' ? 'start_date' :
-          orderByField;
+  if (isSupabase) {
+    const sbOrderBy = orderByField === 'createdAt' ? 'created_at' :
+      orderByField === 'updatedAt' ? 'updated_at' :
+        orderByField === 'dateSubscribed' ? 'date_subscribed' :
+          orderByField === 'startDate' ? 'start_date' :
+            orderByField;
 
-  const [data, setData, isLoading, error, refresh] = useSupabaseCollection<T>(
-    tableName,
-    initialData,
-    enabled,
-    transform,
-    sbOrderBy,
-    orderDirection,
-    isRealtime,
-    limit
-  );
+    const [data, setData, isLoading, error, refresh] = useSupabaseCollection<T>(
+      tableName,
+      initialData,
+      enabled,
+      transform,
+      sbOrderBy,
+      orderDirection,
+      isRealtime,
+      limit
+    );
 
-  const loadMore = () => {
-    console.warn("loadMore not implemented for Supabase yet");
-  };
+    const loadMore = () => { console.warn("loadMore not implemented for Supabase yet"); };
+    return [data, setData, isLoading, loadMore, error, refresh] as const;
+  } else {
+    // Use R2 for content data
+    const [data, setData, isLoading, error, refresh] = useR2Collection<T>(
+      tableName,
+      initialData,
+      enabled,
+      transform,
+      orderByField,
+      orderDirection
+    );
 
-  return [data, setData, isLoading, loadMore, error, refresh] as const;
+    const loadMore = () => { console.warn("loadMore not implemented for R2 yet"); };
+    return [data, setData, isLoading, loadMore, error, refresh] as const;
+  }
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -537,33 +565,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // -- REALTIME DATA SUBSCRIPTIONS --
 
-  // Site Config (Supabase)
+  // Site Config (R2)
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(INITIAL_CONFIG);
   useEffect(() => {
     const fetchConfig = async () => {
-      const { data, error } = await supabase.from('settings').select('data').eq('id', 'siteConfig').single();
-      if (data) {
-        setSiteConfig(data.data as SiteConfig);
-      } else if (error && error.code !== 'PGRST116') {
-        console.warn("Supabase fetch error for siteConfig:", error.message);
+      try {
+        const data = await fetchFromR2<any>('settings');
+        const config = data.find((s: any) => s.id === 'siteConfig');
+        if (config && config.data) {
+          setSiteConfig(config.data as SiteConfig);
+        }
+      } catch (error) {
+        console.warn("R2 fetch error for siteConfig:", error);
       }
     };
 
     fetchConfig();
-
-    // subscribe to changes
-    const channel = supabase
-      .channel('public:settings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.siteConfig' }, (payload) => {
-        if (payload.new && (payload.new as any).data) {
-          setSiteConfig((payload.new as any).data as SiteConfig);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   // Public Collections (Supabase)
@@ -583,48 +600,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [poolLoading, setPoolLoading] = useState(false);
 
   const fetchPoolTracks = async () => {
-    // We allow everyone to see the tracks list (public read access via Supabase RLS assumed)
     setPoolLoading(true);
     try {
-      let allFetchedTracks: Track[] = [];
-      const PAGE_SIZE = 10000;
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        // Direct Supabase call instead of API to avoid token issues and simplify
-        const { data, error } = await supabase
-          .from('pool_tracks')
-          .select('*')
-          .order('date_added', { ascending: false })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        const mapped = data.map(mapSupabaseTrack);
-        allFetchedTracks = [...allFetchedTracks, ...mapped];
-
-        // Update state progressively so user sees tracks immediately
-        const currentTracks = allFetchedTracks;
-        setPoolTracks([...currentTracks]);
-
-        if (data.length < PAGE_SIZE) {
-          hasMore = false;
-        } else {
-          page++;
-          // Optional: Add a small delay if needed to keep UI responsive, 
-          // but usually not necessary for 10k chunks
-        }
-      }
-
+      const results = await fetchFromR2<any>('pool_tracks');
+      const mapped = results.map(mapSupabaseTrack);
+      setPoolTracks(mapped);
       setPoolError(null);
     } catch (err: any) {
-      console.error("Pool Fetch Error:", err.message);
+      console.error("Pool R2 Fetch Error:", err.message);
       setPoolError("Failed to fetch tracks from library.");
     } finally {
       setPoolLoading(false);
