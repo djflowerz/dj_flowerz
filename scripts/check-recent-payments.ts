@@ -7,15 +7,22 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-async function run() {
-    const { data: payments } = await supabase
+async function check() {
+    // Most recent 5 payments
+    const { data: payments, error } = await supabase
         .from('payments')
-        .select('id, user_id, user_email, amount, status, created_at, metadata')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
-
-    console.log('\n--- RECENT PAYMENTS ---');
-    console.table(payments);
+    
+    console.log('\n--- MOST RECENT 5 PAYMENTS IN SUPABASE ---');
+    if (error) console.error(error.message);
+    else payments?.forEach(p => console.log(p.created_at, p.user_email, p.amount, p.payment_type, p.payment_ref));
+    
+    // Check webhook URL is configured
+    console.log('\n--- WEBHOOK URL CHECK ---');
+    const webhookUrl = 'https://dj-flowerz.vercel.app/api/paystack/webhook';
+    const testRes = await fetch(webhookUrl, { method: 'GET' });
+    console.log(`Webhook GET response: ${testRes.status}`);
 }
-
-run().catch(console.error);
+check().catch(console.error);
