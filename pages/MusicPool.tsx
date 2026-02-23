@@ -339,6 +339,33 @@ const MusicPool: React.FC = () => {
                         </div>
                      </div>
 
+                     {/* Month Filter (shows when year is selected) */}
+                     {selectedYear !== 'All' && (
+                        <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
+                           <div className="flex items-center gap-3 mb-3">
+                              <Clock size={18} className="text-brand-purple" />
+                              <span className="text-white font-bold text-sm">Filter by Month:</span>
+                           </div>
+                           <div className="flex gap-2">
+                              <button
+                                 onClick={() => changeMonth('All')}
+                                 className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === 'All' ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
+                              >
+                                 All Months
+                              </button>
+                              {MONTHS.map(month => (
+                                 <button
+                                    key={month}
+                                    onClick={() => changeMonth(month)}
+                                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === month ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
+                                 >
+                                    {month}
+                                 </button>
+                              ))}
+                           </div>
+                        </div>
+                     )}
+
                      <div className="bg-[#15151A]/60 backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                         {poolError && (
                            <div className="p-8 text-center text-red-400 bg-red-500/10 border-b border-red-500/20">
@@ -649,34 +676,6 @@ const MusicPool: React.FC = () => {
                   </div>
                </div>
             </div>
-
-            {/* Month Filter (shows when year is selected) */}
-            {selectedYear !== 'All' && (
-               <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
-                  <div className="flex items-center gap-3 mb-3">
-                     <Clock size={18} className="text-brand-purple" />
-                     <span className="text-white font-bold text-sm">Filter by Month:</span>
-                  </div>
-                  <div className="flex gap-2">
-                     <button
-                        onClick={() => changeMonth('All')}
-                        className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === 'All' ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                     >
-                        All Months
-                     </button>
-                     {MONTHS.map(month => (
-                        <button
-                           key={month}
-                           onClick={() => changeMonth(month)}
-                           className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === month ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                        >
-                           {month}
-                        </button>
-                     ))}
-                  </div>
-               </div>
-            )}
-
          </div>
       );
    }
