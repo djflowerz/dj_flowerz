@@ -25,6 +25,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     global: {
         headers: {
             'x-client-info': 'dj-flowerz-web',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
         },
     },
     db: {

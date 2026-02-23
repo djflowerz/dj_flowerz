@@ -503,7 +503,12 @@ const SUPABASE_COLLECTIONS = [
   'bookings',
   'contact_messages',
   'newsletter_subscribers',
-  'tips'
+  'tips',
+  'products',
+  'mixtapes',
+  'genres',
+  'videos',
+  'pool_tracks'
 ];
 
 const useCollection = <T extends { id: string }>(
@@ -514,7 +519,7 @@ const useCollection = <T extends { id: string }>(
   limit?: number,
   orderByField?: string,
   orderDirection: 'asc' | 'desc' = 'desc',
-  isRealtime: boolean = true
+  isRealtime: boolean = false
 ) => {
   const tableName = getTableName(colName);
   const isSupabase = SUPABASE_COLLECTIONS.includes(tableName);
@@ -584,69 +589,47 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // Public Collections (Supabase)
-  const [products, , productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapSupabaseProduct, 200, 'createdAt', 'desc', true);
-  const [mixtapes, , mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapSupabaseMixtape, 200, 'createdAt', 'desc', true);
-  const [sessionTypes, , sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapSupabaseSessionType, undefined, 'createdAt', 'desc', true);
-  const [studioEquipment, , equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', true);
-  const [subscriptionPlans, , plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', true);
-  const [shippingZones, , zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', true);
-  const [genres, , genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapSupabaseGenre, undefined, 'createdAt', 'desc', true);
-  const [youtubeVideos, , videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', true);
+  const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapSupabaseProduct, 200, 'createdAt', 'desc', false);
+  const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapSupabaseMixtape, 200, 'createdAt', 'desc', false);
+  const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapSupabaseSessionType, undefined, 'createdAt', 'desc', false);
+  const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
+  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', false);
+  const [shippingZones, setShippingZones, zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
+  const [genres, setGenres, genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapSupabaseGenre, undefined, 'createdAt', 'desc', false);
+  const [youtubeVideos, setYoutubeVideos, videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
 
 
   // Restricted Collections (Subscriber/Admin) - Supabase handles large music pool library
-  const [poolTracks, setPoolTracks] = useState<Track[]>([]);
-  const [poolError, setPoolError] = useState<string | null>(null);
-  const [poolLoading, setPoolLoading] = useState(false);
-
-  const fetchPoolTracks = async () => {
-    setPoolLoading(true);
-    try {
-      const results = await fetchFromR2<any>('pool_tracks');
-      const mapped = results.map(mapSupabaseTrack);
-      setPoolTracks(mapped);
-      setPoolError(null);
-    } catch (err: any) {
-      console.error("Pool R2 Fetch Error:", err.message);
-      setPoolError("Failed to fetch tracks from library.");
-    } finally {
-      setPoolLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPoolTracks();
-  }, [isSubscriber, isAdmin]);
+  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], isSubscriber || isAdmin, mapSupabaseTrack, 2000, 'dateAdded', 'desc', false);
 
   const loadMorePoolTracks = () => {
-    // With progressive loading, we might not need this, but we can use it to force a refresh
-    fetchPoolTracks();
+    // With progressive loading, we might not need this
   };
 
   const refreshPoolTracks = () => {
-    fetchPoolTracks();
+    // refresh logic is handled by the hook
   };
 
   // Admin Only Collections (Supabase)
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapSupabaseOrder, 500, 'createdAt', 'desc', true);
-  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapSupabaseUser, 500, 'createdAt', 'desc', true);
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapSupabaseSubscription, 500, 'startDate', 'desc', true);
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, mapSupabaseBooking, 200, 'createdAt', 'desc', true);
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapSupabaseOrder, 500, 'createdAt', 'desc', false);
+  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapSupabaseUser, 500, 'createdAt', 'desc', false);
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapSupabaseSubscription, 500, 'startDate', 'desc', false);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, mapSupabaseBooking, 200, 'createdAt', 'desc', false);
 
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], isAdmin, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', true);
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], isAdmin, mapSupabaseMaintenanceLog, 100, 'createdAt', 'desc', true);
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapSupabaseCoupon, undefined, 'createdAt', 'desc', true);
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], isAdmin, mapSupabaseReferralStats, 200, 'createdAt', 'desc', true);
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapSupabaseCampaign, 50, 'createdAt', 'desc', true);
-  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapSupabaseGeneric, 50, 'createdAt', 'desc', true);
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapSupabaseSubscriber, 500, 'date_subscribed', 'desc', true);
-  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapSupabaseChannel, undefined, 'createdAt', 'desc', true);
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, (p) => ({ ...p, createdAt: p.created_at }), 200, 'created_at', 'desc', true);
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, (t) => ({ ...t, createdAt: t.created_at }), 200, 'created_at', 'desc', true);
-  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', true);
-  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], isAdmin, mapSupabaseGeneric, 500, 'createdAt', 'desc', true);
-  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], isAdmin, mapSupabaseGeneric, 200, 'timestamp', 'desc', true);
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', true);
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], isAdmin, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', false);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], isAdmin, mapSupabaseMaintenanceLog, 100, 'createdAt', 'desc', false);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapSupabaseCoupon, undefined, 'createdAt', 'desc', false);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], isAdmin, mapSupabaseReferralStats, 200, 'createdAt', 'desc', false);
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapSupabaseCampaign, 50, 'createdAt', 'desc', false);
+  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapSupabaseGeneric, 50, 'createdAt', 'desc', false);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapSupabaseSubscriber, 500, 'date_subscribed', 'desc', false);
+  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapSupabaseChannel, undefined, 'createdAt', 'desc', false);
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, (p) => ({ ...p, createdAt: p.created_at }), 200, 'created_at', 'desc', false);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, (t) => ({ ...t, createdAt: t.created_at }), 200, 'created_at', 'desc', false);
+  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
+  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], isAdmin, mapSupabaseGeneric, 500, 'createdAt', 'desc', false);
+  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], isAdmin, mapSupabaseGeneric, 200, 'timestamp', 'desc', false);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -892,6 +875,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
     if (sbError) throw sbError;
+
+    // Fallback/Optimistic Update: Ensure the UI updates immediately
+    const mappedProduct: Product = {
+      ...rest,
+      id: finalId,
+      image: mainImage,
+      images: finalImages,
+      isActive: rest.isActive !== undefined ? rest.isActive : true,
+      createdAt: product.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setProducts((prev) => [mappedProduct, ...prev.filter(p => p.id !== finalId)]);
     refreshProducts();
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
@@ -929,6 +924,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const { error: sbError } = await supabase.from('products').update(updateData).eq('id', id);
     if (sbError) throw sbError;
+
+    // Optimistic Update
+    setProducts((prev) => prev.map(p => p.id === id ? { ...p, ...data } : p));
     refreshProducts();
   };
   const deleteProduct = async (id: string) => {
@@ -941,6 +939,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sbError) throw sbError;
 
     console.log(`Product ${id} deleted successfully from Supabase`);
+    setProducts((prev) => prev.filter(p => p.id !== id));
     refreshProducts();
   };
 
