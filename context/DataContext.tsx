@@ -179,7 +179,10 @@ interface DataContextType {
   addMaintenanceLog: (log: MaintenanceLog) => void;
   updateMaintenanceLog: (id: string, data: Partial<MaintenanceLog>) => void;
 
-  updateOrder: (id: string, data: Partial<Order>) => void;
+  addOrder: (order: Order) => Promise<void>;
+  updateOrder: (id: string, data: Partial<Order>) => Promise<void>;
+  addPayment: (payment: any) => Promise<void>;
+  addTip: (tip: any) => Promise<void>;
 
   addCampaign: (camp: NewsletterCampaign) => void;
   updateCampaign: (id: string, data: Partial<NewsletterCampaign>) => void;
@@ -494,18 +497,7 @@ const getTableName = (colName: string): string => {
 
 const SUPABASE_COLLECTIONS = [
   'profiles',
-  'subscriptions',
-  'referral_stats',
-  'referral_logs',
-  'users',
-  'orders',
-  'payments',
-  'bookings',
-  'contact_messages',
-  'newsletter_subscribers',
-  'tips',
-  'videos',
-  'pool_tracks'
+  'users'
 ];
 
 const useCollection = <T extends { id: string }>(
@@ -830,739 +822,523 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateSiteConfig = async (config: SiteConfig) => {
-    setSiteConfig(config);
-    const { error: sbError } = await supabase.from('settings').upsert({
-      id: 'siteConfig',
-      data: config,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
+    try {
+      setSiteConfig(config);
+      await saveToR2('settings', { id: 'siteConfig', ...config });
+      console.log("Site config saved to R2");
+    } catch (err: any) {
+      console.error("Update site config failed:", err.message);
+    }
   };
 
   const addProduct = async (product: Product) => {
-    const { id, ...rest } = product;
-    const finalId = id || `p${Date.now()}`;
-    const finalImages = (rest.images && rest.images.length > 0) ? rest.images : (rest.image ? [rest.image] : []);
-    const mainImage = rest.image || (finalImages.length > 0 ? finalImages[0] : '');
-
-    const { error: sbError } = await supabase
-      .from('products')
-      .upsert({
+    try {
+      const finalId = product.id || `p${Date.now()}`;
+      const mappedProduct: Product = {
+        ...product,
         id: finalId,
-        name: rest.name,
-        slug: rest.slug,
-        type: rest.type,
-        price: rest.price,
-        discount_price: rest.discountPrice,
-        sale_price: rest.compareAtPrice,
-        description: rest.description,
-        image: mainImage,
-        images: finalImages,
-        category: rest.category,
-        inventory: rest.inventory || rest.stock || 0,
-        variant_groups: rest.variantGroups,
-        variants: rest.variants,
-        is_featured: rest.isHot || false,
-        is_active: rest.isActive !== undefined ? rest.isActive : true,
-        digital_file_url: rest.digitalFileUrl || '',
-        download_password: rest.downloadPassword || '',
-        status: rest.status || 'published',
-        updated_at: new Date().toISOString()
-      });
+        createdAt: product.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
 
-    if (sbError) throw sbError;
+      const newProducts = [mappedProduct, ...products.filter(p => p.id !== finalId)];
+      setProducts(newProducts);
 
-    // Fallback/Optimistic Update: Ensure the UI updates immediately
-    const mappedProduct: Product = {
-      ...rest,
-      id: finalId,
-      image: mainImage,
-      images: finalImages,
-      isActive: rest.isActive !== undefined ? rest.isActive : true,
-      createdAt: product.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const updatedProducts = [mappedProduct, ...products.filter(p => p.id !== finalId)];
-    setProducts(updatedProducts);
-
-    // Sync to R2
-    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshProducts();
+      // Sync with R2
+      await saveToR2('products', newProducts);
+      console.log("Product saved to R2");
+      refreshProducts();
+    } catch (err: any) {
+      console.error("Add product failed:", err.message);
+      refreshProducts();
+    }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
+    try {
+      const updatedProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
+      setProducts(updatedProducts);
 
-    if (data.name) updateData.name = data.name;
-    if (data.slug) updateData.slug = data.slug;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.description) updateData.description = data.description;
-    if (data.shortDescription) updateData.short_description = data.shortDescription;
-    if (data.category) updateData.category = data.category;
-    if (data.status) updateData.status = data.status;
-    if (data.isActive !== undefined) updateData.is_active = data.isActive;
-    if (data.isHot !== undefined) updateData.is_featured = data.isHot;
-    if (data.image) updateData.image = data.image;
-    if (data.images) updateData.images = data.images;
-    if (data.stock !== undefined) updateData.inventory = data.stock;
-    if (data.inventory !== undefined) updateData.inventory = data.inventory;
-    if (data.type) updateData.type = data.type;
-    if (data.os) updateData.os = data.os;
-    if (data.weight) updateData.weight = data.weight;
-    if (data.dimensions) updateData.dimensions = data.dimensions;
-    if (data.sku) updateData.sku = data.sku;
-    if (data.requiresShipping !== undefined) updateData.requires_shipping = data.requiresShipping;
-    if (data.digitalFileUrl) updateData.digital_file_url = data.digitalFileUrl;
-    if (data.downloadPassword) updateData.download_password = data.downloadPassword;
-    if (data.visibility) updateData.visibility = data.visibility;
-    if (data.isFree !== undefined) updateData.is_free = data.isFree;
-    if (data.discountPrice !== undefined) updateData.discount_price = data.discountPrice;
-    if (data.compareAtPrice !== undefined) updateData.sale_price = data.compareAtPrice;
-    if (data.variantGroups !== undefined) updateData.variant_groups = data.variantGroups;
-    if (data.variants !== undefined) updateData.variants = data.variants;
-    if (data.metaTitle) updateData.meta_title = data.metaTitle;
-    if (data.metaDescription) updateData.meta_description = data.metaDescription;
-
-    const { error: sbError } = await supabase.from('products').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    // Optimistic Update
-    const updatedProducts = products.map(p => p.id === id ? { ...p, ...data } : p);
-    setProducts(updatedProducts);
-
-    // Sync to R2
-    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshProducts();
+      // Sync with R2
+      await saveToR2('products', updatedProducts);
+      console.log("Product updated on R2");
+      refreshProducts();
+    } catch (err: any) {
+      console.error("Update product failed:", err.message);
+      refreshProducts();
+    }
   };
   const deleteProduct = async (id: string) => {
-    console.log(`Attempting to delete product with ID: ${id}`);
-    const { error: sbError } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id);
+    try {
+      const updatedProducts = products.filter(p => p.id !== id);
+      setProducts(updatedProducts);
 
-    if (sbError) throw sbError;
-
-    console.log(`Product ${id} deleted successfully from Supabase`);
-    const updatedProducts = products.filter(p => p.id !== id);
-    setProducts(updatedProducts);
-
-    // Sync to R2
-    saveToR2('products', updatedProducts).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshProducts();
+      // Sync with R2
+      await saveToR2('products', updatedProducts);
+      console.log("Product deleted from R2");
+      refreshProducts();
+    } catch (err: any) {
+      console.error("Delete product failed:", err.message);
+      refreshProducts();
+    }
   };
 
   const addMixtape = async (mixtape: Mixtape) => {
-    const { id, ...rest } = mixtape;
-    const finalId = id || `m${Date.now()}`;
-    const { error: sbError } = await supabase
-      .from('mixtapes')
-      .upsert({
+    try {
+      const finalId = mixtape.id || `m${Date.now()}`;
+      const mapped: Mixtape = {
+        ...mixtape,
         id: finalId,
-        title: rest.title,
-        slug: rest.slug,
-        genre: rest.genre,
-        description: rest.description,
-        release_date: rest.releaseDate,
-        status: rest.status,
-        cover_url: rest.coverUrl,
-        audio_url: rest.audioUrl,
-        duration: rest.duration,
-        preview_start_time: rest.previewStartTime,
-        allow_full_stream: rest.allowFullStream,
-        allow_download: rest.allowDownload,
-        download_type: rest.downloadType,
-        stream_quality: rest.streamQuality,
-        tracklist: rest.tracklist,
-        is_featured: rest.isFeatured,
-        show_in_gallery: rest.showInGallery,
-        show_in_music_pool: rest.showInMusicPool,
-        tags: rest.tags,
-        enable_comments: rest.enableComments,
-        require_login_to_comment: rest.requireLoginToComment,
-        moderate_comments: rest.moderateComments,
-        download_url: rest.downloadUrl,
-        video_download_url: rest.videoDownloadUrl,
-        download_limit: rest.downloadLimit,
-        download_expiry_days: rest.downloadExpiryDays,
-        required_tier: rest.requiredTier,
-        youtube_url: rest.youtubeUrl,
-        soundcloud_url: rest.soundcloudUrl,
-        meta_title: rest.metaTitle,
-        meta_description: rest.metaDescription,
-        og_image: rest.ogImage,
-        is_exclusive: rest.isExclusive,
-        updated_at: new Date().toISOString()
-      });
+        createdAt: mixtape.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
+      setMixtapes(updatedMixtapes);
 
-    if (sbError) throw sbError;
-
-    // Optimistic / Fallback Update
-    const mapped: Mixtape = {
-      ...mixtape,
-      id: finalId,
-      createdAt: mixtape.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
-    setMixtapes(updatedMixtapes);
-
-    // Sync to R2
-    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshMixtapes();
+      // Sync with R2
+      await saveToR2('mixtapes', updatedMixtapes);
+      console.log("Mixtape saved to R2");
+      refreshMixtapes();
+    } catch (err: any) {
+      console.error("Add mixtape failed:", err.message);
+      refreshMixtapes();
+    }
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.title) updateData.title = data.title;
-    if (data.status) updateData.status = data.status;
-    if (data.genre) updateData.genre = data.genre;
-    if (data.description) updateData.description = data.description;
-    if (data.isFeatured !== undefined) updateData.is_featured = data.isFeatured;
-    if (data.allowDownload !== undefined) updateData.allow_download = data.allowDownload;
-    if (data.coverUrl) updateData.cover_url = data.coverUrl;
-    if (data.audioUrl) updateData.audio_url = data.audioUrl;
-    if (data.downloadUrl) updateData.download_url = data.downloadUrl;
-    if (data.videoDownloadUrl) updateData.video_download_url = data.videoDownloadUrl;
-    if (data.downloadType) updateData.download_type = data.downloadType;
-    if (data.isExclusive !== undefined) updateData.is_exclusive = data.isExclusive;
-    if (data.duration) updateData.duration = data.duration;
-    if (data.releaseDate) updateData.release_date = data.releaseDate;
+    try {
+      const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
+      setMixtapes(updatedMixtapes);
 
-    const { error: sbError } = await supabase
-      .from('mixtapes')
-      .update(updateData)
-      .eq('id', id);
-
-    if (sbError) throw sbError;
-    // Optimistic Update
-    const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data } : m);
-    setMixtapes(updatedMixtapes);
-
-    // Sync to R2
-    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshMixtapes();
+      // Sync with R2
+      await saveToR2('mixtapes', updatedMixtapes);
+      console.log("Mixtape updated on R2");
+      refreshMixtapes();
+    } catch (err: any) {
+      console.error("Update mixtape failed:", err.message);
+      refreshMixtapes();
+    }
   };
   const deleteMixtape = async (id: string) => {
-    const { error: sbError } = await supabase
-      .from('mixtapes')
-      .delete()
-      .eq('id', id);
+    try {
+      const updatedMixtapes = mixtapes.filter(m => m.id !== id);
+      setMixtapes(updatedMixtapes);
 
-    if (sbError) throw sbError;
-
-    console.log(`Mixtape ${id} deleted successfully from Supabase`);
-    const updatedMixtapes = mixtapes.filter(m => m.id !== id);
-    setMixtapes(updatedMixtapes);
-
-    // Sync to R2
-    saveToR2('mixtapes', updatedMixtapes).catch(err => console.error("R2 Sync Error:", err));
-
-    refreshMixtapes();
+      // Sync with R2
+      await saveToR2('mixtapes', updatedMixtapes);
+      console.log("Mixtape deleted from R2");
+      refreshMixtapes();
+    } catch (err: any) {
+      console.error("Delete mixtape failed:", err.message);
+      refreshMixtapes();
+    }
   };
 
   const addPoolTrack = async (track: Track) => {
     try {
-      const { id, ...rest } = track;
-      const newTrack = {
-        artist: rest.artist,
-        title: rest.title,
-        genre: rest.genre,
-        category: rest.category,
-        bpm: rest.bpm,
-        year: rest.year,
-        versions: rest.versions,
-        preview_url: rest.previewUrl,
-        date_added: rest.dateAdded || new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const { error } = await supabase.from('pool_tracks').insert(newTrack);
-
-      if (error) throw error;
+      const newTracks = [track, ...poolTracks];
+      // Note: We don't have a local state for poolTracks since it's huge, 
+      // but if we do manual sync, we should update R2
+      await saveToR2('pool_tracks', newTracks);
       refreshPoolTracks();
     } catch (error: any) {
-      console.error("Add Error:", error.message);
-      throw error;
+      console.error("Add track failed:", error.message);
     }
   };
 
   const updatePoolTrack = async (id: string, data: Partial<Track>) => {
     try {
-      const updateData: any = { updated_at: new Date().toISOString() };
-
-      if (data.artist) updateData.artist = data.artist;
-      if (data.title) updateData.title = data.title;
-      if (data.genre) updateData.genre = data.genre;
-      if (data.category) updateData.category = data.category;
-      if (data.bpm) updateData.bpm = data.bpm;
-      if (data.year) updateData.year = data.year;
-      if (data.versions) updateData.versions = data.versions;
-      if (data.previewUrl) updateData.preview_url = data.previewUrl;
-      if (data.dateAdded) updateData.date_added = data.dateAdded;
-
-      const { error } = await supabase.from('pool_tracks').update(updateData).eq('id', id);
-
-      if (error) throw error;
+      const newTracks = poolTracks.map(t => t.id === id ? { ...t, ...data } : t);
+      await saveToR2('pool_tracks', newTracks);
       refreshPoolTracks();
     } catch (error: any) {
-      console.error("Update Error:", error.message);
-      throw error;
+      console.error("Update track failed:", error.message);
     }
   };
 
   const deletePoolTrack = async (id: string) => {
     try {
-      const { error } = await supabase.from('pool_tracks').delete().eq('id', id);
-      if (error) throw error;
+      const newTracks = poolTracks.filter(t => t.id !== id);
+      await saveToR2('pool_tracks', newTracks);
       refreshPoolTracks();
     } catch (err: any) {
-      console.error("Delete Error:", err.message);
-      throw err;
+      console.error("Delete track failed:", err.message);
     }
   };
 
   const updateGenre = async (id: string, data: Partial<Genre>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.coverUrl) updateData.cover_url = data.coverUrl;
-
-    const { error: sbError } = await supabase.from('genres').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    // Keep R2 in sync
-    const updatedGenres = genres.map(g => g.id === id ? { ...g, ...data } : g);
-    setGenres(updatedGenres);
-    saveToR2('genres', updatedGenres).catch(err => console.error("R2 Sync Error:", err));
+    try {
+      const updatedGenres = genres.map(g => g.id === id ? { ...g, ...data, updatedAt: new Date().toISOString() } : g);
+      setGenres(updatedGenres);
+      await saveToR2('genres', updatedGenres);
+      console.log("Genre updated on R2");
+    } catch (err: any) {
+      console.error("Update genre failed:", err.message);
+    }
   };
 
   const addBooking = async (booking: Booking) => {
-    const { id, ...rest } = booking;
-    const finalId = id || `b${Date.now()}`;
-    const { error: sbError } = await supabase.from('bookings').upsert({
-      id: finalId,
-      client_name: rest.clientName,
-      client_email: rest.clientEmail,
-      client_phone: rest.clientPhone,
-      service_type: rest.serviceType,
-      service_name: rest.serviceName,
-      date: rest.date,
-      time: rest.time,
-      duration: rest.duration,
-      status: rest.status,
-      payment_status: rest.paymentStatus,
-      amount: rest.amount,
-      budget: rest.budget,
-      notes: rest.notes,
-      source: rest.source,
-      location: rest.location,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshBookings();
+    try {
+      const finalId = booking.id || `b${Date.now()}`;
+      const newBookings = [{ ...booking, id: finalId }, ...bookings];
+      await saveToR2('bookings', newBookings);
+      alert("Booking saved successfully to R2");
+      refreshBookings();
+    } catch (err: any) {
+      console.error("Add booking failed:", err.message);
+    }
   };
 
   const updateBooking = async (id: string, data: Partial<Booking>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.status) updateData.status = data.status;
-    if (data.paymentStatus) updateData.payment_status = data.paymentStatus;
-    if (data.date) updateData.date = data.date;
-    if (data.time) updateData.time = data.time;
-
-    const { error: sbError } = await supabase.from('bookings').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshBookings();
+    try {
+      const newBookings = bookings.map(b => b.id === id ? { ...b, ...data, updatedAt: new Date().toISOString() } : b);
+      await saveToR2('bookings', newBookings);
+      alert("Booking updated on R2");
+      refreshBookings();
+    } catch (err: any) {
+      console.error("Update booking failed:", err.message);
+    }
   };
 
   const addSessionType = async (session: SessionType) => {
-    const { id, ...rest } = session;
-    const finalId = id || `st${Date.now()}`;
-    const { error: sbError } = await supabase.from('session_types').upsert({
-      id: finalId,
-      name: rest.name,
-      description: rest.description,
-      duration: rest.duration,
-      price: rest.price,
-      deposit_required: rest.depositRequired,
-      equipment_included: rest.equipmentIncluded,
-      active: rest.active,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshSessionTypes();
+    try {
+      const finalId = session.id || `st${Date.now()}`;
+      const newSessions = [{ ...session, id: finalId, updatedAt: new Date().toISOString() }, ...sessionTypes];
+      setSessionTypes(newSessions);
+      await saveToR2('session_types', newSessions);
+      alert("Session Type saved to R2");
+      refreshSessionTypes();
+    } catch (err: any) {
+      console.error("Add session type failed:", err.message);
+    }
   };
   const updateSessionType = async (id: string, data: Partial<SessionType>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.description) updateData.description = data.description;
-    if (data.duration) updateData.duration = data.duration;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.depositRequired !== undefined) updateData.deposit_required = data.depositRequired;
-    if (data.equipmentIncluded) updateData.equipment_included = data.equipmentIncluded;
-    if (data.active !== undefined) updateData.active = data.active;
-
-    const { error: sbError } = await supabase.from('session_types').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshSessionTypes();
+    try {
+      const newSessions = sessionTypes.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s);
+      setSessionTypes(newSessions);
+      await saveToR2('session_types', newSessions);
+      refreshSessionTypes();
+    } catch (err: any) {
+      console.error("Update session type failed:", err.message);
+    }
   };
-  const deleteSessionType = async (id: string) => {
-    const { error: sbError } = await supabase.from('session_types').delete().eq('id', id);
-    if (sbError) throw sbError;
 
-    refreshSessionTypes();
+  const deleteSessionType = async (id: string) => {
+    try {
+      const newSessions = sessionTypes.filter(s => s.id !== id);
+      setSessionTypes(newSessions);
+      await saveToR2('session_types', newSessions);
+      refreshSessionTypes();
+    } catch (err: any) {
+      console.error("Delete session type failed:", err.message);
+    }
   };
 
   const addVideo = async (video: Video) => {
-    const { id, ...rest } = video;
-    const finalId = id || `v${Date.now()}`;
-    const { error: sbError } = await supabase.from('videos').upsert({
-      id: finalId,
-      title: rest.title,
-      thumbnail: rest.thumbnail,
-      url: rest.url,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshVideos();
+    try {
+      const finalId = video.id || `v${Date.now()}`;
+      const newVideos = [{ ...video, id: finalId, updatedAt: new Date().toISOString() }, ...youtubeVideos];
+      setYoutubeVideos(newVideos);
+      await saveToR2('videos', newVideos);
+      refreshVideos();
+    } catch (err: any) {
+      console.error("Add video failed:", err.message);
+    }
   };
+
   const deleteVideo = async (id: string) => {
-    const { error: sbError } = await supabase.from('videos').delete().eq('id', id);
-    if (sbError) throw sbError;
-    refreshVideos();
+    try {
+      const newVideos = youtubeVideos.filter(v => v.id !== id);
+      setYoutubeVideos(newVideos);
+      await saveToR2('videos', newVideos);
+      refreshVideos();
+    } catch (err: any) {
+      console.error("Delete video failed:", err.message);
+    }
   };
 
   const addStudioEquipment = async (equipment: StudioEquipment) => {
-    const { id, ...rest } = equipment;
-    const finalId = id || `eq${Date.now()}`;
-    const { error: sbError } = await supabase.from('studio_equipment').upsert({
-      id: finalId,
-      name: rest.name,
-      category: rest.category,
-      image: rest.image,
-      description: rest.description,
-      status: rest.status || 'available',
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshEquipment();
+    try {
+      const finalId = equipment.id || `eq${Date.now()}`;
+      const newEquipment = [{ ...equipment, id: finalId, updatedAt: new Date().toISOString() }, ...studioEquipment];
+      setStudioEquipment(newEquipment);
+      await saveToR2('studio_equipment', newEquipment);
+      refreshEquipment();
+    } catch (err: any) {
+      console.error("Add equipment failed:", err.message);
+    }
   };
 
   const updateStudioEquipment = async (id: string, data: Partial<StudioEquipment>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.category) updateData.category = data.category;
-    if (data.description) updateData.description = data.description;
-    if (data.status) updateData.status = data.status;
-
-    const { error: sbError } = await supabase.from('studio_equipment').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshEquipment();
+    try {
+      const newEquipment = studioEquipment.map(e => e.id === id ? { ...e, ...data, updatedAt: new Date().toISOString() } : e);
+      setStudioEquipment(newEquipment);
+      await saveToR2('studio_equipment', newEquipment);
+      refreshEquipment();
+    } catch (err: any) {
+      console.error("Update equipment failed:", err.message);
+    }
   };
 
   const deleteStudioEquipment = async (id: string) => {
-    const { error: sbError } = await supabase.from('studio_equipment').delete().eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshEquipment();
+    try {
+      const newEquipment = studioEquipment.filter(e => e.id !== id);
+      setStudioEquipment(newEquipment);
+      await saveToR2('studio_equipment', newEquipment);
+      refreshEquipment();
+    } catch (err: any) {
+      console.error("Delete equipment failed:", err.message);
+    }
   };
 
   const addSubscription = async (sub: Subscription) => {
-    const { id, ...rest } = sub;
-    const finalId = id || `sub${Date.now()}`;
-    const { error: sbError } = await supabase.from('subscriptions').upsert({
-      id: finalId,
-      user_id: rest.userId,
-      user_name: rest.userName,
-      plan_id: rest.planId,
-      amount: rest.amount,
-      start_date: rest.startDate,
-      expiry_date: rest.expiryDate,
-      status: rest.status,
-      payment_method: rest.paymentMethod,
-      updated_at: new Date().toISOString()
-    });
+    try {
+      const finalId = sub.id || `sub${Date.now()}`;
+      const newSub = { ...sub, id: finalId, updatedAt: new Date().toISOString() };
 
-    if (sbError) throw sbError;
+      // 1. Log in R2
+      const newSubs = [newSub, ...subscriptions];
+      await saveToR2('subscriptions', newSubs);
 
-    // Sync with User Profile to grant access
-    if (rest.status === 'active') {
-      const { error: profileError } = await supabase.from('profiles').update({
-        is_subscriber: true,
-        subscription_plan: rest.planId,
-        subscription_expiry: rest.expiryDate
-      }).eq('id', rest.userId);
+      // 2. Sync with User Profile to grant access (SUPABASE - AUTH)
+      if (sub.status === 'active') {
+        const { error: profileError } = await supabase.from('profiles').update({
+          is_subscriber: true,
+          subscription_plan: sub.planId,
+          subscription_expiry: sub.expiryDate
+        }).eq('id', sub.userId);
 
-      if (profileError) {
-        console.error("Failed to update user profile for subscription:", profileError);
-        alert("Subscription added, but failed to update user access. Please update user manually.");
-      } else {
-        refreshUsers();
+        if (profileError) {
+          console.error("Failed to update user profile for subscription:", profileError);
+        } else {
+          refreshUsers();
+        }
       }
+      refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Add subscription failed:", err.message);
     }
-
-    refreshSubscriptions();
   };
   const updateSubscription = async (id: string, data: Partial<Subscription>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.status) updateData.status = data.status;
-    if (data.expiryDate) updateData.expiry_date = data.expiryDate;
+    try {
+      // 1. Update in R2
+      const newSubs = subscriptions.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s);
+      await saveToR2('subscriptions', newSubs);
 
+      // 2. Sync changes to User Profile (SUPABASE - AUTH)
+      const sub = subscriptions.find(s => s.id === id);
+      if (sub && sub.userId) {
+        const profileUpdate: any = {};
+        if (data.status === 'active') {
+          profileUpdate.is_subscriber = true;
+          if (data.expiryDate) profileUpdate.subscription_expiry = data.expiryDate;
+        } else if (data.status) {
+          profileUpdate.is_subscriber = false;
+        }
+        if (data.expiryDate) {
+          profileUpdate.subscription_expiry = data.expiryDate;
+        }
 
-    const { error: sbError } = await supabase.from('subscriptions').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    // Sync changes to User Profile
-    const { data: sub } = await supabase.from('subscriptions').select('user_id').eq('id', id).single();
-    if (sub && sub.user_id) {
-      const profileUpdate: any = {};
-
-      if (data.status === 'active') {
-        profileUpdate.is_subscriber = true;
-        if (data.expiryDate) profileUpdate.subscription_expiry = data.expiryDate;
-      } else if (data.status) {
-        profileUpdate.is_subscriber = false;
-        // We don't necessarily clear plan/expiry on expiry, just status
+        if (Object.keys(profileUpdate).length > 0) {
+          await supabase.from('profiles').update(profileUpdate).eq('id', sub.userId);
+          refreshUsers();
+        }
       }
-
-      if (data.expiryDate) {
-        profileUpdate.subscription_expiry = data.expiryDate;
-      }
-
-      if (Object.keys(profileUpdate).length > 0) {
-        await supabase.from('profiles').update(profileUpdate).eq('id', sub.user_id);
-        refreshUsers();
-      }
+      refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Update subscription failed:", err.message);
     }
-
-    refreshSubscriptions();
   };
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
-    const docId = plan.id || `plan_${Date.now()}`;
-    const { error: sbError } = await supabase.from('subscription_plans').upsert({
-      id: docId,
-      name: plan.name,
-      price: plan.price,
-      period: plan.period,
-      features: plan.features,
-      active: plan.active,
-      is_best_value: plan.isBestValue || false,
-      link: plan.link,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-
-    if (typeof refreshPlans === 'function') refreshPlans();
+    try {
+      const docId = plan.id || `plan_${Date.now()}`;
+      const newPlans = [{ ...plan, id: docId }, ...subscriptionPlans];
+      setSubscriptionPlans(newPlans);
+      await saveToR2('subscription_plans', newPlans);
+      alert("Plan saved to R2");
+      if (typeof refreshPlans === 'function') refreshPlans();
+    } catch (err: any) {
+      console.error("Add plan failed:", err.message);
+    }
   };
 
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
     try {
-      if (!id) throw new Error("Plan ID is required for update");
-
-      const updateData: any = { updated_at: new Date().toISOString() };
-      if (data.name) updateData.name = data.name;
-      if (data.price !== undefined) updateData.price = data.price;
-      if (data.period) updateData.period = data.period;
-      if (data.features) updateData.features = data.features;
-      if (data.active !== undefined) updateData.active = data.active;
-      if (data.isBestValue !== undefined) updateData.is_best_value = data.isBestValue;
-      if (data.link) updateData.link = data.link;
-
-      const { error: sbError } = await supabase.from('subscription_plans').update(updateData).eq('id', id);
-      if (sbError) throw sbError;
-
+      const newPlans = subscriptionPlans.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
+      setSubscriptionPlans(newPlans);
+      await saveToR2('subscription_plans', newPlans);
+      alert("Plan updated on R2");
       if (typeof refreshPlans === 'function') refreshPlans();
     } catch (error: any) {
-      console.error("DataContext: Error updating plan:", error);
-      throw error;
+      console.error("Update plan failed:", error);
     }
   };
 
   const deleteSubscriptionPlan = async (id: string) => {
     try {
-      const { error: sbError } = await supabase.from('subscription_plans').delete().eq('id', id);
-      if (sbError) throw sbError;
-
+      const newPlans = subscriptionPlans.filter(p => p.id !== id);
+      setSubscriptionPlans(newPlans);
+      await saveToR2('subscription_plans', newPlans);
+      alert("Plan removed from R2");
       if (typeof refreshPlans === 'function') refreshPlans();
     } catch (error: any) {
-      console.error("DataContext: Error deleting plan:", error);
-      throw error;
+      console.error("Delete plan failed:", error);
     }
   };
 
   const addStudioRoom = async (room: StudioRoom) => {
-    const docId = room.id || `rm_${Date.now()}`;
-    const { error: sbError } = await supabase.from('studio_rooms').upsert({
-      id: docId,
-      name: room.name,
-      capacity: room.capacity,
-      description: room.description,
-      status: room.status,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshRooms();
+    try {
+      const docId = room.id || `rm_${Date.now()}`;
+      const newRooms = [{ ...room, id: docId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...studioRooms];
+      await saveToR2('studio_rooms', newRooms);
+      refreshRooms();
+    } catch (err: any) {
+      console.error("Add room failed:", err.message);
+    }
   };
   const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.capacity) updateData.capacity = data.capacity;
-    if (data.description) updateData.description = data.description;
-    if (data.status) updateData.status = data.status;
-
-    const { error: sbError } = await supabase.from('studio_rooms').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshRooms();
+    try {
+      const newRooms = studioRooms.map(r => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r);
+      await saveToR2('studio_rooms', newRooms);
+      refreshRooms();
+    } catch (err: any) {
+      console.error("Update room failed:", err.message);
+    }
   };
-  const deleteStudioRoom = async (id: string) => {
-    const { error: sbError } = await supabase.from('studio_rooms').delete().eq('id', id);
-    if (sbError) throw sbError;
 
-    refreshRooms();
+  const deleteStudioRoom = async (id: string) => {
+    try {
+      const newRooms = studioRooms.filter(r => r.id !== id);
+      await saveToR2('studio_rooms', newRooms);
+      refreshRooms();
+    } catch (err: any) {
+      console.error("Delete room failed:", err.message);
+    }
   };
 
   const addMaintenanceLog = async (log: MaintenanceLog) => {
-    const docId = log.id || `log_${Date.now()}`;
-    const { error: sbError } = await supabase.from('maintenance_logs').upsert({
-      id: docId,
-      item_id: log.itemId,
-      item_name: log.itemName,
-      item_type: log.type,
-      description: log.description,
-      date: log.date,
-      status: log.status,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshLogs();
+    try {
+      const docId = log.id || `log_${Date.now()}`;
+      const newLogs = [{ ...log, id: docId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...maintenanceLogs];
+      await saveToR2('maintenance_logs', newLogs);
+      refreshLogs();
+    } catch (err: any) {
+      console.error("Add log failed:", err.message);
+    }
   };
+
   const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.description) updateData.description = data.description;
-    if (data.status) updateData.status = data.status;
-    if (data.date) updateData.date = data.date;
+    try {
+      const newLogs = maintenanceLogs.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l);
+      await saveToR2('maintenance_logs', newLogs);
+      refreshLogs();
+    } catch (err: any) {
+      console.error("Update log failed:", err.message);
+    }
+  };
 
-    const { error: sbError } = await supabase.from('maintenance_logs').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshLogs();
+  const addOrder = async (order: Order) => {
+    try {
+      const newOrders = [order, ...orders];
+      await saveToR2('orders', newOrders);
+      refreshOrders();
+    } catch (err: any) {
+      console.error("Add order failed:", err.message);
+    }
   };
 
   const updateOrder = async (id: string, data: Partial<Order>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.status) updateData.status = data.status;
-    if (data.paymentStatus) updateData.payment_status = data.paymentStatus;
-    if (data.trackingNumber) updateData.tracking_number = data.trackingNumber;
-    if (data.courierName) updateData.courier_name = data.courierName;
+    try {
+      const newOrders = orders.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o);
+      await saveToR2('orders', newOrders);
+      refreshOrders();
+    } catch (err: any) {
+      console.error("Update order failed:", err.message);
+    }
+  };
 
-    const { error: sbError } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', id);
+  const addPayment = async (payment: any) => {
+    try {
+      const newPayments = [payment, ...payments];
+      await saveToR2('payments', newPayments);
+      if (typeof refreshPayments === 'function') refreshPayments();
+    } catch (err: any) {
+      console.error("Add payment failed:", err.message);
+    }
+  };
 
-    if (sbError) throw sbError;
-    refreshOrders();
+  const addTip = async (tip: any) => {
+    try {
+      const newTips = [tip, ...tips];
+      await saveToR2('tips', newTips);
+      if (typeof refreshTips === 'function') refreshTips();
+    } catch (err: any) {
+      console.error("Add tip failed:", err.message);
+    }
   };
 
   const addCampaign = async (camp: NewsletterCampaign) => {
-    const { id, ...rest } = camp;
-    const docId = id || `camp_${Date.now()}`;
-    const { error: sbError } = await supabase.from('newsletter_campaigns').upsert({
-      id: docId,
-      name: rest.name,
-      subject: rest.subject,
-      type: rest.type,
-      status: rest.status,
-      sent_date: rest.sentDate,
-      recipient_count: rest.recipientCount,
-      open_rate: rest.openRate,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshCampaigns();
+    try {
+      const docId = camp.id || `camp_${Date.now()}`;
+      const newCampaigns = [{ ...camp, id: docId, updatedAt: new Date().toISOString() }, ...newsletterCampaigns];
+      await saveToR2('newsletter_campaigns', newCampaigns);
+      refreshCampaigns();
+    } catch (err: any) {
+      console.error("Add campaign failed:", err.message);
+    }
   };
+
   const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.subject) updateData.subject = data.subject;
-    if (data.status) updateData.status = data.status;
-    if (data.sentDate) updateData.sent_date = data.sentDate;
-
-    const { error: sbError } = await supabase.from('newsletter_campaigns').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshCampaigns();
+    try {
+      const newCampaigns = newsletterCampaigns.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
+      await saveToR2('newsletter_campaigns', newCampaigns);
+      refreshCampaigns();
+    } catch (err: any) {
+      console.error("Update campaign failed:", err.message);
+    }
   };
 
   const addCoupon = async (coupon: Coupon) => {
-    const { id, ...rest } = coupon;
-    const docId = id || `cpn_${Date.now()}`;
-    const { error: sbError } = await supabase.from('coupons').upsert({
-      id: docId,
-      code: rest.code,
-      discount_type: rest.discountType,
-      discount_value: rest.discountValue,
-      applies_to: rest.appliesTo,
-      applicable_plans: rest.applicablePlans,
-      expiry_date: rest.expiryDate,
-      usage_limit: rest.usageLimit,
-      usage_count: rest.usageCount,
-      active: rest.active,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshCoupons();
+    try {
+      const docId = coupon.id || `cpn_${Date.now()}`;
+      const newCoupons = [{ ...coupon, id: docId, updatedAt: new Date().toISOString() }, ...coupons];
+      await saveToR2('coupons', newCoupons);
+      refreshCoupons();
+    } catch (err: any) {
+      console.error("Add coupon failed:", err.message);
+    }
   };
+
   const updateCoupon = async (id: string, data: Partial<Coupon>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.code) updateData.code = data.code;
-    if (data.discountValue !== undefined) updateData.discount_value = data.discountValue;
-    if (data.active !== undefined) updateData.active = data.active;
-    if (data.usageCount !== undefined) updateData.usage_count = data.usageCount;
-
-    const { error: sbError } = await supabase.from('coupons').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshCoupons();
+    try {
+      const newCoupons = coupons.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
+      await saveToR2('coupons', newCoupons);
+      refreshCoupons();
+    } catch (err: any) {
+      console.error("Update coupon failed:", err.message);
+    }
   };
-  const deleteCoupon = async (id: string) => {
-    const { error: sbError } = await supabase.from('coupons').delete().eq('id', id);
-    if (sbError) throw sbError;
 
-    refreshCoupons();
+  const deleteCoupon = async (id: string) => {
+    try {
+      const newCoupons = coupons.filter(c => c.id !== id);
+      await saveToR2('coupons', newCoupons);
+      refreshCoupons();
+    } catch (err: any) {
+      console.error("Delete coupon failed:", err.message);
+    }
   };
 
   const validateCoupon = async (code: string): Promise<{ success: boolean; coupon?: Coupon; message?: string }> => {
     try {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('active', true)
-        .single();
+      // Fetch from R2 (since it's the primary source now)
+      const data = await fetchFromR2<any>('coupons');
+      const couponData = data.find((c: any) => c.code === code.toUpperCase() && c.active);
 
-      if (error || !data) {
+      if (!couponData) {
         return { success: false, message: 'Invalid or expired coupon code.' };
       }
 
-      const coupon = mapSupabaseCoupon(data);
+      const coupon = couponData as Coupon;
       const now = new Date();
       if (coupon.expiryDate && new Date(coupon.expiryDate) < now) {
         return { success: false, message: 'This coupon has expired.' };
@@ -1578,79 +1354,72 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateTelegramConfig = async (config: Partial<TelegramConfig>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (config.botToken) updateData.bot_token = config.botToken;
-    if (config.botUsername) updateData.bot_username = config.botUsername;
-    if (config.status) updateData.status = config.status;
-
-    const { error: sbError } = await supabase.from('telegram_config').upsert({
-      id: 'main',
-      ...updateData
-    });
-    if (sbError) throw sbError;
+  const updateTelegramConfig = async (configData: Partial<TelegramConfig>) => {
+    try {
+      const newConfig = { ...telegramConfig, ...configData };
+      setTelegramConfig(newConfig);
+      await saveToR2('telegram_config', { id: 'main', ...newConfig });
+    } catch (err: any) {
+      console.error("Update telegram config failed:", err.message);
+    }
   };
   const addTelegramChannel = async (channel: TelegramChannel) => {
-    const { id, ...rest } = channel;
-    const docId = id || `tg_${Date.now()}`;
-    const { error: sbError } = await supabase.from('telegram_channels').upsert({
-      id: docId,
-      name: rest.name,
-      channel_id: rest.channelId,
-      genre: rest.genre,
-      invite_link: rest.inviteLink,
-      active: rest.active,
-      updated_at: new Date().toISOString()
-    });
-
-    if (sbError) throw sbError;
-    refreshTelegramChannels();
+    try {
+      const docId = channel.id || `tg_${Date.now()}`;
+      const newChannels = [{ ...channel, id: docId, updatedAt: new Date().toISOString() }, ...telegramChannels];
+      await saveToR2('telegram_channels', newChannels);
+      refreshTelegramChannels();
+    } catch (err: any) {
+      console.error("Add channel failed:", err.message);
+    }
   };
   const updateTelegramChannel = async (id: string, data: Partial<TelegramChannel>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.active !== undefined) updateData.active = data.active;
-    if (data.inviteLink) updateData.invite_link = data.inviteLink;
-
-    const { error: sbError } = await supabase.from('telegram_channels').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshTelegramChannels();
+    try {
+      const newChannels = telegramChannels.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
+      await saveToR2('telegram_channels', newChannels);
+      refreshTelegramChannels();
+    } catch (err: any) {
+      console.error("Update channel failed:", err.message);
+    }
   };
-  const deleteTelegramChannel = async (id: string) => {
-    const { error: sbError } = await supabase.from('telegram_channels').delete().eq('id', id);
-    if (sbError) throw sbError;
 
-    refreshTelegramChannels();
+  const deleteTelegramChannel = async (id: string) => {
+    try {
+      const newChannels = telegramChannels.filter(c => c.id !== id);
+      await saveToR2('telegram_channels', newChannels);
+      refreshTelegramChannels();
+    } catch (err: any) {
+      console.error("Delete channel failed:", err.message);
+    }
   };
 
   const updateShippingZone = async (id: string, data: Partial<ShippingZone>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.name) updateData.name = data.name;
-    if (data.description) updateData.description = data.description;
-    if (data.rates) updateData.rates = data.rates;
-
-    const { error: sbError } = await supabase.from('shipping_zones').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-
-    refreshZones();
+    try {
+      const newZones = shippingZones.map(z => z.id === id ? { ...z, ...data, updatedAt: new Date().toISOString() } : z);
+      await saveToR2('shipping_zones', newZones);
+      refreshZones();
+    } catch (err: any) {
+      console.error("Update shipping zone failed:", err.message);
+    }
   };
 
   const addSubscriber = async (email: string, source: string = 'Manual') => {
-    const now = new Date().toISOString();
-    const dateSub = now.split('T')[0];
-
-    // Using upsert with onConflict: 'email' to handle duplicates gracefully
-    const { error: sbError } = await supabase.from('newsletter_subscribers').upsert({
-      email,
-      date_subscribed: dateSub,
-      status: 'active',
-      source: source,
-      updated_at: now
-    }, { onConflict: 'email' });
-
-    if (sbError) throw sbError;
-    refreshSubscribers();
+    try {
+      const now = new Date().toISOString();
+      const newSubscriber = {
+        id: `sub_${Date.now()}`,
+        email,
+        date_subscribed: now,
+        status: 'active',
+        source,
+        updatedAt: now
+      };
+      const newSubscribers = [newSubscriber, ...subscribers];
+      await saveToR2('newsletter_subscribers', newSubscribers);
+      refreshSubscribers();
+    } catch (err: any) {
+      console.error("Add subscriber failed:", err.message);
+    }
   };
 
   const updateUser = async (id: string, data: Partial<User>) => {
@@ -1675,31 +1444,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addContactMessage = async (msg: Partial<ContactMessage>) => {
-    const now = new Date().toISOString();
-    const { error: sbError } = await supabase.from('contact_messages').insert({
-      name: msg.name,
-      email: msg.email,
-      subject: msg.subject || 'New Message',
-      message: msg.message,
-      status: msg.status || 'new',
-      source: msg.source || 'web',
-      user_id: msg.userId,
-      created_at: now
-    });
-
-    if (sbError) throw sbError;
-    refreshContactMessages();
+    try {
+      const now = new Date().toISOString();
+      const newMessage = { ...msg, id: `msg_${Date.now()}`, createdAt: now, updatedAt: now };
+      const newMessages = [newMessage, ...contactMessages];
+      await saveToR2('contact_messages', newMessages);
+      refreshContactMessages();
+    } catch (err: any) {
+      console.error("Add contact message failed:", err.message);
+    }
   };
 
   const updateContactMessage = async (id: string, data: Partial<ContactMessage>) => {
-    const updateData: any = { updated_at: new Date().toISOString() };
-    if (data.status) updateData.status = data.status;
-    if (data.subject) updateData.subject = data.subject;
-    if (data.message) updateData.message = data.message;
-
-    const { error: sbError } = await supabase.from('contact_messages').update(updateData).eq('id', id);
-    if (sbError) throw sbError;
-    refreshContactMessages();
+    try {
+      const newMessages = contactMessages.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
+      await saveToR2('contact_messages', newMessages);
+      refreshContactMessages();
+    } catch (err: any) {
+      console.error("Update contact message failed:", err.message);
+    }
   };
 
   const removeUser = async (id: string) => {
@@ -1739,7 +1502,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
     addSubscription, updateSubscription, addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
     addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-    updateOrder, addCampaign, updateCampaign,
+    addOrder, updateOrder, addPayment, addTip, addCampaign, updateCampaign,
     addCoupon, updateCoupon, deleteCoupon, validateCoupon,
     updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
     updateShippingZone, addSubscriber,
@@ -1772,7 +1535,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
     addSubscription, updateSubscription, addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
     addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-    updateOrder, addCampaign, updateCampaign,
+    addOrder, updateOrder, addPayment, addTip, addCampaign, updateCampaign,
     addCoupon, updateCoupon, deleteCoupon,
     updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
     updateShippingZone, addSubscriber,

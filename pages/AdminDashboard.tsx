@@ -19,6 +19,7 @@ import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 import { MailerLiteService } from '../services/MailerLiteService';
+import { uploadFileToR2 } from '../utils/r2';
 
 
 
@@ -1161,20 +1162,9 @@ const AdminDashboard: React.FC = () => {
       try {
          let receiptUrl = '';
          if (receiptFile) {
-            const fileExt = receiptFile.name.split('.').pop();
-            const fileName = `receipts/order_${selectedOrder.id}_${Date.now()}.${fileExt}`;
-
-            const { data: uploadData, error: uploadError } = await supabase.storage
-               .from('uploads')
-               .upload(fileName, receiptFile);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-               .from('uploads')
-               .getPublicUrl(fileName);
-
-            receiptUrl = publicUrl;
+            const uploadResult = await uploadFileToR2(receiptFile, 'receipts');
+            if (!uploadResult) throw new Error("Failed to upload receipt to R2");
+            receiptUrl = uploadResult.url;
          }
 
          await updateOrder(selectedOrder.id, {

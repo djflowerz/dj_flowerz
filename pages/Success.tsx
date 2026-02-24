@@ -35,7 +35,7 @@ const mapSupabaseOrder = (data: any): any => ({
 
 const Success: React.FC = () => {
    const { clearCart } = useCart();
-   const { siteConfig, issueReferralReward, addSubscriber } = useData();
+   const { siteConfig, issueReferralReward, addSubscriber, addOrder, addPayment, addTip, orders, ordersLoading, tips, payments } = useData();
    const { id } = useParams<{ id: string }>();
    const location = useLocation();
    const navigate = useNavigate();
@@ -60,89 +60,65 @@ const Success: React.FC = () => {
       // but the data isn't in DB yet (because webhook is slow/dev),
       // we attempt a client-side save.
       if (location.state && location.state.reference) {
-         const syncToSupabase = async () => {
+         const syncToR2 = async () => {
             const { reference, type, amount, email, customerName, message, items } = location.state;
 
             try {
-               // 1. Check if order/tip already exists to avoid duplicates
-               const table = type === 'tip' ? 'tips' : 'orders';
                const idToCheck = type === 'tip' ? `tip_${reference}` : (location.state.orderId || reference);
-
-               const { data: existing } = await supabase
-                  .from(table)
-                  .select('id')
-                  .eq(type === 'tip' ? 'id' : 'id', idToCheck)
-                  .maybeSingle();
+               const existing = type === 'tip' ? tips.find(t => t.id === idToCheck) : orders.find(o => o.id === idToCheck);
 
                if (!existing) {
-                  console.log(`Syncing ${type} to Supabase...`);
+                  console.log(`Syncing ${type} to R2...`);
 
                   if (type === 'tip') {
-                     // Save to tips table
-                     await supabase.from('tips').insert({
+                     const tipObj = {
                         id: idToCheck,
                         amount: amount,
                         message: message || 'Generous Tip',
                         email: email || 'guest@djflowerz.com',
                         status: 'completed',
-                        created_at: new Date().toISOString()
-                     });
+                        createdAt: new Date().toISOString()
+                     };
+                     await addTip(tipObj);
 
-                     // Also save to payments table for the main dashboard revenue stat
-                     await supabase.from('payments').insert({
+                     await addPayment({
                         amount: amount,
                         payment_ref: reference,
                         payment_type: 'tip',
                         user_email: email,
                         status: 'success',
-                        created_at: new Date().toISOString()
+                        createdAt: new Date().toISOString()
                      });
                   } else if (type === 'store') {
-                     // Save to orders table
-                     await supabase.from('orders').insert({
+                     const orderObj: Order = {
                         id: idToCheck,
-                        customer_name: customerName || 'Guest Customer',
-                        customer_email: email,
-                        total: amount || location.state.total,
+                        customerName: customerName || 'Guest Customer',
+                        customerEmail: email,
+                        total: amount || location.state.total || location.state.amount,
                         subtotal: location.state.subtotal || amount || location.state.total,
-                        discount_amount: location.state.discountAmount || 0,
-                        shipping_cost: location.state.shippingCost || 0,
-                        shipping_address: location.state.shippingAddress || null,
-                        delivery_method: location.state.deliveryType || null,
-                        coupon_code: location.state.couponCode || null,
+                        discountAmount: location.state.discountAmount || 0,
+                        shippingCost: location.state.shippingCost || 0,
+                        shippingAddress: location.state.shippingAddress || null,
+                        deliveryMethod: location.state.deliveryType || null,
+                        couponCode: location.state.couponCode || null,
                         status: 'completed',
-                        payment_status: 'paid',
+                        paymentStatus: 'paid',
                         date: new Date().toISOString().split('T')[0],
-                        reference_code: reference,
+                        referenceCode: reference,
                         type: 'store',
                         items: items || [],
-                        created_at: new Date().toISOString()
-                     });
-
-                     // Update Coupon Usage if applied
-                     if (location.state.couponCode) {
-                        const { data: coupon, error: couponFetchError } = await supabase
-                           .from('coupons')
-                           .select('id, usage_count')
-                           .eq('code', location.state.couponCode.toUpperCase())
-                           .single();
-
-                        if (!couponFetchError && coupon) {
-                           await supabase
-                              .from('coupons')
-                              .update({ usage_count: (coupon.usage_count || 0) + 1 })
-                              .eq('id', coupon.id);
-                        }
-                     }
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                     };
+                     await addOrder(orderObj);
                   } else if (type === 'subscription') {
-                     // Handle Referral Reward
+                     // Handle Referral Reward (Supabase for profiles)
                      try {
                         const { data: profile } = await supabase.from('profiles').select('id, name, referred_by').eq('email', email).single();
                         if (profile) {
                            const referrerId = profile.referred_by || location.state.referrerId;
 
                            if (referrerId) {
-                              // Check if already rewarded for this referee
                               const { data: existingLog } = await supabase.from('referral_logs').select('id').eq('referee_id', profile.id).maybeSingle();
                               if (!existingLog) {
                                  const { data: referrer } = await supabase.from('profiles').select('name').eq('id', referrerId).single();
@@ -154,7 +130,6 @@ const Success: React.FC = () => {
                                     planPurchased: location.state.plan || 'Plan',
                                     discountApplied: location.state.discount || 0
                                  });
-
                               }
                            }
                         }
@@ -172,73 +147,25 @@ const Success: React.FC = () => {
                console.warn("Client-side sync error:", err);
             }
          };
-         syncToSupabase();
+         syncToR2();
       }
 
       // Fetch order if ID is provided and we don't have state
-      if (id && !location.state) {
-         const fetchOrder = async () => {
-            try {
-               const { data, error } = await supabase
-                  .from('orders')
-                  .select('*')
-                  .eq('id', id)
-                  .single();
-
-               if (error) {
-                  console.error("Supabase fetch error:", error);
-                  return;
-               }
-
-               if (data) {
-                  const mappedOrder = mapSupabaseOrder(data);
-
-                  // Enrich items with download info if missing
-                  if (mappedOrder.items && Array.isArray(mappedOrder.items)) {
-                     const enrichedItems = await Promise.all(mappedOrder.items.map(async (item: any) => {
-                        if (item.type === 'digital' && (!item.downloadUrl && !item.digitalFileUrl)) {
-                           const { data: prod } = await supabase
-                              .from('products')
-                              .select('digital_file_url, download_password')
-                              .eq('id', item.productId || item.id)
-                              .single();
-
-                           if (prod) {
-                              return {
-                                 ...item,
-                                 downloadUrl: prod.digital_file_url,
-                                 digitalFileUrl: prod.digital_file_url,
-                                 downloadPassword: prod.download_password
-                              };
-                           }
-                        }
-                        return item;
-                     }));
-                     mappedOrder.items = enrichedItems;
-                  }
-
-                  setOrderData({
-                     ...mappedOrder,
-                     items: mappedOrder.items.map((item: any) => ({
-                        ...item,
-                        // Ensure fields consistent for UI
-                        digitalFileUrl: item.digitalFileUrl || item.downloadUrl,
-                        downloadUrl: item.downloadUrl || item.digitalFileUrl,
-                        downloadPassword: item.downloadPassword || item.password
-                     })),
-                     type: 'store', // Treat fetched orders as store orders for layout
-                     orderId: data.id
-                  });
-               }
-            } catch (error) {
-               console.error("Error fetching order:", error);
-            } finally {
-               setLoading(false);
-            }
-         };
-         fetchOrder();
+      if (id && !location.state && !ordersLoading) {
+         const foundOrder = orders.find(o => o.id === id);
+         if (foundOrder) {
+            setOrderData({
+               ...foundOrder,
+               type: foundOrder.type || 'store',
+               orderId: foundOrder.id
+            });
+            setLoading(false);
+         } else {
+            console.warn("Order not found in R2");
+            setLoading(false);
+         }
       }
-   }, [id, location.state, clearCart]);
+   }, [id, location.state, clearCart, orders, ordersLoading, tips, payments]);
 
    if (loading) {
       return (
@@ -451,7 +378,7 @@ const Success: React.FC = () => {
                               )}
                               {state.shippingCost > 0 && (
                                  <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Shipping {state.deliveryType === 'door' ? '(Home Delivery)' : '(Station Pickup)'}</span>
+                                    <span className="text-gray-400">Shipping {state.deliveryMethod === 'door' ? '(Home Delivery)' : '(Station Pickup)'}</span>
                                     <span className="text-white font-medium">+ KES {state.shippingCost.toLocaleString()}</span>
                                  </div>
                               )}

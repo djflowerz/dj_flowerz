@@ -47,3 +47,30 @@ export async function saveToR2(collection: string, data: any): Promise<boolean> 
         return false;
     }
 }
+
+/**
+ * Upload a file to R2 via the API proxy
+ */
+export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
+    try {
+        const response = await fetch('/api/admin/r2-upload', {
+            method: 'POST',
+            headers: {
+                'x-file-name': file.name,
+                'x-folder': folder,
+                'content-type': file.type,
+            },
+            body: file,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Upload failed: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return { url: result.url, key: result.key };
+    } catch (error) {
+        console.error('Failed to upload file to R2:', error);
+        return null;
+    }
+}
