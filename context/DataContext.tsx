@@ -233,6 +233,7 @@ const mapSupabaseTrack = (t: any): Track => {
   const previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
 
   return {
+    ...t,
     id: t.id,
     artist: t.artist || 'DJ Flowerz',
     title: t.title || 'Untitled Mix',
@@ -241,10 +242,10 @@ const mapSupabaseTrack = (t: any): Track => {
     bpm: t.bpm,
     year: t.year,
     versions,
-    dateAdded: t.date_added || t.dateAdded || t.created_at,
+    dateAdded: t.date_added || t.dateAdded || t.created_at || t.createdAt,
     previewUrl,
-    createdAt: t.created_at,
-    updatedAt: t.updated_at
+    createdAt: t.created_at || t.createdAt,
+    updatedAt: t.updated_at || t.updatedAt
   };
 };
 
@@ -263,16 +264,16 @@ const mapSupabaseProduct = (p: any): Product => {
     ...p,
     image: mainImage,
     images: images,
-    isActive: p.is_active,
-    isHot: p.is_featured,
-    discountPrice: p.discount_price,
-    compareAtPrice: p.sale_price,
-    variantGroups: p.variant_groups || [],
-    variantOptions: p.variants || [],
-    variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : [],
-    stock: p.inventory || 0,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
+    isActive: p.is_active !== undefined ? p.is_active : (p.isActive !== undefined ? p.isActive : true),
+    isHot: p.is_featured !== undefined ? p.is_featured : (p.isHot !== undefined ? p.isHot : false),
+    discountPrice: p.discount_price !== undefined ? p.discount_price : p.discountPrice,
+    compareAtPrice: p.sale_price !== undefined ? p.sale_price : p.compareAtPrice,
+    variantGroups: p.variant_groups || p.variantGroups || [],
+    variantOptions: p.variants || p.variantOptions || [],
+    variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : (Array.isArray(p.variantOptions) ? p.variantOptions : []),
+    stock: p.inventory !== undefined ? p.inventory : (p.stock !== undefined ? p.stock : 0),
+    createdAt: p.created_at || p.createdAt,
+    updatedAt: p.updated_at || p.updatedAt,
     digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
     downloadPassword: p.download_password || p.downloadPassword || '',
     secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
@@ -281,34 +282,34 @@ const mapSupabaseProduct = (p: any): Product => {
 
 const mapSupabaseMixtape = (m: any): Mixtape => ({
   ...m,
-  coverUrl: m.cover_url,
-  audioUrl: m.audio_url,
+  coverUrl: m.cover_url || m.coverUrl,
+  audioUrl: m.audio_url || m.audioUrl,
   duration: m.duration,
-  releaseDate: m.release_date,
-  previewStartTime: m.preview_start_time,
-  allowFullStream: m.allow_full_stream,
-  allowDownload: m.allow_download,
-  downloadType: m.download_type,
-  streamQuality: m.stream_quality,
-  isFeatured: m.is_featured,
-  showInGallery: m.show_in_gallery,
-  showInMusicPool: m.show_in_music_pool,
-  enableComments: m.enable_comments,
-  requireLoginToComment: m.require_login_to_comment,
-  moderateComments: m.moderate_comments,
-  downloadUrl: m.download_url,
-  videoDownloadUrl: m.video_download_url,
-  downloadLimit: m.download_limit,
-  downloadExpiryDays: m.download_expiry_days,
-  requiredTier: m.required_tier,
-  youtubeUrl: m.youtube_url,
-  soundcloudUrl: m.soundcloud_url,
-  metaTitle: m.meta_title,
-  metaDescription: m.meta_description,
-  ogImage: m.og_image,
-  isExclusive: m.is_exclusive,
-  createdAt: m.created_at,
-  updatedAt: m.updated_at
+  releaseDate: m.release_date || m.releaseDate,
+  previewStartTime: m.preview_start_time || m.previewStartTime,
+  allowFullStream: m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream,
+  allowDownload: m.allow_download !== undefined ? m.allow_download : m.allowDownload,
+  downloadType: m.download_type || m.downloadType,
+  streamQuality: m.stream_quality || m.streamQuality,
+  isFeatured: m.is_featured !== undefined ? m.is_featured : m.isFeatured,
+  showInGallery: m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery,
+  showInMusicPool: m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool,
+  enableComments: m.enable_comments !== undefined ? m.enable_comments : m.enableComments,
+  requireLoginToComment: m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment,
+  moderateComments: m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments,
+  downloadUrl: m.download_url || m.downloadUrl,
+  videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
+  downloadLimit: m.download_limit !== undefined ? m.download_limit : m.downloadLimit,
+  downloadExpiryDays: m.download_expiry_days !== undefined ? m.download_expiry_days : m.downloadExpiryDays,
+  requiredTier: m.required_tier || m.requiredTier,
+  youtubeUrl: m.youtube_url || m.youtubeUrl,
+  soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
+  metaTitle: m.meta_title || m.metaTitle,
+  metaDescription: m.meta_description || m.metaDescription,
+  ogImage: m.og_image || m.ogImage,
+  isExclusive: m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive,
+  createdAt: m.created_at || m.createdAt,
+  updatedAt: m.updated_at || m.updatedAt
 });
 
 const mapSupabaseOrder = (o: any): Order => ({
@@ -317,71 +318,71 @@ const mapSupabaseOrder = (o: any): Order => ({
   customerEmail: o.customer_email || o.customerEmail,
   paymentStatus: o.payment_status || o.paymentStatus,
   referenceCode: o.reference_code || o.referenceCode,
-  trackingNumber: o.tracking_number,
-  courierName: o.courier_name,
-  estimatedArrival: o.estimated_arrival,
-  pickupLocation: o.pickup_location,
-  receiptUrl: o.receipt_url,
-  adminMessage: o.admin_message,
-  shippedAt: o.shipped_at,
-  deliveryMethod: o.delivery_method,
-  requiresShipping: o.requires_shipping,
-  subtotal: o.subtotal,
-  discountAmount: o.discount_amount,
-  shippingCost: o.shipping_cost,
-  couponCode: o.coupon_code,
-  createdAt: o.created_at,
-  updatedAt: o.updated_at
+  trackingNumber: o.tracking_number || o.trackingNumber,
+  courierName: o.courier_name || o.courierName,
+  estimatedArrival: o.estimated_arrival || o.estimatedArrival,
+  pickupLocation: o.pickup_location || o.pickupLocation,
+  receiptUrl: o.receipt_url || o.receiptUrl,
+  adminMessage: o.admin_message || o.adminMessage,
+  shippedAt: o.shipped_at || o.shippedAt,
+  deliveryMethod: o.delivery_method || o.deliveryMethod,
+  requiresShipping: o.requires_shipping !== undefined ? o.requires_shipping : o.requiresShipping,
+  subtotal: o.subtotal !== undefined ? o.subtotal : o.subtotal,
+  discountAmount: o.discount_amount !== undefined ? o.discount_amount : o.discountAmount,
+  shippingCost: o.shipping_cost !== undefined ? o.shipping_cost : o.shippingCost,
+  couponCode: o.coupon_code || o.couponCode,
+  createdAt: o.created_at || o.createdAt,
+  updatedAt: o.updated_at || o.updatedAt
 });
 
 const mapSupabaseUser = (u: any): User => ({
   ...u,
-  isSubscriber: u.is_subscriber,
-  subscriptionPlan: u.subscription_plan,
-  subscriptionExpiry: u.subscription_expiry,
-  avatarUrl: u.avatar_url,
-  referralCode: u.referral_code,
-  lastLogin: u.last_login,
-  phoneNumber: u.phone_number,
-  lastSeen: u.last_seen,
-  referredBy: u.referred_by,
-  balance: u.balance || 0,
-  presenceStatus: u.presence_status,
-  createdAt: u.created_at,
-  updatedAt: u.updated_at
+  isSubscriber: u.is_subscriber !== undefined ? u.is_subscriber : u.isSubscriber,
+  subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
+  subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
+  avatarUrl: u.avatar_url || u.avatarUrl,
+  referralCode: u.referral_code || u.referralCode,
+  lastLogin: u.last_login || u.lastLogin,
+  phoneNumber: u.phone_number || u.phoneNumber,
+  lastSeen: u.last_seen || u.lastSeen,
+  referredBy: u.referred_by || u.referredBy,
+  balance: u.balance !== undefined ? u.balance : (u.balance || 0),
+  presenceStatus: u.presence_status || u.presenceStatus,
+  createdAt: u.created_at || u.createdAt,
+  updatedAt: u.updated_at || u.updatedAt
 });
 
 const mapSupabaseSubscription = (s: any): Subscription => ({
   ...s,
-  userId: s.user_id,
-  userName: s.user_name,
-  userEmail: s.user_email,
-  planId: s.plan_id,
-  startDate: s.start_date,
-  expiryDate: s.expiry_date,
-  paymentMethod: s.payment_method,
-  createdAt: s.created_at,
-  updatedAt: s.updated_at
+  userId: s.user_id || s.userId,
+  userName: s.user_name || s.userName,
+  userEmail: s.user_email || s.userEmail,
+  planId: s.plan_id || s.planId,
+  startDate: s.start_date || s.startDate,
+  expiryDate: s.expiry_date || s.expiryDate,
+  paymentMethod: s.payment_method || s.paymentMethod,
+  createdAt: s.created_at || s.createdAt,
+  updatedAt: s.updated_at || s.updatedAt
 });
 
 const mapSupabaseBooking = (b: any): Booking => ({
   ...b,
-  clientName: b.client_name,
-  clientEmail: b.client_email,
-  clientPhone: b.client_phone,
-  serviceType: b.service_type,
-  serviceName: b.service_name,
-  paymentStatus: b.payment_status,
-  createdAt: b.created_at,
-  updatedAt: b.updated_at
+  clientName: b.client_name || b.clientName,
+  clientEmail: b.client_email || b.clientEmail,
+  clientPhone: b.client_phone || b.clientPhone,
+  serviceType: b.service_type || b.serviceType,
+  serviceName: b.service_name || b.serviceName,
+  paymentStatus: b.payment_status || b.paymentStatus,
+  createdAt: b.created_at || b.createdAt,
+  updatedAt: b.updated_at || b.updatedAt
 });
 
 const mapSupabaseSessionType = (s: any): SessionType => ({
   ...s,
-  depositRequired: s.deposit_required,
-  equipmentIncluded: s.equipment_included,
-  createdAt: s.created_at,
-  updatedAt: s.updated_at
+  depositRequired: s.deposit_required !== undefined ? s.deposit_required : s.depositRequired,
+  equipmentIncluded: s.equipment_included !== undefined ? s.equipment_included : s.equipmentIncluded,
+  createdAt: s.created_at || s.createdAt,
+  updatedAt: s.updated_at || s.updatedAt
 });
 
 const mapSupabaseStudioRoom = (r: any): StudioRoom => ({
@@ -392,72 +393,72 @@ const mapSupabaseStudioRoom = (r: any): StudioRoom => ({
 
 const mapSupabaseMaintenanceLog = (l: any): MaintenanceLog => ({
   ...l,
-  itemId: l.item_id,
-  itemName: l.item_name,
-  itemType: l.item_type, // item_type in DB?
-  createdAt: l.created_at,
-  updatedAt: l.updated_at
+  itemId: l.item_id || l.itemId,
+  itemName: l.item_name || l.itemName,
+  itemType: l.item_type || l.itemType,
+  createdAt: l.created_at || l.createdAt,
+  updatedAt: l.updated_at || l.updatedAt
 });
 
 const mapSupabaseCoupon = (c: any): Coupon => ({
   ...c,
-  discountType: c.discount_type,
-  discountValue: c.discount_value,
-  appliesTo: c.applies_to,
-  applicablePlans: c.applicable_plans,
-  expiryDate: c.expiry_date,
-  usageLimit: c.usage_limit,
-  usageCount: c.usage_count,
-  createdAt: c.created_at,
-  updatedAt: c.updated_at
+  discountType: c.discount_type || c.discountType,
+  discountValue: c.discount_value !== undefined ? c.discount_value : c.discountValue,
+  appliesTo: c.applies_to || c.appliesTo,
+  applicablePlans: c.applicable_plans || c.applicablePlans,
+  expiryDate: c.expiry_date || c.expiryDate,
+  usageLimit: c.usage_limit !== undefined ? c.usage_limit : c.usageLimit,
+  usageCount: c.usage_count !== undefined ? c.usage_count : (c.usageCount || 0),
+  createdAt: c.created_at || c.createdAt,
+  updatedAt: c.updated_at || c.updatedAt
 });
 
 const mapSupabaseReferralStats = (r: any): ReferralStats => ({
   ...r,
-  userId: r.user_id,
-  userName: r.user_name,
-  referralCode: r.referral_code,
-  totalReferrals: r.total_referrals,
-  totalEarned: r.total_earned,
-  pendingPayout: r.pending_payout,
-  createdAt: r.created_at,
+  userId: r.user_id || r.userId,
+  userName: r.user_name || r.userName,
+  referralCode: r.referral_code || r.referralCode,
+  totalReferrals: r.total_referrals !== undefined ? r.total_referrals : (r.totalReferrals || 0),
+  totalEarned: r.total_earned !== undefined ? r.total_earned : (r.totalEarned || 0),
+  pendingPayout: r.pending_payout !== undefined ? r.pending_payout : (r.pendingPayout || 0),
+  createdAt: r.created_at || r.createdAt,
 });
 
 const mapSupabaseCampaign = (c: any): NewsletterCampaign => ({
   ...c,
-  sentDate: c.sent_date,
-  recipientCount: c.recipient_count,
-  openRate: c.open_rate,
-  createdAt: c.created_at,
-  updatedAt: c.updated_at
+  sentDate: c.sent_date || c.sentDate,
+  recipientCount: c.recipient_count !== undefined ? c.recipient_count : c.recipientCount,
+  openRate: c.open_rate !== undefined ? c.open_rate : c.openRate,
+  createdAt: c.created_at || c.createdAt,
+  updatedAt: c.updated_at || c.updatedAt
 });
 
 const mapSupabaseSubscriber = (s: any): NewsletterSubscriber => ({
   ...s,
-  dateSubscribed: s.date_subscribed,
-  updatedAt: s.updated_at
+  dateSubscribed: s.date_subscribed || s.dateSubscribed,
+  updatedAt: s.updated_at || s.updatedAt
 });
 
 const mapSupabaseChannel = (c: any): TelegramChannel => ({
   ...c,
-  channelId: c.channel_id,
-  inviteLink: c.invite_link,
-  createdAt: c.created_at,
-  updatedAt: c.updated_at
+  channelId: c.channel_id || c.channelId,
+  inviteLink: c.invite_link || c.inviteLink,
+  createdAt: c.created_at || c.createdAt,
+  updatedAt: c.updated_at || c.updatedAt
 });
 
 const mapSupabasePlan = (p: any): SubscriptionPlan => ({
   ...p,
-  isBestValue: p.is_best_value,
-  createdAt: p.created_at,
-  updatedAt: p.updated_at
+  isBestValue: p.is_best_value !== undefined ? p.is_best_value : p.isBestValue,
+  createdAt: p.created_at || p.createdAt,
+  updatedAt: p.updated_at || p.updatedAt
 });
 
 const mapSupabaseGenre = (g: any): Genre => ({
   ...g,
-  coverUrl: g.cover_url,
-  createdAt: g.created_at,
-  updatedAt: g.updated_at
+  coverUrl: g.cover_url || g.coverUrl,
+  createdAt: g.created_at || g.createdAt,
+  updatedAt: g.updated_at || g.updatedAt
 });
 
 // Helper to fetch collection (Namespaced V8 style)
