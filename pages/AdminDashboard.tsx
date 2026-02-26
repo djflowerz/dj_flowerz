@@ -439,7 +439,7 @@ const AdminDashboard: React.FC = () => {
             date: o.date || (o.createdAt || '').split('T')[0],
             time: o.time || '',
             name: o.customerName,
-            items: o.items.map((i: any) => i.productName).join(', '),
+            items: Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment',
             amount: o.total,
             status: o.status,
             type: displayType,
@@ -1517,14 +1517,13 @@ const AdminDashboard: React.FC = () => {
                                        </td>
                                        <td className="px-6 py-4">
                                           <div className="flex flex-col gap-1 max-w-[250px]">
-                                             {order.items.map((item, idx) => (
+                                             {Array.isArray(order.items) ? order.items.map((item, idx) => (
                                                 <div key={idx} className="flex items-center gap-1.5 leading-tight">
                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} title={item.type}></span>
                                                    <span className="text-white font-medium truncate">{item.productName}</span>
                                                    {item.quantity > 1 && <span className="text-[10px] bg-white/10 px-1 rounded text-gray-400">x{item.quantity}</span>}
                                                 </div>
-                                             ))}
-                                             {order.items.length === 0 && <span className="text-gray-500 italic text-xs">No items found</span>}
+                                             )) : <span className="text-gray-500 italic text-xs">No items found</span>}
                                           </div>
                                        </td>
                                        <td className="px-6 py-4">KES {order.total.toLocaleString()}</td>
@@ -2308,7 +2307,7 @@ const AdminDashboard: React.FC = () => {
                                              <div className="font-bold">{o.customerName}</div>
                                              <div className="text-[10px] text-gray-500">{o.customerEmail}</div>
                                           </td>
-                                          <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{o.items.map(i => i.productName).join(', ')}</td>
+                                          <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment'}</td>
                                           <td className="px-4 py-3"><button onClick={() => openShipModal(o)} className="text-[10px] bg-brand-purple text-white px-2 py-1 rounded font-bold uppercase">Ship Now</button></td>
                                        </tr>
                                     ))}
@@ -3262,7 +3261,7 @@ const AdminDashboard: React.FC = () => {
                         <p className="text-[10px] text-gray-500 uppercase font-bold">Purchased Items</p>
                      </div>
                      <div className="divide-y divide-white/5 max-h-[200px] overflow-y-auto">
-                        {selectedOrder?.items.map((item, idx) => (
+                        {Array.isArray(selectedOrder?.items) ? selectedOrder.items.map((item: any, idx: number) => (
                            <div key={idx} className="px-4 py-3 flex justify-between items-center text-sm">
                               <div className="flex items-center gap-2">
                                  <span className={`w-2 h-2 rounded-full ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} />
@@ -3272,7 +3271,7 @@ const AdminDashboard: React.FC = () => {
                                  {item.quantity} x KES {item.price.toLocaleString()}
                               </div>
                            </div>
-                        ))}
+                        )) : null}
                         {(!selectedOrder?.items || selectedOrder.items.length === 0) && (
                            <div className="px-4 py-8 text-center text-gray-500 italic text-xs">
                               No item details available
