@@ -4,16 +4,30 @@ import { Play, ArrowRight, ShoppingBag, Youtube, Mail, Disc, Headphones, Music, 
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import MusicPoolPreview from '../components/MusicPoolPreview';
+import { CountdownTimer } from '../components/CountdownTimer';
+
+const toEmbedUrl = (url: string): string => {
+   if (!url) return '';
+   if (url.includes('youtube.com/embed/')) return url;
+   const shortMatch = url.match(/youtu\.be\/([^?&]+)/);
+   if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+   const watchMatch = url.match(/[?&]v=([^?&]+)/);
+   if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+   return url;
+};
 
 const Home: React.FC = () => {
    const { user } = useAuth();
    const { siteConfig, mixtapes, products, youtubeVideos, addSubscriber } = useData();
+   const { addToCart } = useCart();
    const { playTrack, currentTrack, isPlaying } = usePlayer();
    const { hero, home } = siteConfig;
 
    const featuredMixtapes = mixtapes.slice(0, 4);
 
-   const [displayProducts, setDisplayProducts] = React.useState<any[]>(products.slice(0, 4));
+   const [displayProducts, setDisplayProducts] = React.useState<any[]>(products.slice(0, 6));
 
    React.useEffect(() => {
       const activeProducts = products.filter(p => {
@@ -24,7 +38,7 @@ const Home: React.FC = () => {
       const shuffleProducts = () => {
          if (activeProducts.length === 0) return;
          const shuffled = [...activeProducts].sort(() => 0.5 - Math.random());
-         setDisplayProducts(shuffled.slice(0, 4));
+         setDisplayProducts(shuffled.slice(0, 6));
       };
 
       shuffleProducts();
@@ -34,30 +48,89 @@ const Home: React.FC = () => {
 
    return (
       <div className="pb-20">
-         {/* 1. Dynamic Hero Section */}
-         <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url("${hero.bgImage}")` }}></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-[#0B0B0F]/70 to-black/40 z-0"></div>
+         {/* 1. Dynamic Hero Section (AURA Redesign) */}
+         <section className="relative min-h-[90vh] flex items-center pt-20 overflow-hidden bg-[#050507]">
+            {/* Decorative Background Elements */}
+            <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] animate-pulse-slow"></div>
+            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-brand-purple/10 rounded-full blur-[100px] animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
-               <div className="mb-6 animate-fade-in-up">
-                  <span className="bg-brand-purple/20 text-brand-purple border border-brand-purple/50 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
-                     The Official Platform
-                  </span>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.03]"></div>
+
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+               <div className="flex flex-col items-start text-left animate-fade-in-up">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6">
+                     <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse"></div>
+                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">The Official Audio Portal</span>
+                  </div>
+
+                  <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-black text-white mb-6 leading-[0.9] tracking-tight">
+                     {hero.title.split(' ').map((word, i) => (
+                        <span key={i} className={word.toLowerCase() === 'mixtapes' || word.toLowerCase() === 'future' ? 'text-gradient-cyan' : ''}>
+                           {word}{' '}
+                        </span>
+                     ))}
+                  </h1>
+
+                  <p className="text-gray-400 text-lg md:text-xl max-w-xl mb-10 leading-relaxed font-medium">
+                     {hero.subtitle}
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                     <Link to="/music-pool" className="btn-primary group">
+                        <Headphones size={20} className="mr-2 group-hover:rotate-12 transition-transform" />
+                        {hero.ctaText}
+                     </Link>
+                     <Link to="/store" className="btn-secondary group">
+                        <ShoppingBag size={20} className="mr-2 group-hover:scale-110 transition-transform" />
+                        Visit Store
+                     </Link>
+                  </div>
+
+                  {/* Stats / Proof */}
+                  <div className="mt-12 flex items-center gap-8 border-t border-white/5 pt-8 w-full">
+                     <div>
+                        <div className="text-2xl font-bold text-white">500+</div>
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Exclusive Tracks</div>
+                     </div>
+                     <div>
+                        <div className="text-2xl font-bold text-white">10K+</div>
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Monthly Listeners</div>
+                     </div>
+                     <div className="hidden sm:block">
+                        <div className="text-2xl font-bold text-white">24/7</div>
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Studio Access</div>
+                     </div>
+                  </div>
                </div>
-               <h1 className="text-4xl md:text-6xl lg:text-8xl font-display font-bold text-white mb-6 leading-tight drop-shadow-2xl">
-                  {hero.title}
-               </h1>
-               <p className="text-gray-200 text-lg md:text-2xl max-w-2xl mb-10 leading-relaxed font-light">
-                  {hero.subtitle}
-               </p>
-               <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                  <Link to="/music-pool" className="px-8 py-4 bg-gradient-to-r from-brand-purple to-brand-cyan rounded-full text-white font-bold text-lg hover:shadow-[0_0_30px_rgba(123,92,255,0.6)] transition transform hover:-translate-y-1 flex items-center justify-center gap-2">
-                     <Headphones size={20} /> {hero.ctaText}
-                  </Link>
-                  <Link to="/store" className="px-8 py-4 bg-white/10 border border-white/20 backdrop-blur-md rounded-full text-white font-bold text-lg hover:bg-white/20 transition flex items-center justify-center gap-2">
-                     <ShoppingBag size={20} /> Visit Store
-                  </Link>
+
+               {/* Visual Element: Floating Cards / 3D Look */}
+               <div className="hidden lg:flex relative h-[600px] items-center justify-center animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                  <div className="relative w-full h-full flex items-center justify-center">
+                     <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/20 to-brand-cyan/20 rounded-[40px] rotate-3 scale-95 blur-2xl opacity-50"></div>
+                     <div className="relative z-10 w-[85%] aspect-[4/5] bg-cover bg-center rounded-[32px] border border-white/10 shadow-2xl overflow-hidden"
+                        style={{ backgroundImage: `url("${hero.bgImage}")` }}>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
+                        <div className="absolute bottom-8 left-8 right-8 p-6 glass-effect rounded-2xl">
+                           <div className="flex items-center justify-between">
+                              <div>
+                                 <div className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Now Streaming</div>
+                                 <div className="text-lg font-black text-white">THE PLATINUM MIX</div>
+                              </div>
+                              <div className="w-12 h-12 rounded-full bg-brand-cyan flex items-center justify-center text-black">
+                                 <Play fill="black" size={20} />
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
+                     {/* Floating Decorative Elements */}
+                     <div className="absolute top-1/4 -right-4 glass-effect p-4 rounded-2xl shadow-2xl animate-bounce" style={{ animationDuration: '4s' }}>
+                        <Disc className="text-brand-purple" size={32} />
+                     </div>
+                     <div className="absolute bottom-1/4 -left-4 glass-effect p-4 rounded-2xl shadow-2xl animate-bounce" style={{ animationDuration: '6s', animationDelay: '1s' }}>
+                        <Music className="text-brand-cyan" size={32} />
+                     </div>
+                  </div>
                </div>
             </div>
          </section>
@@ -102,86 +175,120 @@ const Home: React.FC = () => {
             </div>
          </section>
 
-         {/* 3. Store Highlights (Dynamic) */}
-         <section className="py-20 bg-[#0F0F13]">
+         {/* 3. Weekly Best Deals (Store Promo) - Dribbble Concept Match */}
+         <section className="py-24 bg-[#0F0F13] text-white overflow-hidden border-y border-white/5">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-               <div className="flex justify-between items-end mb-12">
-                  <div>
-                     <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">{home.storePromo.title}</h2>
-                     <p className="text-gray-400">{home.storePromo.description}</p>
-                  </div>
-                  <Link to="/store" className="text-white hover:text-brand-purple transition font-bold uppercase tracking-wider flex items-center gap-2">
-                     {home.storePromo.ctaText} <ArrowRight size={16} />
-                  </Link>
+
+               {/* Header Row */}
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-6">
+                  <h2 className="text-3xl md:text-5xl font-display font-bold tracking-tight">Weekly Best Deals</h2>
+                  {siteConfig.promoTimer?.enabled && (
+                     <div className="flex items-center gap-4">
+                        <span className="text-sm font-medium tracking-wide">{siteConfig.promoTimer.label}</span>
+                        <CountdownTimer expiryDate={siteConfig.promoTimer.endDate} variant="premium" />
+                     </div>
+                  )}
                </div>
 
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
-                  {displayProducts.map((product) => (
-                     <Link to={`/store/${product.id}`} key={product.id} className="group">
-                        <div className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition relative">
-                           <div className="aspect-square bg-white relative">
-                              <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                              {product.isHot && (
-                                 <div className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg uppercase tracking-wider z-10">
-                                    HOT
-                                 </div>
-                              )}
+               {/* Filters / Categories */}
+               <div className="flex overflow-x-auto pb-4 mb-8 gap-3 scrollbar-hide">
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Up to 90% off</button>
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Under KES 1000</button>
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full bg-brand-cyan text-black border hover:bg-cyan-400 border-brand-cyan text-sm font-bold shadow-[0_0_15px_rgba(40,230,220,0.3)] transition">Almost Sold out</button>
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">DJ Equipment</button>
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Audio & Wearables</button>
+                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Software & Plugins</button>
+               </div>
+
+               {/* Top 4 Products Grid */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                  {displayProducts.slice(0, 4).map((product) => (
+                     <Link to={`/store/${product.id}`} key={product.id} className="bg-[#15151A] rounded-[20px] overflow-hidden group shadow-xl hover:shadow-2xl hover:border-brand-purple/50 border border-white/5 hover:-translate-y-1 transition duration-300 flex flex-col relative h-[480px]">
+                        <div className="absolute top-4 left-4 z-10">
+                           <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-md uppercase tracking-wider">Sale</span>
+                        </div>
+                        <div className="absolute top-4 right-4 z-10 w-8 h-8 bg-black/50 backdrop-blur rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-black/80 hover:shadow-lg transition">
+                           <span className="text-xl leading-none -mt-0.5">♡</span>
+                        </div>
+
+                        <div className="relative h-[280px] p-4 flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center">
+                           <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 transition duration-500 drop-shadow-sm" />
+                        </div>
+
+                        <div className="p-5 flex flex-col flex-grow bg-[#15151A]">
+                           <h3 className="text-white font-semibold text-[15px] line-clamp-2 leading-tight mb-2 group-hover:text-brand-purple transition">{product.name}</h3>
+
+                           <div className="flex gap-1 mb-auto">
+                              <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
+                              <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
+                              <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
+                              <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
+                              <Star size={12} className="text-gray-500 fill-gray-500" />
+                              <span className="text-[10px] text-gray-400 ml-1 font-medium">(24)</span>
                            </div>
-                           <div className="p-4">
-                              <h3 className="text-white font-bold truncate mb-1 group-hover:text-brand-purple transition">{product.name}</h3>
-                              <div className="flex items-center gap-2">
-                                 <p className="text-brand-cyan font-bold">
-                                    {product.discountPrice && product.discountPrice > 0
-                                       ? `KES ${product.discountPrice.toLocaleString()}`
-                                       : (product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`)}
-                                 </p>
+
+                           <div className="mt-4">
+                              <div className="flex items-end gap-2 mb-4">
+                                 <span className="text-brand-cyan font-black text-xl leading-none">
+                                    {product.discountPrice && product.discountPrice > 0 ? `KES ${product.discountPrice.toLocaleString()}` : (product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`)}
+                                 </span>
                                  {product.discountPrice && product.discountPrice > 0 && (
-                                    <p className="text-gray-500 line-through text-[10px]">
-                                       KES {product.price.toLocaleString()}
-                                    </p>
+                                    <span className="text-gray-500 line-through text-xs font-medium">KES {product.price.toLocaleString()}</span>
                                  )}
                               </div>
+
+                              <button
+                                 className="w-full bg-brand-purple text-white py-3 rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors shadow-md submit-btn"
+                                 onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    addToCart(product);
+                                 }}
+                              >
+                                 Add to Cart
+                              </button>
                            </div>
                         </div>
                      </Link>
                   ))}
                </div>
+
+               {/* Bottom Promo Banners */}
+               {displayProducts.length > 4 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     {displayProducts.slice(4, 6).map((product, idx) => {
+                        const bgColors = ['bg-gradient-to-br from-[#1A1A24] to-[#0B0B0F] border border-white/5', 'bg-gradient-to-br from-[#15151A] to-[#0A0A0C] border border-white/5'];
+                        return (
+                           <Link to={`/store/${product.id}`} key={product.id} className={`${bgColors[idx]} rounded-[24px] p-8 flex flex-col sm:flex-row items-center justify-between relative overflow-hidden group hover:shadow-2xl hover:border-brand-purple/30 hover:-translate-y-1 transition duration-300`}>
+                              <div className="relative z-10 sm:w-1/2 flex flex-col items-start gap-3">
+                                 <span className="text-[10px] font-bold tracking-widest uppercase text-brand-purple bg-brand-purple/10 px-3 py-1 rounded-full shadow-sm">
+                                    {idx === 0 ? 'DJ Equipment' : 'Studio Essentials'}
+                                 </span>
+                                 <h3 className="text-white font-black text-2xl lg:text-3xl uppercase leading-[1.1] mt-1">
+                                    <span className="block mb-1">{idx === 0 ? 'PRO DJ GEAR' : 'PREMIUM AUDIO SETUP'}</span>
+                                    SPECIAL OFFER
+                                 </h3>
+                                 <p className="text-gray-400 text-sm font-medium mt-1">
+                                    Offers start from <span className="text-brand-cyan font-bold ml-1 bg-white/10 px-2 py-0.5 rounded">KES {product.discountPrice ? product.discountPrice.toLocaleString() : product.price.toLocaleString()}</span>
+                                 </p>
+
+                                 <button className="mt-4 bg-brand-purple text-white px-6 py-2.5 rounded-full text-xs font-black tracking-wider uppercase hover:bg-purple-600 transition shadow-lg w-max">
+                                    Shop Now
+                                 </button>
+                              </div>
+                              <div className="relative z-10 w-full max-w-[280px] h-[280px] mt-8 sm:mt-0 flex items-center justify-center bg-white rounded-3xl p-6 shadow-2xl border border-white/10">
+                                 <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
+                              </div>
+                           </Link>
+                        );
+                     })}
+                  </div>
+               )}
             </div>
          </section>
 
-         {/* 4. Music Pool Promo */}
-         <section className="py-24 bg-[#0B0B0F] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-1/2 h-full bg-brand-purple/5 skew-x-12"></div>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-               <div className="flex flex-col md:flex-row items-center gap-12">
-                  <div className="w-full md:w-1/2">
-                     <span className="text-brand-cyan font-bold tracking-wider uppercase mb-2 block">For DJs & Audiophiles</span>
-                     <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-6">{home.musicPool.title}</h2>
-                     <p className="text-gray-300 text-lg mb-8">{home.musicPool.description}</p>
-                     <ul className="space-y-4 mb-8">
-                        {home.musicPool.benefits.map((item, i) => (
-                           <li key={i} className="flex items-center text-gray-300 text-lg">
-                              <span className="w-6 h-6 rounded-full bg-brand-purple/20 text-brand-purple flex items-center justify-center mr-3 text-xs">✓</span>
-                              {item}
-                           </li>
-                        ))}
-                     </ul>
-                     <div className="flex flex-col sm:flex-row gap-4">
-                        <Link to="/music-pool" className="px-8 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition text-center">
-                           {home.musicPool.ctaText}
-                        </Link>
-                        <Link to="/login" className="px-8 py-4 border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition text-center">
-                           Member Login
-                        </Link>
-                     </div>
-                  </div>
-                  <div className="w-full md:w-1/2 relative">
-                     <div className="absolute inset-0 bg-gradient-to-r from-brand-purple to-brand-cyan blur-[80px] opacity-20"></div>
-                     <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=2070&auto=format&fit=crop" alt="DJ Deck" className="relative rounded-2xl shadow-2xl border border-white/10 rotate-2 hover:rotate-0 transition duration-500" />
-                  </div>
-               </div>
-            </div>
-         </section>
+         {/* 4. Music Pool Preview & Grid */}
+         <MusicPoolPreview />
 
          {/* 5. YouTube Section (Dynamic) */}
          <section className="py-20 bg-[#15151A] border-y border-white/5">
@@ -199,9 +306,10 @@ const Home: React.FC = () => {
                      <div key={video.id} className="rounded-xl overflow-hidden bg-black/40 border border-white/10 group cursor-pointer hover:border-brand-purple/50 transition">
                         <div className="aspect-video relative">
                            <iframe
-                              src={video.url}
+                              src={toEmbedUrl(video.url)}
                               title={video.title}
                               className="w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                               allowFullScreen
                            ></iframe>
                         </div>
