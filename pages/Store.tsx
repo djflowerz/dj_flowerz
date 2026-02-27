@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, Share2, Star } from 'lucide-react';
+import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +23,20 @@ const Store: React.FC = () => {
 
   // Constants
   const categories = ['All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Mobile Phones', 'Mobile Accessories', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'];
+
+  const categoryAssets: Record<string, { icon: React.ReactNode, img: string }> = {
+    'All': { icon: <Grid size={24} />, img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=200' },
+    'Audio Equipment': { icon: <Headphones size={24} />, img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=200' },
+    'DJ Equipment': { icon: <Disc size={24} />, img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=200' },
+    'Laptops': { icon: <Laptop size={24} />, img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=200' },
+    'Mobile Phones': { icon: <Smartphone size={24} />, img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200' },
+    'Mobile Accessories': { icon: <Battery size={24} />, img: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=200' },
+    'Software': { icon: <Database size={24} />, img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200' },
+    'Samples': { icon: <Music size={24} />, img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=200' },
+    'Apparel': { icon: <Shirt size={24} />, img: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=200' },
+    'Accessories': { icon: <ShoppingCart size={24} />, img: 'https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&q=80&w=200' },
+    'Other': { icon: <Search size={24} />, img: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=200' }
+  };
   const types = ['all', 'digital', 'physical'];
   const prices = ['All', 'Free', 'Paid'];
   const osOptions = ['All', 'macOS', 'Windows', 'Android'];
@@ -121,79 +134,83 @@ const Store: React.FC = () => {
     <div className="pt-24 pb-20 min-h-screen bg-[#050507]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Store Hero Section */}
-        <section className="relative rounded-[40px] overflow-hidden bg-[#15151A] border border-white/5 mb-12 shadow-2xl min-h-[400px] flex items-center">
-          {/* Background Textures */}
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.05] z-0"></div>
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-cyan/5 via-[#15151A] to-brand-purple/5 z-0"></div>
+        {/* Store Hero Section (Vercel Match) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 md:mb-12">
+          {/* Main Large Card */}
+          <div className="md:col-span-2 relative h-[350px] md:h-[450px] rounded-3xl overflow-hidden bg-brand-purple flex flex-col justify-center p-8 md:p-12 border border-white/10 group shadow-lg">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.1] z-0 pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent z-0"></div>
+            <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-white/10 blur-[80px] rounded-full group-hover:bg-brand-cyan/20 transition duration-700 pointer-events-none"></div>
 
-          <div className="relative z-10 w-full p-8 md:p-12 lg:p-16 flex flex-col items-center text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-6 backdrop-blur-sm">
-              <span className="w-2 h-2 rounded-full bg-brand-purple animate-pulse"></span>
-              <span className="text-xs font-bold text-white uppercase tracking-widest">Premium Store</span>
-            </div>
-
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-black text-white mb-6 leading-tight tracking-tight">
-              YOUR SOUND. <br className="hidden md:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-brand-purple">
-                ELEVATED.
+            <div className="relative z-10 max-w-lg">
+              <span className="inline-block px-4 py-1.5 rounded-full bg-brand-cyan text-black text-[10px] md:text-xs font-bold uppercase tracking-wider mb-4 md:mb-6 shadow-sm">
+                SPECIAL OFFER
               </span>
-            </h1>
-
-            <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
-              Explore our curated selection of high-fidelity audio gear, exclusive DJ controllers, software, and apparel.
-            </p>
-
-            {/* Quick Filter Cards / Hero Promo */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 w-full max-w-5xl mx-auto">
-              {[
-                {
-                  title: 'New Arrivals',
-                  subtitle: 'Latest Gear & Software',
-                  img: 'https://images.unsplash.com/photo-1598403031688-e7cfd2c222c4?auto=format&fit=crop&q=80&w=400',
-                  color: 'from-blue-500/30',
-                  action: () => setSortBy('Newest')
-                },
-                {
-                  title: 'Hot Releases',
-                  subtitle: 'Trending Now',
-                  img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400',
-                  color: 'from-red-500/30',
-                  action: () => setSortBy('Hot')
-                },
-                {
-                  title: 'Best Deals',
-                  subtitle: 'Top Discounts',
-                  img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=400',
-                  color: 'from-brand-purple/30',
-                  action: () => setSortBy('Price: Low')
-                }
-              ].map((promo, i) => (
-                <div
-                  key={i}
-                  onClick={() => {
-                    promo.action();
-                    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className={`group relative h-48 md:h-56 rounded-3xl overflow-hidden border border-white/10 cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1`}
-                >
-                  <img src={promo.img} alt={promo.title} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-110 transition duration-700" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-[#0B0B0F]/60 to-transparent"></div>
-                  <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
-
-                  <div className="absolute bottom-6 left-6 relative z-10 text-left">
-                    <div className="text-[10px] font-bold text-gray-400 group-hover:text-white uppercase tracking-widest mb-1 transition-colors">{promo.subtitle}</div>
-                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">{promo.title}</h3>
-                  </div>
-
-                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full glass-effect flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition translate-x-4 group-hover:translate-x-0">
-                    <ChevronDown size={18} className="-rotate-90" />
-                  </div>
-                </div>
-              ))}
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-black text-white leading-[1.05] tracking-tight mb-4 md:mb-6">
+                Elevate Your <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-white">Creative Arsenal</span>
+              </h1>
+              <p className="text-white/80 text-sm md:text-base lg:text-lg mb-8 max-w-sm leading-relaxed">
+                Discover premium sample packs, pro audio gear, and exclusive merch dropping this week.
+              </p>
+              <button
+                onClick={() => document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+              >
+                Start Exploring
+              </button>
             </div>
           </div>
-        </section>
+
+          {/* Right Stacked Cards */}
+          <div className="md:col-span-1 flex flex-col gap-4 h-[350px] md:h-[450px]">
+            {/* Top Card */}
+            <div
+              onClick={() => { setSelectedCategory('Audio Equipment'); document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="flex-1 relative rounded-3xl overflow-hidden bg-[#15151A] border border-white/5 group cursor-pointer shadow-lg"
+            >
+              <img src="https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400" alt="Audio" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition duration-500 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+
+              <div className="absolute top-5 left-5 z-20">
+                <span className="px-3 py-1.5 rounded-md bg-orange-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                  Trending
+                </span>
+              </div>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 pt-10">
+                <div className="w-14 h-14 rounded-full border border-orange-500/50 flex items-center justify-center mb-3 bg-black/40 backdrop-blur-md text-orange-400 group-hover:scale-110 group-hover:bg-orange-500 group-hover:text-white transition-all duration-300 shadow-[0_0_20px_rgba(249,115,22,0.3)]">
+                  <Star size={24} className="fill-current" />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-1 shadow-sm uppercase tracking-tight">Pro Audio Gear</h3>
+                <p className="text-sm font-medium text-white/90 drop-shadow-md">Up to 20% off hardware</p>
+              </div>
+            </div>
+
+            {/* Bottom Card */}
+            <div
+              onClick={() => { setSelectedCategory('Mobile Accessories'); document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="flex-1 relative rounded-3xl overflow-hidden bg-[#15151A] border border-white/5 group cursor-pointer shadow-lg"
+            >
+              <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=400" alt="Mobile" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition duration-500 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+
+              <div className="absolute top-5 left-5 z-20">
+                <span className="px-3 py-1.5 rounded-md bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                  New
+                </span>
+              </div>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 pt-10">
+                <div className="w-14 h-14 rounded-full border border-blue-500/50 flex items-center justify-center mb-3 bg-black/40 backdrop-blur-md text-blue-400 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                  <ShoppingCart size={24} />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-1 shadow-sm uppercase tracking-tight">Mobile & Accessories</h3>
+                <p className="text-sm font-medium text-white/90 drop-shadow-md">Fresh products just dropped</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Controls: Search, Sort & Mobile Filters Toggle */}
         <div id="products-section" className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-[#15151A] p-2 md:p-3 rounded-2xl md:rounded-[20px] border border-white/5 shadow-lg">
@@ -229,63 +246,109 @@ const Store: React.FC = () => {
           </div>
         </div >
 
-        {/* Horizontal Category Pills */}
-        < div className={`mb-10 flex gap-2 overflow-x-auto no-scrollbar pb-2 ${isMobileFiltersOpen ? 'flex flex-wrap md:flex-nowrap' : 'hidden md:flex'}`}>
-          {
-            categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border ${selectedCategory === cat
-                  ? 'bg-brand-purple text-white border-brand-purple shadow-[0_4px_15px_rgba(157,78,221,0.3)]'
-                  : 'bg-[#15151A] border-white/5 text-gray-400 hover:text-white hover:bg-white/5 hover:border-white/10'
-                  }`}
-              >
-                {cat}
-              </button>
-            ))
-          }
-          < div className="hidden md:block w-px bg-white/10 mx-2 flex-shrink-0 self-stretch my-1" ></div >
-          {
-            types.filter(t => t !== 'all').map(type => (
+        {/* Shop By Category - TopStore Pro Style */}
+        <div className={`mb-12 w-full pt-4 ${isMobileFiltersOpen ? 'block' : 'hidden md:block'}`}>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl md:text-3xl font-display font-black text-white tracking-tight">Shop by Category</h2>
+            {/* Extended Filters toggle (Types, Prices) */}
+            <div className="hidden md:flex gap-2 items-center">
+              {types.filter(t => t !== 'all').map(type => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedType(selectedType === type ? 'all' : type)}
+                  className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${selectedType === type
+                    ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30 shadow-[0_0_15px_rgba(40,230,220,0.15)]'
+                    : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                  {type}
+                </button>
+              ))}
+              <div className="w-px h-4 bg-white/10 mx-2"></div>
+              {prices.filter(p => p !== 'All').map(price => (
+                <button
+                  key={price}
+                  onClick={() => setSelectedPrice(selectedPrice === price ? 'All' : price)}
+                  className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${selectedPrice === price
+                    ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30 shadow-[0_0_15px_rgba(40,230,220,0.15)]'
+                    : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                  {price}
+                </button>
+              ))}
+              {(searchQuery || selectedCategory !== 'All' || selectedType !== 'all' || selectedPrice !== 'All' || selectedOS !== 'All' || sortBy !== 'Newest') && (
+                <button
+                  onClick={clearFilters}
+                  className="whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 ml-2"
+                >
+                  <X size={14} /> Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar pb-6 px-2 -mx-2">
+            {categories.map(cat => {
+              const asset = categoryAssets[cat] || categoryAssets['Other'];
+              const isSelected = selectedCategory === cat;
+              return (
+                <div
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className="flex flex-col items-center gap-4 cursor-pointer group flex-shrink-0"
+                >
+                  <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden relative shadow-lg transition-all duration-300 border-[3px] ${isSelected ? 'border-brand-purple scale-110 shadow-[0_0_25px_rgba(157,78,221,0.5)]' : 'border-[#15151A] group-hover:border-white/20 group-hover:scale-105'}`}>
+                    <img src={asset.img} alt={cat} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors duration-500" />
+                    <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${isSelected ? 'text-white scale-110' : 'text-gray-300 group-hover:text-white group-hover:scale-110'}`}>
+                      {asset.icon}
+                    </div>
+                  </div>
+                  <span className={`text-[11px] md:text-sm font-bold text-center w-20 md:w-28 break-words transition-colors ${isSelected ? 'text-brand-purple' : 'text-gray-400 group-hover:text-white'}`}>
+                    {cat}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mobile Types/Prices toggle */}
+          <div className="flex md:hidden gap-2 mt-4 overflow-x-auto pb-2">
+            {types.filter(t => t !== 'all').map(type => (
               <button
                 key={type}
                 onClick={() => setSelectedType(selectedType === type ? 'all' : type)}
-                className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold capitalize transition-all duration-300 border ${selectedType === type
-                  ? 'bg-white/10 text-white border-white/20'
-                  : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                className={`flex-shrink-0 whitespace-nowrap px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${selectedType === type
+                  ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30 shadow-[0_0_15px_rgba(40,230,220,0.15)]'
+                  : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-white hover:bg-white/5'
                   }`}
               >
                 {type}
               </button>
-            ))
-          }
-          {
-            prices.filter(p => p !== 'All').map(price => (
+            ))}
+            {prices.filter(p => p !== 'All').map(price => (
               <button
                 key={price}
                 onClick={() => setSelectedPrice(selectedPrice === price ? 'All' : price)}
-                className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border ${selectedPrice === price
-                  ? 'bg-white/10 text-white border-white/20'
-                  : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                className={`flex-shrink-0 whitespace-nowrap px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${selectedPrice === price
+                  ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30 shadow-[0_0_15px_rgba(40,230,220,0.15)]'
+                  : 'bg-[#15151A] border-white/5 text-gray-500 hover:text-white hover:bg-white/5'
                   }`}
               >
                 {price}
               </button>
-            ))
-          }
-
-          {
-            (searchQuery || selectedCategory !== 'All' || selectedType !== 'all' || selectedPrice !== 'All' || selectedOS !== 'All' || sortBy !== 'Newest') && (
+            ))}
+            {(searchQuery || selectedCategory !== 'All' || selectedType !== 'all' || selectedPrice !== 'All' || selectedOS !== 'All' || sortBy !== 'Newest') && (
               <button
                 onClick={clearFilters}
-                className="whitespace-nowrap px-4 py-2.5 rounded-full text-sm font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 ml-auto md:ml-2"
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 ml-auto"
               >
                 <X size={14} /> Clear
               </button>
-            )
-          }
-        </div >
+            )}
+          </div>
+        </div>
 
         {/* Product Grid */}
         < div className="flex-1 w-full" >
@@ -421,6 +484,38 @@ const Store: React.FC = () => {
             )
           }
         </div >
+
+        {/* Newsletter Section */}
+        <section className="mt-20 mb-10 w-full rounded-[40px] bg-gradient-to-br from-[#15151A] to-[#0B0B0F] border border-white/5 overflow-hidden shadow-2xl relative flex flex-col items-center justify-center p-8 md:p-16 text-center">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.05] z-0 pointer-events-none"></div>
+          <div className="absolute top-0 right-10 w-64 h-64 bg-brand-purple/10 blur-[100px] rounded-full z-0 pointer-events-none"></div>
+          <div className="absolute bottom-0 left-10 w-64 h-64 bg-brand-cyan/10 blur-[100px] rounded-full z-0 pointer-events-none"></div>
+
+          <div className="relative z-10 max-w-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto shadow-inner">
+              <Mail className="text-brand-purple w-8 h-8" />
+            </div>
+            <h2 className="text-3xl md:text-5xl font-display font-black text-white mb-4 tracking-tight">Stay in the Loop</h2>
+            <p className="text-gray-400 text-lg mb-10 leading-relaxed font-medium">Join our newsletter to get exclusive deals, early access to new drops, and the latest gear news straight to your inbox.</p>
+
+            <form className="flex flex-col sm:flex-row gap-3 w-full max-w-lg mx-auto" onSubmit={(e) => { e.preventDefault(); alert('Subscribed successfully!'); }}>
+              <input
+                type="email"
+                placeholder="Enter your email address..."
+                required
+                className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:bg-black/60 focus:border-brand-purple/50 focus:ring-1 focus:ring-brand-purple/50 transition-all font-medium placeholder:text-gray-500 shadow-inner"
+              />
+              <button
+                type="submit"
+                className="px-8 py-4 bg-brand-purple text-white font-bold rounded-2xl hover:bg-purple-600 transition-colors shadow-[0_0_20px_rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.5)] active:scale-95 whitespace-nowrap"
+              >
+                Subscribe Now
+              </button>
+            </form>
+            <p className="text-xs text-gray-500 mt-6 font-medium">We respect your privacy. No spam, ever.</p>
+          </div>
+        </section>
+
       </div >
     </div >
   );

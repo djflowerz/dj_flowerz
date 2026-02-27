@@ -99,22 +99,22 @@ const Hero: React.FC<HeroProps> = ({
                 >
                     {cta1Text && cta1Link ? (
                         cta1Link.startsWith('#') ? (
-                            <a href={cta1Link} className="btn-primary">
+                            <a href={cta1Link} className="px-8 py-4 rounded-full font-bold text-white bg-brand-purple hover:bg-[#8e48eb] transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(123,92,255,0.4)]">
                                 {cta1Text}
                             </a>
                         ) : (
-                            <Link to={cta1Link} className="btn-primary">
+                            <Link to={cta1Link} className="px-8 py-4 rounded-full font-bold text-white bg-brand-purple hover:bg-[#8e48eb] transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(123,92,255,0.4)]">
                                 {cta1Text}
                             </Link>
                         )
                     ) : null}
                     {cta2Text && cta2Link ? (
                         cta2Link.startsWith('#') ? (
-                            <a href={cta2Link} className="btn-secondary">
+                            <a href={cta2Link} className="px-8 py-4 rounded-full font-bold text-black bg-brand-cyan hover:bg-[#15b5ad] hover:text-white transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(40,230,220,0.4)]">
                                 {cta2Text}
                             </a>
                         ) : (
-                            <Link to={cta2Link} className="btn-secondary">
+                            <Link to={cta2Link} className="px-8 py-4 rounded-full font-bold text-black bg-brand-cyan hover:bg-[#15b5ad] hover:text-white transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(40,230,220,0.4)]">
                                 {cta2Text}
                             </Link>
                         )
