@@ -61,6 +61,35 @@ const Home: React.FC = () => {
                { label: 'Visit Store', path: '/store', icon: ShoppingBag }
             ]}
          >
+            {/* Newsletter Integration in Hero */}
+            <div className="max-w-md mx-auto mt-10">
+               <form
+                  className="flex flex-col sm:flex-row gap-2"
+                  onSubmit={async (e) => {
+                     e.preventDefault();
+                     const email = (e.currentTarget.elements[0] as HTMLInputElement).value;
+                     if (!email) return;
+                     try {
+                        const { MailerLiteService } = await import('../services/MailerLiteService');
+                        await MailerLiteService.subscribe({ email });
+                        await addSubscriber(email, 'Hero Newsletter');
+                        alert('Subscribed for exclusive updates!');
+                        (e.target as HTMLFormElement).reset();
+                     } catch (err) { }
+                  }}
+               >
+                  <input
+                     type="email"
+                     placeholder="Get exclusive updates & deals..."
+                     className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-purple/50 flex-grow backdrop-blur-md"
+                  />
+                  <button type="submit" className="bg-brand-purple text-white px-6 py-3 rounded-xl font-bold text-sm hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-brand-purple/20">
+                     Join Now
+                  </button>
+               </form>
+               <p className="mt-4 text-[10px] text-gray-500 uppercase tracking-widest font-bold">5,000+ DJs Already Joined • No Spam • Unsubscribe Anytime</p>
+            </div>
+
             {/* Stats / Proof (Centered) */}
             <div className="mt-12 flex flex-wrap items-center justify-center gap-12 border-t border-white/5 pt-10 w-full max-w-3xl mx-auto">
                <div className="text-center">
@@ -311,61 +340,7 @@ const Home: React.FC = () => {
             </div>
          </section>
 
-         {/* 8. Newsletter */}
-         <section className="py-20 bg-gradient-to-b from-[#0B0B0F] to-[#15151A] border-t border-white/5">
-            <div className="max-w-3xl mx-auto px-4 text-center">
-               <Mail size={48} className="text-brand-purple mx-auto mb-6" />
-               <h2 className="text-3xl font-bold text-white mb-4">Join The Community</h2>
-               <p className="text-gray-400 mb-8">Get exclusive access to free downloads, event updates, and discount codes.</p>
-               <form
-                  className="flex flex-col sm:flex-row gap-4"
-                  onSubmit={async (e) => {
-                     e.preventDefault();
-                     const email = (e.currentTarget.elements[0] as HTMLInputElement).value;
-                     if (!email) return;
 
-                     const btn = e.currentTarget.querySelector('button');
-                     if (btn) {
-                        btn.disabled = true;
-                        btn.textContent = 'Joining...';
-                     }
-
-                     try {
-                        // 1. Sync with MailerLite (External)
-                        const { MailerLiteService } = await import('../services/MailerLiteService');
-                        const result = await MailerLiteService.subscribe({ email });
-
-                        // 2. Clear to local DB (Admin Dashboard Visibility)
-                        await addSubscriber(email, 'Homepage Newsletter');
-
-                        if (result.success) {
-                           alert('Successfully joined the community!');
-                           (e.target as HTMLFormElement).reset();
-                        } else {
-                           alert('Error: ' + result.error);
-                        }
-                     } catch (err) {
-                        alert('Something went wrong. Please try again.');
-                     } finally {
-                        if (btn) {
-                           btn.disabled = false;
-                           btn.textContent = 'Subscribe';
-                        }
-                     }
-                  }}
-               >
-                  <input
-                     type="email"
-                     required
-                     placeholder="Enter your email address"
-                     className="flex-1 bg-black/30 border border-white/10 rounded-lg px-6 py-4 text-white focus:outline-none focus:border-brand-purple"
-                  />
-                  <button type="submit" className="px-8 py-4 bg-white text-black font-bold rounded-lg hover:bg-brand-cyan transition">
-                     Subscribe
-                  </button>
-               </form>
-            </div>
-         </section>
       </div>
    );
 };
