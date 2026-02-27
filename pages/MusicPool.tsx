@@ -11,9 +11,10 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { POOL_HUBS, POOL_YEARS, MONTHS } from '../constants';
+import { downloadFileSecurely } from '../utils/downloadHelper';
 import SubscribeButton from '../components/SubscribeButton';
 import { isUserSubscriber } from '../utils/authHelpers';
-import { downloadFileSecurely } from '../utils/downloadHelper';
+import AuraHero from '../components/AuraHero';
 
 // Add 'New' to POOL_HUBS if not present, or handled in UI
 const DISPLAY_HUBS = ['New', ...POOL_HUBS.filter(h => h !== 'New')];
@@ -691,17 +692,24 @@ const MusicPool: React.FC = () => {
       );
    }
 
+
    // --- LOCKED VIEW (LANDING PAGE) ---
    return (
-      <div className="pt-24 pb-20 min-h-screen bg-[#0B0B0F]">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-               <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 uppercase">Music Pool Subscriptions</h1>
-               <p className="text-xl text-brand-purple font-bold tracking-wider mb-4">CHOOSE YOUR PLAN</p>
-               <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-                  Join the elite community of DJs. Get unlimited access to exclusive edits, remixes, and high-quality tracks instantly.
-               </p>
+      <div className="pb-20 min-h-screen bg-[#0B0B0F]">
+         <AuraHero
+            badge="Exclusive Membership"
+            title="Music Pool Subscriptions"
+            highlightWords={['Subscriptions']}
+            subtitle="Join the elite community of DJs. Get unlimited access to exclusive edits, remixes, and high-quality tracks instantly."
+            ctas={[]}
+         >
+            <div className="flex flex-col items-center">
+               <p className="text-xl text-brand-purple font-black tracking-[0.3em] uppercase mb-4 animate-pulse">Choose Your Plan</p>
             </div>
+         </AuraHero>
+
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20">
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
                {subscriptionPlans.map((plan) => (

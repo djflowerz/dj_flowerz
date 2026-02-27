@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import AuraHero from '../components/AuraHero';
 
 import { MIXTAPE_GENRE_NAMES } from '../constants';
 
@@ -44,17 +45,15 @@ const Mixtapes: React.FC = () => {
    });
 
    return (
-      <div className="pt-24 pb-20 bg-[#0B0B0F] min-h-screen">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="pb-20 bg-[#0B0B0F] min-h-screen">
+         <AuraHero
+            badge="Exclusive Collection"
+            title="Professional Mixtapes"
+            highlightWords={['Mixtapes']}
+            subtitle="Explore our curated collection of professional mixtapes. High-quality audio and video mixes for every vibe."
+         />
 
-            {/* Header Section */}
-            <div className="text-center mb-12">
-               <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 uppercase tracking-wider">Mixtapes</h1>
-               <p className="text-gray-400 max-w-2xl mx-auto">
-                  Browse our collection of premium mixtapes. Free downloads and exclusive paid content available.
-               </p>
-            </div>
-
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-20">
             {/* Search & Filters */}
             <div className="mb-12 space-y-8">
                {/* Search Bar */}

@@ -18,6 +18,8 @@ const toEmbedUrl = (url: string): string => {
    return url;
 };
 
+import AuraHero from '../components/AuraHero';
+
 const Home: React.FC = () => {
    const { user } = useAuth();
    const { siteConfig, mixtapes, products, youtubeVideos, addSubscriber } = useData();
@@ -48,92 +50,34 @@ const Home: React.FC = () => {
 
    return (
       <div className="pb-20">
-         {/* 1. Dynamic Hero Section (AURA Redesign) */}
-         <section className="relative min-h-[90vh] flex items-center pt-20 overflow-hidden bg-[#050507]">
-            {/* Decorative Background Elements */}
-            <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] animate-pulse-slow"></div>
-            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-brand-purple/10 rounded-full blur-[100px] animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
-
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.03]"></div>
-
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-               <div className="flex flex-col items-start text-left animate-fade-in-up">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6">
-                     <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse"></div>
-                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">The Official Audio Portal</span>
-                  </div>
-
-                  <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-black text-white mb-6 leading-[0.9] tracking-tight">
-                     {hero.title.split(' ').map((word, i) => (
-                        <span key={i} className={word.toLowerCase() === 'mixtapes' || word.toLowerCase() === 'future' ? 'text-gradient-cyan' : ''}>
-                           {word}{' '}
-                        </span>
-                     ))}
-                  </h1>
-
-                  <p className="text-gray-400 text-lg md:text-xl max-w-xl mb-10 leading-relaxed font-medium">
-                     {hero.subtitle}
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                     <Link to="/music-pool" className="btn-primary group">
-                        <Headphones size={20} className="mr-2 group-hover:rotate-12 transition-transform" />
-                        {hero.ctaText}
-                     </Link>
-                     <Link to="/store" className="btn-secondary group">
-                        <ShoppingBag size={20} className="mr-2 group-hover:scale-110 transition-transform" />
-                        Visit Store
-                     </Link>
-                  </div>
-
-                  {/* Stats / Proof */}
-                  <div className="mt-12 flex items-center gap-8 border-t border-white/5 pt-8 w-full">
-                     <div>
-                        <div className="text-2xl font-bold text-white">500+</div>
-                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Exclusive Tracks</div>
-                     </div>
-                     <div>
-                        <div className="text-2xl font-bold text-white">10K+</div>
-                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Monthly Listeners</div>
-                     </div>
-                     <div className="hidden sm:block">
-                        <div className="text-2xl font-bold text-white">24/7</div>
-                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Studio Access</div>
-                     </div>
-                  </div>
+         {/* 1. Universal Aura Hero Section */}
+         <AuraHero
+            badge="The Official Audio Portal"
+            title={hero.title}
+            highlightWords={['mixtapes', 'future']}
+            subtitle={hero.subtitle}
+            ctas={[
+               { label: hero.ctaText, path: '/music-pool', icon: Headphones, primary: true },
+               { label: 'Visit Store', path: '/store', icon: ShoppingBag }
+            ]}
+         >
+            {/* Stats / Proof (Centered) */}
+            <div className="mt-12 flex flex-wrap items-center justify-center gap-12 border-t border-white/5 pt-10 w-full max-w-3xl mx-auto">
+               <div className="text-center">
+                  <div className="text-3xl font-black text-white mb-1">500+</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">Exclusive Tracks</div>
                </div>
-
-               {/* Visual Element: Floating Cards / 3D Look */}
-               <div className="hidden lg:flex relative h-[600px] items-center justify-center animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                  <div className="relative w-full h-full flex items-center justify-center">
-                     <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/20 to-brand-cyan/20 rounded-[40px] rotate-3 scale-95 blur-2xl opacity-50"></div>
-                     <div className="relative z-10 w-[85%] aspect-[4/5] bg-cover bg-center rounded-[32px] border border-white/10 shadow-2xl overflow-hidden"
-                        style={{ backgroundImage: `url("${hero.bgImage}")` }}>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
-                        <div className="absolute bottom-8 left-8 right-8 p-6 glass-effect rounded-2xl">
-                           <div className="flex items-center justify-between">
-                              <div>
-                                 <div className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Now Streaming</div>
-                                 <div className="text-lg font-black text-white">THE PLATINUM MIX</div>
-                              </div>
-                              <div className="w-12 h-12 rounded-full bg-brand-cyan flex items-center justify-center text-black">
-                                 <Play fill="black" size={20} />
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-
-                     {/* Floating Decorative Elements */}
-                     <div className="absolute top-1/4 -right-4 glass-effect p-4 rounded-2xl shadow-2xl animate-bounce" style={{ animationDuration: '4s' }}>
-                        <Disc className="text-brand-purple" size={32} />
-                     </div>
-                     <div className="absolute bottom-1/4 -left-4 glass-effect p-4 rounded-2xl shadow-2xl animate-bounce" style={{ animationDuration: '6s', animationDelay: '1s' }}>
-                        <Music className="text-brand-cyan" size={32} />
-                     </div>
-                  </div>
+               <div className="text-center">
+                  <div className="text-3xl font-black text-white mb-1">10K+</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">Monthly Listeners</div>
+               </div>
+               <div className="text-center">
+                  <div className="text-3xl font-black text-white mb-1">24/7</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">Studio Access</div>
                </div>
             </div>
-         </section>
+         </AuraHero>
+
 
          {/* 2. Featured Mixtapes (Dynamic) */}
          <section className="py-20 bg-[#0B0B0F]">
