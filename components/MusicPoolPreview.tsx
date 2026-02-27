@@ -65,15 +65,16 @@ const MusicPoolPreview: React.FC = () => {
         });
 
         if (query) {
+            // Search: return ALL matching results from full pool (no cap)
             return results.filter(t =>
                 t.title.toLowerCase().includes(query) ||
                 t.artist.toLowerCase().includes(query) ||
                 t.genre?.toLowerCase().includes(query) ||
                 (t.category || []).some((c: string) => c.toLowerCase().includes(query))
-            ).slice(0, 24); // Show up to 24 results when searching
+            );
         }
 
-        return results.slice(0, 12); // Show top 12 for default preview
+        return results.slice(0, 16); // Default: show top 16 as preview
     }, [poolTracks, searchQuery]);
 
     // Detect if a URL is a direct MP4 video file (from VickNick CDN or similar)

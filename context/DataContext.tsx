@@ -589,10 +589,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [youtubeVideos, setYoutubeVideos, videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
 
 
-  // Pool tracks: always load a preview batch (100 tracks) for everyone.
-  // Downloads and full library access are enforced in the UI (subscribers only).
-  // Subscribers/admins get the full 2000-track batch.
-  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, isSubscriber || isAdmin ? 2000 : 100, 'dateAdded', 'desc', false);
+  // Pool tracks: load ALL tracks for everyone — no row limit.
+  // This allows full search in the homepage preview for all users.
+  // Downloads and the full library page are restricted to subscribers/admins via UI.
+  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'dateAdded', 'desc', false);
 
   const loadMorePoolTracks = () => {
     // With progressive loading, we might not need this
