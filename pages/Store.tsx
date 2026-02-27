@@ -121,47 +121,82 @@ const Store: React.FC = () => {
     <div className="pt-24 pb-20 min-h-screen bg-[#050507]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Page Header */}
-        <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 mb-4">
-            <span className="text-[10px] font-bold text-brand-cyan uppercase tracking-widest">Premium Equipment</span>
+        {/* Store Hero Section */}
+        <section className="relative rounded-[40px] overflow-hidden bg-[#15151A] border border-white/5 mb-12 shadow-2xl min-h-[400px] flex items-center">
+          {/* Background Textures */}
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.05] z-0"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-cyan/5 via-[#15151A] to-brand-purple/5 z-0"></div>
+
+          <div className="relative z-10 w-full p-8 md:p-12 lg:p-16 flex flex-col items-center text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-6 backdrop-blur-sm">
+              <span className="w-2 h-2 rounded-full bg-brand-purple animate-pulse"></span>
+              <span className="text-xs font-bold text-white uppercase tracking-widest">Premium Store</span>
+            </div>
+
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-black text-white mb-6 leading-tight tracking-tight">
+              YOUR SOUND. <br className="hidden md:block" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-brand-purple">
+                ELEVATED.
+              </span>
+            </h1>
+
+            <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
+              Explore our curated selection of high-fidelity audio gear, exclusive DJ controllers, software, and apparel.
+            </p>
+
+            {/* Quick Filter Cards / Hero Promo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 w-full max-w-5xl mx-auto">
+              {[
+                {
+                  title: 'New Arrivals',
+                  subtitle: 'Latest Gear & Software',
+                  img: 'https://images.unsplash.com/photo-1598403031688-e7cfd2c222c4?auto=format&fit=crop&q=80&w=400',
+                  color: 'from-blue-500/30',
+                  action: () => setSortBy('Newest')
+                },
+                {
+                  title: 'Hot Releases',
+                  subtitle: 'Trending Now',
+                  img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400',
+                  color: 'from-red-500/30',
+                  action: () => setSortBy('Hot')
+                },
+                {
+                  title: 'Best Deals',
+                  subtitle: 'Top Discounts',
+                  img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=400',
+                  color: 'from-brand-purple/30',
+                  action: () => setSortBy('Price: Low')
+                }
+              ].map((promo, i) => (
+                <div
+                  key={i}
+                  onClick={() => {
+                    promo.action();
+                    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className={`group relative h-48 md:h-56 rounded-3xl overflow-hidden border border-white/10 cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1`}
+                >
+                  <img src={promo.img} alt={promo.title} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-110 transition duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-[#0B0B0F]/60 to-transparent"></div>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+
+                  <div className="absolute bottom-6 left-6 relative z-10 text-left">
+                    <div className="text-[10px] font-bold text-gray-400 group-hover:text-white uppercase tracking-widest mb-1 transition-colors">{promo.subtitle}</div>
+                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">{promo.title}</h3>
+                  </div>
+
+                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full glass-effect flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition translate-x-4 group-hover:translate-x-0">
+                    <ChevronDown size={18} className="-rotate-90" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-display font-black text-white leading-tight">
-            The Store
-          </h1>
-          <p className="text-gray-400 mt-2 max-w-xl">
-            Curated audio gear, sample packs, DJ controllers &amp; more.
-          </p>
-        </div>
-
-        {/* Featured Category Promo Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {
-            [
-              { title: 'Audio Essentials', subtitle: 'Studio Monitoring', img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400', color: 'from-blue-500/20' },
-              { title: 'DJ Setup', subtitle: 'Performance Gear', img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=400', color: 'from-brand-purple/20' },
-              { title: 'Merchandise', subtitle: 'Official Apparel', img: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=400', color: 'from-orange-500/20' }
-            ].map((promo, i) => (
-              <div key={i} className={`group relative h-64 rounded-3xl overflow-hidden border border-white/5 cursor-pointer`}>
-                <img src={promo.img} alt={promo.title} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-110 transition duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-
-                <div className="absolute bottom-6 left-6 relative z-10">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{promo.subtitle}</div>
-                  <h3 className="text-xl font-black text-white uppercase">{promo.title}</h3>
-                </div>
-
-                <div className="absolute top-6 right-6 w-10 h-10 rounded-full glass-effect flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition translate-x-4 group-hover:translate-x-0">
-                  <Share2 size={16} />
-                </div>
-              </div>
-            ))
-          }
-        </div >
+        </section>
 
         {/* Controls: Search, Sort & Mobile Filters Toggle */}
-        < div id="products-section" className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-[#15151A] p-2 md:p-3 rounded-2xl md:rounded-[20px] border border-white/5 shadow-lg" >
+        <div id="products-section" className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-[#15151A] p-2 md:p-3 rounded-2xl md:rounded-[20px] border border-white/5 shadow-lg">
           <div className="w-full md:flex-1 relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
