@@ -6,13 +6,11 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
-import Hero from '../components/Hero';
-
 const Store: React.FC = () => {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
-  const { products, siteConfig, productsError, hasQuotaExceeded } = useData();
+  const { products, siteConfig, productsError, hasQuotaExceeded, addSubscriber } = useData();
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,23 +118,72 @@ const Store: React.FC = () => {
   };
 
   return (
+    <div className="pt-24 pb-20 min-h-screen bg-[#050507]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-    <div className="pb-20 min-h-screen bg-[#050507]">
-      <Hero
-        badge="Premium Equipment"
-        title={<>PROFESSIONAL <span className="text-brand-purple">GEAR</span></>}
-        subtitle="Explore our curated selection of high-fidelity audio gear, sample packs, and exclusive DJ controllers."
-        cta1Text="Explore Now"
-        cta1Link="#products"
-        bgImage={siteConfig.hero.bgImage}
-        showNewsletter={true}
-      />
+        {/* 1. Tech Ecommerce Hero Section */}
+        <section className="relative rounded-[40px] overflow-hidden bg-[#15151A] border border-white/5 mb-12 shadow-2xl min-h-[500px] flex items-center">
+          {/* Background Textures */}
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.05] z-0"></div>
+          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-brand-cyan/10 to-transparent z-0"></div>
 
+          <div className="relative z-10 w-full grid grid-cols-1 lg:grid-cols-2 gap-12 p-8 md:p-16 items-center">
+            <div className="animate-fade-in-up">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 mb-6">
+                <span className="text-[10px] font-bold text-brand-cyan uppercase tracking-widest">Premium Equipment</span>
+              </div>
+              <h1 className="text-4xl md:text-6xl font-display font-black text-white mb-6 leading-[1.1]">
+                Professional Gear <br />
+                <span className="text-gray-500">For Every Producer.</span>
+              </h1>
+              <p className="text-gray-400 text-lg mb-8 max-w-md leading-relaxed">
+                Explore our curated selection of high-fidelity audio gear, sample packs, and exclusive DJ controllers.
+              </p>
 
-      <div id="products" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+              <form
+                className="flex flex-col sm:flex-row gap-2 max-w-md"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const email = (e.currentTarget.elements[0] as HTMLInputElement).value;
+                  if (!email) return;
+                  try {
+                    await addSubscriber(email, 'Store Hero');
+                    alert('Subscribed for exclusive deals!');
+                    (e.target as HTMLFormElement).reset();
+                  } catch (err) { }
+                }}
+              >
+                <input
+                  type="email"
+                  placeholder="Get 10% off your first order..."
+                  className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-cyan/50 flex-grow"
+                />
+                <button type="submit" className="bg-brand-cyan text-black px-6 py-3 rounded-xl font-bold text-sm hover:scale-105 transition-transform active:scale-95">
+                  Join Now
+                </button>
+              </form>
+            </div>
+
+            <div className="hidden lg:block relative animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <div className="relative z-10 bg-white rounded-[32px] p-8 shadow-2xl rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                <img
+                  src="https://images.unsplash.com/photo-1598403031688-e7cfd2c222c4?auto=format&fit=crop&q=80&w=800"
+                  alt="Featured Gear"
+                  className="w-full aspect-square object-contain drop-shadow-2xl"
+                />
+                <div className="absolute -bottom-6 -left-6 glass-effect p-6 rounded-2xl shadow-2xl -rotate-6">
+                  <div className="text-2xl font-black text-white">KES 45,000</div>
+                  <div className="text-[10px] uppercase text-gray-400 font-bold tracking-widest">Limited Edition Controller</div>
+                </div>
+              </div>
+              {/* Floating accents */}
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-brand-purple rounded-full blur-[80px] opacity-40"></div>
+            </div>
+          </div>
+        </section>
 
         {/* 2. Featured Category Promo Grid */}
-        < div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12" >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {
             [
               { title: 'Audio Essentials', subtitle: 'Studio Monitoring', img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400', color: 'from-blue-500/20' },

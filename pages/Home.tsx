@@ -59,9 +59,9 @@ const Home: React.FC = () => {
                </span>
             ))}</>}
             subtitle={hero.subtitle}
-            cta1Text={hero.ctaText}
+            cta1Text="🎵 Music Pool"
             cta1Link="/music-pool"
-            cta2Text="Visit Store"
+            cta2Text="🛍️ Visit Store"
             cta2Link="/store"
             bgImage={hero.bgImage}
          />
