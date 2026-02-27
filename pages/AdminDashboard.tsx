@@ -8,7 +8,7 @@ import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
