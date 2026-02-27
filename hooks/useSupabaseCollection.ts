@@ -35,7 +35,7 @@ export const useSupabaseCollection = <T extends { id: string }>(
             console.error(`Supabase fetch error (${tableName}):`, sbError.message);
             setError(sbError.message);
         } else {
-            const transformed = (results || []).map(item => transform ? transform(item) : (item as unknown as T));
+            const transformed = results.map(item => transform ? transform(item) : (item as unknown as T));
             // If empty, fallback to initialData (useful for things like INITIAL_GENRES)
             if (transformed.length === 0 && initialData.length > 0) {
                 setData(initialData);

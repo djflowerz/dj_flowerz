@@ -11,17 +11,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { POOL_HUBS, POOL_YEARS, MONTHS } from '../constants';
-import { downloadFileSecurely } from '../utils/downloadHelper';
 import SubscribeButton from '../components/SubscribeButton';
 import { isUserSubscriber } from '../utils/authHelpers';
-import AuraHero from '../components/AuraHero';
+import { downloadFileSecurely } from '../utils/downloadHelper';
 
 // Add 'New' to POOL_HUBS if not present, or handled in UI
 const DISPLAY_HUBS = ['New', ...POOL_HUBS.filter(h => h !== 'New')];
 
+import Hero from '../components/Hero';
+
 const MusicPool: React.FC = () => {
    const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode } = useData();
+   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode, siteConfig } = useData();
    const [referralCode, setReferralCode] = useState('');
    const [appliedReferral, setAppliedReferral] = useState<{ code: string; discount: number; discountType: 'flat' | 'percentage'; referrerId: string } | null>(null);
    const [referralError, setReferralError] = useState('');
@@ -125,20 +126,15 @@ const MusicPool: React.FC = () => {
       }
    };
 
-   // Auto-play when media is ready
-   useEffect(() => {
-      if (playingTrackId && mediaRef.current) {
-         mediaRef.current.play().catch(e => {
-            console.warn("Autoplay blocked, user interaction required:", e);
-         });
-      }
-   }, [playingTrackId]);
+   // Auto-play: handled via autoPlay attribute on <audio>/<video> elements directly.
+   // We still keep a ref to the active media element so we can pause when switching.
+   // The ref is updated via onPlay event from each element to avoid ref overwrite in .map().
 
    // Filter Logic
    // Filter Logic
    const filteredTracks = useMemo(() => {
       const query = searchQuery.toLowerCase();
-      return poolTracks.filter(track => {
+      return (poolTracks || []).filter(track => {
          if (!track) return false;
          const title = (track.title || '').toLowerCase();
          const artist = (track.artist || '').toLowerCase();
@@ -423,7 +419,7 @@ const MusicPool: React.FC = () => {
                                                 </span>
 
                                                 {/* NEW Badge */}
-                                                {track.category?.map(c => c.toLowerCase()).includes('new') && (
+                                                {(track.category || []).map(c => c.toLowerCase()).includes('new') && (
                                                    <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
                                                       NEW
                                                    </span>
@@ -508,40 +504,29 @@ const MusicPool: React.FC = () => {
                                        return (
                                           <div className="px-5 pb-5 animate-fade-in relative z-10">
                                              {isVideo ? (
-                                                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10 relative">
+                                                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10">
                                                    <video
-                                                      ref={mediaRef as any}
                                                       controls
                                                       autoPlay
                                                       playsInline
-                                                      controlsList="nodownload noplaybackrate"
-                                                      disablePictureInPicture
                                                       onContextMenu={(e) => e.preventDefault()}
+                                                      onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
                                                       className="w-full max-h-[600px] object-contain"
                                                       src={mediaUrl}
                                                       onEnded={() => setPlayingTrackId(null)}
                                                    />
-                                                   <button onClick={() => setPlayingTrackId(null)} className="absolute top-4 right-4 bg-black/60 backdrop-blur-md p-2 rounded-full text-white hover:bg-brand-purple hover:text-white transition-colors z-20 shadow-xl" title="Close Player">
-                                                      <X size={20} />
-                                                   </button>
                                                 </div>
                                              ) : (
-                                                <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20 flex items-center gap-4">
-                                                   <div className="flex-1">
-                                                      <audio
-                                                         ref={mediaRef as any}
-                                                         controls
-                                                         autoPlay
-                                                         controlsList="nodownload noplaybackrate"
-                                                         onContextMenu={(e) => e.preventDefault()}
-                                                         className="w-full h-10 accent-brand-purple"
-                                                         src={mediaUrl}
-                                                         onEnded={() => setPlayingTrackId(null)}
-                                                      />
-                                                   </div>
-                                                   <button onClick={() => setPlayingTrackId(null)} className="shrink-0 bg-white/5 hover:bg-brand-purple text-gray-400 hover:text-white p-2.5 rounded-xl transition-colors shadow-md" title="Close Player">
-                                                      <X size={20} />
-                                                   </button>
+                                                <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20">
+                                                   <audio
+                                                      controls
+                                                      autoPlay
+                                                      onContextMenu={(e) => e.preventDefault()}
+                                                      onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
+                                                      className="w-full h-10 accent-brand-purple"
+                                                      src={mediaUrl}
+                                                      onEnded={() => setPlayingTrackId(null)}
+                                                   />
                                                 </div>
                                              )}
                                           </div>
@@ -553,7 +538,7 @@ const MusicPool: React.FC = () => {
                                        <div className="bg-black/40 p-6 border-t border-white/5 animate-fade-in">
                                           <h5 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 ml-1">Available Versions</h5>
                                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                             {track.versions.map(version => (
+                                             {(track.versions || []).map(version => (
                                                 <div key={version.id} className="flex items-center justify-between p-4 rounded-2xl bg-[#15151A] border border-white/5 hover:border-brand-purple/40 hover:bg-brand-purple/5 transition-all duration-300 group/v shadow-sm">
                                                    <div className="flex flex-col">
                                                       <span className={`text-xs font-black px-2.5 py-1 rounded-lg w-fit mb-1 ${version.type.includes('Dirty') ? 'bg-red-500/10 text-red-500' :
@@ -695,20 +680,17 @@ const MusicPool: React.FC = () => {
 
    // --- LOCKED VIEW (LANDING PAGE) ---
    return (
-      <div className="pb-20 min-h-screen bg-[#0B0B0F]">
-         <AuraHero
-            badge="Exclusive Membership"
-            title="Music Pool Subscriptions"
-            highlightWords={['Subscriptions']}
+      <div className="pb-20 bg-[#0B0B0F]">
+         <Hero
+            badge="Exclusive DJ Pool"
+            title={<>UNLIMITED <span className="text-brand-purple">POOL</span> ACCESS</>}
             subtitle="Join the elite community of DJs. Get unlimited access to exclusive edits, remixes, and high-quality tracks instantly."
-            ctas={[]}
-         >
-            <div className="flex flex-col items-center">
-               <p className="text-xl text-brand-purple font-black tracking-[0.3em] uppercase mb-4 animate-pulse">Choose Your Plan</p>
-            </div>
-         </AuraHero>
-
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20">
+            cta1Text="Choose a Plan"
+            cta1Link="#plans"
+            bgImage={siteConfig.hero.bgImage}
+            showNewsletter={false}
+         />
+         <div id="plans" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
@@ -750,7 +732,7 @@ const MusicPool: React.FC = () => {
 
                      <div className="flex-1">
                         <ul className="space-y-4 mb-8">
-                           {plan.features.map((feature, idx) => (
+                           {(plan.features || []).map((feature, idx) => (
                               <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
                                  <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
                                  {feature}

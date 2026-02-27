@@ -1,16 +1,42 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { supabase } from '../utils/supabase';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
-    adminOnly?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false }) => {
-    const { user, loading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+    const [loading, setLoading] = useState(true);
+    const [session, setSession] = useState<any>(null);
     const location = useLocation();
+
+    useEffect(() => {
+        // Check current session
+        const checkSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                setSession(session);
+            } catch (error) {
+                console.error('Error checking session:', error);
+                setSession(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkSession();
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            setLoading(false);
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
 
     if (loading) {
         return (
@@ -20,14 +46,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
         );
     }
 
-    if (!user) {
+    if (!session) {
         // Redirect to login page with return URL
         return <Navigate to="/login" state={{ from: location }} replace />;
-    }
-
-    if (adminOnly && user.role !== 'admin' && !user.isAdmin) {
-        // Redirect non-admins to home
-        return <Navigate to="/" replace />;
     }
 
     return <>{children}</>;

@@ -5,14 +5,15 @@ import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import AuraHero from '../components/AuraHero';
 
 import { MIXTAPE_GENRE_NAMES } from '../constants';
+
+import Hero from '../components/Hero';
 
 const Mixtapes: React.FC = () => {
    const { playTrack, pauseTrack, resumeTrack, currentTrack, isPlaying } = usePlayer();
    const { user } = useAuth();
-   const { mixtapes, mixtapesError, hasQuotaExceeded } = useData();
+   const { mixtapes, mixtapesError, hasQuotaExceeded, siteConfig } = useData();
    const [searchQuery, setSearchQuery] = useState('');
    const [selectedFormat, setSelectedFormat] = useState<'All' | 'Audio' | 'Video'>('All');
    const [selectedGenre, setSelectedGenre] = useState('All');
@@ -22,7 +23,7 @@ const Mixtapes: React.FC = () => {
       return ['All', ...MIXTAPE_GENRE_NAMES];
    }, []);
 
-   const filteredMixtapes = mixtapes.filter(mix => {
+   const filteredMixtapes = (mixtapes || []).filter(mix => {
       if (!mix) return false;
 
       const title = mix.title || '';
@@ -45,15 +46,20 @@ const Mixtapes: React.FC = () => {
    });
 
    return (
-      <div className="pb-20 bg-[#0B0B0F] min-h-screen">
-         <AuraHero
-            badge="Exclusive Collection"
-            title="Professional Mixtapes"
-            highlightWords={['Mixtapes']}
-            subtitle="Explore our curated collection of professional mixtapes. High-quality audio and video mixes for every vibe."
-         />
 
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-20">
+      <div className="pb-20 bg-[#0B0B0F] min-h-screen">
+         <Hero
+            badge="The Mixtape Catalog"
+            title={<>PREMIUM <span className="text-brand-purple">MIXTAPES</span></>}
+            subtitle="Browse our collection of premium mixtapes. Free downloads and exclusive paid content available."
+            cta1Text="Browse All"
+            cta1Link="#mixtapes"
+            bgImage={siteConfig.hero.bgImage}
+            showNewsletter={false}
+         />
+         <div id="mixtapes" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+
+
             {/* Search & Filters */}
             <div className="mb-12 space-y-8">
                {/* Search Bar */}

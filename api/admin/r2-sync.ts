@@ -16,7 +16,6 @@ const s3 = new S3Client({
     },
 });
 
-
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -32,21 +31,19 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        // All non-auth collections now go to R2 for ultra-fast CDN delivery
-        if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-            return res.status(500).json({ error: 'R2 not configured' });
-        }
-
         const key = `data/${collection}.json`;
-        await s3.send(new PutObjectCommand({
+
+        // Save to R2
+        const command = new PutObjectCommand({
             Bucket: R2_BUCKET_NAME,
             Key: key,
             Body: JSON.stringify(data, null, 2),
             ContentType: "application/json",
-            CacheControl: "public, max-age=60", // 60s CDN cache
-        }));
+        });
 
-        return res.status(200).json({ success: true, store: 'r2', collection });
+        await s3.send(command);
+
+        return res.status(200).json({ success: true, message: `Synced ${collection} to R2` });
     } catch (error: any) {
         console.error('R2 Sync Error:', error);
         return res.status(500).json({ error: 'Internal Server Error', details: error.message });

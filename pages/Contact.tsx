@@ -1,8 +1,8 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Mail, Phone, Send, FileText, Lock, RefreshCw, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import Hero from '../components/Hero';
 
 const Contact: React.FC = () => {
    const { siteConfig, addContactMessage } = useData();
@@ -10,12 +10,19 @@ const Contact: React.FC = () => {
    const [isSubmitting, setIsSubmitting] = React.useState(false);
 
    return (
-      <div className="pt-24 pb-20 min-h-screen bg-[#0B0B0F]">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-               <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 uppercase">Contact Us</h1>
-               <p className="text-gray-400 max-w-2xl mx-auto">Have questions, need support, or want to collaborate? We're here to help.</p>
-            </div>
+
+      <div className="pb-20 min-h-screen bg-[#0B0B0F]">
+         <Hero
+            badge="Get In Touch"
+            title={<>SUPPORT & <span className="text-brand-purple">COLLABORATION</span></>}
+            subtitle="Have questions, need support, or want to collaborate? We're here to help."
+            cta1Text="Send Message"
+            cta1Link="#contact-form"
+            bgImage="https://images.unsplash.com/photo-1534536281715-e28d76689b4d?auto=format&fit=crop&q=80&w=2000"
+            showNewsletter={false}
+         />
+         <div id="contact-form" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
 

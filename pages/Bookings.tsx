@@ -1,24 +1,25 @@
 import React from 'react';
 import { Mail, Phone, Upload, Disc, Calendar, Music } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import Hero from '../components/Hero';
 
 const Bookings: React.FC = () => {
    const { addSubscriber } = useData();
 
    return (
-      <div className="pt-24 pb-20 min-h-screen bg-[#0B0B0F]">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-            {/* Header */}
-            <div className="text-center mb-16">
-               <div className="inline-block p-4 rounded-full bg-white/5 mb-6 animate-fade-in-up">
-                  <Disc size={40} className="text-brand-purple animate-spin-slow" />
-               </div>
-               <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 uppercase">Book DJ Flowerz</h1>
-               <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                  Bring premium sounds and unmatched energy to your next event. Weddings, Corporate, Clubs, and Festivals.
-               </p>
-            </div>
+      <div className="pb-20 min-h-screen bg-[#0B0B0F]">
+         <Hero
+            badge="Event Reservations"
+            title={<>BOOK <span className="text-brand-purple">DJ FLOWERZ</span></>}
+            subtitle="Bring premium sounds and unmatched energy to your next event. Weddings, Corporate, Clubs, and Festivals."
+            cta1Text="Inquire Now"
+            cta1Link="#booking-form"
+            bgImage="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=2000"
+            showNewsletter={false}
+         />
+         <div id="booking-form" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
 

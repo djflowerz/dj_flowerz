@@ -20,8 +20,7 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
             throw new Error(`R2 Fetch Error: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        return Array.isArray(data) ? data : [];
+        return await response.json();
     } catch (error) {
         console.error(`Failed to fetch ${collection} from R2:`, error);
         return [];
@@ -50,8 +49,7 @@ export async function saveToR2(collection: string, data: any): Promise<boolean> 
 }
 
 /**
- * Upload a binary file (image, audio) to R2 via API proxy.
- * Both files and structured data (JSON) are now stored on Cloudflare R2.
+ * Upload a file to R2 via the API proxy
  */
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     try {
