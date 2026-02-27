@@ -277,6 +277,12 @@ const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, descript
 
 const AdminDashboard: React.FC = () => {
    const { user, loading } = useAuth();
+
+   // Strict Supabase Auth Gate: Bounce non-admins immediately
+   if (!loading && (!user || (user.role !== 'admin' && !user.isAdmin))) {
+      return <Navigate to="/login" replace />;
+   }
+
    const [activeTab, setActiveTab] = useState('dashboard');
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
@@ -1524,8 +1530,8 @@ const AdminDashboard: React.FC = () => {
                                                    {item.quantity > 1 && <span className="text-[10px] bg-white/10 px-1 rounded text-gray-400">x{item.quantity}</span>}
                                                 </div>
                                              )) : <span className="text-gray-500 italic text-xs">No items found</span>}
-                                          </div>
-                                       </td>
+                                          </div >
+                                       </td >
                                        <td className="px-6 py-4">KES {order.total.toLocaleString()}</td>
                                        <td className="px-6 py-4">
                                           <span className={`px-2 py-1 rounded text-xs capitalize ${order.status === 'completed' ? 'bg-green-500/20 text-green-500' : order.status === 'shipped' ? 'bg-blue-500/20 text-blue-500' : 'bg-yellow-500/20 text-yellow-500'}`}>{order.status}</span>
@@ -1537,1169 +1543,1201 @@ const AdminDashboard: React.FC = () => {
                                           <button onClick={() => { setSelectedOrder(order); setActiveModal('editOrderStatus'); }} className="text-blue-400 hover:text-white" title="Edit Order"><Edit2 size={16} /></button>
                                           <button className="text-gray-400 hover:text-white"><Eye size={16} /></button>
                                        </td>
-                                    </tr>
+                                    </tr >
                                  )))}
-                           </tbody>
-                        </table>
-                     </div>
-                  </div>
+                           </tbody >
+                        </table >
+                     </div >
+                  </div >
                )}
 
-               {activeTab === 'subscriptions' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Subs" value={activeSubsCount} icon={Users} color="text-green-500" />
-                        <StatCard label="New This Month" value={liveSubscriptions.filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" />
-                        <StatCard label="Churn Rate" value="5%" icon={UserX} color="text-red-500" />
-                        <StatCard label="MRR" value={`KES ${activeSubsAmt.toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
-                     </div>
-
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setSubscriptionSubTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'overview' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers List</button>
-                        <button onClick={() => setSubscriptionSubTab('plans')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'plans' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Plans & Pricing</button>
-                     </div>
-
-                     {subscriptionSubTab === 'overview' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                           <table className="w-full text-left min-w-[800px]">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr>
-                                    <th className="px-6 py-4">
-                                       <div className="flex items-center gap-2">
-                                          User
-                                          {subsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
-                                       </div>
-                                    </th>
-                                    <th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {subsLoading ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading subscriptions...</td></tr>
-                                 ) : liveSubscriptions.length === 0 ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No subscriptions found.</td></tr>
-                                 ) : (
-                                    liveSubscriptions.map((sub) => {
-                                       const isExpired = new Date() > new Date(sub.expiryDate);
-                                       return (
-                                          <tr key={sub.id} className="hover:bg-white/5 transition">
-                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-white">{sub.userName}</div>
-                                                <div className="text-[10px] text-gray-500">{sub.userEmail}</div>
-                                             </td>
-                                             <td className="px-6 py-4 capitalize">{sub.planId}</td>
-                                             <td className="px-6 py-4">KES {sub.amount}</td>
-                                             <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
-                                             <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
-                                             <td className="px-6 py-4">
-                                                {sub.status === 'active' && !isExpired && (
-                                                   <div className="flex gap-3">
-                                                      <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="text-brand-cyan hover:underline text-xs flex items-center gap-1">
-                                                         <RefreshCw size={10} /> Sync
-                                                      </button>
-                                                      <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>
-                                                   </div>
-                                                )}
-                                             </td>
-                                          </tr>
-                                       );
-                                    })
-                                 )}
-                              </tbody>
-                           </table>
+               {
+                  activeTab === 'subscriptions' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Active Subs" value={activeSubsCount} icon={Users} color="text-green-500" />
+                           <StatCard label="New This Month" value={liveSubscriptions.filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" />
+                           <StatCard label="Churn Rate" value="5%" icon={UserX} color="text-red-500" />
+                           <StatCard label="MRR" value={`KES ${activeSubsAmt.toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
                         </div>
-                     )}
 
-                     {subscriptionSubTab === 'plans' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                           {(subscriptionPlans || []).map(plan => (
-                              <div key={plan.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5 relative">
-                                 {plan.isBestValue && <span className="absolute top-4 right-4 bg-brand-purple text-white text-[10px] font-bold px-2 py-1 rounded">BEST VALUE</span>}
-                                 <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
-                                 <p className="text-2xl font-bold text-brand-cyan mb-4">KES {plan.price} <span className="text-sm text-gray-500">/{plan.period}</span></p>
-                                 <ul className="space-y-2 mb-6">
-                                    {(plan.features || []).map((f, i) => <li key={i} className="text-xs text-gray-400 flex items-center gap-2"><Check size={12} className="text-green-500" /> {f}</li>)}
-                                 </ul>
-                                 <div className="flex gap-2">
-                                    <button onClick={() => openEditPlan(plan)} className="flex-1 py-2 bg-white/10 text-white rounded font-bold text-sm hover:bg-white/20">Edit</button>
-                                    <button onClick={() => { if (confirm('Delete plan?')) deleteSubscriptionPlan(plan.id) }} className="py-2 px-3 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={16} /></button>
-                                 </div>
-                              </div>
-                           ))}
-                           <div onClick={openAddPlan} className="bg-[#15151A] p-6 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-500 hover:bg-white/5 hover:border-white/20 cursor-pointer transition min-h-[300px]">
-                              <Plus size={48} className="mb-4" />
-                              <span className="font-bold">Create New Plan</span>
-                           </div>
+                        <div className="flex gap-4 border-b border-white/5 pb-4">
+                           <button onClick={() => setSubscriptionSubTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'overview' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers List</button>
+                           <button onClick={() => setSubscriptionSubTab('plans')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'plans' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Plans & Pricing</button>
                         </div>
-                     )}
-                  </div>
-               )}
 
-               {activeTab === 'pool' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setPoolSubTab('tracks')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'tracks' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Tracks</button>
-                        <button onClick={() => setPoolSubTab('genres')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'genres' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Genre Covers</button>
-                     </div>
-
-                     {poolSubTab === 'tracks' && (
-                        <>
-                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                              <h3 className="text-2xl font-bold">Pool Library</h3>
-                              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                                 <select
-                                    value={selectedPart}
-                                    onChange={(e) => setSelectedPart(Number(e.target.value))}
-                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-brand-purple"
-                                    disabled={isSeeding}
-                                 >
-                                    <option value={0}>Part 1 (0-10k)</option>
-                                    <option value={1}>Part 2 (10k-20k)</option>
-                                    <option value={2}>Part 3 (20k-30k)</option>
-                                    <option value={3}>Part 4 (30k-40k)</option>
-                                    <option value={4}>Part 5 (40k-50k)</option>
-                                 </select>
-                                 <button
-                                    onClick={() => handleSeed(-1)}
-                                    disabled={isSeeding}
-                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
-                                 >
-                                    <Database size={16} />
-                                    {isSeeding ? 'Seeding...' : 'Seed R2 Data'}
-                                 </button>
-                                 {lastSeedIndex > 0 && !isSeeding && (
-                                    <button
-                                       onClick={() => handleSeed(lastSeedIndex)}
-                                       className="bg-yellow-500/20 text-yellow-500 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-500/30 font-bold justify-center text-xs flex-1 sm:flex-initial"
-                                    >
-                                       <RefreshCw size={16} />
-                                       Resume ({lastSeedIndex + 1})
-                                    </button>
-                                 )}
-                                 <button
-                                    onClick={handleSyncTracks}
-                                    disabled={isSyncing}
-                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
-                                 >
-                                    <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-                                    {isSyncing ? 'Syncing...' : 'Sync External'}
-                                 </button>
-                                 <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold justify-center text-xs flex-1 sm:flex-initial">
-                                    <Plus size={16} /> Upload Track
-                                 </button>
-                              </div>
-                           </div>
-
-                           {/* Seeding Progress Display */}
-                           {isSeeding && seedProgress && (
-                              <div className="bg-gradient-to-r from-brand-purple/10 to-brand-cyan/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
-                                 <div className="flex flex-col gap-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                       <div className="flex flex-col">
-                                          <span className="text-gray-300 font-medium">{seedMessage}</span>
-                                          {seedProgress.currentTrackTitle && (
-                                             <span className="text-[10px] text-brand-purple font-mono animate-pulse">
-                                                Current: {seedProgress.currentTrackTitle}
-                                             </span>
-                                          )}
-                                       </div>
-                                       <span className="text-brand-cyan font-bold">
-                                          {Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%
-                                       </span>
-                                    </div>
-                                    <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
-                                       <div
-                                          className="bg-gradient-to-r from-brand-purple to-brand-cyan h-full transition-all duration-300"
-                                          style={{ width: `${Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%` }}
-                                       />
-                                    </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Uploaded</div>
-                                          <div className="text-white font-bold">{seedProgress.uploadedTracks.toLocaleString()}</div>
-                                       </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Skipped</div>
-                                          <div className="text-yellow-500 font-bold">{seedProgress.skippedTracks.toLocaleString()}</div>
-                                       </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Batch</div>
-                                          <div className="text-brand-cyan font-bold">{seedProgress.currentBatch}/{seedProgress.totalBatches}</div>
-                                       </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Quota Left</div>
-                                          <div className="text-green-500 font-bold">{seedProgress.quotaRemaining.toLocaleString()}</div>
-                                       </div>
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
-
-                           {/* Sync Progress Display */}
-                           {isSyncing && syncMessage && (
-                              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-3 mb-6">
-                                 <div className="flex items-center gap-2 text-sm">
-                                    <RefreshCw size={16} className="animate-spin text-blue-400" />
-                                    <span className="text-gray-300">{syncMessage}</span>
-                                 </div>
-                              </div>
-                           )}
+                        {subscriptionSubTab === 'overview' && (
                            <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
                               <table className="w-full text-left min-w-[800px]">
                                  <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                    <tr><th className="px-6 py-4">Title / Artist</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">BPM / Key</th><th className="px-6 py-4">Versions</th><th className="px-6 py-4">Year</th><th className="px-6 py-4">Actions</th></tr>
+                                    <tr>
+                                       <th className="px-6 py-4">
+                                          <div className="flex items-center gap-2">
+                                             User
+                                             {subsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
+                                          </div>
+                                       </th>
+                                       <th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th>
+                                    </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/5 text-sm">
-                                    {poolTracks.slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
-                                       <tr key={track.id} className="hover:bg-white/5 transition">
-                                          <td className="px-6 py-4"><div className="font-bold text-white">{track.title}</div><div className="text-xs text-gray-400">{track.artist}</div></td>
-                                          <td className="px-6 py-4"><div className="text-brand-cyan text-xs font-bold mb-1">{track.genre}</div></td>
-                                          <td className="px-6 py-4"><div>{track.bpm} BPM</div><div className="text-xs text-gray-500">{track.key || '-'}</div></td>
-                                          <td className="px-6 py-4"><div className="flex flex-wrap gap-1">{track.versions.map(v => (<span key={v.id} className="text-[10px] border border-white/20 px-2 py-0.5 rounded text-gray-300">{v.type}</span>))}</div></td>
-                                          <td className="px-6 py-4">{track.year}</td>
-                                          <td className="px-6 py-4 flex gap-2">
-                                             <button onClick={() => openEditPoolTrack(track)} className="p-2 text-blue-400 hover:bg-white/5 rounded"><PenSquare size={16} /></button>
-                                             <button onClick={() => { if (window.confirm(`Are you sure you want to delete "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-2 text-red-400 hover:bg-white/5 rounded"><Trash2 size={16} /></button>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                 </tbody>
-                              </table>
-
-                              <div className="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-                                 <div className="flex items-center gap-2">
-                                    <button
-                                       onClick={() => setPoolPage(p => Math.max(1, p - 1))}
-                                       disabled={poolPage === 1}
-                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
-                                    >
-                                       Prev
-                                    </button>
-                                    <span className="text-xs text-gray-400">Page {poolPage} of {Math.ceil(poolTracks.length / tracksPerPage)}</span>
-                                    <button
-                                       onClick={() => setPoolPage(p => p + 1)}
-                                       disabled={poolPage >= Math.ceil(poolTracks.length / tracksPerPage)}
-                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
-                                    >
-                                       Next
-                                    </button>
-                                 </div>
-
-                                 <div className="flex flex-col items-center gap-2">
-                                    <p className="text-gray-500 text-xs text-center">Showing {Math.min(poolTracks.length, poolPage * tracksPerPage).toLocaleString()} of {poolTracks.length.toLocaleString()} loaded tracks</p>
-                                    <button
-                                       onClick={() => loadMorePoolTracks(500)}
-                                       className="px-4 py-1.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg text-xs font-bold hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2"
-                                    >
-                                       <Database size={14} />
-                                       Fetch More from DB
-                                    </button>
-                                 </div>
-                              </div>
-                           </div>
-                        </>
-                     )}
-
-                     {poolSubTab === 'genres' && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                           {genres.map(g => (
-                              <div key={g.id} className="group relative bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer" onClick={() => openEditGenre(g)}>
-                                 <div className="aspect-square relative">
-                                    <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Edit2 size={24} className="text-white" /></div>
-                                 </div>
-                                 <div className="p-3"><p className="text-xs font-bold text-white truncate text-center">{g.name}</p></div>
-                              </div>
-                           ))}
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'store' && (
-                  <div className="animate-fade-in-up">
-                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                        <h3 className="text-2xl font-bold">Product Inventory</h3>
-                        <button onClick={openAddProduct} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
-                           <Plus size={18} /> Add Product
-                        </button>
-                     </div>
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                        <table className="w-full text-left min-w-[800px]">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                              <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Price</th><th className="px-6 py-4">Stock</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {products
-                                 .sort((a, b) => {
-                                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                                    return dateB - dateA; // Newest first
-                                 })
-                                 .map((p) => (
-                                    <tr key={p.id} className="hover:bg-white/5 transition">
-                                       <td className="px-6 py-4">
-                                          <div className="font-bold text-white">{p.name}</div>
-                                          {p.category === 'Software' && p.os && p.os !== 'None' && (
-                                             <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
-                                          )}
-                                          {((p.variantGroups && p.variantGroups.length > 0) || (p.variantOptions && p.variantOptions.length > 0)) && (
-                                             <div className="text-xs text-gray-500 mt-1">
-                                                {p.variantGroups && p.variantGroups.length > 0 ? (
-                                                   `${p.variantGroups.length} Group(s), ${p.variantGroups.reduce((acc, g) => acc + g.variants.length, 0)} Variants`
-                                                ) : (
-                                                   `${p.type === 'digital' ? 'Versions' : 'Variants'}: ${(p.variants || []).join(', ')}`
-                                                )}
-                                             </div>
-                                          )}
-                                       </td>
-                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
-                                       <td className="px-6 py-4"><span className="text-gray-400 text-xs">{p.category}</span></td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-500 line-through text-xs' : 'text-white font-bold'}>
-                                                KES {p.price.toLocaleString()}
-                                             </span>
-                                             {p.discountPrice && p.discountPrice > 0 && (
-                                                <span className="text-brand-purple font-bold">
-                                                   KES {p.discountPrice.toLocaleString()}
-                                                </span>
-                                             )}
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          {p.type === 'digital' ? '∞' : (
-                                             p.variantGroups && p.variantGroups.length > 0 ? (
-                                                p.variantGroups.reduce((acc, g) => acc + g.variants.reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
-                                             ) : p.stock
-                                          )}
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
-                                             p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                'bg-gray-500/10 text-gray-500'
-                                             }`}>
-                                             {p.status}
-                                          </span>
-                                       </td>
-                                       <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
-                                    </tr>
-                                 ))}
-                           </tbody>
-                        </table>
-                     </div>
-                  </div>
-               )}
-
-               {activeTab === 'mixtapes' && (
-                  <div className="animate-fade-in-up">
-                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                        <h3 className="text-2xl font-bold">Mixtape Library</h3>
-                        <button onClick={openAddMixtape} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
-                           <Plus size={18} /> Upload Mix
-                        </button>
-                     </div>
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {mixtapes
-                           .sort((a, b) => {
-                              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                              return dateB - dateA; // Newest first
-                           })
-                           .map((mix) => (
-                              <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-3 flex gap-3 relative group">
-                                 <div className="relative w-16 h-16 shrink-0">
-                                    <img src={mix.coverUrl} alt={mix.title} className="w-full h-full rounded object-cover" />
-                                    {mix.isExclusive && <div className="absolute -top-1 -right-1 bg-brand-purple text-white text-[8px] font-bold px-1 rounded shadow-lg ring-1 ring-black">EXCL</div>}
-                                 </div>
-                                 <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                    <div>
-                                       <h4 className="font-bold text-white text-sm truncate leading-tight">{mix.title}</h4>
-                                       <p className="text-[10px] text-gray-400 truncate">{mix.genre}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center mt-1">
-                                       <div className="flex items-center gap-1.5">
-                                          <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-bold ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
-                                          {mix.isFeatured && <Star size={8} className="text-yellow-500 fill-yellow-500" />}
-                                       </div>
-                                       <div className="flex gap-2">
-                                          <button onClick={() => openEditMixtape(mix)} className="text-gray-500 hover:text-blue-500 transition"><PenSquare size={12} /></button>
-                                          <button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-gray-500 hover:text-red-500 transition"><Trash2 size={12} /></button>
-                                       </div>
-                                    </div>
-                                 </div>
-                              </div>
-                           ))}
-                     </div>
-                  </div>
-               )}
-
-               {activeTab === 'marketing' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setMarketingSubTab('referrals')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'referrals' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Program</button>
-                        <button onClick={() => setMarketingSubTab('coupons')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'coupons' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Coupons</button>
-                     </div>
-
-                     {marketingSubTab === 'referrals' && (
-                        <>
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                              <StatCard label="Total Referrals" value={referralStats.reduce((acc, r) => acc + r.totalReferrals, 0)} icon={Users} color="text-brand-cyan" />
-                              <StatCard label="Total Payouts" value={`KES ${referralStats.reduce((acc, r) => acc + r.totalEarned, 0)}`} icon={DollarSign} color="text-green-500" />
-                              <StatCard label="Pending" value={`KES ${referralStats.reduce((acc, r) => acc + r.pendingPayout, 0)}`} icon={Clock} color="text-yellow-500" />
-                           </div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                              <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">User</th><th className="px-6 py-4">Code</th><th className="px-6 py-4">Referrals</th><th className="px-6 py-4">Earned</th><th className="px-6 py-4">Pending</th></tr></thead>
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {referralStats.map(r => (
-                                       <tr key={r.id}>
-                                          <td className="px-6 py-4 font-bold">{r.userName}</td>
-                                          <td className="px-6 py-4 font-mono text-brand-purple">{r.referralCode}</td>
-                                          <td className="px-6 py-4">{r.totalReferrals}</td>
-                                          <td className="px-6 py-4">KES {r.totalEarned}</td>
-                                          <td className="px-6 py-4 text-yellow-500">KES {r.pendingPayout}</td>
-                                       </tr>
-                                    ))}
-                                 </tbody></table>
-                           </div>
-                        </>
-                     )}
-
-                     {marketingSubTab === 'coupons' && (
-                        <>
-                           <div className="flex justify-end mb-4"><button onClick={openAddCoupon} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Create Coupon</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                              <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Code</th><th className="px-6 py-4">Discount</th><th className="px-6 py-4">Applies To</th><th className="px-6 py-4">Expiry</th><th className="px-6 py-4">Usage</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead>
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {coupons.map(c => (
-                                       <tr key={c.id}>
-                                          <td className="px-6 py-4 font-mono font-bold text-white">{c.code}</td>
-                                          <td className="px-6 py-4">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${c.discountValue}`}</td>
-                                          <td className="px-6 py-4 capitalize">{c.appliesTo}</td>
-                                          <td className="px-6 py-4">{c.expiryDate}</td>
-                                          <td className="px-6 py-4">{c.usageCount} / {c.usageLimit}</td>
-                                          <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
-                                          <td className="px-6 py-4 flex gap-2">
-                                             <button onClick={() => openEditCoupon(c)} className="text-blue-500"><PenSquare size={16} /></button>
-                                             <button onClick={() => deleteCoupon(c.id)} className="text-red-500"><Trash2 size={16} /></button>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                 </tbody></table>
-                           </div>
-                        </>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'bookings' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex justify-between items-center">
-                        <h3 className="text-2xl font-bold">Manage Bookings</h3>
-                        <div className="flex gap-4">
-                           <div className="flex bg-[#15151A] rounded-lg p-1">
-                              <button onClick={() => setBookingSubTab('list')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'list' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>List</button>
-                              <button onClick={() => setBookingSubTab('calendar')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'calendar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Calendar</button>
-                           </div>
-                           <button onClick={openAddBooking} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold"><Plus size={18} /> Add Booking</button>
-                        </div>
-                     </div>
-                     {bookingSubTab === 'list' ? (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                           <table className="w-full text-left min-w-[800px]">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {bookings.map((b) => (
-                                    <tr key={b.id} className="hover:bg-white/5 transition">
-                                       <td className="px-6 py-4 font-bold text-white">{b.clientName}</td>
-                                       <td className="px-6 py-4 text-gray-300">{b.serviceName || b.serviceType}</td>
-                                       <td className="px-6 py-4">{b.date} @ {b.time}</td>
-                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${b.status === 'confirmed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{b.status}</span></td>
-                                       <td className="px-6 py-4 flex gap-2"><button onClick={() => openEditBooking(b)} className="text-blue-500"><PenSquare size={16} /></button></td>
-                                    </tr>
-                                 ))}
-                              </tbody>
-                           </table>
-                        </div>
-                     ) : (
-                        <div className="bg-[#15151A] p-8 text-center rounded-xl border border-white/5"><Calendar size={48} className="mx-auto text-gray-600 mb-4" /><h3 className="text-xl font-bold text-white">Calendar View</h3><p className="text-gray-500">Feature coming soon.</p></div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'studio' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Booked Today" value={studioStats.bookedToday} icon={Mic} color="text-brand-cyan" />
-                        <StatCard label="Total Services" value={sessionTypes.length} icon={Timer} color="text-green-500" />
-                        <StatCard label="Rev/Room" value={`KES ${Math.round(studioStats.revenuePerRoom).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Available" value={`${studioStats.availableRooms} Rooms`} icon={Check} color="text-blue-500" />
-                     </div>
-
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setStudioSubTab('services')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'services' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Services</button>
-                        <button onClick={() => setStudioSubTab('equipment')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'equipment' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Equipment</button>
-                        <button onClick={() => setStudioSubTab('rooms')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'rooms' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Rooms</button>
-                        <button onClick={() => setStudioSubTab('maintenance')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'maintenance' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Maintenance</button>
-                     </div>
-
-                     {studioSubTab === 'services' && (
-                        <>
-                           <div className="flex justify-between items-center mb-4">
-                              <span className="font-bold flex items-center gap-2 text-white">Services {sessionTypesLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
-                              <button onClick={openAddSessionType} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Service</button>
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {sessionTypes.map(st => (
-                                 <div key={st.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between mb-2"><h4 className="font-bold text-lg">{st.name}</h4><div className="flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditSessionType(st)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteSessionType(st.id)} /></div></div>
-                                    <p className="text-gray-400 text-sm mb-4 h-10 line-clamp-2">{st.description}</p>
-                                    <p className="font-bold text-brand-purple">KES {st.price.toLocaleString()}</p>
-                                 </div>
-                              ))}
-                           </div>
-                        </>
-                     )}
-                     {studioSubTab === 'equipment' && (
-                        <>
-                           <div className="flex justify-end"><button onClick={openAddEquipment} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Gear</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {studioEquipmentLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{studioEquipment.map(eq => (<tr key={eq.id}><td className="px-6 py-4 font-bold">{eq.name}</td><td className="px-6 py-4 text-gray-400">{eq.category}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditEquipment(eq)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteStudioEquipment(eq.id)} /></td></tr>))}</tbody></table></div>
-                        </>
-                     )}
-                     {studioSubTab === 'rooms' && (
-                        <>
-                           <div className="flex justify-between items-center mb-4">
-                              <span className="font-bold flex items-center gap-2 text-white">Rooms {studioRoomsLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
-                              <div onClick={openAddRoom} className="bg-brand-purple text-white px-3 py-1.5 rounded-lg font-bold text-xs flex gap-2 items-center cursor-pointer hover:bg-purple-600 transition">
-                                 <Plus size={16} /> Add Room
-                              </div>
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {studioRooms.map(room => (
-                                 <div key={room.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between items-start mb-2">
-                                       <h4 className="font-bold text-lg">{room.name}</h4>
-                                       <div className="flex gap-2">
-                                          <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditRoom(room)} />
-                                          <Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => { if (confirm('Delete room?')) deleteStudioRoom(room.id) }} />
-                                       </div>
-                                    </div>
-                                    <p className="text-sm text-gray-400 mb-4">{room.description}</p>
-                                    <div className="flex justify-between items-center text-xs">
-                                       <span className="bg-white/10 px-2 py-1 rounded">Cap: {room.capacity}</span>
-                                       <span className={`px-2 py-1 rounded ${room.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{room.status}</span>
-                                    </div>
-                                 </div>
-                              ))}
-                              {/* Removed the large add card since we added a button above */}
-                           </div>
-                        </>
-                     )}
-                     {studioSubTab === 'maintenance' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {maintenanceLogsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Issue</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">
-                              {maintenanceLogs.map(log => (
-                                 <tr key={log.id}>
-                                    <td className="px-6 py-4 font-bold">{log.itemName}</td>
-                                    <td className="px-6 py-4">{log.description}</td>
-                                    <td className="px-6 py-4 text-gray-400">{log.date}</td>
-                                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${log.status === 'resolved' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{log.status}</span></td>
-                                 </tr>
-                              ))}
-                           </tbody></table>
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'referrals' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Total Referrals" value={referralStatsSummary.total} icon={Users} color="text-brand-purple" />
-                        <StatCard label="Active Referrers" value={referralStatsSummary.active} icon={Shield} color="text-brand-cyan" />
-                        <StatCard label="Total Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" />
-                        <StatCard label="System Status" value={referralSettings.enabled ? 'Active' : 'Disabled'} icon={Shield} color={referralSettings.enabled ? 'text-green-500' : 'text-red-500'} />
-                     </div>
-
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setReferralSubTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'settings' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>System Settings</button>
-                        <button onClick={() => setReferralSubTab('logs')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'logs' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Logs</button>
-                     </div>
-
-                     {referralSubTab === 'settings' && (
-                        <div className="bg-[#15151A] p-8 rounded-2xl border border-white/5 space-y-8 max-w-2xl">
-                           <div className="flex justify-between items-center">
-                              <div>
-                                 <h3 className="text-xl font-bold text-white">Referral System Control</h3>
-                                 <p className="text-sm text-gray-500">Enable or disable the entire referral system</p>
-                              </div>
-                              <button
-                                 onClick={() => updateReferralSettings({ enabled: !referralSettings.enabled })}
-                                 className={`px-6 py-2 rounded-full font-bold text-sm transition ${referralSettings.enabled ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
-                              >
-                                 {referralSettings.enabled ? 'SYSTEM ENABLED' : 'SYSTEM DISABLED'}
-                              </button>
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="space-y-4">
-                                 <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase">New User Discount</label>
-                                    <select
-                                       value={referralSettings.newUserDiscountType}
-                                       onChange={(e) => updateReferralSettings({ newUserDiscountType: e.target.value as 'percentage' | 'flat' })}
-                                       className="bg-black/20 border border-white/10 rounded px-2 py-1 text-[10px] font-bold text-brand-purple uppercase outline-none"
-                                    >
-                                       <option value="percentage">% Percentage</option>
-                                       <option value="flat">KES Flat</option>
-                                    </select>
-                                 </div>
-                                 <div className="flex items-center gap-3">
-                                    <input
-                                       type="number"
-                                       value={referralSettings.newUserDiscount}
-                                       onChange={(e) => updateReferralSettings({ newUserDiscount: Number(e.target.value) })}
-                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
-                                    />
-                                    <span className="text-gray-400 font-bold">{referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}</span>
-                                 </div>
-                              </div>
-                              <div className="space-y-4">
-                                 <label className="block text-xs font-bold text-gray-500 uppercase">Referrer Reward (KES)</label>
-                                 <div className="flex items-center gap-3">
-                                    <input
-                                       type="number"
-                                       value={referralSettings.referrerRewardAmount}
-                                       onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
-                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
-                                    />
-                                    <span className="text-gray-400 font-bold">KES</span>
-                                 </div>
-                              </div>
-                           </div>
-
-                           <div className="p-4 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex gap-4 items-start">
-                              <Info className="text-brand-purple shrink-0 mt-1" size={20} />
-                              <div className="text-sm text-gray-300">
-                                 <p className="font-bold text-white mb-1">How it works:</p>
-                                 <ul className="list-disc ml-4 space-y-1 text-xs">
-                                    <li>New users get the <strong>Discount %</strong> on their first subscription.</li>
-                                    <li>Referrers receive a <strong>Flat Amount</strong> in their balance once the referee pays.</li>
-                                    <li>System validates for self-referral and one-time use automatically.</li>
-                                 </ul>
-                              </div>
-                           </div>
-                        </div>
-                     )}
-
-                     {referralSubTab === 'logs' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <table className="w-full text-left">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr>
-                                    <th className="px-6 py-4">Referrer</th>
-                                    <th className="px-6 py-4">Referee</th>
-                                    <th className="px-6 py-4">Plan Purchased</th>
-                                    <th className="px-6 py-4">Reward</th>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4">Status</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {referralLogs.length === 0 ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No referral activity logged yet.</td></tr>
-                                 ) : (
-                                    referralLogs.map(log => (
-                                       <tr key={log.id} className="hover:bg-white/5 transition">
-                                          <td className="px-6 py-4">
-                                             <div className="font-bold text-white">{log.referrerName}</div>
-                                             <div className="text-[10px] text-gray-500 font-mono uppercase">{log.referrerId.split('-')[0]}...</div>
-                                          </td>
-                                          <td className="px-6 py-4">
-                                             <div className="font-bold text-white">{log.refereeName}</div>
-                                             <div className="text-[10px] text-gray-400">Applied {log.discountApplied}% OFF</div>
-                                          </td>
-                                          <td className="px-6 py-4 capitalize">{log.planPurchased}</td>
-                                          <td className="px-6 py-4 text-green-500 font-bold">KES {referralSettings.referrerRewardAmount}</td>
-                                          <td className="px-6 py-4 text-gray-500">{new Date(log.createdAt).toLocaleDateString()}</td>
-                                          <td className="px-6 py-4">
-                                             <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${log.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
-                                                {log.status}
-                                             </span>
-                                          </td>
-                                       </tr>
-                                    ))
-                                 )}
-                              </tbody>
-                           </table>
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'users' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Total Users" value={users.length} icon={Users} color="text-brand-purple" />
-                        <StatCard label="Subscribers" value={users.filter(u => u.isSubscriber).length} icon={Check} color="text-green-500" />
-                        <StatCard label="Admins" value={users.filter(u => u.role === 'admin').length} icon={Shield} color="text-red-500" />
-                        <StatCard label="Active Now" value={liveUsers.length} icon={Monitor} color="text-blue-500" />
-                     </div>
-
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Role</th><th className="px-6 py-4">Subscription</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{users.map(u => {
-                           const isOnline = liveUsers.some(lu => lu.id === u.id);
-                           const displayStatus = u.status || 'active';
-                           return (
-                              <tr key={u.id}>
-                                 <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                       {isOnline && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shrink-0" title="Online" />}
-                                       <span className="font-bold">{u.name}</span>
-                                    </div>
-                                 </td>
-                                 <td className="px-6 py-4 text-gray-400">{u.email}</td>
-                                 <td className="px-6 py-4 capitalize">{u.role}</td>
-                                 <td className="px-6 py-4 text-xs text-gray-500">
-                                    {(u.isSubscriber || u.subscriptionExpiry) ? (
-                                       <div className="flex flex-col gap-1">
-                                          <span className={`${u.isSubscriber ? 'text-green-500' : 'text-gray-400'} font-bold`}>
-                                             {u.isSubscriber ? `Active (${u.subscriptionPlan || 'Pro'})` : 'Expired'}
-                                          </span>
-                                          {u.subscriptionExpiry && <CountdownTimer expiryDate={u.subscriptionExpiry} />}
-                                       </div>
-                                    ) : 'None'}
-                                 </td>
-                                 <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${displayStatus === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{displayStatus}</span></td>
-                                 <td className="px-6 py-4 flex gap-2">
-                                    <button onClick={() => openUserDetail(u)} className="text-blue-500 text-xs hover:underline flex items-center gap-1"><Eye size={14} /> View</button>
-                                 </td>
-                              </tr>);
-                        })}</tbody></table>
-                     </div>
-                  </div>
-               )}
-
-               {activeTab === 'shipping' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Pending" value={shippingStats.pending.toString()} icon={Package} color="text-yellow-500" />
-                        <StatCard label="Delivered" value={shippingStats.delivered.toString()} icon={Check} color="text-green-500" />
-                        <StatCard label="Revenue" value={`KES ${new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}`} icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Failed" value={shippingStats.failed.toString()} icon={AlertTriangle} color="text-red-500" />
-                     </div>
-
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center text-brand-cyan">
-                              <span><Truck size={16} className="inline mr-2" /> Pending Shipments</span>
-                              <span className="text-xs px-2 py-0.5 bg-brand-cyan/10 rounded-full">{liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length}</span>
-                           </div>
-                           <div className="max-h-[500px] overflow-y-auto">
-                              <table className="w-full text-left">
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).map(o => (
-                                       <tr key={o.id} className="hover:bg-white/5">
-                                          <td className="px-4 py-3 font-mono text-xs">{o.id}</td>
-                                          <td className="px-4 py-3">
-                                             <div className="font-bold">{o.customerName}</div>
-                                             <div className="text-[10px] text-gray-500">{o.customerEmail}</div>
-                                          </td>
-                                          <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment'}</td>
-                                          <td className="px-4 py-3"><button onClick={() => openShipModal(o)} className="text-[10px] bg-brand-purple text-white px-2 py-1 rounded font-bold uppercase">Ship Now</button></td>
-                                       </tr>
-                                    ))}
-                                    {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length === 0 && (
-                                       <tr><td className="p-8 text-center text-gray-500 text-xs">No pending shipments found.</td></tr>
+                                    {subsLoading ? (
+                                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading subscriptions...</td></tr>
+                                    ) : liveSubscriptions.length === 0 ? (
+                                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No subscriptions found.</td></tr>
+                                    ) : (
+                                       liveSubscriptions.map((sub) => {
+                                          const isExpired = new Date() > new Date(sub.expiryDate);
+                                          return (
+                                             <tr key={sub.id} className="hover:bg-white/5 transition">
+                                                <td className="px-6 py-4">
+                                                   <div className="font-bold text-white">{sub.userName}</div>
+                                                   <div className="text-[10px] text-gray-500">{sub.userEmail}</div>
+                                                </td>
+                                                <td className="px-6 py-4 capitalize">{sub.planId}</td>
+                                                <td className="px-6 py-4">KES {sub.amount}</td>
+                                                <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
+                                                <td className="px-6 py-4">
+                                                   {sub.status === 'active' && !isExpired && (
+                                                      <div className="flex gap-3">
+                                                         <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="text-brand-cyan hover:underline text-xs flex items-center gap-1">
+                                                            <RefreshCw size={10} /> Sync
+                                                         </button>
+                                                         <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>
+                                                      </div>
+                                                   )}
+                                                </td>
+                                             </tr>
+                                          );
+                                       })
                                     )}
                                  </tbody>
                               </table>
                            </div>
-                        </div>
+                        )}
 
-                        <div className="space-y-6">
-                           <div className="flex justify-between items-center px-2">
-                              <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500">Shipping Zones & Rates</h4>
-                              <button className="text-brand-purple text-xs font-bold">+ Add Zone</button>
-                           </div>
-                           <div className="grid grid-cols-1 gap-4">
-                              {shippingZones.map(zone => (
-                                 <div key={zone.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between items-start mb-2">
-                                       <div>
-                                          <h4 className="font-bold text-lg">{zone.name}</h4>
-                                          <p className="text-gray-400 text-xs mb-3 italic">{zone.description}</p>
-                                       </div>
-                                       <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditZone(zone)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                       {zone.rates.map(r => (
-                                          <div key={r.id} className="flex justify-between text-[11px] border-b border-white/5 pb-1 last:border-0">
-                                             <span className="text-gray-400">{r.label}</span>
-                                             <span className="font-bold text-brand-purple">KES {r.price}</span>
-                                          </div>
-                                       ))}
+                        {subscriptionSubTab === 'plans' && (
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {(subscriptionPlans || []).map(plan => (
+                                 <div key={plan.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5 relative">
+                                    {plan.isBestValue && <span className="absolute top-4 right-4 bg-brand-purple text-white text-[10px] font-bold px-2 py-1 rounded">BEST VALUE</span>}
+                                    <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+                                    <p className="text-2xl font-bold text-brand-cyan mb-4">KES {plan.price} <span className="text-sm text-gray-500">/{plan.period}</span></p>
+                                    <ul className="space-y-2 mb-6">
+                                       {(plan.features || []).map((f, i) => <li key={i} className="text-xs text-gray-400 flex items-center gap-2"><Check size={12} className="text-green-500" /> {f}</li>)}
+                                    </ul>
+                                    <div className="flex gap-2">
+                                       <button onClick={() => openEditPlan(plan)} className="flex-1 py-2 bg-white/10 text-white rounded font-bold text-sm hover:bg-white/20">Edit</button>
+                                       <button onClick={() => { if (confirm('Delete plan?')) deleteSubscriptionPlan(plan.id) }} className="py-2 px-3 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={16} /></button>
                                     </div>
                                  </div>
                               ))}
+                              <div onClick={openAddPlan} className="bg-[#15151A] p-6 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-500 hover:bg-white/5 hover:border-white/20 cursor-pointer transition min-h-[300px]">
+                                 <Plus size={48} className="mb-4" />
+                                 <span className="font-bold">Create New Plan</span>
+                              </div>
                            </div>
-                        </div>
+                        )}
                      </div>
-                  </div>
-               )}
+                  )
+               }
 
-               {activeTab === 'content' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Sections" value={contentStats.activeSections.toString()} icon={FileText} color="text-green-500" />
-                        <StatCard label="Products" value={products.length.toString()} icon={Check} color="text-blue-500" />
-                        <StatCard label="Sync Status" value={contentStats.lastUpdated} icon={Clock} color="text-brand-purple" />
-                        <StatCard label="System Health" value="Stable" icon={AlertTriangle} color="text-gray-500" />
-                     </div>
-
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setContentSubTab('home')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'home' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Home</button>
-                        <button onClick={() => setContentSubTab('about')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'about' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>About</button>
-                        <button onClick={() => setContentSubTab('footer')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'footer' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Footer & Contact</button>
-                        <button onClick={() => setContentSubTab('tipjar')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'tipjar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Tip Jar</button>
-                        <button onClick={() => setContentSubTab('seo')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'seo' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>SEO</button>
-                        <button onClick={() => setContentSubTab('notice')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'notice' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Notice</button>
-                     </div>
-
-                     <div className="flex justify-end"><button onClick={handleSaveConfig} className="bg-brand-purple px-6 py-2 rounded-lg font-bold flex gap-2"><Save size={18} /> Save Changes</button></div>
-
-                     {contentSubTab === 'home' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-8">
-                        <div className="space-y-4">
-                           <h4 className="text-brand-cyan font-bold uppercase text-xs tracking-widest">Hero Section</h4>
-                           <InputGroup label="Hero Title" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
-                           <InputGroup label="Hero Subtitle" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
-                           <InputGroup label="CTA Text" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
-                           <InputGroup label="Hero BG Image" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+               {
+                  activeTab === 'pool' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
+                           <button onClick={() => setPoolSubTab('tracks')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'tracks' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Tracks</button>
+                           <button onClick={() => setPoolSubTab('genres')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'genres' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Genre Covers</button>
                         </div>
 
-                        <div className="space-y-4 pt-6 border-t border-white/5">
-                           <h4 className="text-brand-purple font-bold uppercase text-xs tracking-widest">Featured Mixtapes Section</h4>
-                           <InputGroup label="Section Title" value={editingConfig.home.featuredMixtapes.title} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                           <InputGroup label="Section Subtitle" value={editingConfig.home.featuredMixtapes.subtitle} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.subtitle = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                           <InputGroup label="Link Text (CTA)" value={editingConfig.home.featuredMixtapes.ctaText} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.ctaText = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                        </div>
-                     </div>)}
-                     {contentSubTab === 'about' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="About Title" value={editingConfig.about.title} onChange={v => updateContentField('about', 'title', v)} /><InputGroup label="Bio" type="textarea" value={editingConfig.about.bio} onChange={v => updateContentField('about', 'bio', v)} /></div>)}
-                     {contentSubTab === 'footer' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <InputGroup label="Email" value={editingConfig.contact.email} onChange={v => updateContentField('contact', 'email', v)} />
-                        <InputGroup label="Phone" value={editingConfig.contact.phone} onChange={v => updateContentField('contact', 'phone', v)} />
-                        <InputGroup label="Whatsapp" value={editingConfig.contact.whatsapp} onChange={v => updateContentField('contact', 'whatsapp', v)} />
-                        <InputGroup label="Footer Desc" type="textarea" value={editingConfig.footer.description} onChange={v => updateContentField('footer', 'description', v)} />
-                     </div>)}
-                     {contentSubTab === 'tipjar' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <InputGroup label="Title" value={editingConfig.home.tipJar.title} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                        <InputGroup label="Message" type="textarea" value={editingConfig.home.tipJar.message} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.message = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                     </div>)}
-                     {contentSubTab === 'seo' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="Site Title" value={editingConfig.seo.siteTitle} onChange={v => updateContentField('seo', 'siteTitle', v)} /><InputGroup label="Meta Description" type="textarea" value={editingConfig.seo.description} onChange={v => updateContentField('seo', 'description', v)} /><InputGroup label="Keywords" value={editingConfig.seo.keywords} onChange={v => updateContentField('seo', 'keywords', v)} /></div>)}
-                     {contentSubTab === 'notice' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                           <div className="flex items-center gap-4 mb-4">
-                              <InputGroup label="Enabled" type="checkbox" checked={editingConfig.notice?.enabled || false} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, enabled: v } })} />
-                              <div className="text-xs text-gray-400">Enable this to show a site-wide banner at the top of the page.</div>
-                           </div>
-                           <InputGroup label="Notice Title" value={editingConfig.notice?.title || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, title: v } })} />
-                           <InputGroup label="Message" type="textarea" value={editingConfig.notice?.message || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, message: v } })} />
-                           <InputGroup label="Type" options={['info', 'warning', 'error']} value={editingConfig.notice?.type || 'info'} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, type: v as any } })} />
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'telegram' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4"><button onClick={() => setTelegramSubTab('config')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'config' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Config</button><button onClick={() => setTelegramSubTab('channels')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'channels' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Channels</button></div>
-                     {telegramSubTab === 'config' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 max-w-3xl space-y-4">
-                           <InputGroup label="Bot Token" value={telegramConfig.botToken} onChange={v => updateTelegramConfig({ botToken: v })} />
-                           <InputGroup label="Bot Username" value={telegramConfig.botUsername} onChange={() => { }} />
-                           <div className={`p-4 rounded-lg border ${telegramConfig.status === 'Connected' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>Status: {telegramConfig.status}</div>
-                        </div>
-                     )}
-                     {telegramSubTab === 'channels' && (
-                        <>
-                           <div className="flex justify-end mb-4"><button onClick={openAddChannel} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Channel</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">ID</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{telegramChannels.map(ch => (<tr key={ch.id}><td className="px-6 py-4 font-bold">{ch.name}</td><td className="px-6 py-4 text-gray-500">{ch.channelId}</td><td className="px-6 py-4">{ch.genre}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditChannel(ch)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteTelegramChannel(ch.id)} /></td></tr>))}</tbody></table></div>
-                        </>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'payments' && (
-                  <div className="animate-fade-in-up bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                     {paymentsLoading || ordersLoading ? (
-                        <div className="p-20 text-center text-gray-500">Loading transactions...</div>
-                     ) : combinedTransactions.length === 0 ? (
-                        <div className="p-20 text-center text-gray-400 flex flex-col items-center gap-4">
-                           <CreditCard size={48} className="text-gray-700" />
-                           <div>
-                              <p className="text-lg font-bold">No transactions found</p>
-                              <p className="text-sm">Recent payments and tips will appear here in real-time.</p>
-                           </div>
-                        </div>
-                     ) : (
-                        <table className="w-full text-left">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr>
-                                 <th className="px-6 py-4">Type</th>
-                                 <th className="px-6 py-4">Ref Code</th>
-                                 <th className="px-6 py-4">Date/Time</th>
-                                 <th className="px-6 py-4">User</th>
-                                 <th className="px-6 py-4">Items</th>
-                                 <th className="px-6 py-4">Amount</th>
-                                 <th className="px-6 py-4">Status</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {combinedTransactions.map(tx => (
-                                 <tr key={tx.id} className="hover:bg-white/5 transition">
-                                    <td className="px-6 py-4">
-                                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
-                                          tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
-                                             'bg-purple-500/10 text-purple-500'
-                                          }`}>{tx.type}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-500 font-mono text-xs">{tx.ref || 'N/A'}</td>
-                                    <td className="px-6 py-4">
-                                       <div className="text-white">{tx.date}</div>
-                                       <div className="text-xs text-gray-500">{tx.time}</div>
-                                    </td>
-                                    <td className="px-6 py-4 font-bold">{tx.name}</td>
-                                    <td className="px-6 py-4 text-xs max-w-[200px] truncate">{tx.items}</td>
-                                    <td className="px-6 py-4 font-bold text-brand-purple">KES {tx.amount.toLocaleString()}</td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-xs px-2 py-1 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' :
-                                          tx.status === 'pending' || tx.status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                                             'bg-red-500/10 text-red-500'
-                                          }`}>{tx.status}</span>
-                                    </td>
-                                 </tr>
-                              ))}
-                           </tbody>
-                        </table>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'newsletters' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setNewsletterSubTab('subscribers')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'subscribers' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers</button>
-                        <button onClick={() => setNewsletterSubTab('campaigns')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'campaigns' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Campaigns</button>
-                        <button onClick={() => setNewsletterSubTab('blast')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'blast' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Quick Blast</button>
-                     </div>
-
-                     {newsletterSubTab === 'subscribers' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><div className="p-4 border-b border-white/5 font-bold flex justify-between"><div className="flex items-center gap-2"><span>Subscribers ({subscribers.length})</span>{subscribersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</div><button className="text-brand-purple text-xs font-bold" onClick={() => alert('Feature coming soon')}>+ Add Manual</button></div><div className="max-h-96 overflow-y-auto"><table className="w-full text-left"><tbody className="divide-y divide-white/5 text-sm">{subscribers.map(s => (<tr key={s.id}><td className="px-6 py-3">{s.email}</td><td className="px-6 py-3 text-gray-500">{s.status}</td><td className="px-6 py-3 text-xs text-gray-600">{s.source}</td></tr>))}</tbody></table></div></div>
-                     )}
-
-                     {newsletterSubTab === 'campaigns' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <div className="p-4 border-b border-white/5 font-bold flex justify-between"><span>Recent Campaigns</span><button onClick={() => alert('Feature coming soon')} className="bg-brand-purple text-white text-xs font-bold px-3 py-1 rounded">+ Create</button></div>
-                           <table className="w-full text-left">
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 <tr className="bg-black/20 text-gray-500 text-xs uppercase"><th className="px-6 py-3 flex items-center gap-2">Name {campaignsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Opens</th></tr>
-                                 {newsletterCampaigns?.map(c => (
-                                    <tr key={c.id}>
-                                       <td className="px-6 py-3 font-bold">{c.name}</td>
-                                       <td className="px-6 py-3 capitalize">{c.type}</td>
-                                       <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs ${c.status === 'sent' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{c.status}</span></td>
-                                       <td className="px-6 py-3">{c.openRate ? `${c.openRate}%` : '-'}</td>
-                                    </tr>
-                                 ))}
-                              </tbody>
-                           </table>
-                        </div>
-                     )}
-
-                     {newsletterSubTab === 'blast' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5">
-                           <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Send size={20} /> Quick Email Blast</h3>
-                           <div className="space-y-4">
-                              <InputGroup label="Subject" value={emailSubject} onChange={setEmailSubject} />
-                              <InputGroup label="Message" type="textarea" value={emailBody} onChange={setEmailBody} />
-                              <button
-                                 onClick={sendCampaign}
-                                 disabled={isSending}
-                                 className={`bg-brand-purple text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 ${isSending ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'}`}
-                              >
-                                 {isSending ? <><RefreshCw size={20} className="animate-spin" /> Sending...</> : <><Send size={20} /> Send Now</>}
-                              </button>
-                           </div>
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               {activeTab === 'messages' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <StatCard label="Total Messages" value={contactMessages.length} icon={MessageSquare} color="text-brand-purple" />
-                        <StatCard label="New" value={contactMessages.filter(m => m.status === 'new').length} icon={Bell} color="text-brand-cyan" />
-                        <StatCard label="WhatsApp" value={contactMessages.filter(m => m.source === 'whatsapp').length} icon={MessageCircle} color="text-green-500" />
-                     </div>
-
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-left">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr>
-                                 <th className="px-6 py-4">Sender</th>
-                                 <th className="px-6 py-4">Subject</th>
-                                 <th className="px-6 py-4">Source</th>
-                                 <th className="px-6 py-4">Status</th>
-                                 <th className="px-6 py-4">Date</th>
-                                 <th className="px-6 py-4">Actions</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {contactMessages.map(m => (
-                                 <tr key={m.id} className={m.status === 'new' ? 'bg-white/[0.02]' : ''}>
-                                    <td className="px-6 py-4">
-                                       <div className="font-bold">{m.name}</div>
-                                       <div className="text-[10px] text-gray-500">{m.email}</div>
-                                    </td>
-                                    <td className="px-6 py-4 truncate max-w-[200px]">{m.subject}</td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${m.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                                          {m.source}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-[10px] px-2 py-1 rounded-full border ${m.status === 'new' ? 'border-brand-cyan text-brand-cyan bg-brand-cyan/10' : 'border-white/10 text-gray-500'}`}>
-                                          {m.status}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-500 text-xs">{new Date(m.createdAt).toLocaleDateString()}</td>
-                                    <td className="px-6 py-4">
+                        {poolSubTab === 'tracks' && (
+                           <>
+                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                 <h3 className="text-2xl font-bold">Pool Library</h3>
+                                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                    <select
+                                       value={selectedPart}
+                                       onChange={(e) => setSelectedPart(Number(e.target.value))}
+                                       className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-brand-purple"
+                                       disabled={isSeeding}
+                                    >
+                                       <option value={0}>Part 1 (0-10k)</option>
+                                       <option value={1}>Part 2 (10k-20k)</option>
+                                       <option value={2}>Part 3 (20k-30k)</option>
+                                       <option value={3}>Part 4 (30k-40k)</option>
+                                       <option value={4}>Part 5 (40k-50k)</option>
+                                    </select>
+                                    <button
+                                       onClick={() => handleSeed(-1)}
+                                       disabled={isSeeding}
+                                       className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
+                                    >
+                                       <Database size={16} />
+                                       {isSeeding ? 'Seeding...' : 'Seed R2 Data'}
+                                    </button>
+                                    {lastSeedIndex > 0 && !isSeeding && (
                                        <button
-                                          onClick={() => {
-                                             setSelectedMessage(m);
-                                             setActiveModal('viewMessage');
-                                             if (m.status === 'new') {
-                                                updateContactMessage(m.id, { status: 'read' });
-                                             }
-                                          }}
-                                          className="text-brand-purple hover:underline font-bold text-xs flex items-center gap-1"
+                                          onClick={() => handleSeed(lastSeedIndex)}
+                                          className="bg-yellow-500/20 text-yellow-500 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-500/30 font-bold justify-center text-xs flex-1 sm:flex-initial"
                                        >
-                                          <Eye size={14} /> View
+                                          <RefreshCw size={16} />
+                                          Resume ({lastSeedIndex + 1})
                                        </button>
-                                    </td>
-                                 </tr>
-                              ))}
-                              {contactMessages.length === 0 && (
-                                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No messages found.</td></tr>
+                                    )}
+                                    <button
+                                       onClick={handleSyncTracks}
+                                       disabled={isSyncing}
+                                       className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
+                                    >
+                                       <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                                       {isSyncing ? 'Syncing...' : 'Sync External'}
+                                    </button>
+                                    <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold justify-center text-xs flex-1 sm:flex-initial">
+                                       <Plus size={16} /> Upload Track
+                                    </button>
+                                 </div>
+                              </div>
+
+                              {/* Seeding Progress Display */}
+                              {isSeeding && seedProgress && (
+                                 <div className="bg-gradient-to-r from-brand-purple/10 to-brand-cyan/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
+                                    <div className="flex flex-col gap-3">
+                                       <div className="flex justify-between items-center text-sm">
+                                          <div className="flex flex-col">
+                                             <span className="text-gray-300 font-medium">{seedMessage}</span>
+                                             {seedProgress.currentTrackTitle && (
+                                                <span className="text-[10px] text-brand-purple font-mono animate-pulse">
+                                                   Current: {seedProgress.currentTrackTitle}
+                                                </span>
+                                             )}
+                                          </div>
+                                          <span className="text-brand-cyan font-bold">
+                                             {Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%
+                                          </span>
+                                       </div>
+                                       <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
+                                          <div
+                                             className="bg-gradient-to-r from-brand-purple to-brand-cyan h-full transition-all duration-300"
+                                             style={{ width: `${Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%` }}
+                                          />
+                                       </div>
+                                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                                          <div className="bg-black/20 rounded p-2">
+                                             <div className="text-gray-400">Uploaded</div>
+                                             <div className="text-white font-bold">{seedProgress.uploadedTracks.toLocaleString()}</div>
+                                          </div>
+                                          <div className="bg-black/20 rounded p-2">
+                                             <div className="text-gray-400">Skipped</div>
+                                             <div className="text-yellow-500 font-bold">{seedProgress.skippedTracks.toLocaleString()}</div>
+                                          </div>
+                                          <div className="bg-black/20 rounded p-2">
+                                             <div className="text-gray-400">Batch</div>
+                                             <div className="text-brand-cyan font-bold">{seedProgress.currentBatch}/{seedProgress.totalBatches}</div>
+                                          </div>
+                                          <div className="bg-black/20 rounded p-2">
+                                             <div className="text-gray-400">Quota Left</div>
+                                             <div className="text-green-500 font-bold">{seedProgress.quotaRemaining.toLocaleString()}</div>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </div>
                               )}
-                           </tbody>
-                        </table>
-                     </div>
-                  </div>
-               )}
 
-               {activeTab === 'system' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <h3 className="text-xl font-bold mb-4">System Utilities</h3>
+                              {/* Sync Progress Display */}
+                              {isSyncing && syncMessage && (
+                                 <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-3 mb-6">
+                                    <div className="flex items-center gap-2 text-sm">
+                                       <RefreshCw size={16} className="animate-spin text-blue-400" />
+                                       <span className="text-gray-300">{syncMessage}</span>
+                                    </div>
+                                 </div>
+                              )}
+                              <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
+                                 <table className="w-full text-left min-w-[800px]">
+                                    <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
+                                       <tr><th className="px-6 py-4">Title / Artist</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">BPM / Key</th><th className="px-6 py-4">Versions</th><th className="px-6 py-4">Year</th><th className="px-6 py-4">Actions</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5 text-sm">
+                                       {poolTracks.slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
+                                          <tr key={track.id} className="hover:bg-white/5 transition">
+                                             <td className="px-6 py-4"><div className="font-bold text-white">{track.title}</div><div className="text-xs text-gray-400">{track.artist}</div></td>
+                                             <td className="px-6 py-4"><div className="text-brand-cyan text-xs font-bold mb-1">{track.genre}</div></td>
+                                             <td className="px-6 py-4"><div>{track.bpm} BPM</div><div className="text-xs text-gray-500">{track.key || '-'}</div></td>
+                                             <td className="px-6 py-4"><div className="flex flex-wrap gap-1">{track.versions.map(v => (<span key={v.id} className="text-[10px] border border-white/20 px-2 py-0.5 rounded text-gray-300">{v.type}</span>))}</div></td>
+                                             <td className="px-6 py-4">{track.year}</td>
+                                             <td className="px-6 py-4 flex gap-2">
+                                                <button onClick={() => openEditPoolTrack(track)} className="p-2 text-blue-400 hover:bg-white/5 rounded"><PenSquare size={16} /></button>
+                                                <button onClick={() => { if (window.confirm(`Are you sure you want to delete "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-2 text-red-400 hover:bg-white/5 rounded"><Trash2 size={16} /></button>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
 
-                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
-                           <h4 className="font-bold text-white mb-2">Cleanup & Maintenance</h4>
-                           <p className="text-sm text-gray-400 mb-4">
-                              Scan database for items that are not synchronized with valid Firebase Storage (e.g. broken links, old seeded data).
-                           </p>
+                                 <div className="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-2">
+                                       <button
+                                          onClick={() => setPoolPage(p => Math.max(1, p - 1))}
+                                          disabled={poolPage === 1}
+                                          className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                       >
+                                          Prev
+                                       </button>
+                                       <span className="text-xs text-gray-400">Page {poolPage} of {Math.ceil(poolTracks.length / tracksPerPage)}</span>
+                                       <button
+                                          onClick={() => setPoolPage(p => p + 1)}
+                                          disabled={poolPage >= Math.ceil(poolTracks.length / tracksPerPage)}
+                                          className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                       >
+                                          Next
+                                       </button>
+                                    </div>
 
-                           <div className="mb-4 text-xs bg-yellow-500/10 text-yellow-500 p-3 rounded border border-yellow-500/20">
-                              <div className="font-bold mb-2 flex items-center gap-2">
-                                 <AlertTriangle size={14} />
-                                 ⚠️ Warning: This action will permanently delete:
+                                    <div className="flex flex-col items-center gap-2">
+                                       <p className="text-gray-500 text-xs text-center">Showing {Math.min(poolTracks.length, poolPage * tracksPerPage).toLocaleString()} of {poolTracks.length.toLocaleString()} loaded tracks</p>
+                                       <button
+                                          onClick={() => loadMorePoolTracks(500)}
+                                          className="px-4 py-1.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg text-xs font-bold hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2"
+                                       >
+                                          <Database size={14} />
+                                          Fetch More from DB
+                                       </button>
+                                    </div>
+                                 </div>
                               </div>
-                              <ul className="list-disc list-inside space-y-1 ml-4">
-                                 <li>Mixtapes without Firebase Storage URLs</li>
-                                 <li>Products without Firebase Storage image URLs</li>
-                                 <li>Specific corrupted entries (e.g., "DJ FLOWERZ CLUB BANGERS DECEMBER SHUTDOWN 2025")</li>
-                              </ul>
-                           </div>
+                           </>
+                        )}
 
-                           <button
-                              onClick={handleCleanupData}
-                              disabled={isCleaning}
-                              className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                              {isCleaning ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                              {isCleaning ? 'Running Cleanup...' : 'Cleanup Invalid Data'}
-                           </button>
-                        </div>
-
-                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
-                           <h4 className="font-bold text-white mb-2">Music Pool Health & Maintenance</h4>
-                           <p className="text-sm text-gray-400 mb-4">
-                              Scan and repair the Music Pool tracks. Identifies tracks with missing versions or broken download links.
-                           </p>
-
-                           {scanResults.checked > 0 && (
-                              <div className="grid grid-cols-3 gap-4 mb-6">
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Checked</div>
-                                    <div className="text-xl font-bold">{scanResults.checked}</div>
+                        {poolSubTab === 'genres' && (
+                           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                              {genres.map(g => (
+                                 <div key={g.id} className="group relative bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer" onClick={() => openEditGenre(g)}>
+                                    <div className="aspect-square relative">
+                                       <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Edit2 size={24} className="text-white" /></div>
+                                    </div>
+                                    <div className="p-3"><p className="text-xs font-bold text-white truncate text-center">{g.name}</p></div>
                                  </div>
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-yellow-500 text-[10px] uppercase font-bold mb-1">Missing Vers.</div>
-                                    <div className="text-xl font-bold text-yellow-500">{scanResults.missingVersions}</div>
-                                 </div>
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-red-500 text-[10px] uppercase font-bold mb-1">Broken/Empty</div>
-                                    <div className="text-xl font-bold text-red-500">{scanResults.broken}</div>
-                                 </div>
-                              </div>
-                           )}
-
-                           <div className="flex flex-wrap gap-4">
-                              <button
-                                 onClick={handleScanPool}
-                                 disabled={isScanningPool}
-                                 className="bg-brand-purple hover:bg-brand-purple/80 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-                              >
-                                 {isScanningPool ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
-                                 {isScanningPool ? `Scanning... (${Math.round((scanResults.checked / (poolTracks.length || 1)) * 100)}%)` : 'Scan Pool Health'}
-                              </button>
-
-                              <button
-                                 onClick={handleFixPool}
-                                 disabled={isScanningPool || scanResults.broken === 0}
-                                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-                              >
-                                 <Shield size={18} />
-                                 Repair Broken Tracks
-                              </button>
-
-                              <button
-                                 onClick={async () => {
-                                    const res = await manualSync();
-                                    alert(res.message);
-                                 }}
-                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                              >
-                                 <RefreshCw size={18} />
-                                 Force Sync from Sources
-                              </button>
-                           </div>
-                        </div>
-
-                        {cleanupLog.length > 0 && (
-                           <div className="bg-black/40 p-4 rounded-lg border border-white/10 font-mono text-xs text-gray-400 max-h-60 overflow-y-auto">
-                              {cleanupLog.map((line, i) => (
-                                 <div key={i} className="mb-1">{line}</div>
                               ))}
                            </div>
                         )}
                      </div>
-                  </div>
-               )}
-            </div>
+                  )
+               }
+
+               {
+                  activeTab === 'store' && (
+                     <div className="animate-fade-in-up">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                           <h3 className="text-2xl font-bold">Product Inventory</h3>
+                           <button onClick={openAddProduct} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
+                              <Plus size={18} /> Add Product
+                           </button>
+                        </div>
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
+                           <table className="w-full text-left min-w-[800px]">
+                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
+                                 <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Price</th><th className="px-6 py-4">Stock</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-sm">
+                                 {products
+                                    .sort((a, b) => {
+                                       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                       return dateB - dateA; // Newest first
+                                    })
+                                    .map((p) => (
+                                       <tr key={p.id} className="hover:bg-white/5 transition">
+                                          <td className="px-6 py-4">
+                                             <div className="font-bold text-white">{p.name}</div>
+                                             {p.category === 'Software' && p.os && p.os !== 'None' && (
+                                                <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
+                                             )}
+                                             {((p.variantGroups && p.variantGroups.length > 0) || (p.variantOptions && p.variantOptions.length > 0)) && (
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                   {p.variantGroups && p.variantGroups.length > 0 ? (
+                                                      `${p.variantGroups.length} Group(s), ${p.variantGroups.reduce((acc, g) => acc + (g.variants?.length || 0), 0)} Variants`
+                                                   ) : (
+                                                      `${p.type === 'digital' ? 'Versions' : 'Variants'}: ${(p.variants || []).join(', ')}`
+                                                   )}
+                                                </div>
+                                             )}
+                                          </td>
+                                          <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
+                                          <td className="px-6 py-4"><span className="text-gray-400 text-xs">{p.category}</span></td>
+                                          <td className="px-6 py-4">
+                                             <div className="flex flex-col">
+                                                <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-500 line-through text-xs' : 'text-white font-bold'}>
+                                                   KES {p.price.toLocaleString()}
+                                                </span>
+                                                {p.discountPrice && p.discountPrice > 0 && (
+                                                   <span className="text-brand-purple font-bold">
+                                                      KES {p.discountPrice.toLocaleString()}
+                                                   </span>
+                                                )}
+                                             </div>
+                                          </td>
+                                          <td className="px-6 py-4">
+                                             {p.type === 'digital' ? '∞' : (
+                                                p.variantGroups && p.variantGroups.length > 0 ? (
+                                                   p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc: number, v: any) => vAcc + (v.stock || 0), 0), 0)
+                                                ) : p.stock
+                                             )}
+                                          </td>
+                                          <td className="px-6 py-4">
+                                             <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
+                                                p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                   'bg-gray-500/10 text-gray-500'
+                                                }`}>
+                                                {p.status}
+                                             </span>
+                                          </td>
+                                          <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
+                                       </tr>
+                                    ))}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'mixtapes' && (
+                     <div className="animate-fade-in-up">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                           <h3 className="text-2xl font-bold">Mixtape Library</h3>
+                           <button onClick={openAddMixtape} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
+                              <Plus size={18} /> Upload Mix
+                           </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                           {mixtapes
+                              .sort((a, b) => {
+                                 const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                 const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                 return dateB - dateA; // Newest first
+                              })
+                              .map((mix) => (
+                                 <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-3 flex gap-3 relative group">
+                                    <div className="relative w-16 h-16 shrink-0">
+                                       <img src={mix.coverUrl} alt={mix.title} className="w-full h-full rounded object-cover" />
+                                       {mix.isExclusive && <div className="absolute -top-1 -right-1 bg-brand-purple text-white text-[8px] font-bold px-1 rounded shadow-lg ring-1 ring-black">EXCL</div>}
+                                    </div>
+                                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                       <div>
+                                          <h4 className="font-bold text-white text-sm truncate leading-tight">{mix.title}</h4>
+                                          <p className="text-[10px] text-gray-400 truncate">{mix.genre}</p>
+                                       </div>
+                                       <div className="flex justify-between items-center mt-1">
+                                          <div className="flex items-center gap-1.5">
+                                             <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-bold ${mix.status === 'published' ? 'bg-green-500/10 text-green-500' : 'bg-gray-500/10 text-gray-500'}`}>{mix.status}</span>
+                                             {mix.isFeatured && <Star size={8} className="text-yellow-500 fill-yellow-500" />}
+                                          </div>
+                                          <div className="flex gap-2">
+                                             <button onClick={() => openEditMixtape(mix)} className="text-gray-500 hover:text-blue-500 transition"><PenSquare size={12} /></button>
+                                             <button type="button" onClick={(e) => handleDeleteMixtape(e, mix)} className="text-gray-500 hover:text-red-500 transition"><Trash2 size={12} /></button>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </div>
+                              ))}
+                        </div>
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'marketing' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="flex gap-4 border-b border-white/5 pb-4">
+                           <button onClick={() => setMarketingSubTab('referrals')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'referrals' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Program</button>
+                           <button onClick={() => setMarketingSubTab('coupons')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'coupons' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Coupons</button>
+                        </div>
+
+                        {marketingSubTab === 'referrals' && (
+                           <>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                 <StatCard label="Total Referrals" value={referralStats.reduce((acc, r) => acc + r.totalReferrals, 0)} icon={Users} color="text-brand-cyan" />
+                                 <StatCard label="Total Payouts" value={`KES ${referralStats.reduce((acc, r) => acc + r.totalEarned, 0)}`} icon={DollarSign} color="text-green-500" />
+                                 <StatCard label="Pending" value={`KES ${referralStats.reduce((acc, r) => acc + r.pendingPayout, 0)}`} icon={Clock} color="text-yellow-500" />
+                              </div>
+                              <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                                 <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">User</th><th className="px-6 py-4">Code</th><th className="px-6 py-4">Referrals</th><th className="px-6 py-4">Earned</th><th className="px-6 py-4">Pending</th></tr></thead>
+                                    <tbody className="divide-y divide-white/5 text-sm">
+                                       {referralStats.map(r => (
+                                          <tr key={r.id}>
+                                             <td className="px-6 py-4 font-bold">{r.userName}</td>
+                                             <td className="px-6 py-4 font-mono text-brand-purple">{r.referralCode}</td>
+                                             <td className="px-6 py-4">{r.totalReferrals}</td>
+                                             <td className="px-6 py-4">KES {r.totalEarned}</td>
+                                             <td className="px-6 py-4 text-yellow-500">KES {r.pendingPayout}</td>
+                                          </tr>
+                                       ))}
+                                    </tbody></table>
+                              </div>
+                           </>
+                        )}
+
+                        {marketingSubTab === 'coupons' && (
+                           <>
+                              <div className="flex justify-end mb-4"><button onClick={openAddCoupon} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Create Coupon</button></div>
+                              <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                                 <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Code</th><th className="px-6 py-4">Discount</th><th className="px-6 py-4">Applies To</th><th className="px-6 py-4">Expiry</th><th className="px-6 py-4">Usage</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead>
+                                    <tbody className="divide-y divide-white/5 text-sm">
+                                       {coupons.map(c => (
+                                          <tr key={c.id}>
+                                             <td className="px-6 py-4 font-mono font-bold text-white">{c.code}</td>
+                                             <td className="px-6 py-4">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${c.discountValue}`}</td>
+                                             <td className="px-6 py-4 capitalize">{c.appliesTo}</td>
+                                             <td className="px-6 py-4">{c.expiryDate}</td>
+                                             <td className="px-6 py-4">{c.usageCount} / {c.usageLimit}</td>
+                                             <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
+                                             <td className="px-6 py-4 flex gap-2">
+                                                <button onClick={() => openEditCoupon(c)} className="text-blue-500"><PenSquare size={16} /></button>
+                                                <button onClick={() => deleteCoupon(c.id)} className="text-red-500"><Trash2 size={16} /></button>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody></table>
+                              </div>
+                           </>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'bookings' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="flex justify-between items-center">
+                           <h3 className="text-2xl font-bold">Manage Bookings</h3>
+                           <div className="flex gap-4">
+                              <div className="flex bg-[#15151A] rounded-lg p-1">
+                                 <button onClick={() => setBookingSubTab('list')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'list' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>List</button>
+                                 <button onClick={() => setBookingSubTab('calendar')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'calendar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Calendar</button>
+                              </div>
+                              <button onClick={openAddBooking} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold"><Plus size={18} /> Add Booking</button>
+                           </div>
+                        </div>
+                        {bookingSubTab === 'list' ? (
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
+                              <table className="w-full text-left min-w-[800px]">
+                                 <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
+                                    <tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/5 text-sm">
+                                    {bookings.map((b) => (
+                                       <tr key={b.id} className="hover:bg-white/5 transition">
+                                          <td className="px-6 py-4 font-bold text-white">{b.clientName}</td>
+                                          <td className="px-6 py-4 text-gray-300">{b.serviceName || b.serviceType}</td>
+                                          <td className="px-6 py-4">{b.date} @ {b.time}</td>
+                                          <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${b.status === 'confirmed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{b.status}</span></td>
+                                          <td className="px-6 py-4 flex gap-2"><button onClick={() => openEditBooking(b)} className="text-blue-500"><PenSquare size={16} /></button></td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        ) : (
+                           <div className="bg-[#15151A] p-8 text-center rounded-xl border border-white/5"><Calendar size={48} className="mx-auto text-gray-600 mb-4" /><h3 className="text-xl font-bold text-white">Calendar View</h3><p className="text-gray-500">Feature coming soon.</p></div>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'studio' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Booked Today" value={studioStats.bookedToday} icon={Mic} color="text-brand-cyan" />
+                           <StatCard label="Total Services" value={sessionTypes.length} icon={Timer} color="text-green-500" />
+                           <StatCard label="Rev/Room" value={`KES ${Math.round(studioStats.revenuePerRoom).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
+                           <StatCard label="Available" value={`${studioStats.availableRooms} Rooms`} icon={Check} color="text-blue-500" />
+                        </div>
+
+                        <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
+                           <button onClick={() => setStudioSubTab('services')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'services' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Services</button>
+                           <button onClick={() => setStudioSubTab('equipment')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'equipment' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Equipment</button>
+                           <button onClick={() => setStudioSubTab('rooms')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'rooms' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Rooms</button>
+                           <button onClick={() => setStudioSubTab('maintenance')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'maintenance' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Maintenance</button>
+                        </div>
+
+                        {studioSubTab === 'services' && (
+                           <>
+                              <div className="flex justify-between items-center mb-4">
+                                 <span className="font-bold flex items-center gap-2 text-white">Services {sessionTypesLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
+                                 <button onClick={openAddSessionType} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Service</button>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {sessionTypes.map(st => (
+                                    <div key={st.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
+                                       <div className="flex justify-between mb-2"><h4 className="font-bold text-lg">{st.name}</h4><div className="flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditSessionType(st)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteSessionType(st.id)} /></div></div>
+                                       <p className="text-gray-400 text-sm mb-4 h-10 line-clamp-2">{st.description}</p>
+                                       <p className="font-bold text-brand-purple">KES {st.price.toLocaleString()}</p>
+                                    </div>
+                                 ))}
+                              </div>
+                           </>
+                        )}
+                        {studioSubTab === 'equipment' && (
+                           <>
+                              <div className="flex justify-end"><button onClick={openAddEquipment} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Gear</button></div>
+                              <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {studioEquipmentLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{studioEquipment.map(eq => (<tr key={eq.id}><td className="px-6 py-4 font-bold">{eq.name}</td><td className="px-6 py-4 text-gray-400">{eq.category}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditEquipment(eq)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteStudioEquipment(eq.id)} /></td></tr>))}</tbody></table></div>
+                           </>
+                        )}
+                        {studioSubTab === 'rooms' && (
+                           <>
+                              <div className="flex justify-between items-center mb-4">
+                                 <span className="font-bold flex items-center gap-2 text-white">Rooms {studioRoomsLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
+                                 <div onClick={openAddRoom} className="bg-brand-purple text-white px-3 py-1.5 rounded-lg font-bold text-xs flex gap-2 items-center cursor-pointer hover:bg-purple-600 transition">
+                                    <Plus size={16} /> Add Room
+                                 </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {studioRooms.map(room => (
+                                    <div key={room.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
+                                       <div className="flex justify-between items-start mb-2">
+                                          <h4 className="font-bold text-lg">{room.name}</h4>
+                                          <div className="flex gap-2">
+                                             <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditRoom(room)} />
+                                             <Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => { if (confirm('Delete room?')) deleteStudioRoom(room.id) }} />
+                                          </div>
+                                       </div>
+                                       <p className="text-sm text-gray-400 mb-4">{room.description}</p>
+                                       <div className="flex justify-between items-center text-xs">
+                                          <span className="bg-white/10 px-2 py-1 rounded">Cap: {room.capacity}</span>
+                                          <span className={`px-2 py-1 rounded ${room.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{room.status}</span>
+                                       </div>
+                                    </div>
+                                 ))}
+                                 {/* Removed the large add card since we added a button above */}
+                              </div>
+                           </>
+                        )}
+                        {studioSubTab === 'maintenance' && (
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                              <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {maintenanceLogsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Issue</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">
+                                 {maintenanceLogs.map(log => (
+                                    <tr key={log.id}>
+                                       <td className="px-6 py-4 font-bold">{log.itemName}</td>
+                                       <td className="px-6 py-4">{log.description}</td>
+                                       <td className="px-6 py-4 text-gray-400">{log.date}</td>
+                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${log.status === 'resolved' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{log.status}</span></td>
+                                    </tr>
+                                 ))}
+                              </tbody></table>
+                           </div>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'referrals' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Total Referrals" value={referralStatsSummary.total} icon={Users} color="text-brand-purple" />
+                           <StatCard label="Active Referrers" value={referralStatsSummary.active} icon={Shield} color="text-brand-cyan" />
+                           <StatCard label="Total Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" />
+                           <StatCard label="System Status" value={referralSettings.enabled ? 'Active' : 'Disabled'} icon={Shield} color={referralSettings.enabled ? 'text-green-500' : 'text-red-500'} />
+                        </div>
+
+                        <div className="flex gap-4 border-b border-white/5 pb-4">
+                           <button onClick={() => setReferralSubTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'settings' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>System Settings</button>
+                           <button onClick={() => setReferralSubTab('logs')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'logs' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Logs</button>
+                        </div>
+
+                        {referralSubTab === 'settings' && (
+                           <div className="bg-[#15151A] p-8 rounded-2xl border border-white/5 space-y-8 max-w-2xl">
+                              <div className="flex justify-between items-center">
+                                 <div>
+                                    <h3 className="text-xl font-bold text-white">Referral System Control</h3>
+                                    <p className="text-sm text-gray-500">Enable or disable the entire referral system</p>
+                                 </div>
+                                 <button
+                                    onClick={() => updateReferralSettings({ enabled: !referralSettings.enabled })}
+                                    className={`px-6 py-2 rounded-full font-bold text-sm transition ${referralSettings.enabled ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
+                                 >
+                                    {referralSettings.enabled ? 'SYSTEM ENABLED' : 'SYSTEM DISABLED'}
+                                 </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                       <label className="block text-xs font-bold text-gray-500 uppercase">New User Discount</label>
+                                       <select
+                                          value={referralSettings.newUserDiscountType}
+                                          onChange={(e) => updateReferralSettings({ newUserDiscountType: e.target.value as 'percentage' | 'flat' })}
+                                          className="bg-black/20 border border-white/10 rounded px-2 py-1 text-[10px] font-bold text-brand-purple uppercase outline-none"
+                                       >
+                                          <option value="percentage">% Percentage</option>
+                                          <option value="flat">KES Flat</option>
+                                       </select>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                       <input
+                                          type="number"
+                                          value={referralSettings.newUserDiscount}
+                                          onChange={(e) => updateReferralSettings({ newUserDiscount: Number(e.target.value) })}
+                                          className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                       />
+                                       <span className="text-gray-400 font-bold">{referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}</span>
+                                    </div>
+                                 </div>
+                                 <div className="space-y-4">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase">Referrer Reward (KES)</label>
+                                    <div className="flex items-center gap-3">
+                                       <input
+                                          type="number"
+                                          value={referralSettings.referrerRewardAmount}
+                                          onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
+                                          className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                       />
+                                       <span className="text-gray-400 font-bold">KES</span>
+                                    </div>
+                                 </div>
+                              </div>
+
+                              <div className="p-4 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex gap-4 items-start">
+                                 <Info className="text-brand-purple shrink-0 mt-1" size={20} />
+                                 <div className="text-sm text-gray-300">
+                                    <p className="font-bold text-white mb-1">How it works:</p>
+                                    <ul className="list-disc ml-4 space-y-1 text-xs">
+                                       <li>New users get the <strong>Discount %</strong> on their first subscription.</li>
+                                       <li>Referrers receive a <strong>Flat Amount</strong> in their balance once the referee pays.</li>
+                                       <li>System validates for self-referral and one-time use automatically.</li>
+                                    </ul>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {referralSubTab === 'logs' && (
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                              <table className="w-full text-left">
+                                 <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
+                                    <tr>
+                                       <th className="px-6 py-4">Referrer</th>
+                                       <th className="px-6 py-4">Referee</th>
+                                       <th className="px-6 py-4">Plan Purchased</th>
+                                       <th className="px-6 py-4">Reward</th>
+                                       <th className="px-6 py-4">Date</th>
+                                       <th className="px-6 py-4">Status</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/5 text-sm">
+                                    {referralLogs.length === 0 ? (
+                                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No referral activity logged yet.</td></tr>
+                                    ) : (
+                                       referralLogs.map(log => (
+                                          <tr key={log.id} className="hover:bg-white/5 transition">
+                                             <td className="px-6 py-4">
+                                                <div className="font-bold text-white">{log.referrerName}</div>
+                                                <div className="text-[10px] text-gray-500 font-mono uppercase">{log.referrerId.split('-')[0]}...</div>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <div className="font-bold text-white">{log.refereeName}</div>
+                                                <div className="text-[10px] text-gray-400">Applied {log.discountApplied}% OFF</div>
+                                             </td>
+                                             <td className="px-6 py-4 capitalize">{log.planPurchased}</td>
+                                             <td className="px-6 py-4 text-green-500 font-bold">KES {referralSettings.referrerRewardAmount}</td>
+                                             <td className="px-6 py-4 text-gray-500">{new Date(log.createdAt).toLocaleDateString()}</td>
+                                             <td className="px-6 py-4">
+                                                <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${log.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                                   {log.status}
+                                                </span>
+                                             </td>
+                                          </tr>
+                                       ))
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'users' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Total Users" value={users.length} icon={Users} color="text-brand-purple" />
+                           <StatCard label="Subscribers" value={users.filter(u => u.isSubscriber).length} icon={Check} color="text-green-500" />
+                           <StatCard label="Admins" value={users.filter(u => u.role === 'admin').length} icon={Shield} color="text-red-500" />
+                           <StatCard label="Active Now" value={liveUsers.length} icon={Monitor} color="text-blue-500" />
+                        </div>
+
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                           <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Role</th><th className="px-6 py-4">Subscription</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{users.map(u => {
+                              const isOnline = liveUsers.some(lu => lu.id === u.id);
+                              const displayStatus = u.status || 'active';
+                              return (
+                                 <tr key={u.id}>
+                                    <td className="px-6 py-4">
+                                       <div className="flex items-center gap-2">
+                                          {isOnline && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shrink-0" title="Online" />}
+                                          <span className="font-bold">{u.name}</span>
+                                       </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-400">{u.email}</td>
+                                    <td className="px-6 py-4 capitalize">{u.role}</td>
+                                    <td className="px-6 py-4 text-xs text-gray-500">
+                                       {(u.isSubscriber || u.subscriptionExpiry) ? (
+                                          <div className="flex flex-col gap-1">
+                                             <span className={`${u.isSubscriber ? 'text-green-500' : 'text-gray-400'} font-bold`}>
+                                                {u.isSubscriber ? `Active (${u.subscriptionPlan || 'Pro'})` : 'Expired'}
+                                             </span>
+                                             {u.subscriptionExpiry && <CountdownTimer expiryDate={u.subscriptionExpiry} />}
+                                          </div>
+                                       ) : 'None'}
+                                    </td>
+                                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${displayStatus === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{displayStatus}</span></td>
+                                    <td className="px-6 py-4 flex gap-2">
+                                       <button onClick={() => openUserDetail(u)} className="text-blue-500 text-xs hover:underline flex items-center gap-1"><Eye size={14} /> View</button>
+                                    </td>
+                                 </tr>);
+                           })}</tbody></table>
+                        </div>
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'shipping' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Pending" value={shippingStats.pending.toString()} icon={Package} color="text-yellow-500" />
+                           <StatCard label="Delivered" value={shippingStats.delivered.toString()} icon={Check} color="text-green-500" />
+                           <StatCard label="Revenue" value={`KES ${new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}`} icon={DollarSign} color="text-brand-purple" />
+                           <StatCard label="Failed" value={shippingStats.failed.toString()} icon={AlertTriangle} color="text-red-500" />
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                              <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center text-brand-cyan">
+                                 <span><Truck size={16} className="inline mr-2" /> Pending Shipments</span>
+                                 <span className="text-xs px-2 py-0.5 bg-brand-cyan/10 rounded-full">{liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length}</span>
+                              </div>
+                              <div className="max-h-[500px] overflow-y-auto">
+                                 <table className="w-full text-left">
+                                    <tbody className="divide-y divide-white/5 text-sm">
+                                       {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).map(o => (
+                                          <tr key={o.id} className="hover:bg-white/5">
+                                             <td className="px-4 py-3 font-mono text-xs">{o.id}</td>
+                                             <td className="px-4 py-3">
+                                                <div className="font-bold">{o.customerName}</div>
+                                                <div className="text-[10px] text-gray-500">{o.customerEmail}</div>
+                                             </td>
+                                             <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment'}</td>
+                                             <td className="px-4 py-3"><button onClick={() => openShipModal(o)} className="text-[10px] bg-brand-purple text-white px-2 py-1 rounded font-bold uppercase">Ship Now</button></td>
+                                          </tr>
+                                       ))}
+                                       {liveOrders.filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length === 0 && (
+                                          <tr><td className="p-8 text-center text-gray-500 text-xs">No pending shipments found.</td></tr>
+                                       )}
+                                    </tbody>
+                                 </table>
+                              </div>
+                           </div>
+
+                           <div className="space-y-6">
+                              <div className="flex justify-between items-center px-2">
+                                 <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500">Shipping Zones & Rates</h4>
+                                 <button className="text-brand-purple text-xs font-bold">+ Add Zone</button>
+                              </div>
+                              <div className="grid grid-cols-1 gap-4">
+                                 {shippingZones.map(zone => (
+                                    <div key={zone.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
+                                       <div className="flex justify-between items-start mb-2">
+                                          <div>
+                                             <h4 className="font-bold text-lg">{zone.name}</h4>
+                                             <p className="text-gray-400 text-xs mb-3 italic">{zone.description}</p>
+                                          </div>
+                                          <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditZone(zone)} />
+                                       </div>
+                                       <div className="space-y-1">
+                                          {zone.rates.map(r => (
+                                             <div key={r.id} className="flex justify-between text-[11px] border-b border-white/5 pb-1 last:border-0">
+                                                <span className="text-gray-400">{r.label}</span>
+                                                <span className="font-bold text-brand-purple">KES {r.price}</span>
+                                             </div>
+                                          ))}
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'content' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           <StatCard label="Active Sections" value={contentStats.activeSections.toString()} icon={FileText} color="text-green-500" />
+                           <StatCard label="Products" value={products.length.toString()} icon={Check} color="text-blue-500" />
+                           <StatCard label="Sync Status" value={contentStats.lastUpdated} icon={Clock} color="text-brand-purple" />
+                           <StatCard label="System Health" value="Stable" icon={AlertTriangle} color="text-gray-500" />
+                        </div>
+
+                        <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
+                           <button onClick={() => setContentSubTab('home')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'home' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Home</button>
+                           <button onClick={() => setContentSubTab('about')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'about' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>About</button>
+                           <button onClick={() => setContentSubTab('footer')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'footer' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Footer & Contact</button>
+                           <button onClick={() => setContentSubTab('tipjar')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'tipjar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Tip Jar</button>
+                           <button onClick={() => setContentSubTab('seo')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'seo' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>SEO</button>
+                           <button onClick={() => setContentSubTab('notice')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'notice' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Notice</button>
+                        </div>
+
+                        <div className="flex justify-end"><button onClick={handleSaveConfig} className="bg-brand-purple px-6 py-2 rounded-lg font-bold flex gap-2"><Save size={18} /> Save Changes</button></div>
+
+                        {contentSubTab === 'home' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-8">
+                           <div className="space-y-4">
+                              <h4 className="text-brand-cyan font-bold uppercase text-xs tracking-widest">Hero Section</h4>
+                              <InputGroup label="Hero Title" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
+                              <InputGroup label="Hero Subtitle" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
+                              <InputGroup label="CTA Text" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
+                              <InputGroup label="Hero BG Image" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+                           </div>
+
+                           <div className="space-y-4 pt-6 border-t border-white/5">
+                              <h4 className="text-brand-purple font-bold uppercase text-xs tracking-widest">Featured Mixtapes Section</h4>
+                              <InputGroup label="Section Title" value={editingConfig.home.featuredMixtapes.title} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                              <InputGroup label="Section Subtitle" value={editingConfig.home.featuredMixtapes.subtitle} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.subtitle = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                              <InputGroup label="Link Text (CTA)" value={editingConfig.home.featuredMixtapes.ctaText} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.ctaText = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                           </div>
+                        </div>)}
+                        {contentSubTab === 'about' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="About Title" value={editingConfig.about.title} onChange={v => updateContentField('about', 'title', v)} /><InputGroup label="Bio" type="textarea" value={editingConfig.about.bio} onChange={v => updateContentField('about', 'bio', v)} /></div>)}
+                        {contentSubTab === 'footer' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                           <InputGroup label="Email" value={editingConfig.contact.email} onChange={v => updateContentField('contact', 'email', v)} />
+                           <InputGroup label="Phone" value={editingConfig.contact.phone} onChange={v => updateContentField('contact', 'phone', v)} />
+                           <InputGroup label="Whatsapp" value={editingConfig.contact.whatsapp} onChange={v => updateContentField('contact', 'whatsapp', v)} />
+                           <InputGroup label="Footer Desc" type="textarea" value={editingConfig.footer.description} onChange={v => updateContentField('footer', 'description', v)} />
+                        </div>)}
+                        {contentSubTab === 'tipjar' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                           <InputGroup label="Title" value={editingConfig.home.tipJar.title} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                           <InputGroup label="Message" type="textarea" value={editingConfig.home.tipJar.message} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.message = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                        </div>)}
+                        {contentSubTab === 'seo' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="Site Title" value={editingConfig.seo.siteTitle} onChange={v => updateContentField('seo', 'siteTitle', v)} /><InputGroup label="Meta Description" type="textarea" value={editingConfig.seo.description} onChange={v => updateContentField('seo', 'description', v)} /><InputGroup label="Keywords" value={editingConfig.seo.keywords} onChange={v => updateContentField('seo', 'keywords', v)} /></div>)}
+                        {contentSubTab === 'notice' && (
+                           <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                              <div className="flex items-center gap-4 mb-4">
+                                 <InputGroup label="Enabled" type="checkbox" checked={editingConfig.notice?.enabled || false} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, enabled: v } })} />
+                                 <div className="text-xs text-gray-400">Enable this to show a site-wide banner at the top of the page.</div>
+                              </div>
+                              <InputGroup label="Notice Title" value={editingConfig.notice?.title || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, title: v } })} />
+                              <InputGroup label="Message" type="textarea" value={editingConfig.notice?.message || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, message: v } })} />
+                              <InputGroup label="Type" options={['info', 'warning', 'error']} value={editingConfig.notice?.type || 'info'} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, type: v as any } })} />
+                           </div>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'telegram' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="flex gap-4 border-b border-white/5 pb-4"><button onClick={() => setTelegramSubTab('config')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'config' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Config</button><button onClick={() => setTelegramSubTab('channels')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'channels' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Channels</button></div>
+                        {telegramSubTab === 'config' && (
+                           <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 max-w-3xl space-y-4">
+                              <InputGroup label="Bot Token" value={telegramConfig.botToken} onChange={v => updateTelegramConfig({ botToken: v })} />
+                              <InputGroup label="Bot Username" value={telegramConfig.botUsername} onChange={() => { }} />
+                              <div className={`p-4 rounded-lg border ${telegramConfig.status === 'Connected' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>Status: {telegramConfig.status}</div>
+                           </div>
+                        )}
+                        {telegramSubTab === 'channels' && (
+                           <>
+                              <div className="flex justify-end mb-4"><button onClick={openAddChannel} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Channel</button></div>
+                              <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">ID</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{telegramChannels.map(ch => (<tr key={ch.id}><td className="px-6 py-4 font-bold">{ch.name}</td><td className="px-6 py-4 text-gray-500">{ch.channelId}</td><td className="px-6 py-4">{ch.genre}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditChannel(ch)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteTelegramChannel(ch.id)} /></td></tr>))}</tbody></table></div>
+                           </>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'payments' && (
+                     <div className="animate-fade-in-up bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                        {paymentsLoading || ordersLoading ? (
+                           <div className="p-20 text-center text-gray-500">Loading transactions...</div>
+                        ) : combinedTransactions.length === 0 ? (
+                           <div className="p-20 text-center text-gray-400 flex flex-col items-center gap-4">
+                              <CreditCard size={48} className="text-gray-700" />
+                              <div>
+                                 <p className="text-lg font-bold">No transactions found</p>
+                                 <p className="text-sm">Recent payments and tips will appear here in real-time.</p>
+                              </div>
+                           </div>
+                        ) : (
+                           <table className="w-full text-left">
+                              <thead className="bg-black/20 text-gray-500 text-xs uppercase">
+                                 <tr>
+                                    <th className="px-6 py-4">Type</th>
+                                    <th className="px-6 py-4">Ref Code</th>
+                                    <th className="px-6 py-4">Date/Time</th>
+                                    <th className="px-6 py-4">User</th>
+                                    <th className="px-6 py-4">Items</th>
+                                    <th className="px-6 py-4">Amount</th>
+                                    <th className="px-6 py-4">Status</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-sm">
+                                 {combinedTransactions.map(tx => (
+                                    <tr key={tx.id} className="hover:bg-white/5 transition">
+                                       <td className="px-6 py-4">
+                                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
+                                             tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                'bg-purple-500/10 text-purple-500'
+                                             }`}>{tx.type}</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-gray-500 font-mono text-xs">{tx.ref || 'N/A'}</td>
+                                       <td className="px-6 py-4">
+                                          <div className="text-white">{tx.date}</div>
+                                          <div className="text-xs text-gray-500">{tx.time}</div>
+                                       </td>
+                                       <td className="px-6 py-4 font-bold">{tx.name}</td>
+                                       <td className="px-6 py-4 text-xs max-w-[200px] truncate">{tx.items}</td>
+                                       <td className="px-6 py-4 font-bold text-brand-purple">KES {tx.amount.toLocaleString()}</td>
+                                       <td className="px-6 py-4">
+                                          <span className={`text-xs px-2 py-1 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' :
+                                             tx.status === 'pending' || tx.status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                'bg-red-500/10 text-red-500'
+                                             }`}>{tx.status}</span>
+                                       </td>
+                                    </tr>
+                                 ))}
+                              </tbody>
+                           </table>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'newsletters' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="flex gap-4 border-b border-white/5 pb-4">
+                           <button onClick={() => setNewsletterSubTab('subscribers')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'subscribers' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers</button>
+                           <button onClick={() => setNewsletterSubTab('campaigns')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'campaigns' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Campaigns</button>
+                           <button onClick={() => setNewsletterSubTab('blast')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'blast' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Quick Blast</button>
+                        </div>
+
+                        {newsletterSubTab === 'subscribers' && (
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><div className="p-4 border-b border-white/5 font-bold flex justify-between"><div className="flex items-center gap-2"><span>Subscribers ({subscribers.length})</span>{subscribersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</div><button className="text-brand-purple text-xs font-bold" onClick={() => alert('Feature coming soon')}>+ Add Manual</button></div><div className="max-h-96 overflow-y-auto"><table className="w-full text-left"><tbody className="divide-y divide-white/5 text-sm">{subscribers.map(s => (<tr key={s.id}><td className="px-6 py-3">{s.email}</td><td className="px-6 py-3 text-gray-500">{s.status}</td><td className="px-6 py-3 text-xs text-gray-600">{s.source}</td></tr>))}</tbody></table></div></div>
+                        )}
+
+                        {newsletterSubTab === 'campaigns' && (
+                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                              <div className="p-4 border-b border-white/5 font-bold flex justify-between"><span>Recent Campaigns</span><button onClick={() => alert('Feature coming soon')} className="bg-brand-purple text-white text-xs font-bold px-3 py-1 rounded">+ Create</button></div>
+                              <table className="w-full text-left">
+                                 <tbody className="divide-y divide-white/5 text-sm">
+                                    <tr className="bg-black/20 text-gray-500 text-xs uppercase"><th className="px-6 py-3 flex items-center gap-2">Name {campaignsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Opens</th></tr>
+                                    {newsletterCampaigns?.map(c => (
+                                       <tr key={c.id}>
+                                          <td className="px-6 py-3 font-bold">{c.name}</td>
+                                          <td className="px-6 py-3 capitalize">{c.type}</td>
+                                          <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs ${c.status === 'sent' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{c.status}</span></td>
+                                          <td className="px-6 py-3">{c.openRate ? `${c.openRate}%` : '-'}</td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        )}
+
+                        {newsletterSubTab === 'blast' && (
+                           <div className="bg-[#15151A] p-8 rounded-xl border border-white/5">
+                              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Send size={20} /> Quick Email Blast</h3>
+                              <div className="space-y-4">
+                                 <InputGroup label="Subject" value={emailSubject} onChange={setEmailSubject} />
+                                 <InputGroup label="Message" type="textarea" value={emailBody} onChange={setEmailBody} />
+                                 <button
+                                    onClick={sendCampaign}
+                                    disabled={isSending}
+                                    className={`bg-brand-purple text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 ${isSending ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'}`}
+                                 >
+                                    {isSending ? <><RefreshCw size={20} className="animate-spin" /> Sending...</> : <><Send size={20} /> Send Now</>}
+                                 </button>
+                              </div>
+                           </div>
+                        )}
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'messages' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                           <StatCard label="Total Messages" value={contactMessages.length} icon={MessageSquare} color="text-brand-purple" />
+                           <StatCard label="New" value={contactMessages.filter(m => m.status === 'new').length} icon={Bell} color="text-brand-cyan" />
+                           <StatCard label="WhatsApp" value={contactMessages.filter(m => m.source === 'whatsapp').length} icon={MessageCircle} color="text-green-500" />
+                        </div>
+
+                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                           <table className="w-full text-left">
+                              <thead className="bg-black/20 text-gray-500 text-xs uppercase">
+                                 <tr>
+                                    <th className="px-6 py-4">Sender</th>
+                                    <th className="px-6 py-4">Subject</th>
+                                    <th className="px-6 py-4">Source</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Date</th>
+                                    <th className="px-6 py-4">Actions</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-sm">
+                                 {contactMessages.map(m => (
+                                    <tr key={m.id} className={m.status === 'new' ? 'bg-white/[0.02]' : ''}>
+                                       <td className="px-6 py-4">
+                                          <div className="font-bold">{m.name}</div>
+                                          <div className="text-[10px] text-gray-500">{m.email}</div>
+                                       </td>
+                                       <td className="px-6 py-4 truncate max-w-[200px]">{m.subject}</td>
+                                       <td className="px-6 py-4">
+                                          <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${m.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                             {m.source}
+                                          </span>
+                                       </td>
+                                       <td className="px-6 py-4">
+                                          <span className={`text-[10px] px-2 py-1 rounded-full border ${m.status === 'new' ? 'border-brand-cyan text-brand-cyan bg-brand-cyan/10' : 'border-white/10 text-gray-500'}`}>
+                                             {m.status}
+                                          </span>
+                                       </td>
+                                       <td className="px-6 py-4 text-gray-500 text-xs">{new Date(m.createdAt).toLocaleDateString()}</td>
+                                       <td className="px-6 py-4">
+                                          <button
+                                             onClick={() => {
+                                                setSelectedMessage(m);
+                                                setActiveModal('viewMessage');
+                                                if (m.status === 'new') {
+                                                   updateContactMessage(m.id, { status: 'read' });
+                                                }
+                                             }}
+                                             className="text-brand-purple hover:underline font-bold text-xs flex items-center gap-1"
+                                          >
+                                             <Eye size={14} /> View
+                                          </button>
+                                       </td>
+                                    </tr>
+                                 ))}
+                                 {contactMessages.length === 0 && (
+                                    <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No messages found.</td></tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  )
+               }
+
+               {
+                  activeTab === 'system' && (
+                     <div className="animate-fade-in-up space-y-6">
+                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
+                           <h3 className="text-xl font-bold mb-4">System Utilities</h3>
+
+                           <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
+                              <h4 className="font-bold text-white mb-2">Cleanup & Maintenance</h4>
+                              <p className="text-sm text-gray-400 mb-4">
+                                 Scan database for items that are not synchronized with valid Firebase Storage (e.g. broken links, old seeded data).
+                              </p>
+
+                              <div className="mb-4 text-xs bg-yellow-500/10 text-yellow-500 p-3 rounded border border-yellow-500/20">
+                                 <div className="font-bold mb-2 flex items-center gap-2">
+                                    <AlertTriangle size={14} />
+                                    ⚠️ Warning: This action will permanently delete:
+                                 </div>
+                                 <ul className="list-disc list-inside space-y-1 ml-4">
+                                    <li>Mixtapes without Firebase Storage URLs</li>
+                                    <li>Products without Firebase Storage image URLs</li>
+                                    <li>Specific corrupted entries (e.g., "DJ FLOWERZ CLUB BANGERS DECEMBER SHUTDOWN 2025")</li>
+                                 </ul>
+                              </div>
+
+                              <button
+                                 onClick={handleCleanupData}
+                                 disabled={isCleaning}
+                                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                 {isCleaning ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                                 {isCleaning ? 'Running Cleanup...' : 'Cleanup Invalid Data'}
+                              </button>
+                           </div>
+
+                           <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
+                              <h4 className="font-bold text-white mb-2">Music Pool Health & Maintenance</h4>
+                              <p className="text-sm text-gray-400 mb-4">
+                                 Scan and repair the Music Pool tracks. Identifies tracks with missing versions or broken download links.
+                              </p>
+
+                              {scanResults.checked > 0 && (
+                                 <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="bg-white/5 p-3 rounded border border-white/5">
+                                       <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Checked</div>
+                                       <div className="text-xl font-bold">{scanResults.checked}</div>
+                                    </div>
+                                    <div className="bg-white/5 p-3 rounded border border-white/5">
+                                       <div className="text-yellow-500 text-[10px] uppercase font-bold mb-1">Missing Vers.</div>
+                                       <div className="text-xl font-bold text-yellow-500">{scanResults.missingVersions}</div>
+                                    </div>
+                                    <div className="bg-white/5 p-3 rounded border border-white/5">
+                                       <div className="text-red-500 text-[10px] uppercase font-bold mb-1">Broken/Empty</div>
+                                       <div className="text-xl font-bold text-red-500">{scanResults.broken}</div>
+                                    </div>
+                                 </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-4">
+                                 <button
+                                    onClick={handleScanPool}
+                                    disabled={isScanningPool}
+                                    className="bg-brand-purple hover:bg-brand-purple/80 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                                 >
+                                    {isScanningPool ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
+                                    {isScanningPool ? `Scanning... (${Math.round((scanResults.checked / (poolTracks.length || 1)) * 100)}%)` : 'Scan Pool Health'}
+                                 </button>
+
+                                 <button
+                                    onClick={handleFixPool}
+                                    disabled={isScanningPool || scanResults.broken === 0}
+                                    className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                                 >
+                                    <Shield size={18} />
+                                    Repair Broken Tracks
+                                 </button>
+
+                                 <button
+                                    onClick={async () => {
+                                       const res = await manualSync();
+                                       alert(res.message);
+                                    }}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                                 >
+                                    <RefreshCw size={18} />
+                                    Force Sync from Sources
+                                 </button>
+                              </div>
+                           </div>
+
+                           {cleanupLog.length > 0 && (
+                              <div className="bg-black/40 p-4 rounded-lg border border-white/10 font-mono text-xs text-gray-400 max-h-60 overflow-y-auto">
+                                 {cleanupLog.map((line, i) => (
+                                    <div key={i} className="mb-1">{line}</div>
+                                 ))}
+                              </div>
+                           )}
+                        </div>
+                     </div>
+                  )
+               }
+            </div >
 
 
             <Modal isOpen={activeModal === 'addPlan'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Plan" : "Create New Plan"}>
@@ -3482,8 +3520,8 @@ const AdminDashboard: React.FC = () => {
                </div>
             </Modal>
 
-         </div>
-      </div>
+         </div >
+      </div >
    );
 };
 

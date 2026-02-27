@@ -8,7 +8,7 @@ import { useData } from '../context/DataContext';
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { itemCount } = useCart();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const { hasQuotaExceeded, siteConfig } = useData();
   const location = useLocation();
 
@@ -33,7 +33,7 @@ const Navbar: React.FC = () => {
 
   if (isAdminPage) return null;
 
-  const showNotice = hasQuotaExceeded || siteConfig.notice?.enabled;
+  const showNotice = false;
   const noticeTitle = hasQuotaExceeded ? "Service Interruption" : siteConfig.notice?.title;
   const noticeMessage = hasQuotaExceeded
     ? "Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later or contact us if you need help!"
@@ -103,9 +103,19 @@ const Navbar: React.FC = () => {
                 )}
               </Link>
 
-              {isAuthenticated ? (
-                <Link to="/account" className="flex items-center gap-2 text-gray-300 hover:text-white transition">
-                  <img src={user?.avatarUrl} alt="User" className="w-8 h-8 rounded-full border border-brand-purple object-cover" />
+              {loading ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border border-white/10 animate-pulse bg-white/5"></div>
+                </div>
+              ) : isAuthenticated ? (
+                <Link to="/account" className="flex items-center gap-2 text-gray-300 hover:text-white transition group">
+                  {user?.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="User" className="w-9 h-9 rounded-full border-2 border-brand-purple object-cover shadow-lg shadow-brand-purple/30 group-hover:border-brand-cyan transition" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full border-2 border-brand-purple bg-brand-purple/20 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-purple/30 group-hover:border-brand-cyan transition">
+                      {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || <User size={16} />}
+                    </div>
+                  )}
                 </Link>
               ) : (
                 <div className="flex items-center gap-3">
@@ -158,12 +168,23 @@ const Navbar: React.FC = () => {
           ))}
 
           <div className="pt-8 space-y-4 pb-8">
-            {isAuthenticated ? (
+            {loading ? (
+              <div className="w-full bg-white/5 animate-pulse py-4 rounded-xl flex justify-center border border-white/5">
+                <div className="h-6 w-24 bg-white/10 rounded"></div>
+              </div>
+            ) : isAuthenticated ? (
               <Link
                 to="/account"
-                className="flex items-center justify-center gap-3 w-full bg-white/10 text-white py-4 rounded-xl font-bold"
+                className="flex items-center justify-center gap-3 w-full bg-brand-purple/20 border border-brand-purple/40 text-white py-4 rounded-xl font-bold hover:bg-brand-purple/30 transition"
               >
-                <img src={user?.avatarUrl} alt="User" className="w-6 h-6 rounded-full" /> My Account
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="User" className="w-7 h-7 rounded-full border border-brand-purple object-cover" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full border border-brand-purple bg-brand-purple/40 flex items-center justify-center text-white font-bold text-xs">
+                    {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                )}
+                My Account
               </Link>
             ) : (
               <div className="grid grid-cols-2 gap-4">

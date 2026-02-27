@@ -7,7 +7,27 @@ import { supabase } from '../utils/supabase';
 import { withRetry } from '../utils/supabaseRetry';
 import { useSupabaseCollection } from '../hooks/useSupabaseCollection';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2 } from '../utils/r2';
+
+// Data sources: Supabase (active data) and R2 (cached/static data)
+
+// ── R2/Supabase compatibility shim ──────────────────────────────────────────
+// Replaces old saveToR2(table, arrOrObj) calls — now writes to persistence layers.
+// Handles both arrays (upsert each row) and single-object config blobs.
+const saveToR2 = async (table: string, data: any): Promise<boolean> => {
+  try {
+    // All backend collections (except Auth) now go to R2 via the API (JSON storage)
+    const response = await fetch('/api/admin/r2-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collection: table, data })
+    });
+    return response.ok;
+  } catch (err: any) {
+    console.error(`[DataSync] Error syncing ${table} to R2:`, err.message);
+    return false;
+  }
+};
+// ────────────────────────────────────────────────────────────────────────────
 
 
 
@@ -70,9 +90,9 @@ const INITIAL_CONFIG: SiteConfig = {
     ogImage: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04"
   },
   notice: {
-    enabled: false,
+    enabled: true,
     title: "Service Interruption",
-    message: "Our database is currently experiencing high traffic. Some products may not be visible. Please try again later.",
+    message: "Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later or contact us if you need help with an order!",
     type: "error"
   }
 };
@@ -114,6 +134,8 @@ interface DataContextType {
   mixtapesLoading: boolean;
   poolError: string | null;
   poolLoading: boolean;
+  referralLogs: ReferralLog[];
+
   productsLoading: boolean;
   ordersLoading: boolean;
   usersLoading: boolean;
@@ -496,10 +518,13 @@ const getTableName = (colName: string): string => {
   return mapping[colName] || colName;
 };
 
+// All primary collections read from Supabase
+// NOTE: pool_tracks uses Cloudflare R2 (CDN-cached, ultra-fast for large music library)
 const SUPABASE_COLLECTIONS = [
   'profiles',
   'users'
 ];
+const R2_COLLECTIONS = ['pool_tracks'];
 
 const useCollection = <T extends { id: string }>(
   colName: string,
@@ -535,17 +560,17 @@ const useCollection = <T extends { id: string }>(
     const loadMore = () => { console.warn("loadMore not implemented for Supabase yet"); };
     return [data, setData, isLoading, loadMore, error, refresh] as const;
   } else {
-    // Use R2 for content data
+    // Other collections use R2 (JSON storage)
     const [data, setData, isLoading, error, refresh] = useR2Collection<T>(
       tableName,
       initialData,
       enabled,
       transform,
-      orderByField,
+      orderByField as string || 'id',
       orderDirection
     );
 
-    const loadMore = () => { console.warn("loadMore not implemented for R2 yet"); };
+    const loadMore = () => { };
     return [data, setData, isLoading, loadMore, error, refresh] as const;
   }
 };
@@ -560,18 +585,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // -- REALTIME DATA SUBSCRIPTIONS --
 
-  // Site Config (R2)
+  // Site Config
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(INITIAL_CONFIG);
+  // Fetch Site Config (R2)
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const data = await fetchFromR2<any>('settings');
-        const config = data.find((s: any) => s.id === 'siteConfig');
-        if (config && config.data) {
-          setSiteConfig(config.data as SiteConfig);
+        const url = `${import.meta.env.VITE_R2_URL || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev'}/data/settings.json`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const settings = await res.json();
+          // Find siteConfig in settings array or object
+          const config = Array.isArray(settings) ? settings.find((s: any) => s.id === 'siteConfig') : (settings.id === 'siteConfig' ? settings : null);
+          if (config) {
+            setSiteConfig(config.data || config);
+          }
         }
-      } catch (error) {
-        console.warn("R2 fetch error for siteConfig:", error);
+      } catch (err) {
+        console.warn('R2 fetch error for siteConfig:', err);
       }
     };
 
@@ -624,39 +655,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
 
-  // Fetch Telegram Config (Single Doc from Supabase)
+  // Fetch Telegram Config (R2)
   useEffect(() => {
     if (!isAdmin) return;
     const fetchTgConfig = async () => {
-      const { data } = await supabase.from('telegram_config').select('*').eq('id', 'main').single();
-      if (data) {
-        setTelegramConfig({
-          botToken: data.bot_token || '',
-          botUsername: data.bot_username || '',
-          status: data.status || 'Disconnected'
-        });
+      try {
+        const url = `${import.meta.env.VITE_R2_URL || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev'}/data/telegram_config.json`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const config = Array.isArray(data) ? data.find(c => c.id === 'main') : data;
+          if (config) {
+            setTelegramConfig({
+              botToken: config.botToken || config.bot_token || '',
+              botUsername: config.botUsername || config.bot_username || '',
+              status: config.status || 'Disconnected'
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('R2 fetch error for telegramConfig:', err);
       }
     };
 
     fetchTgConfig();
-
-    const channel = supabase
-      .channel('public:telegram_config')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'telegram_config', filter: 'id=eq.main' }, (payload) => {
-        if (payload.new) {
-          const newItem = payload.new as any;
-          setTelegramConfig({
-            botToken: newItem.bot_token || '',
-            botUsername: newItem.bot_username || '',
-            status: newItem.status || 'Disconnected'
-          });
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [isAdmin]);
 
   const [referralSettings, setReferralSettings] = useState<ReferralSettings>({
@@ -845,9 +867,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = [mappedProduct, ...products.filter(p => p.id !== finalId)];
       setProducts(newProducts);
 
-      // Sync with R2
-      await saveToR2('products', newProducts);
-      console.log("Product saved to R2");
+      // 2. Sync with R2 (Save entire updated array to JSON)
+      const syncSuccess = await saveToR2('products', newProducts);
+      if (!syncSuccess) {
+        console.warn("Product saved to state but failed to sync with R2 backup");
+      } else {
+        console.log("Product synced to R2 successfully");
+      }
       refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
@@ -859,9 +885,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
       setProducts(updatedProducts);
 
-      // Sync with R2
-      await saveToR2('products', updatedProducts);
-      console.log("Product updated on R2");
+
+
+
+      // 2. Sync with R2 (Save entire updated array to JSON)
+      const syncSuccess = await saveToR2('products', updatedProducts);
+      if (!syncSuccess) {
+        console.warn("Product updated in state but failed to sync with R2 backup");
+      } else {
+        console.log("Product updated on R2 successfully");
+      }
+
+
       refreshProducts();
     } catch (err: any) {
       console.error("Update product failed:", err.message);
@@ -873,9 +908,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedProducts = products.filter(p => p.id !== id);
       setProducts(updatedProducts);
 
-      // Sync with R2
+
+      // 2. Sync with R2
       await saveToR2('products', updatedProducts);
-      console.log("Product deleted from R2");
+
+      console.log("Product deleted and synced with R2");
+
       refreshProducts();
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
@@ -895,9 +933,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
       setMixtapes(updatedMixtapes);
 
-      // Sync with R2
-      await saveToR2('mixtapes', updatedMixtapes);
-      console.log("Mixtape saved to R2");
+
+
+
+      // 2. Sync with R2
+      const syncSuccess = await saveToR2('mixtapes', updatedMixtapes);
+      if (!syncSuccess) {
+        console.warn("Mixtape saved to state but failed to sync with R2");
+      } else {
+        console.log("Mixtape saved to R2");
+      }
+
+
       refreshMixtapes();
     } catch (err: any) {
       console.error("Add mixtape failed:", err.message);
@@ -909,9 +956,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
       setMixtapes(updatedMixtapes);
 
-      // Sync with R2
-      await saveToR2('mixtapes', updatedMixtapes);
-      console.log("Mixtape updated on R2");
+
+
+
+      // 2. Sync with R2
+      const syncSuccess = await saveToR2('mixtapes', updatedMixtapes);
+      if (!syncSuccess) {
+        console.warn("Mixtape updated in state but failed to sync with R2");
+      } else {
+        console.log("Mixtape updated on R2");
+      }
+
+
       refreshMixtapes();
     } catch (err: any) {
       console.error("Update mixtape failed:", err.message);
@@ -923,7 +979,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedMixtapes = mixtapes.filter(m => m.id !== id);
       setMixtapes(updatedMixtapes);
 
-      // Sync with R2
+
+
+
+      // 2. Sync with R2
+
       await saveToR2('mixtapes', updatedMixtapes);
       console.log("Mixtape deleted from R2");
       refreshMixtapes();
@@ -936,8 +996,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addPoolTrack = async (track: Track) => {
     try {
       const newTracks = [track, ...poolTracks];
-      // Note: We don't have a local state for poolTracks since it's huge, 
-      // but if we do manual sync, we should update R2
+
+      // Pool tracks stay on Cloudflare R2 for fast CDN reads
+
       await saveToR2('pool_tracks', newTracks);
       refreshPoolTracks();
     } catch (error: any) {
@@ -1331,9 +1392,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const validateCoupon = async (code: string): Promise<{ success: boolean; coupon?: Coupon; message?: string }> => {
     try {
-      // Fetch from R2 (since it's the primary source now)
-      const data = await fetchFromR2<any>('coupons');
-      const couponData = data.find((c: any) => c.code === code.toUpperCase() && c.active);
+
+      // Read from local state (populated from primary collection)
+      const couponData = coupons.find((c: any) => c.code === code.toUpperCase() && c.active);
+
 
       if (!couponData) {
         return { success: false, message: 'Invalid or expired coupon code.' };
@@ -1489,7 +1551,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, contactMessages,
     payments, tips,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
-    mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
+    mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading, poolLoading,
     studioEquipmentLoading: equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
     poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
     hasQuotaExceeded,
@@ -1515,13 +1577,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateReferralSettings,
     applyReferralCode,
     issueReferralReward,
-    referralLogs
+    referralLogs: referralLogs || []
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages,
     payments, tips,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
-    mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
+    mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading, poolLoading,
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
     poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
     hasQuotaExceeded,

@@ -507,29 +507,40 @@ const MusicPool: React.FC = () => {
                                        return (
                                           <div className="px-5 pb-5 animate-fade-in relative z-10">
                                              {isVideo ? (
-                                                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10">
+                                                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10 relative">
                                                    <video
                                                       ref={mediaRef as any}
                                                       controls
                                                       autoPlay
                                                       playsInline
+                                                      controlsList="nodownload noplaybackrate"
+                                                      disablePictureInPicture
                                                       onContextMenu={(e) => e.preventDefault()}
                                                       className="w-full max-h-[600px] object-contain"
                                                       src={mediaUrl}
                                                       onEnded={() => setPlayingTrackId(null)}
                                                    />
+                                                   <button onClick={() => setPlayingTrackId(null)} className="absolute top-4 right-4 bg-black/60 backdrop-blur-md p-2 rounded-full text-white hover:bg-brand-purple hover:text-white transition-colors z-20 shadow-xl" title="Close Player">
+                                                      <X size={20} />
+                                                   </button>
                                                 </div>
                                              ) : (
-                                                <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20">
-                                                   <audio
-                                                      ref={mediaRef as any}
-                                                      controls
-                                                      autoPlay
-                                                      onContextMenu={(e) => e.preventDefault()}
-                                                      className="w-full h-10 accent-brand-purple"
-                                                      src={mediaUrl}
-                                                      onEnded={() => setPlayingTrackId(null)}
-                                                   />
+                                                <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20 flex items-center gap-4">
+                                                   <div className="flex-1">
+                                                      <audio
+                                                         ref={mediaRef as any}
+                                                         controls
+                                                         autoPlay
+                                                         controlsList="nodownload noplaybackrate"
+                                                         onContextMenu={(e) => e.preventDefault()}
+                                                         className="w-full h-10 accent-brand-purple"
+                                                         src={mediaUrl}
+                                                         onEnded={() => setPlayingTrackId(null)}
+                                                      />
+                                                   </div>
+                                                   <button onClick={() => setPlayingTrackId(null)} className="shrink-0 bg-white/5 hover:bg-brand-purple text-gray-400 hover:text-white p-2.5 rounded-xl transition-colors shadow-md" title="Close Player">
+                                                      <X size={20} />
+                                                   </button>
                                                 </div>
                                              )}
                                           </div>

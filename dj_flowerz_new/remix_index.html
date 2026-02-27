@@ -1,0 +1,307 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Remix & Mashups Hub</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { margin:0; background:#0b0b0b; color:#fff; font-family:system-ui; }
+.sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background:#111; padding:20px; border-right:1px solid #222; overflow-y:auto; }
+.sidebar select { width:100%; padding:10px; margin-bottom:12px; border-radius:6px; border:none; }
+.content { margin-left: 260px; padding:20px; height: 100vh; overflow-y:auto; }
+h1 { text-align:center; margin-bottom:20px; }
+.search { max-width:420px; margin:0 auto 10px; display:block; padding:12px; border-radius:6px; border:none; }
+.track { background:#151515; border-radius:8px; padding:12px; margin-bottom:12px; transition:.2s; }
+.track.playing { outline:2px solid #1e90ff; }
+.track.selected { background:#1a2333; outline:2px solid #1e90ff; }
+.title { font-weight:bold; display:flex; gap:8px; align-items:center; }
+.badge { background:#1e90ff; font-size:10px; padding:2px 6px; border-radius:4px; }
+.meta { font-size:12px; opacity:.7; margin-bottom:6px; }
+.versions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+button.play, button.download, button.downloadAll { background:#1e90ff; color:#fff; border:none; padding:6px 10px; border-radius:5px; cursor:pointer; font-weight:bold; }
+button.downloadAll { background:#ff9800; }
+.player video, .player audio { width:100%; max-width:420px; margin-top:10px; background:#000; }
+.pagination { text-align:center; margin:20px 0; font-size:13px; opacity:.8; }
+.pagination button { background:#1e90ff; border:none; color:#fff; padding:6px 12px; margin:0 6px; border-radius:6px; cursor:pointer; }
+.batchBar { display:flex; justify-content:center; gap:12px; margin-bottom:10px; font-size:13px; }
+.batchBar button { background:#ff9800; color:#000; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; }
+.trackCheck { transform:scale(1.1); display:none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+<select id="yearFilter"><option value="">Select Folder</option></select>
+<select id="monthFilter" disabled><option value="">Select Subfolder</option></select>
+</div>
+
+<div class="content">
+<h1>Remix & Mashups Hub</h1>
+<input id="search" class="search" placeholder="Search tracks…" />
+
+<div class="batchBar">
+  <button id="toggleBatch">Batch Mode</button>
+  <button id="downloadSelected">Download Selected</button>
+  <span id="counter">0 / 30 selected</span>
+</div>
+
+<div id="list"></div>
+
+<div class="pagination">
+<span id="pageInfo"></span><br>
+<button id="prevBtn">Prev</button>
+<button id="nextBtn">Next</button>
+</div>
+</div>
+
+<script>
+const CDN_BASE = "https://cdn.vicknickvideopool.com";
+const PAGE_SIZE = 150;
+const MAX_SELECT = 30;
+const NEW_WINDOW = 7 * 24 * 60 * 60 * 1000;
+let ALL_TRACKS = [];
+let currentPage = 1;
+let selectedKeys = new Set();
+let batchMode = false;
+
+const list = document.getElementById("list");
+const search = document.getElementById("search");
+const yearFilter = document.getElementById("yearFilter");
+const monthFilter = document.getElementById("monthFilter");
+const pageInfo = document.getElementById("pageInfo");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const counter = document.getElementById("counter");
+const downloadSelectedBtn = document.getElementById("downloadSelected");
+const toggleBatchBtn = document.getElementById("toggleBatch");
+
+async function loadTracks() {
+  const res = await fetch("/api/tracks");
+  ALL_TRACKS = await res.json();
+  initFilters();
+  render();
+}
+
+function initFilters() {
+  const years = [...new Set(ALL_TRACKS.map(t => t.year))];
+  yearFilter.innerHTML = '<option value="">Select Folder</option>' +
+    years.map(y => '<option value="'+y+'">'+y+'</option>').join("");
+}
+
+function updateMonths() {
+  const y = yearFilter.value;
+  if (!y) {
+    monthFilter.disabled = true;
+    monthFilter.innerHTML = '<option value="">Select Subfolder</option>';
+    return;
+  }
+  const folders = [...new Set(ALL_TRACKS.filter(t => t.year === y).map(t => t.month))];
+  monthFilter.disabled = false;
+  monthFilter.innerHTML =
+    '<option value="">All Folders</option>' +
+    folders.map(f => '<option value="'+f+'">'+f+'</option>').join("");
+}
+
+function getFilteredTracks() {
+  const q = search.value.toLowerCase();
+  const y = yearFilter.value;
+  const m = monthFilter.value;
+  return ALL_TRACKS.filter(t =>
+    (!y || t.year === y) &&
+    (!m || t.month === m) &&
+    (!q || t.baseTitle.toLowerCase().includes(q))
+  );
+}
+
+function updateCounter() {
+  counter.textContent = selectedKeys.size + " / " + MAX_SELECT + " selected";
+}
+
+function render() {
+  const filtered = getFilteredTracks();
+  const grouped = {};
+
+  filtered.forEach(t => {
+    const key = t.normalizedTitle || t.baseTitle;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(t);
+  });
+
+  const sortedGroups = Object.entries(grouped).sort((a, b) => {
+    const newestA = Math.max(...a[1].map(i => i.uploadedTime));
+    const newestB = Math.max(...b[1].map(i => i.uploadedTime));
+    return newestB - newestA;
+  });
+
+  const groups = sortedGroups.map(([k, v]) => v);
+  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageGroups = groups.slice(start, start + PAGE_SIZE);
+
+  list.innerHTML = "";
+
+  pageGroups.forEach(items => {
+    items.sort((a, b) => b.uploadedTime - a.uploadedTime);
+
+    const displayTitle = items.map(i => i.baseTitle).sort((a,b)=>a.length-b.length)[0];
+    const newest = items.some(i => (Date.now() - new Date(i.uploaded)) < NEW_WINDOW);
+
+    const div = document.createElement("div");
+    div.className = "track";
+
+    div.innerHTML = `
+      <div class="title">
+        ${displayTitle}
+        ${newest ? '<span class="badge">NEW</span>' : ''}
+      </div>
+      <div class="meta">${items[0].month}</div>
+      <div class="versions"></div>
+      <div class="player"></div>
+    `;
+
+    const versions = div.querySelector(".versions");
+    const player = div.querySelector(".player");
+
+    if (items.length > 1) {
+      const downloadAllBtn = document.createElement("button");
+      downloadAllBtn.className = "downloadAll";
+      downloadAllBtn.textContent = "Download All Versions";
+      downloadAllBtn.onclick = async () => {
+        for (const f of items) {
+          const url = CDN_BASE + "/" + f.key.split("/").map(encodeURIComponent).join("/") + "?download=1";
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          await new Promise(r => setTimeout(r, 800));
+        }
+      };
+      versions.appendChild(downloadAllBtn);
+    }
+
+    items.forEach(f => {
+      const previewSrc = CDN_BASE + "/" + f.key.split("/").map(encodeURIComponent).join("/");
+      const downloadSrc = previewSrc + "?download=1";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "trackCheck";
+      checkbox.style.display = batchMode ? "inline-block" : "none";
+      checkbox.checked = selectedKeys.has(f.key);
+
+      checkbox.onchange = () => {
+        if (checkbox.checked) {
+          if (selectedKeys.size >= MAX_SELECT) {
+            checkbox.checked = false;
+            alert("You can only select " + MAX_SELECT + " songs per batch.");
+            return;
+          }
+          selectedKeys.add(f.key);
+          div.classList.add("selected");
+        } else {
+          selectedKeys.delete(f.key);
+          if (![...div.querySelectorAll(".trackCheck")].some(c => c.checked)) {
+            div.classList.remove("selected");
+          }
+        }
+        updateCounter();
+      };
+
+      const play = document.createElement("button");
+      play.className = "play";
+      play.textContent = "▶ " + f.version;
+
+      play.onclick = () => {
+        document.querySelectorAll("audio, video").forEach(m => {
+          m.pause();
+          m.currentTime = 0;
+        });
+
+        player.innerHTML = "";
+        if (f.type === "video") {
+          const v = document.createElement("video");
+          v.controls = true;
+          v.autoplay = true;
+          v.src = previewSrc;
+          player.appendChild(v);
+        } else {
+          const a = document.createElement("audio");
+          a.controls = true;
+          a.autoplay = true;
+          a.src = previewSrc;
+          player.appendChild(a);
+        }
+      };
+
+      const dl = document.createElement("button");
+      dl.className = "download";
+      dl.textContent = "⬇";
+      dl.onclick = () => {
+        const a = document.createElement("a");
+        a.href = downloadSrc;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
+
+      versions.appendChild(checkbox);
+      versions.appendChild(play);
+      versions.appendChild(dl);
+    });
+
+    list.appendChild(div);
+  });
+
+  pageInfo.textContent = "Page " + currentPage + " / " + totalPages + " · " + filtered.length + " tracks";
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= totalPages;
+}
+
+toggleBatchBtn.onclick = () => {
+  batchMode = !batchMode;
+  toggleBatchBtn.textContent = batchMode ? "Exit Batch Mode" : "Batch Mode";
+  document.querySelectorAll(".trackCheck").forEach(cb => {
+    cb.style.display = batchMode ? "inline-block" : "none";
+  });
+};
+
+downloadSelectedBtn.onclick = async () => {
+  if (selectedKeys.size === 0) {
+    alert("No songs selected.");
+    return;
+  }
+
+  const keys = Array.from(selectedKeys);
+
+  for (const key of keys) {
+    const url = CDN_BASE + "/" + key.split("/").map(encodeURIComponent).join("/") + "?download=1";
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    await new Promise(r => setTimeout(r, 700));
+  }
+
+  selectedKeys.clear();
+  updateCounter();
+  render();
+};
+
+prevBtn.onclick = () => { currentPage--; render(); };
+nextBtn.onclick = () => { currentPage++; render(); };
+yearFilter.onchange = () => { updateMonths(); currentPage = 1; render(); };
+monthFilter.onchange = () => { currentPage = 1; render(); };
+search.oninput = () => { currentPage = 1; render(); };
+
+loadTracks();
+</script>
+</body>
+</html>

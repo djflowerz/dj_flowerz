@@ -12,11 +12,30 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL || '', SUPABASE_SERVICE_ROLE_KEY || '');
 
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
+// ── Email Notification via Notification Helper ───────────────────────────
+async function sendNotification(email: string, subject: string, fields: Record<string, any>) {
+    const apiKey = process.env.MAILERLITE_API_KEY || process.env.VITE_MAILERLITE_API_KEY;
+    if (!apiKey || !email) return;
+    try {
+        await fetch('https://connect.mailerlite.com/api/subscribers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                email,
+                fields: { ...fields, last_interaction: new Date().toISOString(), notification: subject }
+            })
+        });
+        console.log(`[NOTIFY] Sent notification to ${email}: ${subject}`);
+    } catch (err) {
+        console.error('[NOTIFY] Failed:', err);
+    }
+}
+
+export const config = { api: { bodyParser: false } };
 
 async function buffer(readable: any) {
     const chunks = [];
@@ -200,56 +219,16 @@ async function handleChargeSuccess(data: any, metadata: any) {
         updated_at: new Date().toISOString()
     };
 
+    // Write to Supabase
     const { error } = await supabase.from('orders').upsert(orderData);
-
     if (error) {
-        console.error(`Error saving order ${orderId}:`, error);
+        console.error(`Error saving order:`, error);
     } else {
-        console.log(`Order ${orderId} saved to Supabase`);
-
-        // 4. Sync to MailerLite (Receipt & Customer Update)
-        const receiptSummary = orderData.items.map((item: any) => `${item.productName} (x${item.quantity})`).join(', ');
-        await syncToMailerLite(orderData.customer_email, {
-            name: orderData.customer_name,
-            last_order_id: orderId,
-            last_order_total: orderData.total,
-            last_purchase_receipt: receiptSummary,
-            customer_type: 'buyer'
-        });
-
-        // 5. Update Coupon Usage if applied
-        if (metadata.couponCode) {
-            const { data: coupon, error: couponFetchError } = await supabase
-                .from('coupons')
-                .select('id, usage_count')
-                .eq('code', metadata.couponCode.toUpperCase())
-                .single();
-
-            if (!couponFetchError && coupon) {
-                await supabase
-                    .from('coupons')
-                    .update({ usage_count: (coupon.usage_count || 0) + 1 })
-                    .eq('id', coupon.id);
-                console.log(`Updated usage count for coupon: ${metadata.couponCode}`);
-            }
-        }
+        console.log(`Order ${orderId} saved to Supabase ✅`);
     }
 
-    // Add to local newsletter subscribers automatically
-    if (data.customer?.email) {
-        const now = new Date().toISOString();
-        const dateSub = now.split('T')[0];
-        await supabase.from('newsletter_subscribers').upsert({
-            email: data.customer.email,
-            date_subscribed: dateSub,
-            status: 'active',
-            source: `Customer (${orderData.type})`,
-            updated_at: now
-        }, { onConflict: 'email' });
-        console.log(`Subscribed ${data.customer.email} to internal newsletter list`);
-    }
-
-    // Record in global payments table
+    // Payment record
+    const paymentId = `pay_${data.reference}`;
     const paymentRecord = {
         user_id: userId || null,
         amount: data.amount / 100,
@@ -261,10 +240,9 @@ async function handleChargeSuccess(data: any, metadata: any) {
         metadata: metadata
     };
 
-    const { error: payError } = await supabase.from('payments').insert(paymentRecord);
-    if (payError) console.error("Error saving payment record:", payError.message);
+    await supabase.from('payments').insert(paymentRecord);
 
-    // If it's a tip, also record in tips table
+    // Tip record
     if (isTip) {
         const tipRecord = {
             user_id: userId || null,
@@ -274,13 +252,10 @@ async function handleChargeSuccess(data: any, metadata: any) {
             message: metadata.message || 'Tip from DJ Flowerz Fan',
             status: 'completed'
         };
-        const { error: tipError } = await supabase.from('tips').insert(tipRecord);
-        if (tipError) console.error("Error saving tip record:", tipError.message);
+        await supabase.from('tips').insert(tipRecord);
     }
 
     // If it's a subscription payment, activate the subscription immediately.
-    // NOTE: subscription.create only fires for Paystack recurring plans, not one-time payments.
-    // So we must activate here on charge.success when type === 'subscription'.
     if (isSubscription && userId) {
         const planName = metadata.planId || metadata.plan || 'monthly';
         const now = new Date();
@@ -293,21 +268,8 @@ async function handleChargeSuccess(data: any, metadata: any) {
             expiryDate.setMonth(now.getMonth() + 1);
         }
 
-        const { error: profileError } = await supabase.from('profiles').update({
-            is_subscriber: true,
-            subscription_plan: planName,
-            subscription_expiry: expiryDate.toISOString(),
-            updated_at: new Date().toISOString()
-        }).eq('id', userId);
-
-        if (profileError) {
-            console.error("Error activating subscription in profile:", profileError.message);
-        } else {
-            console.log(`Subscription activated for user ${userId} (plan: ${planName})`);
-        }
-
         const subId = `sub_charge_${data.reference}`;
-        const { error: subError } = await supabase.from('subscriptions').upsert({
+        const subRecord = {
             id: subId,
             user_id: userId,
             user_name: metadata.customerName || data.customer?.email,
@@ -319,11 +281,20 @@ async function handleChargeSuccess(data: any, metadata: any) {
             status: 'active',
             payment_method: 'Paystack',
             updated_at: now.toISOString()
-        });
+        };
 
-        if (subError) console.error("Error creating subscription record:", subError.message);
+        // Write to Supabase
+        await Promise.all([
+            supabase.from('profiles').update({
+                is_subscriber: true,
+                subscription_plan: planName,
+                subscription_expiry: expiryDate.toISOString(),
+                updated_at: now.toISOString()
+            }).eq('id', userId),
+            supabase.from('subscriptions').upsert(subRecord)
+        ]);
 
-        await syncToMailerLite(data.customer?.email, {
+        await sendNotification(data.customer?.email, 'Subscription Active', {
             name: metadata.customerName || data.customer?.email,
             subscription_plan: planName,
             subscription_status: 'active',
@@ -331,144 +302,121 @@ async function handleChargeSuccess(data: any, metadata: any) {
             customer_type: 'subscriber'
         });
     }
+
+    // Coupon usage track
+    if (metadata.couponCode) {
+        const { data: coupon } = await supabase.from('coupons').select('id, usage_count').eq('code', metadata.couponCode.toUpperCase()).single();
+        if (coupon) {
+            const newCount = (coupon.usage_count || 0) + 1;
+            await supabase.from('coupons').update({ usage_count: newCount }).eq('id', coupon.id);
+        }
+    }
+
+    // Auto-subscribe to newsletter
+    if (data.customer?.email) {
+        const now = new Date().toISOString();
+        await supabase.from('newsletter_subscribers').upsert({
+            email: data.customer.email,
+            date_subscribed: now.split('T')[0],
+            status: 'active',
+            source: `Customer (${orderData.type})`,
+            updated_at: now
+        }, { onConflict: 'email' });
+    }
 }
 
 async function handleSubscriptionCreate(data: any) {
     const email = data.customer.email;
+    const now = new Date().toISOString();
 
-    // 1. Find Profile (Try metadata first, then email)
+    // 1. Find Profile
     let userId = data.metadata?.userId;
     let userName = data.metadata?.customerName;
 
     if (!userId) {
-        const { data: profiles, error: findError } = await supabase
+        const { data: profile } = await supabase
             .from('profiles')
             .select('id, name')
             .eq('email', email)
-            .limit(1);
+            .maybeSingle();
 
-        if (findError || !profiles || profiles.length === 0) {
+        if (!profile) {
             console.warn(`No user found with email ${email} for sub ${data.subscription_code}`);
             return;
         }
-        userId = profiles[0].id;
-        userName = profiles[0].name;
+        userId = profile.id;
+        userName = profile.name;
     }
 
     const planName = data.metadata?.planId || data.metadata?.plan || 'monthly';
+    const expiryDate = new Date(data.next_payment_date).toISOString();
 
-    // 2. Update Profile
-    const { error: updateError } = await supabase.from('profiles').update({
-        is_subscriber: true,
-        subscription_plan: planName,
-        subscription_expiry: new Date(data.next_payment_date).toISOString(),
-        updated_at: new Date().toISOString()
-    }).eq('id', userId);
-
-    if (updateError) console.error("Error updating profile sub:", updateError);
-
-    // 3. Create Subscription Record
+    // 2. Create Subscription Record
     const subId = `sub_${data.subscription_code}`;
-    const { error: subError } = await supabase.from('subscriptions').upsert({
+    const subRecord = {
         id: subId,
         user_id: userId,
         user_name: userName || email,
         user_email: email,
         plan_id: planName,
         amount: data.amount / 100,
-        start_date: new Date().toISOString(),
-        expiry_date: new Date(data.next_payment_date).toISOString(),
+        start_date: now,
+        expiry_date: expiryDate,
         status: 'active',
         payment_method: 'Paystack',
-        updated_at: new Date().toISOString()
-    });
+        updated_at: now
+    };
 
-    if (subError) console.error("Error creating subscription record:", subError);
-    else {
-        console.log(`Subscription ${subId} activated for user ${userId}`);
-
-        // 3. Sync to MailerLite (Subscription Confirmation)
-        await syncToMailerLite(email, {
-            name: userName || email,
+    await Promise.all([
+        supabase.from('profiles').update({
+            is_subscriber: true,
             subscription_plan: planName,
-            subscription_status: 'active',
-            subscription_expiry: new Date(data.next_payment_date).toISOString(),
-            customer_type: 'subscriber'
-        });
-    }
+            subscription_expiry: expiryDate,
+            updated_at: now
+        }).eq('id', userId),
+        supabase.from('subscriptions').upsert(subRecord)
+    ]);
+
+    console.log(`✅ Subscription ${subId} created for ${userId}`);
+
+    await sendNotification(email, 'Subscription Active', {
+        name: userName || email,
+        subscription_plan: planName,
+        subscription_status: 'active',
+        subscription_expiry: expiryDate,
+        customer_type: 'subscriber',
+        notification: `Your DJ Flowerz ${planName} subscription is now active!`
+    });
 }
 
 async function handleSubscriptionDisable(data: any) {
     const email = data.customer.email;
+    const now = new Date().toISOString();
 
     // 1. Disable in Profile
-    const { data: profiles } = await supabase
+    const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', email)
-        .limit(1);
+        .maybeSingle();
 
-    if (profiles && profiles.length > 0) {
-        const userId = profiles[0].id;
+    if (profile) {
         await supabase.from('profiles').update({
             is_subscriber: false,
             subscription_plan: null,
             subscription_expiry: null,
-            updated_at: new Date().toISOString()
-        }).eq('id', userId);
+            updated_at: now
+        }).eq('id', profile.id);
     }
 
     // 2. Mark Subscription as Cancelled
     const subId = `sub_${data.subscription_code}`;
-    await supabase.from('subscriptions').update({
-        status: 'cancelled',
-        updated_at: new Date().toISOString()
-    }).eq('id', subId);
+    await supabase.from('subscriptions').update({ status: 'cancelled', updated_at: now }).eq('id', subId);
 
     console.log(`Subscription ${subId} disabled`);
 
-    // Sync to MailerLite (Subscription Status Update)
-    await syncToMailerLite(email, {
+    await sendNotification(email, 'Subscription Cancelled', {
         subscription_status: 'cancelled',
         customer_type: 'subscriber'
     });
-}
-
-/**
- * Helper to sync subscriber data and trigger receipts/automations in MailerLite
- */
-async function syncToMailerLite(email: string, fields: Record<string, any>, groups: string[] = []) {
-    const apiKey = process.env.MAILERLITE_API_KEY;
-    if (!apiKey) {
-        console.warn('MailerLite API Key is not configured in webhook environment.');
-        return;
-    }
-
-    try {
-        const response = await fetch('https://connect.mailerlite.com/api/subscribers', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                email,
-                fields: {
-                    ...fields,
-                    last_interaction: new Date().toISOString(),
-                },
-                groups,
-            }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('MailerLite Sync Error:', error);
-        } else {
-            console.log(`Successfully synced ${email} to MailerLite`);
-        }
-    } catch (err) {
-        console.error('Failed to connect to MailerLite:', err);
-    }
 }

@@ -1,0 +1,110 @@
+[
+  {
+    "id": "siteConfig",
+    "data": {
+      "seo": {
+        "ogImage": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04",
+        "keywords": "DJ, Nairobi, Music, Mixtapes, Afrobeat, Amapiano",
+        "siteTitle": "DJ FLOWERZ | Premium Music Experience",
+        "description": "Premium music platform for DJ FLOWERZ featuring mixtapes, music pool, store, and bookings."
+      },
+      "hero": {
+        "title": "DJ FLOWERZ",
+        "bgImage": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=2070&auto=format&fit=crop",
+        "ctaText": "Join Music Pool",
+        "subtitle": "Stay Ahead. Stay Exclusive. Stay Booked.\n\nUnlimited access to the freshest drops, certified redrums, mashups, and perfectly sorted DJ-ready music — all in one powerful platform built for working DJs."
+      },
+      "home": {
+        "tipJar": {
+          "title": "Support The Craft",
+          "ctaText": "Tip Jar",
+          "message": "Enjoying the free mixes? Drop a tip to keep the servers running and the music flowing."
+        },
+        "musicPool": {
+          "title": "Unlock The Music Pool",
+          "ctaText": "Unlock Access",
+          "benefits": [
+            "Weekly High-Quality Drops",
+            "Exclusive Edits & Remixes",
+            "Intro/Outro Clean Edits",
+            "Direct Telegram Access"
+          ],
+          "description": "Get unlimited access to exclusive DJ edits, remixes, and tools. All plans include Telegram community access."
+        },
+        "storePromo": {
+          "title": "Trending Merch",
+          "ctaText": "Shop All",
+          "description": "Fresh drips and exclusive digital packs."
+        },
+        "studioPromo": {
+          "title": "Bookings & Studio Sessions",
+          "ctaText": "Book Now",
+          "description": "Need a DJ for your next event or studio time to record your hit? We provide professional services tailored to your needs."
+        },
+        "featuredMixtapes": {
+          "title": "Featured Mixtapes",
+          "ctaText": "View All",
+          "subtitle": "Listen to the vibe before you subscribe."
+        }
+      },
+      "about": {
+        "bio": "DJ Flowerz has been dominating the Nairobi club scene for over a decade. Known for his seamless transitions and ability to read any crowd, he has become a staple in the East African entertainment industry.",
+        "image": "https://images.unsplash.com/photo-1571266028243-371695039148?auto=format&fit=crop&q=80&w=1000",
+        "title": "The Man Behind The Mix",
+        "careerTimeline": [
+          {
+            "year": "2015",
+            "event": "Started professional DJing in Westlands"
+          },
+          {
+            "year": "2018",
+            "event": "Launched DJ Flowerz Brand & Merch"
+          },
+          {
+            "year": "2020",
+            "event": "Founded the Music Pool Service"
+          }
+        ]
+      },
+      "legal": {
+        "terms": "These are the terms of service...",
+        "privacy": "We value your privacy...",
+        "refunds": "No refunds on digital items..."
+      },
+      "footer": {
+        "copyright": "© 2023 DJ FLOWERZ. All rights reserved.",
+        "description": "The ultimate destination for exclusive mixtapes, premium music pool access, and official merchandise."
+      },
+      "notice": {
+        "type": "error",
+        "title": "Service Interruption",
+        "enabled": false,
+        "message": "Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later."
+      },
+      "contact": {
+        "email": "djflowerz254@gmail.com",
+        "phone": "+254 789 783 258",
+        "address": "Nairobi, Kenya",
+        "whatsapp": "+254 789 783 258"
+      },
+      "socials": {
+        "twitter": "https://twitter.com",
+        "youtube": "https://www.youtube.com/@dj_flowerz",
+        "facebook": "https://facebook.com",
+        "telegram": "https://t.me/dj_flowerz",
+        "instagram": "https://instagram.com"
+      }
+    },
+    "updated_at": "2026-02-16T23:13:17.128+00:00"
+  },
+  {
+    "id": "referralSettings",
+    "data": {
+      "enabled": true,
+      "rewardType": "flat",
+      "newUserDiscount": 28.57,
+      "referrerRewardAmount": 200
+    },
+    "updated_at": "2026-02-21T04:56:48.439+00:00"
+  }
+]

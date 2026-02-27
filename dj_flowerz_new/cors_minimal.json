@@ -1,0 +1,14 @@
+{
+    "rules": [
+        {
+            "allowed": {
+                "origins": [
+                    "*"
+                ],
+                "methods": [
+                    "GET"
+                ]
+            }
+        }
+    ]
+}
