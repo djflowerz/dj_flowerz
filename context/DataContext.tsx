@@ -498,7 +498,33 @@ const getTableName = (colName: string): string => {
 
 const SUPABASE_COLLECTIONS = [
   'profiles',
-  'users'
+  'users',
+  'products',
+  'mixtapes',
+  'session_types',
+  'studio_equipment',
+  'subscription_plans',
+  'shipping_zones',
+  'genres',
+  'videos',
+  'orders',
+  'subscriptions',
+  'bookings',
+  'studio_rooms',
+  'maintenance_logs',
+  'coupons',
+  'referral_stats',
+  'newsletter_campaigns',
+  'newsletter_segments',
+  'newsletter_subscribers',
+  'telegram_channels',
+  'telegram_mappings',
+  'telegram_users',
+  'telegram_logs',
+  'pool_tracks',
+  'payments',
+  'tips',
+  'contact_messages'
 ];
 
 const useCollection = <T extends { id: string }>(
