@@ -548,6 +548,7 @@ const useCollection = <T extends { id: string }>(
             orderByField === 'dateAdded' ? 'date_added' :
               orderByField;
 
+    console.log(`Mapping ${colName} field ${orderByField} to ${sbOrderBy} for Supabase ${tableName}`);
     const [data, setData, isLoading, error, refresh] = useSupabaseCollection<T>(
       tableName,
       initialData,
@@ -619,7 +620,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Pool tracks: load ALL tracks for everyone — no row limit.
   // This allows full search in the homepage preview for all users.
   // Downloads and the full library page are restricted to subscribers/admins via UI.
-  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'dateAdded', 'desc', false);
+  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'date_added', 'desc', false);
 
   const loadMorePoolTracks = () => {
     // With progressive loading, we might not need this
