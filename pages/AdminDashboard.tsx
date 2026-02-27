@@ -8,7 +8,7 @@ import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -23,14 +23,34 @@ import { uploadFileToR2 } from '../utils/r2';
 
 
 
-const StatCard: React.FC<{ label: string; value: string | number; icon: any; color: string }> = ({ label, value, icon: Icon, color }) => (
-   <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${color.replace('text-', 'bg-')}/10`}>
-         <Icon className={color} size={24} />
+const StatCard: React.FC<{
+   label: string;
+   value: string | number;
+   icon: any;
+   color?: string;
+   trend?: string;
+   trendUp?: boolean;
+   subtext?: string;
+}> = ({ label, value, icon: Icon, color = 'brand-purple', trend, trendUp = true, subtext }) => (
+   <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group transition-all duration-500 hover:-translate-y-2 hover:border-white/10">
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-${color.replace('text-', '')}/10 blur-[80px] rounded-full -mr-16 -mt-16 group-hover:bg-${color.replace('text-', '')}/20 transition-all duration-700`} />
+      <div className="flex justify-between items-start mb-6 relative z-10">
+         <div className={`w-14 h-14 rounded-2xl bg-${color.replace('text-', '')}/10 border border-${color.replace('text-', '')}/20 flex items-center justify-center text-${color.replace('text-', '')} group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+            <Icon size={28} />
+         </div>
+         {trend && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${trendUp ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+               {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+               {trend}
+            </div>
+         )}
       </div>
-      <div>
-         <p className="text-gray-400 text-xs uppercase font-bold">{label}</p>
-         <h3 className="text-2xl font-bold text-white">{value}</h3>
+      <div className="relative z-10">
+         <p className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-1 group-hover:text-gray-400 transition-colors">{label}</p>
+         <div className="flex items-baseline gap-2">
+            <h4 className="text-4xl font-black text-white tracking-tighter group-hover:text-shadow-glow transition-all">{value}</h4>
+         </div>
+         {subtext && <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-2 opacity-60 group-hover:opacity-100 transition-opacity">{subtext}</p>}
       </div>
    </div>
 );
@@ -63,9 +83,9 @@ const CountdownTimer: React.FC<{ expiryDate: string }> = ({ expiryDate }) => {
    }, [expiryDate]);
 
    return (
-      <div className="flex items-center gap-2 text-[10px] font-mono bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded border border-brand-purple/30">
-         <Clock size={10} />
-         {timeLeft}
+      <div className="flex items-center gap-2 text-[10px] font-black font-display bg-brand-purple/10 text-brand-purple px-3 py-1.5 rounded-xl border border-brand-purple/20 shadow-sm shadow-brand-purple/5">
+         <Clock size={12} className="animate-pulse" />
+         <span className="tracking-widest capitalize">{timeLeft}</span>
       </div>
    );
 };
@@ -73,46 +93,47 @@ const CountdownTimer: React.FC<{ expiryDate: string }> = ({ expiryDate }) => {
 const ImageUpload: React.FC<{
    label: string;
    value: string;
-   onChange: (base64: string) => void;
-   required?: boolean
+   onChange: (v: string) => void;
+   required?: boolean;
 }> = ({ label, value, onChange, required }) => {
    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
          const reader = new FileReader();
-         reader.onloadend = () => {
-            onChange(reader.result as string);
-         };
+         reader.onloadend = () => onChange(reader.result as string);
          reader.readAsDataURL(file);
       }
    };
 
    return (
-      <div className="mb-4">
-         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-            {label} {required && '*'}
+      <div className="mb-6">
+         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 pl-1">
+            {label} {required && <span className="text-brand-purple inline-block animate-pulse">*</span>}
          </label>
-         <div className="flex flex-col gap-2">
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:bg-white/5 transition bg-black/20 overflow-hidden relative">
+         <div className="relative group max-w-sm">
+            <div className="absolute inset-0 bg-brand-purple/20 blur-2xl rounded-[2.5rem] opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
+            <div className="relative bg-[#0B0B0F] border-2 border-dashed border-white/5 rounded-[2.5rem] p-8 hover:border-brand-purple/30 transition-all duration-300">
                {value ? (
-                  <img src={value} alt="Preview" className="w-full h-full object-contain p-2" />
-               ) : (
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6 text-gray-400">
-                     <Upload size={24} className="mb-2" />
-                     <p className="text-xs">Click to upload image</p>
+                  <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-lg">
+                     <img src={value} alt="Preview" className="w-full h-full object-cover" />
+                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                        <label className="bg-brand-purple text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-purple-600 transition-all shadow-xl shadow-brand-purple/20">
+                           Replace Matrix
+                           <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                        </label>
+                     </div>
                   </div>
+               ) : (
+                  <label className="flex flex-col items-center justify-center h-48 cursor-pointer group/inner">
+                     <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-600 group-hover/inner:text-brand-purple group-hover/inner:border-brand-purple/30 transition-all duration-300">
+                        <Upload size={32} />
+                     </div>
+                     <span className="mt-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Inject Base64 Payload</span>
+                     <span className="text-[9px] text-gray-700 mt-1 uppercase tracking-tighter">Drag \u0026 Drop or Click Hub</span>
+                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                  </label>
                )}
-               <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-            </label>
-            {value && (
-               <button
-                  type="button"
-                  onClick={() => onChange('')}
-                  className="text-xs text-red-500 self-end hover:underline"
-               >
-                  Remove Image
-               </button>
-            )}
+            </div>
          </div>
       </div>
    );
@@ -187,13 +208,22 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
    const sizeClasses = { md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
 
    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-         <div className={`bg-[#15151A] rounded-2xl border border-white/10 w-full ${sizeClasses[size]} max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl`}>
-            <div className="flex justify-between items-center p-6 border-b border-white/10 sticky top-0 bg-[#15151A] z-10">
-               <h3 className="text-xl font-bold text-white">{title}</h3>
-               <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-2xl p-4 animate-in fade-in duration-500">
+         <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-brand-purple/10 blur-[150px] rounded-full animate-pulse" />
+            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-brand-cyan/10 blur-[150px] rounded-full animate-pulse delay-700" />
+         </div>
+         <div className={`bg-[#0B0B0F] rounded-[4rem] border border-white/10 w-full ${sizeClasses[size]} max-h-[95vh] overflow-hidden flex flex-col shadow-[0_0_100px_rgba(123,92,255,0.15)] scale-in-center animate-in zoom-in-95 duration-300 relative z-10`}>
+            <div className="flex justify-between items-center p-10 border-b border-white/5 bg-[#0B0B0F]/80 backdrop-blur-3xl sticky top-0 z-20">
+               <div>
+                  <h3 className="text-3xl font-black text-white tracking-tighter">{title}</h3>
+                  <div className="w-12 h-1.5 bg-brand-purple rounded-full mt-2 shadow-[0_0_15px_rgba(123,92,255,0.5)]" />
+               </div>
+               <button onClick={onClose} className="w-14 h-14 rounded-2xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 border border-white/5 transition-all shadow-inner group">
+                  <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+               </button>
             </div>
-            <div className="p-6">
+            <div className="p-10 overflow-y-auto custom-scrollbar flex-1">
                {children}
             </div>
          </div>
@@ -212,35 +242,42 @@ const InputGroup: React.FC<{
    helperText?: string;
    checked?: boolean;
 }> = ({ label, type = "text", value, onChange, placeholder, required, options, helperText, checked }) => (
-   <div className="mb-4">
-      <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex justify-between">
-         <span>{label} {required && '*'}</span>
+   <div className="space-y-3 mb-8">
+      <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] pl-1">
+         {label} {required && <span className="text-brand-purple ml-1 animate-pulse">*</span>}
       </label>
 
       {options ? (
-         <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none"
-         >
-            {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-         </select>
+         <div className="relative group">
+            <select
+               value={value}
+               onChange={(e) => onChange(e.target.value)}
+               className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all appearance-none cursor-pointer shadow-inner pr-12 font-medium"
+            >
+               {options.map(opt => <option key={opt} value={opt} className="bg-[#0B0B0F]">{opt}</option>)}
+            </select>
+            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-600 group-hover:text-brand-purple transition-colors">
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+            </div>
+         </div>
       ) : type === 'textarea' ? (
          <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none h-24 resize-none"
+            className="w-full bg-[#0B0B0F] border border-white/5 rounded-3xl p-5 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all h-40 resize-none placeholder:text-gray-700 shadow-inner font-medium"
          />
       ) : type === 'checkbox' ? (
-         <label className="flex items-center gap-3 cursor-pointer bg-black/20 border border-white/10 rounded-lg p-3 hover:bg-white/5 transition">
-            <input
-               type="checkbox"
-               checked={checked}
-               onChange={(e) => onChange(e.target.checked)}
-               className="w-5 h-5 accent-brand-purple rounded"
-            />
-            <span className="text-sm text-white font-medium">{placeholder || label}</span>
+         <label className="flex items-center gap-4 cursor-pointer bg-[#0B0B0F] border border-white/5 rounded-2xl p-5 hover:border-brand-purple/30 group transition-all shadow-inner">
+            <div className="relative flex items-center">
+               <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => onChange(e.target.checked)}
+                  className="w-6 h-6 accent-brand-purple rounded-lg bg-black/40 border-white/10 ring-offset-0 focus:ring-0 cursor-pointer"
+               />
+            </div>
+            <span className="text-sm text-gray-400 font-black uppercase tracking-widest group-hover:text-white transition-colors">{placeholder || label}</span>
          </label>
       ) : (
          <input
@@ -248,10 +285,10 @@ const InputGroup: React.FC<{
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none"
+            className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all placeholder:text-gray-700 shadow-inner font-medium"
          />
       )}
-      {helperText && <p className="text-xs text-gray-500 mt-1">{helperText}</p>}
+      {helperText && <p className="text-[10px] text-gray-600 pl-1 font-bold uppercase tracking-widest opacity-60">{helperText}</p>}
    </div>
 );
 
@@ -1368,45 +1405,107 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'dashboard' && (
                   <div className="space-y-8 animate-fade-in-up">
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard label="Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-green-500" />
-                        <StatCard label="Transactions" value={(combinedTransactions || []).length.toString()} icon={ShoppingBag} color="text-brand-purple" />
-                        <StatCard label="Active Subs" value={activeSubs.toString()} icon={Users} color="text-yellow-500" />
-                        <StatCard label="Referral Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-brand-cyan" />
-                     </div>
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2 bg-[#15151A] p-6 rounded-xl border border-white/5 h-80">
-                           <h3 className="text-lg font-bold mb-6">Revenue Trend</h3>
-                           <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#666" /><YAxis stroke="#666" /><Tooltip contentStyle={{ backgroundColor: '#15151A', borderColor: '#333' }} /><Line type="monotone" dataKey="sales" stroke="#7B5CFF" strokeWidth={2} /></LineChart>
-                           </ResponsiveContainer>
+                     {/* Welcome Banner */}
+                     <div className="bg-[#15151A] border border-white/5 p-10 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-2xl shadow-black/50">
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-purple/5 blur-[120px] rounded-full -mr-64 -mt-64 z-0 pointer-events-none animate-pulse"></div>
+                        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-brand-cyan/5 blur-[100px] rounded-full -ml-32 -mb-32 z-0 pointer-events-none"></div>
+
+                        <div className="relative z-10 max-w-2xl text-center md:text-left">
+                           <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-purple/10 border border-brand-purple/20 rounded-full mb-6">
+                              <span className="w-1.5 h-1.5 bg-brand-purple rounded-full animate-pulse"></span>
+                              <span className="text-[10px] font-black text-brand-purple uppercase tracking-[0.2em]">Platform Overview</span>
+                           </div>
+                           <h2 className="text-4xl md:text-5xl font-black text-white mb-4 tracking-tighter leading-tight">Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">Admin</span> 🎉</h2>
+                           <p className="text-gray-500 mb-8 text-base md:text-lg leading-relaxed font-medium">Ready to manage your empire? Your store's performance is currently up by <span className="text-green-500 font-bold">12.5%</span> this week. Check your latest insights below.</p>
+                           <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                              <button onClick={() => setActiveTab('store')} className="px-8 py-4 bg-brand-purple text-white text-sm font-black rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 hover:shadow-brand-purple/40 transition-all duration-300 transform hover:-translate-y-1">Catalog Manager</button>
+                              <button onClick={() => setActiveTab('orders')} className="px-8 py-4 bg-white/5 text-white text-sm font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all duration-300">View Orders</button>
+                           </div>
                         </div>
 
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden flex flex-col h-80">
-                           <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center shrink-0">
-                              <span className="flex items-center gap-2">
-                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                                 Live Presence
-                              </span>
-                              <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full">{(liveUsers || []).length} Online</span>
+                        <div className="hidden lg:block relative z-10">
+                           <div className="w-48 h-48 bg-gradient-to-br from-brand-purple to-brand-cyan rounded-[3rem] rotate-12 flex items-center justify-center shadow-2xl shadow-brand-purple/20 relative">
+                              <LayoutDashboard size={80} className="text-white -rotate-12" />
+                              <div className="absolute -top-4 -right-4 w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg transform -rotate-6">
+                                 <Plus className="text-brand-purple" size={24} />
+                              </div>
                            </div>
-                           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatCard label="Net Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="12.5%" trendUp={true} subtext="Total lifecycle earnings" />
+                        <StatCard label="Sales Volume" value={(combinedTransactions || []).length.toString()} icon={ShoppingBag} color="text-brand-cyan" trend="5.2%" trendUp={true} subtext="Completed checkout cycles" />
+                        <StatCard label="VIP Access" value={activeSubs.toString()} icon={Users} color="text-blue-500" trend="1.1%" trendUp={false} subtext="Active music pool members" />
+                        <StatCard label="Referrals" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" subtext="Reward payouts issued" />
+                     </div>
+
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden flex flex-col shadow-2xl">
+                           <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                              <div>
+                                 <h3 className="text-xl font-black text-white tracking-tight">Revenue Analytics</h3>
+                                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">7-Day Financial Performance</p>
+                              </div>
+                              <div className="flex gap-2">
+                                 <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400"><RefreshCw size={18} /></button>
+                                 <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400"><ExternalLink size={18} /></button>
+                              </div>
+                           </div>
+                           <div className="p-8 flex-1 min-h-[350px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                 <LineChart data={chartData}>
+                                    <defs>
+                                       <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor="#9D4EDD" stopOpacity={0.3} />
+                                          <stop offset="95%" stopColor="#9D4EDD" stopOpacity={0} />
+                                       </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                                    <XAxis dataKey="name" stroke="#444" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} dy={10} />
+                                    <YAxis stroke="#444" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} tickFormatter={(value) => `KSh ${value / 1000}k`} dx={-10} />
+                                    <Tooltip
+                                       contentStyle={{ backgroundColor: '#15151A', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
+                                       itemStyle={{ color: '#fff', fontWeight: '900', fontSize: '12px' }}
+                                       cursor={{ stroke: '#9D4EDD', strokeWidth: 2 }}
+                                    />
+                                    <Line type="monotone" dataKey="sales" stroke="#9D4EDD" strokeWidth={4} dot={{ r: 6, fill: '#15151A', strokeWidth: 3, stroke: '#9D4EDD' }} activeDot={{ r: 8, strokeWidth: 0, fill: '#fff' }} />
+                                 </LineChart>
+                              </ResponsiveContainer>
+                           </div>
+                        </div>
+
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden flex flex-col shadow-2xl">
+                           <div className="p-8 border-b border-white/5 font-bold flex justify-between items-center shrink-0 bg-white/[0.02]">
+                              <div>
+                                 <h3 className="text-xl font-black text-white tracking-tight">Live Pulse</h3>
+                                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Real-time user status</p>
+                              </div>
+                              <span className="text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-3 py-1 rounded-full font-black flex items-center gap-1.5 uppercase tracking-wider">
+                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                 {(liveUsers || []).length} Active
+                              </span>
+                           </div>
+                           <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar min-h-[350px]">
                               {(liveUsers || []).length === 0 ? (
-                                 <div className="h-full flex flex-col items-center justify-center text-gray-500 text-sm">
-                                    <Monitor size={48} className="mb-4 opacity-20" />
-                                    <p>No active users right now</p>
+                                 <div className="h-full flex flex-col items-center justify-center text-gray-600 text-sm">
+                                    <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center mb-4">
+                                       <Monitor size={32} className="opacity-20" />
+                                    </div>
+                                    <p className="font-bold">No wave activity</p>
+                                    <p className="text-[10px] uppercase tracking-widest mt-1 opacity-50">Watching for signals...</p>
                                  </div>
                               ) : (
                                  (liveUsers || []).map(u => (
-                                    <div key={u.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg border border-white/5">
-                                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-green-500/30">
-                                          <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}`} alt="" className="w-full h-full object-cover" />
+                                    <div key={u.id} className="flex items-center gap-4 p-4 bg-white/[0.03] hover:bg-white/[0.06] rounded-3xl border border-white/5 transition-all duration-300 group cursor-pointer">
+                                       <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 border border-white/10 group-hover:border-green-500/50 transition-colors">
+                                          <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}&background=15151A&color=fff`} alt="" className="w-full h-full object-cover" />
                                        </div>
                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-bold truncate">{u.name}</p>
-                                          <p className="text-[10px] text-gray-500 truncate">{u.email}</p>
+                                          <p className="text-sm font-black text-white truncate group-hover:text-brand-cyan transition-colors">{u.name}</p>
+                                          <p className="text-[11px] text-gray-500 truncate font-medium">{u.email}</p>
                                        </div>
-                                       <div className="text-[10px] text-green-500 font-mono">Active</div>
+                                       <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
                                     </div>
                                  ))
                               )}
@@ -1414,39 +1513,51 @@ const AdminDashboard: React.FC = () => {
                         </div>
                      </div>
 
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center">
-                           <span>Recent Transactions</span>
-                           <button onClick={() => setActiveTab('payments')} className="text-brand-purple text-xs hover:underline">View All</button>
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="p-8 border-b border-white/5 font-bold flex justify-between items-center bg-white/[0.02]">
+                           <div>
+                              <h3 className="text-xl font-black text-white tracking-tight">Recent Activity Log</h3>
+                              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Historical Transaction Flow</p>
+                           </div>
+                           <button onClick={() => setActiveTab('payments')} className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all">Audit Trail</button>
                         </div>
-                        <table className="w-full text-left">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr>
-                                 <th className="px-6 py-4">Type</th>
-                                 <th className="px-6 py-4">Customer</th>
-                                 <th className="px-6 py-4">Amount</th>
-                                 <th className="px-6 py-4 text-right">Status</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {combinedTransactions.slice(0, 5).map(tx => (
-                                 <tr key={tx.id} className="hover:bg-white/5 transition">
-                                    <td className="px-6 py-4">
-                                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
-                                          tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
-                                             'bg-purple-500/10 text-purple-500'
-                                          }`}>{tx.type}</span>
-                                    </td>
-                                    <td className="px-6 py-4 font-bold">{tx.name}</td>
-                                    <td className="px-6 py-4 text-brand-purple font-bold">KES {tx.amount.toLocaleString()}</td>
-                                    <td className="px-6 py-4 text-right">
-                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'
-                                          }`}>{tx.status}</span>
-                                    </td>
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-5">Source</th>
+                                    <th className="px-8 py-5">Client Identity</th>
+                                    <th className="px-8 py-5">Value Metric</th>
+                                    <th className="px-8 py-5 text-right">Fulfillment</th>
                                  </tr>
-                              ))}
-                           </tbody>
-                        </table>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {combinedTransactions.slice(0, 8).map(tx => (
+                                    <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group cursor-pointer" onClick={() => { if (tx.type === 'Order') { setSelectedOrder(liveOrders.find(o => o.id === tx.id) || null); setActiveModal('editOrderStatus'); } }}>
+                                       <td className="px-8 py-5">
+                                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${tx.type === 'Order' ? 'bg-blue-500/5 text-blue-500 border-blue-500/20' :
+                                             tx.type === 'Tip' ? 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20' :
+                                                'bg-brand-purple/5 text-brand-purple border-brand-purple/20'
+                                             }`}>{tx.type}</span>
+                                       </td>
+                                       <td className="px-8 py-5">
+                                          <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{tx.name}</div>
+                                          <div className="text-[10px] text-gray-600 font-bold uppercase tracking-wider mt-0.5">{tx.date}</div>
+                                       </td>
+                                       <td className="px-8 py-5">
+                                          <div className="text-white font-black">KES {tx.amount.toLocaleString()}</div>
+                                       </td>
+                                       <td className="px-8 py-5 text-right">
+                                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active'
+                                             ? 'bg-green-500/5 text-green-500 border-green-500/20'
+                                             : 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
+                                             }`}>{tx.status}</span>
+                                       </td>
+                                    </tr>
+                                 ))}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                )}
@@ -1484,151 +1595,274 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'orders' && (
-                  <div className="animate-fade-in-up">
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                        <table className="w-full text-left min-w-[800px]">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                              <tr>
-                                 <th className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                       Order ID
-                                       {ordersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
-                                    </div>
-                                 </th>
-                                 <th className="px-6 py-4">Customer</th>
-                                 <th className="px-6 py-4">Products</th>
-                                 <th className="px-6 py-4">Total</th>
-                                 <th className="px-6 py-4">Status</th>
-                                 <th className="px-6 py-4">Actions</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {liveOrders.length === 0 ? (
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Order Fulfillment</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage physical and digital distribution streams</p>
+                        </div>
+                        <div className="flex gap-3">
+                           <button className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2">
+                              <Download size={16} /> Export CSV
+                           </button>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shadow-inner">
+                              <Package size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Queueing</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'processing' || o.status === 'pending').length}</p>
+                              <p className="text-[10px] text-brand-cyan font-bold mt-1">Needs attention</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shadow-inner">
+                              <Truck size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">In Transit</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'shipped').length}</p>
+                              <p className="text-[10px] text-blue-500 font-bold mt-1">Active logistics</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
+                              <CheckCircle size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Finalized</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'completed').length}</p>
+                              <p className="text-[10px] text-green-500 font-bold mt-1">Success cycles</p>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
                                  <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No orders found.</td>
+                                    <th className="px-8 py-6">Order Control #</th>
+                                    <th className="px-8 py-6">Consignee</th>
+                                    <th className="px-8 py-6">Manifest Meta</th>
+                                    <th className="px-8 py-6">Revenue</th>
+                                    <th className="px-8 py-6">Lifecycle</th>
+                                    <th className="px-8 py-6 text-right">Operations</th>
                                  </tr>
-                              ) : (
-                                 liveOrders.map(order => (
-                                    <tr key={order.id} className="hover:bg-white/5 transition">
-                                       <td className="px-6 py-4 font-mono">{order.id}</td>
-                                       <td className="px-6 py-4">
-                                          <div className="font-bold text-white">{order.customerName}</div>
-                                          <div className="text-xs text-gray-400">{order.customerEmail}</div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col gap-1 max-w-[250px]">
-                                             {Array.isArray(order.items) ? order.items.map((item, idx) => (
-                                                <div key={idx} className="flex items-center gap-1.5 leading-tight">
-                                                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} title={item.type}></span>
-                                                   <span className="text-white font-medium truncate">{item.productName}</span>
-                                                   {item.quantity > 1 && <span className="text-[10px] bg-white/10 px-1 rounded text-gray-400">x{item.quantity}</span>}
-                                                </div>
-                                             )) : <span className="text-gray-500 italic text-xs">No items found</span>}
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {liveOrders.length === 0 ? (
+                                    <tr>
+                                       <td colSpan={6} className="px-8 py-20 text-center">
+                                          <div className="flex flex-col items-center gap-4 opacity-50">
+                                             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
+                                                <Package size={40} className="text-gray-500" />
+                                             </div>
+                                             <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No active orders found</p>
                                           </div>
                                        </td>
-                                       <td className="px-6 py-4">KES {order.total.toLocaleString()}</td>
-                                       <td className="px-6 py-4">
-                                          <span className={`px-2 py-1 rounded text-xs capitalize ${order.status === 'completed' ? 'bg-green-500/20 text-green-500' : order.status === 'shipped' ? 'bg-blue-500/20 text-blue-500' : 'bg-yellow-500/20 text-yellow-500'}`}>{order.status}</span>
-                                       </td>
-                                       <td className="px-6 py-4 flex gap-2">
-                                          {order.status === 'processing' && (
-                                             <button onClick={() => openShipModal(order)} className="text-xs bg-blue-500/10 text-blue-500 px-3 py-1 rounded hover:bg-blue-500/20 font-bold">Ship Order</button>
-                                          )}
-                                          <button onClick={() => { setSelectedOrder(order); setActiveModal('editOrderStatus'); }} className="text-blue-400 hover:text-white" title="Edit Order"><Edit2 size={16} /></button>
-                                          <button className="text-gray-400 hover:text-white"><Eye size={16} /></button>
-                                       </td>
                                     </tr>
-                                 )))}
-                           </tbody>
-                        </table>
+                                 ) : (
+                                    liveOrders.map(order => (
+                                       <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className="font-black text-brand-cyan tracking-wider">#{order.id.slice(-8).toUpperCase()}</span>
+                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-1">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="font-black text-white group-hover:text-brand-purple transition-colors">{order.customerName}</div>
+                                             <div className="text-[11px] text-gray-500 font-medium">{order.customerEmail}</div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col gap-2 max-w-[240px]">
+                                                {Array.isArray(order.items) ? order.items.slice(0, 2).map((item, idx) => (
+                                                   <div key={idx} className="flex items-center gap-2">
+                                                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`}></div>
+                                                      <span className="text-gray-400 font-bold truncate text-[11px] tracking-tight">{item.productName}</span>
+                                                      {item.quantity > 1 && <span className="text-[10px] text-white bg-white/10 px-1.5 rounded-md font-black">x{item.quantity}</span>}
+                                                   </div>
+                                                )) : <span className="text-gray-600 italic text-[10px]">No items found</span>}
+                                                {Array.isArray(order.items) && order.items.length > 2 && (
+                                                   <span className="text-[10px] text-brand-purple font-black uppercase tracking-widest px-2 py-0.5 bg-brand-purple/5 rounded-md self-start">+{order.items.length - 2} Multiple Line Items</span>
+                                                )}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="text-white font-black text-base">KES {order.total.toLocaleString()}</div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${order.status === 'completed' || order.status === 'success' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                order.status === 'shipped' ? 'bg-blue-500/5 text-blue-500 border-blue-500/20' :
+                                                   'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
+                                                }`}>
+                                                {order.status}
+                                             </span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                {order.status === 'processing' && (
+                                                   <button onClick={() => openShipModal(order)} className="px-5 py-2.5 bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all">Direct Ship</button>
+                                                )}
+                                                <button onClick={() => { setSelectedOrder(order); setActiveModal('editOrderStatus'); }} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-2xl border border-white/5 transition-all" title="Modify Status"><Edit2 size={18} /></button>
+                                                <button className="p-3 text-gray-500 hover:text-white hover:bg-white/5 rounded-2xl border border-white/5 transition-all" title="Inspect Record"><Eye size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                )}
 
                {activeTab === 'subscriptions' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Subs" value={activeSubsCount} icon={Users} color="text-green-500" />
-                        <StatCard label="New This Month" value={(liveSubscriptions || []).filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" />
-                        <StatCard label="Churn Rate" value="5%" icon={UserX} color="text-red-500" />
-                        <StatCard label="MRR" value={`KES ${(activeSubsAmt || 0).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">VIP Network</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage music pool memberships and recurring revenue</p>
+                        </div>
+                        <div className="flex gap-4 p-1.5 bg-black/40 rounded-[1.25rem] border border-white/5">
+                           <button onClick={() => setSubscriptionSubTab('overview')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionSubTab === 'overview' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Member Registry</button>
+                           <button onClick={() => setSubscriptionSubTab('plans')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionSubTab === 'plans' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Access Tiers</button>
+                        </div>
                      </div>
 
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setSubscriptionSubTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'overview' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers List</button>
-                        <button onClick={() => setSubscriptionSubTab('plans')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${subscriptionSubTab === 'plans' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Plans & Pricing</button>
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <StatCard label="Active Wave" value={activeSubsCount} icon={Users} color="text-green-500" trend="Active" trendUp={true} />
+                        <StatCard label="New Signals" value={(liveSubscriptions || []).filter(s => s.startDate && s.startDate.startsWith(new Date().toISOString().substring(0, 7))).length} icon={Plus} color="text-blue-500" trend="MTD" trendUp={true} />
+                        <StatCard label="Dissipation" value="3.2%" icon={UserX} color="text-red-500" trend="LOW" trendUp={false} subtext="System churn" />
+                        <StatCard label="Recurrent" value={`KES ${(activeSubsAmt || 0).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" trend="STABLE" trendUp={true} subtext="Projected monthly" />
                      </div>
 
                      {subscriptionSubTab === 'overview' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                           <table className="w-full text-left min-w-[800px]">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr>
-                                    <th className="px-6 py-4">
-                                       <div className="flex items-center gap-2">
-                                          User
-                                          {subsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}
-                                       </div>
-                                    </th>
-                                    <th className="px-6 py-4">Plan</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Expiry Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {subsLoading ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading subscriptions...</td></tr>
-                                 ) : (liveSubscriptions || []).length === 0 ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No subscriptions found.</td></tr>
-                                 ) : (
-                                    (liveSubscriptions || []).map((sub) => {
-                                       const isExpired = new Date() > new Date(sub.expiryDate);
-                                       return (
-                                          <tr key={sub.id} className="hover:bg-white/5 transition">
-                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-white">{sub.userName}</div>
-                                                <div className="text-[10px] text-gray-500">{sub.userEmail}</div>
-                                             </td>
-                                             <td className="px-6 py-4 capitalize">{sub.planId}</td>
-                                             <td className="px-6 py-4">KES {sub.amount}</td>
-                                             <td className="px-6 py-4 font-mono">{new Date(sub.expiryDate).toLocaleDateString()}</td>
-                                             <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${!isExpired && sub.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{!isExpired && sub.status === 'active' ? 'Active' : 'Expired'}</span></td>
-                                             <td className="px-6 py-4">
-                                                {sub.status === 'active' && !isExpired && (
-                                                   <div className="flex gap-3">
-                                                      <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="text-brand-cyan hover:underline text-xs flex items-center gap-1">
-                                                         <RefreshCw size={10} /> Sync
-                                                      </button>
-                                                      <button onClick={() => handleRevokeSubscription(sub.id)} className="text-red-500 hover:underline text-xs">Revoke</button>
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Identity</th>
+                                       <th className="px-8 py-6">Access Tier</th>
+                                       <th className="px-8 py-6">Investment</th>
+                                       <th className="px-8 py-6">Expiration</th>
+                                       <th className="px-8 py-6">Signal Status</th>
+                                       <th className="px-8 py-6 text-right">Protocol</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {subsLoading ? (
+                                       <tr><td colSpan={6} className="px-8 py-20 text-center text-gray-500 font-black uppercase tracking-widest animate-pulse">Scanning Registry...</td></tr>
+                                    ) : (liveSubscriptions || []).length === 0 ? (
+                                       <tr>
+                                          <td colSpan={6} className="px-8 py-20 text-center">
+                                             <div className="flex flex-col items-center gap-4 opacity-50">
+                                                <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
+                                                   <Users size={40} className="text-gray-500" />
+                                                </div>
+                                                <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No Signal Detected</p>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ) : (
+                                       (liveSubscriptions || []).map((sub) => {
+                                          const isExpired = new Date() > new Date(sub.expiryDate);
+                                          return (
+                                             <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-8 py-6">
+                                                   <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{sub.userName}</div>
+                                                   <div className="text-[11px] text-gray-500 font-medium">{sub.userEmail}</div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                   <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{sub.planId}</span>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                   <div className="text-white font-black">KES {sub.amount?.toLocaleString() || '0'}</div>
+                                                </td>
+                                                <td className="px-8 py-6 font-black font-display text-xs tracking-wider text-gray-400">
+                                                   {new Date(sub.expiryDate).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                   <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${!isExpired && sub.status === 'active'
+                                                      ? 'bg-green-500/5 text-green-500 border-green-500/20'
+                                                      : 'bg-red-500/5 text-red-500 border-red-500/20'
+                                                      }`}>
+                                                      {!isExpired && sub.status === 'active' ? 'Locked On' : 'Frequency Lost'}
+                                                   </span>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                   <div className="flex justify-end gap-3">
+                                                      {sub.status === 'active' && !isExpired && (
+                                                         <>
+                                                            <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110">
+                                                               <RefreshCw size={18} />
+                                                            </button>
+                                                            <button onClick={() => handleRevokeSubscription(sub.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all">
+                                                               <UserX size={18} />
+                                                            </button>
+                                                         </>
+                                                      )}
                                                    </div>
-                                                )}
-                                             </td>
-                                          </tr>
-                                       );
-                                    })
-                                 )}
-                              </tbody>
-                           </table>
+                                                </td>
+                                             </tr>
+                                          );
+                                       })
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
                      )}
 
                      {subscriptionSubTab === 'plans' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                            {(subscriptionPlans || []).map(plan => (
-                              <div key={plan.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5 relative">
-                                 {plan.isBestValue && <span className="absolute top-4 right-4 bg-brand-purple text-white text-[10px] font-bold px-2 py-1 rounded">BEST VALUE</span>}
-                                 <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
-                                 <p className="text-2xl font-bold text-brand-cyan mb-4">KES {plan.price} <span className="text-sm text-gray-500">/{plan.period}</span></p>
-                                 <ul className="space-y-2 mb-6">
-                                    {(plan.features || []).map((f, i) => <li key={i} className="text-xs text-gray-400 flex items-center gap-2"><Check size={12} className="text-green-500" /> {f}</li>)}
-                                 </ul>
-                                 <div className="flex gap-2">
-                                    <button onClick={() => openEditPlan(plan)} className="flex-1 py-2 bg-white/10 text-white rounded font-bold text-sm hover:bg-white/20">Edit</button>
-                                    <button onClick={() => { if (confirm('Delete plan?')) deleteSubscriptionPlan(plan.id) }} className="py-2 px-3 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={16} /></button>
+                              <div key={plan.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-purple/20 transition-all duration-500 overflow-hidden shadow-2xl">
+                                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-brand-purple/10 transition-colors" />
+                                 {plan.isBestValue && (
+                                    <div className="absolute top-6 right-6">
+                                       <span className="bg-brand-purple text-white text-[9px] font-black px-4 py-2 rounded-full tracking-[0.2em] shadow-lg shadow-brand-purple/20">ELITE CHOICE</span>
+                                    </div>
+                                 )}
+                                 <div className="relative z-10">
+                                    <h3 className="text-2xl font-black text-white mb-2 tracking-tight">{plan.name}</h3>
+                                    <div className="flex items-baseline gap-1 mb-6">
+                                       <span className="text-3xl font-black text-brand-cyan">KES {plan.price.toLocaleString()}</span>
+                                       <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">/{plan.period}</span>
+                                    </div>
+                                    <div className="space-y-4 mb-8">
+                                       <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em] border-b border-white/5 pb-2">Included Protocols</p>
+                                       {(plan.features || []).map((f, i) => (
+                                          <div key={i} className="text-xs text-gray-400 font-medium flex items-center gap-3 active:scale-95 transition-transform">
+                                             <div className="w-5 h-5 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+                                                <Check size={12} className="text-green-500" />
+                                             </div>
+                                             {f}
+                                          </div>
+                                       ))}
+                                    </div>
+                                    <div className="flex gap-3">
+                                       <button onClick={() => openEditPlan(plan)} className="flex-1 py-4 bg-white/5 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 border border-white/10 transition-all">Configure</button>
+                                       <button onClick={() => { if (confirm('Purge this tier?')) deleteSubscriptionPlan(plan.id) }} className="py-4 px-5 bg-red-500/5 text-red-500 rounded-2xl border border-red-500/10 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
+                                    </div>
                                  </div>
                               </div>
                            ))}
-                           <div onClick={openAddPlan} className="bg-[#15151A] p-6 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-500 hover:bg-white/5 hover:border-white/20 cursor-pointer transition min-h-[300px]">
-                              <Plus size={48} className="mb-4" />
-                              <span className="font-bold">Create New Plan</span>
+                           <div
+                              onClick={openAddPlan}
+                              className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-600 hover:bg-white/[0.02] hover:border-brand-purple/40 hover:text-brand-purple cursor-pointer transition-all duration-500 min-h-[400px] group shadow-2xl"
+                           >
+                              <div className="w-20 h-20 rounded-[2rem] bg-white/5 group-hover:bg-brand-purple/10 flex items-center justify-center mb-6 transition-colors shadow-inner">
+                                 <Plus size={48} className="group-hover:scale-125 transition-transform" />
+                              </div>
+                              <span className="font-black uppercase tracking-[0.2em] text-xs">Architect New Tier</span>
                            </div>
                         </div>
                      )}
@@ -1636,163 +1870,182 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'pool' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setPoolSubTab('tracks')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'tracks' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Tracks</button>
-                        <button onClick={() => setPoolSubTab('genres')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition ${poolSubTab === 'genres' ? 'bg-brand-purple text-white' : 'text-gray-400 hover:text-white'}`}>Genre Covers</button>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Audio Repository</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Orchestrate the music pool and metadata environment</p>
+                        </div>
+                        <div className="flex gap-4 p-1.5 bg-black/40 rounded-[1.25rem] border border-white/5">
+                           <button onClick={() => setPoolSubTab('tracks')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'tracks' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Wave Tracks</button>
+                           <button onClick={() => setPoolSubTab('genres')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'genres' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Genre Taxonomy</button>
+                        </div>
                      </div>
 
                      {poolSubTab === 'tracks' && (
                         <>
-                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                              <h3 className="text-2xl font-bold">Pool Library</h3>
-                              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-8 bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] gap-6 shadow-2xl">
+                              <div className="flex items-center gap-6">
+                                 <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                    <Database size={28} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xl font-black text-white">Cloud Indexing</h4>
+                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">Total indexed signals: {poolTracks.length.toLocaleString()}</p>
+                                 </div>
+                              </div>
+                              <div className="flex flex-wrap gap-3 w-full lg:w-auto">
                                  <select
                                     value={selectedPart}
                                     onChange={(e) => setSelectedPart(Number(e.target.value))}
-                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-brand-purple"
+                                    className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-brand-purple transition-all"
                                     disabled={isSeeding}
                                  >
-                                    <option value={0}>Part 1 (0-10k)</option>
-                                    <option value={1}>Part 2 (10k-20k)</option>
-                                    <option value={2}>Part 3 (20k-30k)</option>
-                                    <option value={3}>Part 4 (30k-40k)</option>
-                                    <option value={4}>Part 5 (40k-50k)</option>
+                                    <option value={0}>Segment 01 (0-10k)</option>
+                                    <option value={1}>Segment 02 (10k-20k)</option>
+                                    <option value={2}>Segment 03 (20k-30k)</option>
+                                    <option value={3}>Segment 04 (30k-40k)</option>
+                                    <option value={4}>Segment 05 (40k-50k)</option>
                                  </select>
                                  <button
                                     onClick={() => handleSeed(-1)}
                                     disabled={isSeeding}
-                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
+                                    className="px-6 py-3 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2 group disabled:opacity-50"
                                  >
-                                    <Database size={16} />
-                                    {isSeeding ? 'Seeding...' : 'Seed R2 Data'}
+                                    <Zap size={16} className="group-hover:animate-pulse" />
+                                    {isSeeding ? 'Indexing...' : 'Initiate Seed'}
                                  </button>
-                                 {lastSeedIndex > 0 && !isSeeding && (
-                                    <button
-                                       onClick={() => handleSeed(lastSeedIndex)}
-                                       className="bg-yellow-500/20 text-yellow-500 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-500/30 font-bold justify-center text-xs flex-1 sm:flex-initial"
-                                    >
-                                       <RefreshCw size={16} />
-                                       Resume ({lastSeedIndex + 1})
-                                    </button>
-                                 )}
                                  <button
                                     onClick={handleSyncTracks}
                                     disabled={isSyncing}
-                                    className="bg-brand-purple/20 text-brand-purple px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-brand-purple/30 font-bold justify-center disabled:opacity-50 text-xs flex-1 sm:flex-initial"
+                                    className="px-6 py-3 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-cyan hover:text-[#0B0B0F] transition-all flex items-center gap-2 disabled:opacity-50"
                                  >
                                     <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-                                    {isSyncing ? 'Syncing...' : 'Sync External'}
+                                    {isSyncing ? 'Syncing...' : 'Force Sync'}
                                  </button>
-                                 <button onClick={openAddPoolTrack} className="bg-brand-purple text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold justify-center text-xs flex-1 sm:flex-initial">
+                                 <button onClick={openAddPoolTrack} className="px-6 py-3 bg-white text-[#0B0B0F] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all shadow-xl shadow-brand-purple/10">
                                     <Plus size={16} /> Upload Track
                                  </button>
                               </div>
                            </div>
 
-                           {/* Seeding Progress Display */}
-                           {isSeeding && seedProgress && (
-                              <div className="bg-gradient-to-r from-brand-purple/10 to-brand-cyan/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
-                                 <div className="flex flex-col gap-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                       <div className="flex flex-col">
-                                          <span className="text-gray-300 font-medium">{seedMessage}</span>
-                                          {seedProgress.currentTrackTitle && (
-                                             <span className="text-[10px] text-brand-purple font-mono animate-pulse">
-                                                Current: {seedProgress.currentTrackTitle}
-                                             </span>
+                           {/* Progress Visuals */}
+                           {(isSeeding || isSyncing) && (
+                              <div className="bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative">
+                                 <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
+                                    <div
+                                       className={`h-full transition-all duration-500 ${isSeeding ? 'bg-brand-purple' : 'bg-brand-cyan'}`}
+                                       style={{ width: isSeeding && seedProgress ? `${Math.round((seedProgress.processedTracks / 10000) * 100)}%` : '100%' }}
+                                    ></div>
+                                 </div>
+                                 <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                                    <div className="flex items-center gap-4">
+                                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isSeeding ? 'bg-brand-purple/10 text-brand-purple' : 'bg-brand-cyan/10 text-brand-cyan'}`}>
+                                          <Activity size={24} className="animate-bounce" />
+                                       </div>
+                                       <div>
+                                          <p className="text-white font-black">{isSeeding ? seedMessage : syncMessage}</p>
+                                          {isSeeding && seedProgress?.currentTrackTitle && (
+                                             <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-1">Processing: <span className="text-brand-purple">{seedProgress.currentTrackTitle}</span></p>
                                           )}
                                        </div>
-                                       <span className="text-brand-cyan font-bold">
-                                          {Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%
-                                       </span>
                                     </div>
-                                    <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
-                                       <div
-                                          className="bg-gradient-to-r from-brand-purple to-brand-cyan h-full transition-all duration-300"
-                                          style={{ width: `${Math.round((seedProgress.processedTracks / Math.min(10000, seedProgress.totalTracks)) * 100)}%` }}
-                                       />
-                                    </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Uploaded</div>
-                                          <div className="text-white font-bold">{seedProgress.uploadedTracks.toLocaleString()}</div>
+                                    {isSeeding && seedProgress && (
+                                       <div className="flex gap-4">
+                                          <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
+                                             <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Success</p>
+                                             <p className="text-sm font-black text-green-500">{seedProgress.uploadedTracks.toLocaleString()}</p>
+                                          </div>
+                                          <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
+                                             <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Skipped</p>
+                                             <p className="text-sm font-black text-yellow-500">{seedProgress.skippedTracks.toLocaleString()}</p>
+                                          </div>
+                                          <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
+                                             <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Protocol</p>
+                                             <p className="text-sm font-black text-brand-cyan">{seedProgress.currentBatch}/{seedProgress.totalBatches}</p>
+                                          </div>
                                        </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Skipped</div>
-                                          <div className="text-yellow-500 font-bold">{seedProgress.skippedTracks.toLocaleString()}</div>
-                                       </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Batch</div>
-                                          <div className="text-brand-cyan font-bold">{seedProgress.currentBatch}/{seedProgress.totalBatches}</div>
-                                       </div>
-                                       <div className="bg-black/20 rounded p-2">
-                                          <div className="text-gray-400">Quota Left</div>
-                                          <div className="text-green-500 font-bold">{seedProgress.quotaRemaining.toLocaleString()}</div>
-                                       </div>
-                                    </div>
+                                    )}
                                  </div>
                               </div>
                            )}
 
-                           {/* Sync Progress Display */}
-                           {isSyncing && syncMessage && (
-                              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-3 mb-6">
-                                 <div className="flex items-center gap-2 text-sm">
-                                    <RefreshCw size={16} className="animate-spin text-blue-400" />
-                                    <span className="text-gray-300">{syncMessage}</span>
-                                 </div>
-                              </div>
-                           )}
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                              <table className="w-full text-left min-w-[800px]">
-                                 <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                    <tr><th className="px-6 py-4">Title / Artist</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">BPM / Key</th><th className="px-6 py-4">Versions</th><th className="px-6 py-4">Year</th><th className="px-6 py-4">Actions</th></tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {(poolTracks || []).slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
-                                       <tr key={track.id} className="hover:bg-white/5 transition">
-                                          <td className="px-6 py-4"><div className="font-bold text-white">{track.title}</div><div className="text-xs text-gray-400">{track.artist}</div></td>
-                                          <td className="px-6 py-4"><div className="text-brand-cyan text-xs font-bold mb-1">{track.genre}</div></td>
-                                          <td className="px-6 py-4"><div>{track.bpm} BPM</div><div className="text-xs text-gray-500">{track.key || '-'}</div></td>
-                                          <td className="px-6 py-4"><div className="flex flex-wrap gap-1">{(track.versions || []).map(v => (<span key={v.id} className="text-[10px] border border-white/20 px-2 py-0.5 rounded text-gray-300">{v.type}</span>))}</div></td>
-                                          <td className="px-6 py-4">{track.year}</td>
-                                          <td className="px-6 py-4 flex gap-2">
-                                             <button onClick={() => openEditPoolTrack(track)} className="p-2 text-blue-400 hover:bg-white/5 rounded"><PenSquare size={16} /></button>
-                                             <button onClick={() => { if (window.confirm(`Are you sure you want to delete "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-2 text-red-400 hover:bg-white/5 rounded"><Trash2 size={16} /></button>
-                                          </td>
+                           <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                              <div className="overflow-x-auto">
+                                 <table className="w-full text-left whitespace-nowrap">
+                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                       <tr>
+                                          <th className="px-8 py-6">Signal Meta</th>
+                                          <th className="px-8 py-6">Genre Classification</th>
+                                          <th className="px-8 py-6">Dynamics</th>
+                                          <th className="px-8 py-6">Redux Versions</th>
+                                          <th className="px-8 py-6">Timeline</th>
+                                          <th className="px-8 py-6 text-right">Ops Protocol</th>
                                        </tr>
-                                    ))}
-                                 </tbody>
-                              </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.03] text-sm">
+                                       {(poolTracks || []).slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
+                                          <tr key={track.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6">
+                                                <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
+                                                <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="px-3 py-1 bg-brand-cyan/5 border border-brand-cyan/10 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-cyan">{track.genre}</span>
+                                             </td>
+                                             <td className="px-8 py-6 font-black">
+                                                <div className="text-white text-xs">{track.bpm} <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">BPM</span></div>
+                                                <div className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.key || 'NODE_MISSING'}</div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <div className="flex flex-wrap gap-2">
+                                                   {(track.versions || []).map(v => (
+                                                      <span key={v.id} className="text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/5 px-2 py-1 rounded-md text-gray-400 group-hover:text-white transition-colors">{v.type}</span>
+                                                   ))}
+                                                </div>
+                                             </td>
+                                             <td className="px-8 py-6 font-black font-display text-gray-400">
+                                                {track.year}
+                                             </td>
+                                             <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-3">
+                                                   <button onClick={() => openEditPoolTrack(track)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
+                                                   <button onClick={() => { if (window.confirm(`Purge signal "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
 
-                              <div className="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-                                 <div className="flex items-center gap-2">
+                              <div className="p-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">
+                                 <div className="flex items-center gap-4 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
                                     <button
                                        onClick={() => setPoolPage(p => Math.max(1, p - 1))}
                                        disabled={poolPage === 1}
-                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                       className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-all"
                                     >
-                                       Prev
+                                       Previous
                                     </button>
-                                    <span className="text-xs text-gray-400">Page {poolPage} of {Math.ceil(poolTracks.length / tracksPerPage)}</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">Cycle {poolPage} / {Math.ceil(poolTracks.length / tracksPerPage)}</span>
                                     <button
                                        onClick={() => setPoolPage(p => p + 1)}
                                        disabled={poolPage >= Math.ceil(poolTracks.length / tracksPerPage)}
-                                       className="px-3 py-1 bg-white/5 border border-white/10 rounded disabled:opacity-50"
+                                       className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-all"
                                     >
                                        Next
                                     </button>
                                  </div>
 
-                                 <div className="flex flex-col items-center gap-2">
-                                    <p className="text-gray-500 text-xs text-center">Showing {Math.min(poolTracks.length, poolPage * tracksPerPage).toLocaleString()} of {poolTracks.length.toLocaleString()} loaded tracks</p>
+                                 <div className="flex flex-col md:flex-row items-center gap-6">
+                                    <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest">Buffer Status: <span className="text-white">{(poolPage * tracksPerPage).toLocaleString()}</span> / {poolTracks.length.toLocaleString()}</p>
                                     <button
                                        onClick={() => loadMorePoolTracks(500)}
-                                       className="px-4 py-1.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg text-xs font-bold hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2"
+                                       className="px-6 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all flex items-center gap-2 group"
                                     >
-                                       <Database size={14} />
-                                       Fetch More from DB
+                                       <Database size={16} className="group-hover:scale-110 transition-transform" />
+                                       Extend Database Fetch
                                     </button>
                                  </div>
                               </div>
@@ -1801,14 +2054,21 @@ const AdminDashboard: React.FC = () => {
                      )}
 
                      {poolSubTab === 'genres' && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
                            {genres.map(g => (
-                              <div key={g.id} className="group relative bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer" onClick={() => openEditGenre(g)}>
-                                 <div className="aspect-square relative">
-                                    <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Edit2 size={24} className="text-white" /></div>
+                              <div key={g.id} className="group relative bg-[#0B0B0F] rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer transition-all duration-500 shadow-2xl" onClick={() => openEditGenre(g)}>
+                                 <div className="aspect-square relative overflow-hidden">
+                                    <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-transparent to-transparent opacity-60" />
+                                    <div className="absolute inset-0 bg-brand-purple/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-500 backdrop-blur-sm">
+                                       <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-brand-purple transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                                          <Edit2 size={24} />
+                                       </div>
+                                    </div>
                                  </div>
-                                 <div className="p-3"><p className="text-xs font-bold text-white truncate text-center">{g.name}</p></div>
+                                 <div className="p-5">
+                                    <p className="text-xs font-black text-white truncate text-center uppercase tracking-widest">{g.name}</p>
+                                 </div>
                               </div>
                            ))}
                         </div>
@@ -1817,76 +2077,133 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'store' && (
-                  <div className="animate-fade-in-up">
-                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                        <h3 className="text-2xl font-bold">Product Inventory</h3>
-                        <button onClick={openAddProduct} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold w-full sm:w-auto justify-center">
-                           <Plus size={18} /> Add Product
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Merchandise Catalog</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Curate your inventory across active commerce channels</p>
+                        </div>
+                        <button onClick={openAddProduct} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                           <Plus size={18} /> Catalog New Item
                         </button>
                      </div>
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                        <table className="w-full text-left min-w-[800px]">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                              <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Price</th><th className="px-6 py-4">Stock</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {products
-                                 .sort((a, b) => {
-                                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                                    return dateB - dateA; // Newest first
-                                 })
-                                 .map((p) => (
-                                    <tr key={p.id} className="hover:bg-white/5 transition">
-                                       <td className="px-6 py-4">
-                                          <div className="font-bold text-white">{p.name}</div>
-                                          {p.category === 'Software' && p.os && p.os !== 'None' && (
-                                             <div className="text-xs text-purple-400 mt-1">OS: {p.os}</div>
-                                          )}
-                                          {((p.variantGroups && p.variantGroups.length > 0) || (p.variantOptions && p.variantOptions.length > 0)) && (
-                                             <div className="text-xs text-gray-500 mt-1">
-                                                {p.variantGroups && p.variantGroups.length > 0 ? (
-                                                   `${p.variantGroups.length} Group(s), ${p.variantGroups.reduce((acc, g) => acc + g.variants.length, 0)} Variants`
-                                                ) : (
-                                                   `${p.type === 'digital' ? 'Versions' : 'Variants'}: ${(p.variants || []).join(', ')}`
+
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shadow-inner">
+                              <ShoppingBag size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Total Assets</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.length}</p>
+                              <p className="text-[10px] text-brand-purple font-bold mt-1">Items in catalog</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
+                              <CheckCircle size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Stream Ready</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.status === 'published').length}</p>
+                              <p className="text-[10px] text-green-500 font-bold mt-1">Live in store</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-orange-500/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shadow-inner">
+                              <AlertCircle size={28} />
+                           </div>
+                           <div className="relative z-10">
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Depletion Alert</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.type === 'physical' && (p.stock || 0) < 10).length}</p>
+                              <p className="text-[10px] text-orange-500 font-bold mt-1">Requires restock</p>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Asset Profile</th>
+                                    <th className="px-8 py-6">Classification</th>
+                                    <th className="px-8 py-6">Inventory Quant</th>
+                                    <th className="px-8 py-6">Market Value</th>
+                                    <th className="px-8 py-6">Channel Status</th>
+                                    <th className="px-8 py-6 text-right">Ops Control</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {products
+                                    .sort((a, b) => {
+                                       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                       return dateB - dateA;
+                                    })
+                                    .map((p) => (
+                                       <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 p-0.5">
+                                                   <img src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                   <div className="font-black text-white truncate max-w-[200px] group-hover:text-brand-purple transition-colors">{p.name}</div>
+                                                   <div className="flex items-center gap-2 mt-1">
+                                                      <span className={`text-[9px] px-2 py-0.5 rounded-md uppercase font-black tracking-widest border ${p.type === 'digital' ? 'bg-blue-500/5 text-blue-500 border-blue-500/10' : 'bg-orange-500/5 text-orange-500 border-orange-500/10'}`}>{p.type}</span>
+                                                      {p.os && p.os !== 'None' && <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">OS/ {p.os}</span>}
+                                                   </div>
+                                                </div>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[10px] border border-white/5 px-3 py-1 rounded-full">{p.category}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className="text-white font-black text-base">
+                                                   {p.type === 'digital' ? <Infinity size={18} className="text-gray-600" /> : (
+                                                      p.variantGroups && p.variantGroups.length > 0 ? (
+                                                         p.variantGroups.reduce((acc, g) => acc + g.variants.reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                                      ) : p.stock
+                                                   )}
+                                                </span>
+                                                {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-orange-500 font-black uppercase tracking-[0.2em] mt-1">Low Buffer</span>}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-600 line-through text-[10px] font-bold' : 'text-white font-black text-base'}>
+                                                   KES {p.price.toLocaleString()}
+                                                </span>
+                                                {p.discountPrice && p.discountPrice > 0 && (
+                                                   <span className="text-brand-cyan font-black text-base">
+                                                      KES {p.discountPrice.toLocaleString()}
+                                                   </span>
                                                 )}
                                              </div>
-                                          )}
-                                       </td>
-                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${p.type === 'digital' ? 'bg-blue-500/20 text-blue-500' : 'bg-orange-500/20 text-orange-500'}`}>{p.type}</span></td>
-                                       <td className="px-6 py-4"><span className="text-gray-400 text-xs">{p.category}</span></td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-500 line-through text-xs' : 'text-white font-bold'}>
-                                                KES {p.price.toLocaleString()}
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${p.status === 'published' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                p.status === 'hidden' ? 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20' :
+                                                   'bg-white/5 text-gray-400 border-white/10'
+                                                }`}>
+                                                {p.status}
                                              </span>
-                                             {p.discountPrice && p.discountPrice > 0 && (
-                                                <span className="text-brand-purple font-bold">
-                                                   KES {p.discountPrice.toLocaleString()}
-                                                </span>
-                                             )}
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          {p.type === 'digital' ? '∞' : (
-                                             p.variantGroups && p.variantGroups.length > 0 ? (
-                                                p.variantGroups.reduce((acc, g) => acc + g.variants.reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
-                                             ) : p.stock
-                                          )}
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <span className={`text-xs px-2 py-1 rounded capitalize ${p.status === 'published' ? 'bg-green-500/10 text-green-500' :
-                                             p.status === 'hidden' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                'bg-gray-500/10 text-gray-500'
-                                             }`}>
-                                             {p.status}
-                                          </span>
-                                       </td>
-                                       <td className="px-6 py-4 flex gap-3"><button onClick={() => openEditProduct(p)} className="text-blue-500 hover:text-blue-400"><PenSquare size={16} /></button><button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="text-red-500 hover:text-red-400"><Trash2 size={16} /></button></td>
-                                    </tr>
-                                 ))}
-                           </tbody>
-                        </table>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openEditProduct(p)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
+                                                <button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                )}
@@ -1935,410 +2252,928 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'marketing' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setMarketingSubTab('referrals')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'referrals' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Program</button>
-                        <button onClick={() => setMarketingSubTab('coupons')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${marketingSubTab === 'coupons' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Coupons</button>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Growth & Loyalty</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Orchestrate referral cycles and discount ecosystems</p>
+                        </div>
+                        <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
+                           <button onClick={() => setMarketingSubTab('referrals')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${marketingSubTab === 'referrals' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Affiliates</button>
+                           <button onClick={() => setMarketingSubTab('coupons')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${marketingSubTab === 'coupons' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Incentives</button>
+                        </div>
                      </div>
 
                      {marketingSubTab === 'referrals' && (
-                        <>
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                              <StatCard label="Total Referrals" value={referralStats.reduce((acc, r) => acc + r.totalReferrals, 0)} icon={Users} color="text-brand-cyan" />
-                              <StatCard label="Total Payouts" value={`KES ${referralStats.reduce((acc, r) => acc + r.totalEarned, 0)}`} icon={DollarSign} color="text-green-500" />
-                              <StatCard label="Pending" value={`KES ${referralStats.reduce((acc, r) => acc + r.pendingPayout, 0)}`} icon={Clock} color="text-yellow-500" />
+                        <div className="space-y-8">
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                                 <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shadow-inner">
+                                    <Users size={28} />
+                                 </div>
+                                 <div>
+                                    <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Network Size</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">{referralStats.reduce((acc, r) => acc + r.totalReferrals, 0)}</p>
+                                    <p className="text-[10px] text-brand-cyan font-bold mt-1">Direct referrals</p>
+                                 </div>
+                              </div>
+                              <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                                 <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                                 <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
+                                    <DollarSign size={28} />
+                                 </div>
+                                 <div className="relative z-10">
+                                    <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Settled Credit</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">KES {referralStats.reduce((acc, r) => acc + r.totalEarned, 0).toLocaleString()}</p>
+                                    <p className="text-[10px] text-green-500 font-bold mt-1">Total volume paid</p>
+                                 </div>
+                              </div>
+                              <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                                 <div className="w-16 h-16 rounded-3xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-500 shadow-inner">
+                                    <Clock size={28} />
+                                 </div>
+                                 <div>
+                                    <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Escrowed</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">KES {referralStats.reduce((acc, r) => acc + r.pendingPayout, 0).toLocaleString()}</p>
+                                    <p className="text-[10px] text-yellow-500 font-bold mt-1">Awaiting settlement</p>
+                                 </div>
+                              </div>
                            </div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                              <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">User</th><th className="px-6 py-4">Code</th><th className="px-6 py-4">Referrals</th><th className="px-6 py-4">Earned</th><th className="px-6 py-4">Pending</th></tr></thead>
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {referralStats.map(r => (
-                                       <tr key={r.id}>
-                                          <td className="px-6 py-4 font-bold">{r.userName}</td>
-                                          <td className="px-6 py-4 font-mono text-brand-purple">{r.referralCode}</td>
-                                          <td className="px-6 py-4">{r.totalReferrals}</td>
-                                          <td className="px-6 py-4">KES {r.totalEarned}</td>
-                                          <td className="px-6 py-4 text-yellow-500">KES {r.pendingPayout}</td>
+
+                           <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                              <div className="overflow-x-auto">
+                                 <table className="w-full text-left whitespace-nowrap">
+                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                       <tr>
+                                          <th className="px-8 py-6">Affiliate Representative</th>
+                                          <th className="px-8 py-6">Unique Protocol</th>
+                                          <th className="px-8 py-6">Conversion Count</th>
+                                          <th className="px-8 py-6">Cumulative Yield</th>
+                                          <th className="px-8 py-6">Pending Asset</th>
                                        </tr>
-                                    ))}
-                                 </tbody></table>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.03] text-sm">
+                                       {referralStats.map(r => (
+                                          <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6 flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black text-xs uppercase">
+                                                   {r.userName.substring(0, 2)}
+                                                </div>
+                                                <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{r.userName}</span>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="font-mono text-brand-purple bg-brand-purple/5 px-4 py-1.5 rounded-full border border-brand-purple/10 text-[11px] font-black uppercase tracking-[0.1em]">{r.referralCode}</span>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="text-white font-black text-base">{r.totalReferrals}</span>
+                                             </td>
+                                             <td className="px-8 py-6 text-green-500 font-black text-base">KES {r.totalEarned.toLocaleString()}</td>
+                                             <td className="px-8 py-6 text-yellow-500 font-black text-base">KES {r.pendingPayout.toLocaleString()}</td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
                            </div>
-                        </>
+                        </div>
                      )}
 
                      {marketingSubTab === 'coupons' && (
-                        <>
-                           <div className="flex justify-end mb-4"><button onClick={openAddCoupon} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Create Coupon</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                              <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Code</th><th className="px-6 py-4">Discount</th><th className="px-6 py-4">Applies To</th><th className="px-6 py-4">Expiry</th><th className="px-6 py-4">Usage</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead>
-                                 <tbody className="divide-y divide-white/5 text-sm">
-                                    {coupons.map(c => (
-                                       <tr key={c.id}>
-                                          <td className="px-6 py-4 font-mono font-bold text-white">{c.code}</td>
-                                          <td className="px-6 py-4">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${c.discountValue}`}</td>
-                                          <td className="px-6 py-4 capitalize">{c.appliesTo}</td>
-                                          <td className="px-6 py-4">{c.expiryDate}</td>
-                                          <td className="px-6 py-4">{c.usageCount} / {c.usageLimit}</td>
-                                          <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{c.active ? 'Active' : 'Inactive'}</span></td>
-                                          <td className="px-6 py-4 flex gap-2">
-                                             <button onClick={() => openEditCoupon(c)} className="text-blue-500"><PenSquare size={16} /></button>
-                                             <button onClick={() => deleteCoupon(c.id)} className="text-red-500"><Trash2 size={16} /></button>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                 </tbody></table>
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center">
+                              <h4 className="text-xl font-black text-white tracking-tight">Active Incentives</h4>
+                              <button onClick={openAddCoupon} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                                 <Plus size={18} /> Deploy New Incentive
+                              </button>
                            </div>
-                        </>
+
+                           <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                              <div className="overflow-x-auto">
+                                 <table className="w-full text-left whitespace-nowrap">
+                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                       <tr>
+                                          <th className="px-8 py-6">Incentive Code</th>
+                                          <th className="px-8 py-6">Discount Magnitude</th>
+                                          <th className="px-8 py-6">Scope of Effect</th>
+                                          <th className="px-8 py-6">Validity Period</th>
+                                          <th className="px-8 py-6">Utilization Status</th>
+                                          <th className="px-8 py-6">Status</th>
+                                          <th className="px-8 py-6 text-right">Protocol Control</th>
+                                       </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.03] text-sm">
+                                       {coupons.map(c => (
+                                          <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6">
+                                                <span className="font-mono text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 text-[11px] font-black uppercase tracking-[0.1em]">{c.code}</span>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="text-brand-cyan font-black text-base">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${c.discountValue.toLocaleString()}`}</span>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full capitalize">{c.appliesTo}</span>
+                                             </td>
+                                             <td className="px-8 py-6 text-gray-400 font-bold">{c.expiryDate}</td>
+                                             <td className="px-8 py-6">
+                                                <div className="flex flex-col gap-1.5">
+                                                   <span className="text-white font-black text-sm">{c.usageCount} / {c.usageLimit}</span>
+                                                   <div className="w-20 h-1 bg-white/5 rounded-full overflow-hidden">
+                                                      <div className="h-full bg-brand-purple transition-all duration-500" style={{ width: `${Math.min((c.usageCount / c.usageLimit) * 100, 100)}%` }} />
+                                                   </div>
+                                                </div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${c.active ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>
+                                                   {c.active ? 'Operational' : 'Deactivated'}
+                                                </span>
+                                             </td>
+                                             <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-3">
+                                                   <button onClick={() => openEditCoupon(c)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all shadow-sm" title="Modify Incentive"><PenSquare size={18} /></button>
+                                                   <button onClick={() => deleteCoupon(c.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all shadow-sm" title="Retire Incentive"><Trash2 size={18} /></button>
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
+                           </div>
+                        </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'bookings' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex justify-between items-center">
-                        <h3 className="text-2xl font-bold">Manage Bookings</h3>
-                        <div className="flex gap-4">
-                           <div className="flex bg-[#15151A] rounded-lg p-1">
-                              <button onClick={() => setBookingSubTab('list')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'list' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>List</button>
-                              <button onClick={() => setBookingSubTab('calendar')} className={`px-4 py-1.5 rounded-md text-sm font-bold ${bookingSubTab === 'calendar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Calendar</button>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Session Logistics</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage temporal assets and studio reservations</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
+                              <button onClick={() => setBookingSubTab('list')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${bookingSubTab === 'list' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>
+                                 <List size={14} /> Queue
+                              </button>
+                              <button onClick={() => setBookingSubTab('calendar')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${bookingSubTab === 'calendar' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>
+                                 <Calendar size={14} /> Timeline
+                              </button>
                            </div>
-                           <button onClick={openAddBooking} className="bg-brand-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600 font-bold"><Plus size={18} /> Add Booking</button>
+                           <button onClick={openAddBooking} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                              <Plus size={18} /> Schedule Session
+                           </button>
                         </div>
                      </div>
+
                      {bookingSubTab === 'list' ? (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden overflow-x-auto">
-                           <table className="w-full text-left min-w-[800px]">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {bookings.map((b) => (
-                                    <tr key={b.id} className="hover:bg-white/5 transition">
-                                       <td className="px-6 py-4 font-bold text-white">{b.clientName}</td>
-                                       <td className="px-6 py-4 text-gray-300">{b.serviceName || b.serviceType}</td>
-                                       <td className="px-6 py-4">{b.date} @ {b.time}</td>
-                                       <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${b.status === 'confirmed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{b.status}</span></td>
-                                       <td className="px-6 py-4 flex gap-2"><button onClick={() => openEditBooking(b)} className="text-blue-500"><PenSquare size={16} /></button></td>
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Client Profile</th>
+                                       <th className="px-8 py-6">Service Classification</th>
+                                       <th className="px-8 py-6">Temporal Slot</th>
+                                       <th className="px-8 py-6">Pipeline Status</th>
+                                       <th className="px-8 py-6 text-right">Ops Control</th>
                                     </tr>
-                                 ))}
-                              </tbody>
-                           </table>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {bookings.map((b) => (
+                                       <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan font-black text-xs uppercase">
+                                                   {b.clientName.substring(0, 2)}
+                                                </div>
+                                                <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{b.clientName}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full">{b.serviceName || b.serviceType}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col gap-1">
+                                                <span className="text-white font-black text-sm">{b.date}</span>
+                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">At {b.time}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${b.status === 'confirmed' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
+                                                }`}>
+                                                {b.status}
+                                             </span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openEditBooking(b)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all shadow-sm" title="Adjust Reservation"><PenSquare size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
                      ) : (
-                        <div className="bg-[#15151A] p-8 text-center rounded-xl border border-white/5"><Calendar size={48} className="mx-auto text-gray-600 mb-4" /><h3 className="text-xl font-bold text-white">Calendar View</h3><p className="text-gray-500">Feature coming soon.</p></div>
+                        <div className="bg-[#0B0B0F] p-20 text-center rounded-[3rem] border border-white/5 shadow-inner">
+                           <div className="w-24 h-24 rounded-[2rem] bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple mx-auto mb-8 shadow-xl">
+                              <Calendar size={48} />
+                           </div>
+                           <h3 className="text-2xl font-black text-white tracking-tight mb-2">Chronological View</h3>
+                           <p className="text-gray-500 font-medium max-w-sm mx-auto">Temporal visualization is currently under reconstruction. Please utilize the Queue view for all immediate logistics.</p>
+                        </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'studio' && (
-                  <div className="animate-fade-in-up space-y-6">
+                  <div className="animate-fade-in-up space-y-8">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Booked Today" value={studioStats.bookedToday} icon={Mic} color="text-brand-cyan" />
-                        <StatCard label="Total Services" value={sessionTypes.length} icon={Timer} color="text-green-500" />
-                        <StatCard label="Rev/Room" value={`KES ${Math.round(studioStats.revenuePerRoom).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Available" value={`${studioStats.availableRooms} Rooms`} icon={Check} color="text-blue-500" />
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <Mic size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Active Sessions</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{studioStats.bookedToday}</p>
+                           <p className="text-[10px] text-brand-cyan font-bold mt-1">Today's throughput</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                                 <Timer size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Service Matrix</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{sessionTypes.length}</p>
+                           <p className="text-[10px] text-green-500 font-bold mt-1">Available protocols</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <DollarSign size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Room Yield</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">KES {Math.round(studioStats.revenuePerRoom).toLocaleString()}</p>
+                           <p className="text-[10px] text-brand-purple font-bold mt-1">Avg per unit</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
+                                 <Check size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Structural Cap</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{studioStats.availableRooms} Units</p>
+                           <p className="text-[10px] text-blue-500 font-bold mt-1">Operationally ready</p>
+                        </div>
                      </div>
 
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setStudioSubTab('services')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'services' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Services</button>
-                        <button onClick={() => setStudioSubTab('equipment')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'equipment' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Equipment</button>
-                        <button onClick={() => setStudioSubTab('rooms')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'rooms' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Rooms</button>
-                        <button onClick={() => setStudioSubTab('maintenance')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${studioSubTab === 'maintenance' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Maintenance</button>
+                     <div className="flex gap-4 border-b border-white/5 pb-6 overflow-x-auto">
+                        <button onClick={() => setStudioSubTab('services')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${studioSubTab === 'services' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Matrix</button>
+                        <button onClick={() => setStudioSubTab('equipment')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${studioSubTab === 'equipment' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Hardware</button>
+                        <button onClick={() => setStudioSubTab('rooms')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${studioSubTab === 'rooms' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Structures</button>
+                        <button onClick={() => setStudioSubTab('maintenance')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${studioSubTab === 'maintenance' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Maintenance</button>
                      </div>
 
                      {studioSubTab === 'services' && (
-                        <>
-                           <div className="flex justify-between items-center mb-4">
-                              <span className="font-bold flex items-center gap-2 text-white">Services {sessionTypesLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
-                              <button onClick={openAddSessionType} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Service</button>
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                 <h4 className="text-xl font-black text-white tracking-tight">Service Protocols</h4>
+                                 {sessionTypesLoading && <RefreshCw size={18} className="animate-spin text-brand-cyan" />}
+                              </div>
+                              <button onClick={openAddSessionType} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                                 <Plus size={18} /> Define Protocol
+                              </button>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {sessionTypes.map(st => (
-                                 <div key={st.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between mb-2"><h4 className="font-bold text-lg">{st.name}</h4><div className="flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditSessionType(st)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteSessionType(st.id)} /></div></div>
-                                    <p className="text-gray-400 text-sm mb-4 h-10 line-clamp-2">{st.description}</p>
-                                    <p className="font-bold text-brand-purple">KES {st.price.toLocaleString()}</p>
+                                 <div key={st.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                                    <div className="flex justify-between items-start mb-6 relative z-10">
+                                       <h4 className="font-black text-xl text-white tracking-tight">{st.name}</h4>
+                                       <div className="flex gap-2">
+                                          <button onClick={() => openEditSessionType(st)} className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-500/5 rounded-xl transition-all border border-white/5">
+                                             <PenSquare size={16} />
+                                          </button>
+                                          <button onClick={() => deleteSessionType(st.id)} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all border border-white/5">
+                                             <Trash2 size={16} />
+                                          </button>
+                                       </div>
+                                    </div>
+                                    <p className="text-gray-500 text-sm font-medium mb-8 h-12 line-clamp-2 relative z-10">{st.description}</p>
+                                    <div className="flex justify-between items-center relative z-10">
+                                       <div className="px-4 py-2 bg-brand-purple/5 border border-brand-purple/10 rounded-2xl">
+                                          <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-1">MAGNITUDE</p>
+                                          <p className="font-black text-brand-purple text-lg">KES {st.price.toLocaleString()}</p>
+                                       </div>
+                                       <div className="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center text-gray-700 group-hover:border-brand-purple/20 group-hover:text-brand-purple transition-all">
+                                          <ExternalLink size={20} />
+                                       </div>
+                                    </div>
                                  </div>
                               ))}
                            </div>
-                        </>
+                        </div>
                      )}
                      {studioSubTab === 'equipment' && (
-                        <>
-                           <div className="flex justify-end"><button onClick={openAddEquipment} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Gear</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {studioEquipmentLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{studioEquipment.map(eq => (<tr key={eq.id}><td className="px-6 py-4 font-bold">{eq.name}</td><td className="px-6 py-4 text-gray-400">{eq.category}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditEquipment(eq)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteStudioEquipment(eq.id)} /></td></tr>))}</tbody></table></div>
-                        </>
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center">
+                              <h4 className="text-xl font-black text-white tracking-tight">Hardware Repository</h4>
+                              <button onClick={openAddEquipment} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                                 <Plus size={18} /> Catalog Hardware
+                              </button>
+                           </div>
+                           <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                              <div className="overflow-x-auto">
+                                 <table className="w-full text-left whitespace-nowrap">
+                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                       <tr>
+                                          <th className="px-8 py-6">Asset Nomenclature</th>
+                                          <th className="px-8 py-6">Hardware Classification</th>
+                                          <th className="px-8 py-6 text-right">Ops Control</th>
+                                       </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.03] text-sm">
+                                       {studioEquipment.map(eq => (
+                                          <tr key={eq.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6 font-black text-white group-hover:text-brand-cyan transition-colors text-base tracking-tight">{eq.name}</td>
+                                             <td className="px-8 py-6">
+                                                <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full">{eq.category}</span>
+                                             </td>
+                                             <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-3">
+                                                   <button onClick={() => openEditEquipment(eq)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all shadow-sm"><PenSquare size={18} /></button>
+                                                   <button onClick={() => deleteStudioEquipment(eq.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all shadow-sm"><Trash2 size={18} /></button>
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
+                           </div>
+                        </div>
                      )}
                      {studioSubTab === 'rooms' && (
-                        <>
-                           <div className="flex justify-between items-center mb-4">
-                              <span className="font-bold flex items-center gap-2 text-white">Rooms {studioRoomsLoading && <RefreshCw size={16} className="animate-spin text-brand-cyan" />}</span>
-                              <div onClick={openAddRoom} className="bg-brand-purple text-white px-3 py-1.5 rounded-lg font-bold text-xs flex gap-2 items-center cursor-pointer hover:bg-purple-600 transition">
-                                 <Plus size={16} /> Add Room
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                 <h4 className="text-xl font-black text-white tracking-tight">Active Structures</h4>
+                                 {studioRoomsLoading && <RefreshCw size={18} className="animate-spin text-brand-cyan" />}
                               </div>
+                              <button onClick={openAddRoom} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                                 <Plus size={18} /> Initialize Structure
+                              </button>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {studioRooms.map(room => (
-                                 <div key={room.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between items-start mb-2">
-                                       <h4 className="font-bold text-lg">{room.name}</h4>
+                                 <div key={room.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                                    <div className="flex justify-between items-start mb-6">
+                                       <div className="flex flex-col gap-1">
+                                          <h4 className="font-black text-xl text-white tracking-tight">{room.name}</h4>
+                                          <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border w-fit ${room.status === 'active' ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>{room.status}</span>
+                                       </div>
                                        <div className="flex gap-2">
-                                          <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditRoom(room)} />
-                                          <Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => { if (confirm('Delete room?')) deleteStudioRoom(room.id) }} />
+                                          <button onClick={() => openEditRoom(room)} className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-500/5 rounded-xl transition-all border border-white/5"><PenSquare size={16} /></button>
+                                          <button onClick={() => { if (confirm('Retire structure?')) deleteStudioRoom(room.id) }} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all border border-white/5"><Trash2 size={16} /></button>
                                        </div>
                                     </div>
-                                    <p className="text-sm text-gray-400 mb-4">{room.description}</p>
-                                    <div className="flex justify-between items-center text-xs">
-                                       <span className="bg-white/10 px-2 py-1 rounded">Cap: {room.capacity}</span>
-                                       <span className={`px-2 py-1 rounded ${room.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{room.status}</span>
+                                    <p className="text-sm text-gray-500 font-medium mb-8 h-12 line-clamp-2">{room.description}</p>
+                                    <div className="flex justify-between items-center px-6 py-4 bg-white/[0.02] border border-white/5 rounded-[1.5rem]">
+                                       <div className="flex items-center gap-2">
+                                          <Users size={14} className="text-gray-600" />
+                                          <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Cap: {room.capacity}</span>
+                                       </div>
+                                       <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
                                     </div>
                                  </div>
                               ))}
-                              {/* Removed the large add card since we added a button above */}
                            </div>
-                        </>
+                        </div>
                      )}
                      {studioSubTab === 'maintenance' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4 flex items-center gap-2">Item {maintenanceLogsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-4">Issue</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Status</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">
-                              {maintenanceLogs.map(log => (
-                                 <tr key={log.id}>
-                                    <td className="px-6 py-4 font-bold">{log.itemName}</td>
-                                    <td className="px-6 py-4">{log.description}</td>
-                                    <td className="px-6 py-4 text-gray-400">{log.date}</td>
-                                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded ${log.status === 'resolved' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{log.status}</span></td>
-                                 </tr>
-                              ))}
-                           </tbody></table>
+                        <div className="space-y-6">
+                           <div className="flex items-center gap-3">
+                              <h4 className="text-xl font-black text-white tracking-tight">System Integrity</h4>
+                              {maintenanceLogsLoading && <RefreshCw size={18} className="animate-spin text-brand-cyan" />}
+                           </div>
+                           <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                              <div className="overflow-x-auto">
+                                 <table className="w-full text-left whitespace-nowrap">
+                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                       <tr>
+                                          <th className="px-8 py-6">Asset Under Review</th>
+                                          <th className="px-8 py-6">Incident Log</th>
+                                          <th className="px-8 py-6">Temporal Stamp</th>
+                                          <th className="px-8 py-6">System Status</th>
+                                       </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.03] text-sm">
+                                       {maintenanceLogs.map(log => (
+                                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6 font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{log.itemName}</td>
+                                             <td className="px-8 py-6 text-gray-400 font-medium">{log.description}</td>
+                                             <td className="px-8 py-6 text-gray-500 font-bold">{log.date}</td>
+                                             <td className="px-8 py-6">
+                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${log.status === 'resolved' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                   'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
+                                                   }`}>
+                                                   {log.status}
+                                                </span>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
+                           </div>
                         </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'referrals' && (
-                  <div className="animate-fade-in-up space-y-6">
+                  <div className="animate-fade-in-up space-y-8">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Total Referrals" value={referralStatsSummary.total} icon={Users} color="text-brand-purple" />
-                        <StatCard label="Active Referrers" value={referralStatsSummary.active} icon={Shield} color="text-brand-cyan" />
-                        <StatCard label="Total Payouts" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" />
-                        <StatCard label="System Status" value={referralSettings.enabled ? 'Active' : 'Disabled'} icon={Shield} color={referralSettings.enabled ? 'text-green-500' : 'text-red-500'} />
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-brand-purple/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple mb-4">
+                              <Users size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Network Expansion</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{referralStatsSummary.total}</p>
+                           <p className="text-[10px] text-brand-purple font-bold mt-1">Gross conversions</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-brand-cyan/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan mb-4">
+                              <Activity size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Active Protocols</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{referralStatsSummary.active}</p>
+                           <p className="text-[10px] text-brand-cyan font-bold mt-1">Authenticated referrers</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-yellow-500/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-500 mb-4">
+                              <Gift size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Settled Assets</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">KES {referralStatsSummary.payouts.toLocaleString()}</p>
+                           <p className="text-[10px] text-yellow-500 font-bold mt-1">Cumulative payouts</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
+                           <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 mb-4">
+                              <Shield size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">System Integrity</p>
+                           <div className="flex items-center gap-2 mt-1">
+                              <div className={`w-2 h-2 rounded-full ${referralSettings.enabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                              <p className={`text-xl font-black tracking-tight ${referralSettings.enabled ? 'text-green-500' : 'text-red-500'}`}>
+                                 {referralSettings.enabled ? 'OPERATIONAL' : 'DEACTIVATED'}
+                              </p>
+                           </div>
+                        </div>
                      </div>
 
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setReferralSubTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'settings' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>System Settings</button>
-                        <button onClick={() => setReferralSubTab('logs')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${referralSubTab === 'logs' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Referral Logs</button>
+                     <div className="flex gap-4 border-b border-white/5 pb-6 overflow-x-auto">
+                        <button onClick={() => setReferralSubTab('settings')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${referralSubTab === 'settings' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Governance</button>
+                        <button onClick={() => setReferralSubTab('logs')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${referralSubTab === 'logs' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Historical Logs</button>
                      </div>
 
                      {referralSubTab === 'settings' && (
-                        <div className="bg-[#15151A] p-8 rounded-2xl border border-white/5 space-y-8 max-w-2xl">
-                           <div className="flex justify-between items-center">
+                        <div className="bg-[#0B0B0F] p-10 rounded-[3rem] border border-white/5 space-y-10 max-w-3xl shadow-2xl relative overflow-hidden">
+                           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-purple/5 blur-[100px] rounded-full -mr-32 -mt-32" />
+                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
                               <div>
-                                 <h3 className="text-xl font-bold text-white">Referral System Control</h3>
-                                 <p className="text-sm text-gray-500">Enable or disable the entire referral system</p>
+                                 <h3 className="text-2xl font-black text-white tracking-tight">Referral Protocol Control</h3>
+                                 <p className="text-sm text-gray-500 font-medium">Configure global expansion parameters and incentive magnitude</p>
                               </div>
                               <button
                                  onClick={() => updateReferralSettings({ enabled: !referralSettings.enabled })}
-                                 className={`px-6 py-2 rounded-full font-bold text-sm transition ${referralSettings.enabled ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
+                                 className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all transform hover:-translate-y-1 ${referralSettings.enabled ?
+                                    'bg-green-500/10 text-green-500 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.1)]' :
+                                    'bg-red-500/10 text-red-500 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.1)]'
+                                    }`}
                               >
-                                 {referralSettings.enabled ? 'SYSTEM ENABLED' : 'SYSTEM DISABLED'}
+                                 {referralSettings.enabled ? 'DISABLE PROTOCOL' : 'ACTIVATE PROTOCOL'}
                               </button>
                            </div>
 
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
                               <div className="space-y-4">
-                                 <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase">New User Discount</label>
+                                 <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Acquisition Incentive</label>
                                     <select
                                        value={referralSettings.newUserDiscountType}
                                        onChange={(e) => updateReferralSettings({ newUserDiscountType: e.target.value as 'percentage' | 'flat' })}
-                                       className="bg-black/20 border border-white/10 rounded px-2 py-1 text-[10px] font-bold text-brand-purple uppercase outline-none"
+                                       className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-purple uppercase outline-none focus:border-brand-purple/50 transition-all cursor-pointer"
                                     >
-                                       <option value="percentage">% Percentage</option>
-                                       <option value="flat">KES Flat</option>
+                                       <option value="percentage">% MAGNITUDE</option>
+                                       <option value="flat">KES QUANTITY</option>
                                     </select>
                                  </div>
-                                 <div className="flex items-center gap-3">
+                                 <div className="relative group">
                                     <input
                                        type="number"
                                        value={referralSettings.newUserDiscount}
                                        onChange={(e) => updateReferralSettings({ newUserDiscount: Number(e.target.value) })}
-                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                       className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-purple/50 outline-none font-black text-xl text-white transition-all shadow-inner"
                                     />
-                                    <span className="text-gray-400 font-bold">{referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}</span>
+                                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-purple transition-colors">
+                                       {referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}
+                                    </span>
                                  </div>
                               </div>
                               <div className="space-y-4">
-                                 <label className="block text-xs font-bold text-gray-500 uppercase">Referrer Reward (KES)</label>
-                                 <div className="flex items-center gap-3">
+                                 <div className="bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Referrer Compensation</label>
+                                 </div>
+                                 <div className="relative group">
                                     <input
                                        type="number"
                                        value={referralSettings.referrerRewardAmount}
                                        onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
-                                       className="bg-black/40 border border-white/10 rounded-lg px-4 py-3 w-full focus:border-brand-purple outline-none"
+                                       className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-purple/50 outline-none font-black text-xl text-white transition-all shadow-inner"
                                     />
-                                    <span className="text-gray-400 font-bold">KES</span>
+                                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-purple transition-colors">KES</span>
                                  </div>
                               </div>
                            </div>
 
-                           <div className="p-4 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex gap-4 items-start">
-                              <Info className="text-brand-purple shrink-0 mt-1" size={20} />
-                              <div className="text-sm text-gray-300">
-                                 <p className="font-bold text-white mb-1">How it works:</p>
-                                 <ul className="list-disc ml-4 space-y-1 text-xs">
-                                    <li>New users get the <strong>Discount %</strong> on their first subscription.</li>
-                                    <li>Referrers receive a <strong>Flat Amount</strong> in their balance once the referee pays.</li>
-                                    <li>System validates for self-referral and one-time use automatically.</li>
-                                 </ul>
+                           <div className="p-8 bg-brand-purple/5 border border-brand-purple/10 rounded-[2rem] flex gap-6 items-start relative z-10">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shrink-0">
+                                 <Info size={24} />
+                              </div>
+                              <div className="space-y-4">
+                                 <h4 className="font-black text-white text-lg tracking-tight">Conversion Protocol Logic</h4>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex gap-3">
+                                       <div className="w-5 h-5 rounded-full bg-brand-purple/20 flex items-center justify-center text-brand-purple text-[10px] font-black shrink-0">1</div>
+                                       <p className="text-xs text-gray-400 font-medium leading-relaxed">New identities receive the <span className="text-white font-bold">Incentive Magnitude</span> on initial subscription protocol.</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                       <div className="w-5 h-5 rounded-full bg-brand-purple/20 flex items-center justify-center text-brand-purple text-[10px] font-black shrink-0">2</div>
+                                       <p className="text-xs text-gray-400 font-medium leading-relaxed">Referrers are credited with <span className="text-white font-bold">Reward Quantum</span> upon referee transaction clearance.</p>
+                                    </div>
+                                 </div>
                               </div>
                            </div>
                         </div>
                      )}
 
                      {referralSubTab === 'logs' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <table className="w-full text-left">
-                              <thead className="bg-black/20 text-gray-500 text-xs uppercase border-b border-white/5">
-                                 <tr>
-                                    <th className="px-6 py-4">Referrer</th>
-                                    <th className="px-6 py-4">Referee</th>
-                                    <th className="px-6 py-4">Plan Purchased</th>
-                                    <th className="px-6 py-4">Reward</th>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4">Status</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 {referralLogs.length === 0 ? (
-                                    <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No referral activity logged yet.</td></tr>
-                                 ) : (
-                                    referralLogs.map(log => (
-                                       <tr key={log.id} className="hover:bg-white/5 transition">
-                                          <td className="px-6 py-4">
-                                             <div className="font-bold text-white">{log.referrerName}</div>
-                                             <div className="text-[10px] text-gray-500 font-mono uppercase">{log.referrerId.split('-')[0]}...</div>
-                                          </td>
-                                          <td className="px-6 py-4">
-                                             <div className="font-bold text-white">{log.refereeName}</div>
-                                             <div className="text-[10px] text-gray-400">Applied {log.discountApplied}% OFF</div>
-                                          </td>
-                                          <td className="px-6 py-4 capitalize">{log.planPurchased}</td>
-                                          <td className="px-6 py-4 text-green-500 font-bold">KES {referralSettings.referrerRewardAmount}</td>
-                                          <td className="px-6 py-4 text-gray-500">{new Date(log.createdAt).toLocaleDateString()}</td>
-                                          <td className="px-6 py-4">
-                                             <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${log.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
-                                                {log.status}
-                                             </span>
-                                          </td>
-                                       </tr>
-                                    ))
-                                 )}
-                              </tbody>
-                           </table>
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Origin Identity</th>
+                                       <th className="px-8 py-6">Destination Identity</th>
+                                       <th className="px-8 py-6">Protocol Type</th>
+                                       <th className="px-8 py-6">Asset Quantum</th>
+                                       <th className="px-8 py-6">Temporal Stamp</th>
+                                       <th className="px-8 py-6">System Status</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {referralLogs.length === 0 ? (
+                                       <tr><td colSpan={6} className="px-8 py-20 text-center">
+                                          <div className="flex flex-col items-center gap-4 text-gray-600">
+                                             <Inbox size={48} className="opacity-20" />
+                                             <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No Expansion Logs Detected</p>
+                                          </div>
+                                       </td></tr>
+                                    ) : (
+                                       referralLogs.map(log => (
+                                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6">
+                                                <div className="flex flex-col">
+                                                   <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{log.referrerName}</span>
+                                                   <span className="text-[10px] text-gray-600 font-bold font-mono tracking-widest">{log.referrerId.split('-')[0].toUpperCase()}</span>
+                                                </div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <div className="flex flex-col">
+                                                   <span className="font-black text-white text-base tracking-tight">{log.refereeName}</span>
+                                                   <span className="text-[10px] text-brand-cyan font-bold uppercase tracking-widest">{log.discountApplied}% Reduction Applied</span>
+                                                </div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full">{log.planPurchased}</span>
+                                             </td>
+                                             <td className="px-8 py-6 text-green-500 font-black text-base">KES {referralSettings.referrerRewardAmount}</td>
+                                             <td className="px-8 py-6 text-gray-500 font-bold">{new Date(log.createdAt).toLocaleDateString()}</td>
+                                             <td className="px-8 py-6">
+                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${log.status === 'completed' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                   'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                                   }`}>
+                                                   {log.status}
+                                                </span>
+                                             </td>
+                                          </tr>
+                                       ))
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'users' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Total Users" value={(users || []).length} icon={Users} color="text-brand-purple" />
-                        <StatCard label="Subscribers" value={(users || []).filter(u => u.isSubscriber).length} icon={Check} color="text-green-500" />
-                        <StatCard label="Admins" value={(users || []).filter(u => u.role === 'admin').length} icon={Shield} color="text-red-500" />
-                        <StatCard label="Active Now" value={(liveUsers || []).length} icon={Monitor} color="text-blue-500" />
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Access Control</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage credentials and authentication layers across global users</p>
+                        </div>
+                        <div className="flex bg-[#0B0B0F] p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                           <div className="px-5 py-2.5 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                              <span className="text-[10px] font-black uppercase tracking-widest text-brand-purple">{(liveUsers || []).length} Pulse Active</span>
+                           </div>
+                        </div>
                      </div>
 
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Role</th><th className="px-6 py-4">Subscription</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{(users || []).map(u => {
-                           const isOnline = liveUsers.some(lu => lu.id === u.id);
-                           const displayStatus = u.status || 'active';
-                           return (
-                              <tr key={u.id}>
-                                 <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                       {isOnline && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shrink-0" title="Online" />}
-                                       <span className="font-bold">{u.name}</span>
-                                    </div>
-                                 </td>
-                                 <td className="px-6 py-4 text-gray-400">{u.email}</td>
-                                 <td className="px-6 py-4 capitalize">{u.role}</td>
-                                 <td className="px-6 py-4 text-xs text-gray-500">
-                                    {(u.isSubscriber || u.subscriptionExpiry) ? (
-                                       <div className="flex flex-col gap-1">
-                                          <span className={`${u.isSubscriber ? 'text-green-500' : 'text-gray-400'} font-bold`}>
-                                             {u.isSubscriber ? `Active (${u.subscriptionPlan || 'Pro'})` : 'Expired'}
-                                          </span>
-                                          {u.subscriptionExpiry && <CountdownTimer expiryDate={u.subscriptionExpiry} />}
-                                       </div>
-                                    ) : 'None'}
-                                 </td>
-                                 <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded capitalize ${displayStatus === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{displayStatus}</span></td>
-                                 <td className="px-6 py-4 flex gap-2">
-                                    <button onClick={() => openUserDetail(u)} className="text-blue-500 text-xs hover:underline flex items-center gap-1"><Eye size={14} /> View</button>
-                                 </td>
-                              </tr>);
-                        })}</tbody></table>
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <Users size={24} />
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold border border-green-500/10">↑ 2.4%</span>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Authenticated</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                                 <CheckCircle size={24} />
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold border border-green-500/10">↑ 1.2%</span>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Access Pass</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).filter(u => u.isSubscriber).length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-red-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                                 <Shield size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Root Admin</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).filter(u => u.role === 'admin').length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <Monitor size={24} />
+                              </div>
+                              <div className="w-2 h-2 bg-brand-cyan rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">System Live</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(liveUsers || []).length}</p>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Operational Profile</th>
+                                    <th className="px-8 py-6">System Credential</th>
+                                    <th className="px-8 py-6">Privilege Status</th>
+                                    <th className="px-8 py-6">Verification</th>
+                                    <th className="px-8 py-6 text-right">Access Control</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {(users || []).map(u => {
+                                    const isOnline = liveUsers.some(lu => lu.id === u.id);
+                                    const displayStatus = u.status || 'active';
+                                    return (
+                                       <tr key={u.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-5">
+                                                <div className="relative shrink-0 group-hover:scale-105 transition-transform duration-500">
+                                                   <div className="w-14 h-14 rounded-[1.25rem] bg-brand-purple/20 border-2 border-brand-purple/20 overflow-hidden shadow-lg p-0.5">
+                                                      <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}&background=7B5CFF&color=fff`} alt="" className="w-full h-full object-cover rounded-[1rem]" />
+                                                   </div>
+                                                   {isOnline && <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-4 border-[#0B0B0F] rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.3)]" title="Online" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                   <div className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{u.name}</div>
+                                                   <div className="text-[11px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{u.email}</div>
+                                                </div>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-2.5">
+                                                <div className={`p-2 rounded-xl border ${u.role === 'admin' ? 'bg-red-500/5 border-red-500/20 text-red-500' : 'bg-gray-500/5 border-white/5 text-gray-500'}`}>
+                                                   {u.role === 'admin' ? <Shield size={16} /> : <Users size={16} />}
+                                                </div>
+                                                <span className={`capitalize font-black text-[10px] uppercase tracking-[0.1em] ${u.role === 'admin' ? 'text-red-400' : 'text-gray-400'}`}>{u.role}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             {(u.isSubscriber || u.subscriptionExpiry) ? (
+                                                <div className="flex flex-col gap-2">
+                                                   <span className={`${u.isSubscriber ? 'text-green-500' : 'text-orange-400'} font-black text-[10px] uppercase tracking-widest flex items-center gap-2 px-3 py-1.5 rounded-full border ${u.isSubscriber ? 'bg-green-500/5 border-green-500/10' : 'bg-orange-500/5 border-orange-500/10'} w-fit shadow-sm`}>
+                                                      <div className={`w-1.5 h-1.5 rounded-full ${u.isSubscriber ? 'bg-green-500 animate-pulse' : 'bg-orange-400'}`} />
+                                                      {u.isSubscriber ? (u.subscriptionPlan || 'Pro Member') : 'Access Expired'}
+                                                   </span>
+                                                   {u.subscriptionExpiry && (
+                                                      <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                         <div className="w-4 h-4 rounded-md bg-white/5 flex items-center justify-center text-gray-600">
+                                                            <Clock size={10} />
+                                                         </div>
+                                                         <div className="text-[10px] text-gray-500 font-bold tracking-tighter">
+                                                            <CountdownTimer expiryDate={u.subscriptionExpiry} />
+                                                         </div>
+                                                      </div>
+                                                   )}
+                                                </div>
+                                             ) : <span className="text-gray-600 font-black uppercase tracking-[0.2em] text-[9px] px-3 py-1 border border-white/5 rounded-full">Base Access</span>}
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3.5 py-1.5 rounded-xl border shadow-sm ${displayStatus === 'active' ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>
+                                                {displayStatus}
+                                             </span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openUserDetail(u)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-2xl border border-white/5 transition-all shadow-sm" title="Profile Intel"><Eye size={18} /></button>
+                                                <button className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-2xl border border-white/5 transition-all shadow-sm" title="Fast Credential Update"><PenSquare size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    );
+                                 })}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                )}
 
                {activeTab === 'shipping' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Pending" value={shippingStats.pending.toString()} icon={Package} color="text-yellow-500" />
-                        <StatCard label="Delivered" value={shippingStats.delivered.toString()} icon={Check} color="text-green-500" />
-                        <StatCard label="Revenue" value={`KES ${new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}`} icon={DollarSign} color="text-brand-purple" />
-                        <StatCard label="Failed" value={shippingStats.failed.toString()} icon={AlertTriangle} color="text-red-500" />
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Logistics Engine</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage global fulfillment pipelines and regional delivery protocols</p>
+                        </div>
                      </div>
 
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <div className="p-4 border-b border-white/5 font-bold flex justify-between items-center text-brand-cyan">
-                              <span><Truck size={16} className="inline mr-2" /> Pending Shipments</span>
-                              <span className="text-xs px-2 py-0.5 bg-brand-cyan/10 rounded-full">{(liveOrders || []).filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length}</span>
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-yellow-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-500">
+                                 <Plus size={24} />
+                              </div>
+                              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
                            </div>
-                           <div className="max-h-[500px] overflow-y-auto">
-                              <table className="w-full text-left">
-                                 <tbody className="divide-y divide-white/5 text-sm">
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Dispatch Queue</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{shippingStats.pending}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                                 <Check size={24} />
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold border border-green-500/10">↑ 100%</span>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Fulfilled Protocol</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{shippingStats.delivered}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <DollarSign size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Asset Revenue</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">KES {new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-red-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                                 <AlertTriangle size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Logistics Variance</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{shippingStats.failed}</p>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Pending Shipments Table */}
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl flex flex-col">
+                           <div className="px-8 py-6 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
+                              <div>
+                                 <h4 className="text-lg font-black text-white tracking-tight">Active Consignments</h4>
+                                 <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest leading-none mt-1">Ready for Fulfillment</p>
+                              </div>
+                              <div className="px-4 py-1.5 bg-brand-cyan/10 border border-brand-cyan/20 rounded-full">
+                                 <span className="text-[10px] font-black text-brand-cyan uppercase tracking-widest">{(liveOrders || []).filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length} Pending</span>
+                              </div>
+                           </div>
+                           <div className="overflow-x-auto max-h-[600px] scrollbar-hide">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-4">Consignee Profile</th>
+                                       <th className="px-8 py-4 text-right">Logistics Control</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
                                     {(liveOrders || []).filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).map(o => (
-                                       <tr key={o.id} className="hover:bg-white/5">
-                                          <td className="px-4 py-3 font-mono text-xs">{o.id}</td>
-                                          <td className="px-4 py-3">
-                                             <div className="font-bold">{o.customerName}</div>
-                                             <div className="text-[10px] text-gray-500">{o.customerEmail}</div>
+                                       <tr key={o.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center font-mono text-[10px] text-gray-500 group-hover:bg-brand-purple/10 group-hover:text-brand-purple transition-all border border-transparent group-hover:border-brand-purple/20">
+                                                   #{o.id.slice(-4).toUpperCase()}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                   <span className="font-black text-white text-base tracking-tight">{o.customerName}</span>
+                                                   <span className="text-[10px] text-gray-500 font-bold tracking-widest">{o.customerEmail}</span>
+                                                </div>
+                                             </div>
                                           </td>
-                                          <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[150px]">{Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment'}</td>
-                                          <td className="px-4 py-3"><button onClick={() => openShipModal(o)} className="text-[10px] bg-brand-purple text-white px-2 py-1 rounded font-bold uppercase">Ship Now</button></td>
+                                          <td className="px-8 py-6 text-right">
+                                             <button onClick={() => openShipModal(o)} className="px-6 py-2.5 bg-brand-purple hover:bg-purple-600 text-white border border-brand-purple/20 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all transform hover:-translate-y-1 shadow-lg shadow-brand-purple/10">
+                                                Dispatch
+                                             </button>
+                                          </td>
                                        </tr>
                                     ))}
                                     {(liveOrders || []).filter(o => (o.status === 'processing' || o.status === 'pending') && o.requiresShipping).length === 0 && (
-                                       <tr><td className="p-8 text-center text-gray-500 text-xs">No pending shipments found.</td></tr>
+                                       <tr><td colSpan={2} className="px-8 py-32 text-center text-gray-600 font-bold italic opacity-40">Zero pending consignments registered.</td></tr>
                                     )}
                                  </tbody>
                               </table>
                            </div>
                         </div>
 
+                        {/* Shipping Zones & Rates */}
                         <div className="space-y-6">
                            <div className="flex justify-between items-center px-2">
-                              <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500">Shipping Zones & Rates</h4>
-                              <button className="text-brand-purple text-xs font-bold">+ Add Zone</button>
+                              <div>
+                                 <h4 className="text-xl font-black text-white tracking-tight">Tactical Zones</h4>
+                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Regional Logistics Mapping</p>
+                              </div>
+                              <button className="px-5 py-2.5 bg-brand-purple/10 hover:bg-brand-purple/20 text-brand-purple border border-brand-purple/20 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
+                                 + Append Zone
+                              </button>
                            </div>
-                           <div className="grid grid-cols-1 gap-4">
+                           <div className="grid grid-cols-1 gap-6">
                               {shippingZones.map(zone => (
-                                 <div key={zone.id} className="bg-[#15151A] p-6 rounded-xl border border-white/5">
-                                    <div className="flex justify-between items-start mb-2">
+                                 <div key={zone.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden group">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-brand-purple/20 group-hover:bg-brand-purple transition-all" />
+                                    <div className="flex justify-between items-start mb-6">
                                        <div>
-                                          <h4 className="font-bold text-lg">{zone.name}</h4>
-                                          <p className="text-gray-400 text-xs mb-3 italic">{zone.description}</p>
+                                          <h4 className="text-xl font-black text-white tracking-tight mb-1">{zone.name}</h4>
+                                          <p className="text-[10px] text-gray-500 font-bold italic tracking-wide">{zone.description}</p>
                                        </div>
-                                       <PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditZone(zone)} />
+                                       <button
+                                          onClick={() => openEditZone(zone)}
+                                          className="p-3 bg-white/5 hover:bg-brand-purple/10 text-gray-500 hover:text-brand-purple rounded-xl transition-all border border-white/5 hover:border-brand-purple/20"
+                                       >
+                                          <PenSquare size={18} />
+                                       </button>
                                     </div>
-                                    <div className="space-y-1">
+                                    <div className="space-y-3">
+                                       <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-4">Rate Matrix</p>
                                        {zone.rates.map(r => (
-                                          <div key={r.id} className="flex justify-between text-[11px] border-b border-white/5 pb-1 last:border-0">
-                                             <span className="text-gray-400">{r.label}</span>
-                                             <span className="font-bold text-brand-purple">KES {r.price}</span>
+                                          <div key={r.id} className="flex justify-between items-center px-4 py-3 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                                             <div className="flex items-center gap-3">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-brand-purple/50" />
+                                                <span className="text-xs text-gray-400 font-bold uppercase tracking-wide">{r.label}</span>
+                                             </div>
+                                             <span className="font-black text-white text-sm">KES {r.price}</span>
                                           </div>
                                        ))}
                                     </div>
@@ -2351,186 +3186,585 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'content' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Active Sections" value={contentStats.activeSections.toString()} icon={FileText} color="text-green-500" />
-                        <StatCard label="Products" value={products.length.toString()} icon={Check} color="text-blue-500" />
-                        <StatCard label="Sync Status" value={contentStats.lastUpdated} icon={Clock} color="text-brand-purple" />
-                        <StatCard label="System Health" value="Stable" icon={AlertTriangle} color="text-gray-500" />
-                     </div>
-
-                     <div className="flex gap-4 border-b border-white/5 pb-4 overflow-x-auto">
-                        <button onClick={() => setContentSubTab('home')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'home' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Home</button>
-                        <button onClick={() => setContentSubTab('about')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'about' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>About</button>
-                        <button onClick={() => setContentSubTab('footer')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'footer' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Footer & Contact</button>
-                        <button onClick={() => setContentSubTab('tipjar')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'tipjar' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Tip Jar</button>
-                        <button onClick={() => setContentSubTab('seo')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'seo' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>SEO</button>
-                        <button onClick={() => setContentSubTab('notice')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${contentSubTab === 'notice' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Notice</button>
-                     </div>
-
-                     <div className="flex justify-end"><button onClick={handleSaveConfig} className="bg-brand-purple px-6 py-2 rounded-lg font-bold flex gap-2"><Save size={18} /> Save Changes</button></div>
-
-                     {contentSubTab === 'home' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-8">
-                        <div className="space-y-4">
-                           <h4 className="text-brand-cyan font-bold uppercase text-xs tracking-widest">Hero Section</h4>
-                           <InputGroup label="Hero Title" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
-                           <InputGroup label="Hero Subtitle" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
-                           <InputGroup label="CTA Text" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
-                           <InputGroup label="Hero BG Image" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Core CMS</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Global content architecture and metadata governance</p>
                         </div>
-
-                        <div className="space-y-4 pt-6 border-t border-white/5">
-                           <h4 className="text-brand-purple font-bold uppercase text-xs tracking-widest">Featured Mixtapes Section</h4>
-                           <InputGroup label="Section Title" value={editingConfig.home.featuredMixtapes.title} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                           <InputGroup label="Section Subtitle" value={editingConfig.home.featuredMixtapes.subtitle} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.subtitle = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                           <InputGroup label="Link Text (CTA)" value={editingConfig.home.featuredMixtapes.ctaText} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.ctaText = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                        </div>
-                     </div>)}
-                     {contentSubTab === 'about' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="About Title" value={editingConfig.about.title} onChange={v => updateContentField('about', 'title', v)} /><InputGroup label="Bio" type="textarea" value={editingConfig.about.bio} onChange={v => updateContentField('about', 'bio', v)} /></div>)}
-                     {contentSubTab === 'footer' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <InputGroup label="Email" value={editingConfig.contact.email} onChange={v => updateContentField('contact', 'email', v)} />
-                        <InputGroup label="Phone" value={editingConfig.contact.phone} onChange={v => updateContentField('contact', 'phone', v)} />
-                        <InputGroup label="Whatsapp" value={editingConfig.contact.whatsapp} onChange={v => updateContentField('contact', 'whatsapp', v)} />
-                        <InputGroup label="Footer Desc" type="textarea" value={editingConfig.footer.description} onChange={v => updateContentField('footer', 'description', v)} />
-                     </div>)}
-                     {contentSubTab === 'tipjar' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <InputGroup label="Title" value={editingConfig.home.tipJar.title} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                        <InputGroup label="Message" type="textarea" value={editingConfig.home.tipJar.message} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.message = v; setEditingConfig({ ...editingConfig, home: h }) }} />
-                     </div>)}
-                     {contentSubTab === 'seo' && (<div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4"><InputGroup label="Site Title" value={editingConfig.seo.siteTitle} onChange={v => updateContentField('seo', 'siteTitle', v)} /><InputGroup label="Meta Description" type="textarea" value={editingConfig.seo.description} onChange={v => updateContentField('seo', 'description', v)} /><InputGroup label="Keywords" value={editingConfig.seo.keywords} onChange={v => updateContentField('seo', 'keywords', v)} /></div>)}
-                     {contentSubTab === 'notice' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                           <div className="flex items-center gap-4 mb-4">
-                              <InputGroup label="Enabled" type="checkbox" checked={editingConfig.notice?.enabled || false} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, enabled: v } })} />
-                              <div className="text-xs text-gray-400">Enable this to show a site-wide banner at the top of the page.</div>
+                        <div className="flex items-center gap-4">
+                           <div className="flex bg-[#0B0B0F] p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                              <span className="px-5 py-2.5 bg-brand-purple/10 border border-brand-purple/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-brand-purple flex items-center gap-2">
+                                 <Activity size={12} /> Live Sync Active
+                              </span>
                            </div>
-                           <InputGroup label="Notice Title" value={editingConfig.notice?.title || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, title: v } })} />
-                           <InputGroup label="Message" type="textarea" value={editingConfig.notice?.message || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, message: v } })} />
-                           <InputGroup label="Type" options={['info', 'warning', 'error']} value={editingConfig.notice?.type || 'info'} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, type: v as any } })} />
+                           <button onClick={handleSaveConfig} className="px-8 py-4 bg-brand-purple hover:bg-purple-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3 group">
+                              <Save size={18} className="group-hover:scale-110 transition-transform" /> Save Commit
+                           </button>
                         </div>
-                     )}
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                                 <FileText size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Active Modules</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{contentStats.activeSections}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-blue-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
+                                 <ShoppingBag size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Linked Assets</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{products.length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <Clock size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">State Stamp</p>
+                           <p className="text-xl font-black text-white tracking-tighter">{contentStats.lastUpdated}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <AlertCircle size={24} />
+                              </div>
+                              <div className="w-2 h-2 bg-brand-cyan rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Integrity Health</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">Stable</p>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-2 bg-[#0B0B0F] p-2 rounded-[2.5rem] border border-white/5 overflow-x-auto scrollbar-hide">
+                        {[
+                           { id: 'home', label: 'Home Hub', icon: LayoutDashboard },
+                           { id: 'about', label: 'Identity', icon: Users },
+                           { id: 'footer', label: 'Terminal', icon: Monitor },
+                           { id: 'tipjar', label: 'Support', icon: Gift },
+                           { id: 'seo', label: 'Visibility', icon: Globe },
+                           { id: 'notice', label: 'Flash Protocol', icon: Bell }
+                        ].map(tab => (
+                           <button
+                              key={tab.id}
+                              onClick={() => setContentSubTab(tab.id as any)}
+                              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${contentSubTab === tab.id ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/20' : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                 }`}
+                           >
+                              <tab.icon size={14} /> {tab.label}
+                           </button>
+                        ))}
+                     </div>
+
+                     <div className="space-y-8 animate-fade-in">
+                        {contentSubTab === 'home' && (
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                              <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl space-y-6">
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Hero Narrative</h4>
+                                    <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest leading-none mt-1">Main Landing Experience</p>
+                                 </div>
+                                 <div className="space-y-4">
+                                    <InputGroup label="Core Narrative" value={editingConfig.hero.title} onChange={v => updateContentField('hero', 'title', v)} />
+                                    <InputGroup label="Sub-Context" type="textarea" value={editingConfig.hero.subtitle} onChange={v => updateContentField('hero', 'subtitle', v)} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <InputGroup label="Action Trigger" value={editingConfig.hero.ctaText} onChange={v => updateContentField('hero', 'ctaText', v)} />
+                                       <InputGroup label="Visual Asset (URL)" value={editingConfig.hero.bgImage} onChange={v => updateContentField('hero', 'bgImage', v)} />
+                                    </div>
+                                 </div>
+                              </div>
+
+                              <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl space-y-6">
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Featured Mixtapes</h4>
+                                    <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest leading-none mt-1">Carousel Logic</p>
+                                 </div>
+                                 <div className="space-y-4">
+                                    <InputGroup label="Cluster Title" value={editingConfig.home.featuredMixtapes.title} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                                    <InputGroup label="Cluster Context" value={editingConfig.home.featuredMixtapes.subtitle} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.subtitle = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                                    <InputGroup label="Hub Trigger Text" value={editingConfig.home.featuredMixtapes.ctaText} onChange={v => { const h = { ...editingConfig.home }; h.featuredMixtapes.ctaText = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {contentSubTab === 'about' && (
+                           <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl space-y-8">
+                              <div className="flex items-center gap-6">
+                                 <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                    <Users size={32} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-2xl font-black text-white tracking-tight">Public Identity</h4>
+                                    <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Brand Narrative & Bio</p>
+                                 </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-8">
+                                 <InputGroup label="Identity Header" value={editingConfig.about.title} onChange={v => updateContentField('about', 'title', v)} />
+                                 <InputGroup label="Comprehensive Bio" type="textarea" value={editingConfig.about.bio} onChange={v => updateContentField('about', 'bio', v)} placeholder="The story behind the sound..." />
+                              </div>
+                           </div>
+                        )}
+
+                        {contentSubTab === 'footer' && (
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                              <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl space-y-6">
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Communication Channels</h4>
+                                    <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest mt-1">Direct Vectors</p>
+                                 </div>
+                                 <div className="space-y-4">
+                                    <InputGroup label="Inquiry Email" value={editingConfig.contact.email} onChange={v => updateContentField('contact', 'email', v)} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <InputGroup label="Primary Line" value={editingConfig.contact.phone} onChange={v => updateContentField('contact', 'phone', v)} />
+                                       <InputGroup label="WhatsApp Logic" value={editingConfig.contact.whatsapp} onChange={v => updateContentField('contact', 'whatsapp', v)} />
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl space-y-6">
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Terminal Meta</h4>
+                                    <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest mt-1">Footer Context</p>
+                                 </div>
+                                 <InputGroup label="Base Description" type="textarea" value={editingConfig.footer.description} onChange={v => updateContentField('footer', 'description', v)} />
+                              </div>
+                           </div>
+                        )}
+
+                        {contentSubTab === 'tipjar' && (
+                           <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl space-y-8 max-w-2xl mx-auto text-center">
+                              <div className="w-20 h-20 rounded-[2rem] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mx-auto">
+                                 <Star size={40} />
+                              </div>
+                              <div className="space-y-2">
+                                 <h4 className="text-2xl font-black text-white tracking-tight">Patron Engagement</h4>
+                                 <p className="text-[10px] text-amber-500 font-black uppercase tracking-[0.2em]">Tip Jar Logic</p>
+                              </div>
+                              <div className="space-y-6 text-left">
+                                 <InputGroup label="Support Header" value={editingConfig.home.tipJar.title} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.title = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                                 <InputGroup label="Engagement Script" type="textarea" value={editingConfig.home.tipJar.message} onChange={v => { const h = { ...editingConfig.home }; h.tipJar.message = v; setEditingConfig({ ...editingConfig, home: h }) }} />
+                              </div>
+                           </div>
+                        )}
+
+                        {contentSubTab === 'seo' && (
+                           <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-white/10 shadow-2xl space-y-8">
+                              <div className="flex items-center gap-6">
+                                 <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                                    <Globe size={32} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-2xl font-black text-white tracking-tight">Visibility & Indexing</h4>
+                                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Global SEO Protocols</p>
+                                 </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                 <div className="space-y-6">
+                                    <InputGroup label="Site Identification" value={editingConfig.seo.siteTitle} onChange={v => updateContentField('seo', 'siteTitle', v)} />
+                                    <InputGroup label="Search Keywords" value={editingConfig.seo.keywords} onChange={v => updateContentField('seo', 'keywords', v)} placeholder="dj, mixtapes, music, house..." />
+                                 </div>
+                                 <InputGroup label="Global Meta Abstract" type="textarea" value={editingConfig.seo.description} onChange={v => updateContentField('seo', 'description', v)} />
+                              </div>
+                           </div>
+                        )}
+
+                        {contentSubTab === 'notice' && (
+                           <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-brand-purple/20 shadow-2xl space-y-8 relative overflow-hidden">
+                              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-purple/5 blur-[100px] rounded-full -mr-32 -mt-32" />
+                              <div className="relative z-10">
+                                 <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center gap-6">
+                                       <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                          <Bell size={32} />
+                                       </div>
+                                       <div>
+                                          <h4 className="text-2xl font-black text-white tracking-tight">Flash Protocol</h4>
+                                          <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Site-Wide Alert Logic</p>
+                                       </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 bg-white/5 px-6 py-3 rounded-2xl border border-white/5">
+                                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</span>
+                                       <InputGroup label="" type="checkbox" checked={editingConfig.notice?.enabled || false} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, enabled: v } })} />
+                                    </div>
+                                 </div>
+                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="md:col-span-2 space-y-6">
+                                       <InputGroup label="Briefing Title" value={editingConfig.notice?.title || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, title: v } })} />
+                                       <InputGroup label="Critical Briefing" type="textarea" value={editingConfig.notice?.message || ''} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, message: v } })} />
+                                    </div>
+                                    <div className="space-y-6">
+                                       <InputGroup label="Severity Tier" options={['info', 'warning', 'error']} value={editingConfig.notice?.type || 'info'} onChange={v => setEditingConfig({ ...editingConfig, notice: { ...editingConfig.notice!, type: v as any } })} />
+                                       <div className={`p-6 rounded-[2rem] border transition-all ${editingConfig.notice?.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
+                                          editingConfig.notice?.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' :
+                                             'bg-blue-500/10 border-blue-500/20 text-blue-500'
+                                          }`}>
+                                          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-60">Live Preview</p>
+                                          <p className="font-bold text-sm tracking-tight">{editingConfig.notice?.title || 'System Alert'}</p>
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+                     </div>
                   </div>
                )}
 
+
                {activeTab === 'telegram' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4"><button onClick={() => setTelegramSubTab('config')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'config' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Config</button><button onClick={() => setTelegramSubTab('channels')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${telegramSubTab === 'channels' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Channels</button></div>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Signal Bridge</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Configure automated broadcast nodes and channel distribution</p>
+                        </div>
+                        <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
+                           <button onClick={() => setTelegramSubTab('config')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${telegramSubTab === 'config' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Node logic</button>
+                           <button onClick={() => setTelegramSubTab('channels')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${telegramSubTab === 'channels' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Broadcasters</button>
+                        </div>
+                     </div>
+
                      {telegramSubTab === 'config' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 max-w-3xl space-y-4">
-                           <InputGroup label="Bot Token" value={telegramConfig.botToken} onChange={v => updateTelegramConfig({ botToken: v })} />
-                           <InputGroup label="Bot Username" value={telegramConfig.botUsername} onChange={() => { }} />
-                           <div className={`p-4 rounded-lg border ${telegramConfig.status === 'Connected' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>Status: {telegramConfig.status}</div>
+                        <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl space-y-8 max-w-4xl">
+                           <div className="flex items-center gap-6">
+                              <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <Send size={32} />
+                              </div>
+                              <div className="flex-1">
+                                 <h4 className="text-2xl font-black text-white tracking-tight">Bridge Configuration</h4>
+                                 <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest leading-none mt-1">Primary API Interface</p>
+                              </div>
+                              <div className={`px-5 py-2 rounded-2xl border flex items-center gap-3 transition-all ${telegramConfig.status === 'Connected' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                                 <div className={`w-2 h-2 rounded-full ${telegramConfig.status === 'Connected' ? 'bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} />
+                                 <span className="text-[10px] font-black uppercase tracking-widest">{telegramConfig.status}</span>
+                              </div>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              <InputGroup label="Access Token" value={telegramConfig.botToken} onChange={v => updateTelegramConfig({ botToken: v })} placeholder="Enter Bot API Key..." />
+                              <InputGroup label="Identity Handle" value={telegramConfig.botUsername} onChange={() => { }} placeholder="@BotName" />
+                           </div>
+                           <div className="pt-6 border-t border-white/5">
+                              <button onClick={() => updateTelegramConfig({})} className="px-8 py-4 bg-brand-purple hover:bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-brand-purple/20 transition-all flex items-center gap-3">
+                                 <RefreshCw size={18} /> Test Connection
+                              </button>
+                           </div>
                         </div>
                      )}
+
                      {telegramSubTab === 'channels' && (
-                        <>
-                           <div className="flex justify-end mb-4"><button onClick={openAddChannel} className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold flex gap-2"><Plus size={18} /> Add Channel</button></div>
-                           <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><table className="w-full text-left"><thead className="bg-black/20 text-gray-500 text-xs uppercase"><tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">ID</th><th className="px-6 py-4">Genre</th><th className="px-6 py-4">Actions</th></tr></thead><tbody className="divide-y divide-white/5 text-sm">{telegramChannels.map(ch => (<tr key={ch.id}><td className="px-6 py-4 font-bold">{ch.name}</td><td className="px-6 py-4 text-gray-500">{ch.channelId}</td><td className="px-6 py-4">{ch.genre}</td><td className="px-6 py-4 flex gap-2"><PenSquare size={16} className="text-blue-500 cursor-pointer" onClick={() => openEditChannel(ch)} /><Trash2 size={16} className="text-red-500 cursor-pointer" onClick={() => deleteTelegramChannel(ch.id)} /></td></tr>))}</tbody></table></div>
-                        </>
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center px-4">
+                              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">Active Broadcast Nodes</p>
+                              <button onClick={openAddChannel} className="px-6 py-3 bg-brand-purple/10 hover:bg-brand-purple/20 text-brand-purple border border-brand-purple/20 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-3">
+                                 <Plus size={18} /> Append Hub
+                              </button>
+                           </div>
+                           <div className="bg-[#0B0B0F] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Entity Signature</th>
+                                       <th className="px-8 py-6">Identity</th>
+                                       <th className="px-8 py-6">Genre Cluster</th>
+                                       <th className="px-8 py-6 text-right">Protocol Control</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {telegramChannels.map(ch => (
+                                       <tr key={ch.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black text-[10px] uppercase">
+                                                   <Send size={14} />
+                                                </div>
+                                                <span className="font-black text-white text-base tracking-tight group-hover:text-brand-purple transition-colors">{ch.name}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="font-mono text-[11px] text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">{ch.channelId}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-[10px] font-black text-brand-cyan uppercase tracking-widest bg-brand-cyan/5 px-3 py-1 rounded-lg border border-brand-cyan/10">{ch.genre}</span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openEditChannel(ch)} className="p-3 bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white rounded-xl transition-all border border-blue-500/10">
+                                                   <PenSquare size={16} />
+                                                </button>
+                                                <button onClick={() => deleteTelegramChannel(ch.id)} className="p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all border border-red-500/10">
+                                                   <Trash2 size={16} />
+                                                </button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'payments' && (
-                  <div className="animate-fade-in-up bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Ledger Matrix</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Global transaction tracking and fiscal integrity audit</p>
+                        </div>
+                     </div>
+
                      {paymentsLoading || ordersLoading ? (
-                        <div className="p-20 text-center text-gray-500">Loading transactions...</div>
+                        <div className="bg-[#0B0B0F] p-32 rounded-[3.5rem] border border-white/5 shadow-2xl flex flex-col items-center gap-6">
+                           <RefreshCw className="animate-spin text-brand-purple" size={48} />
+                           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Synchronizing Ledger...</p>
+                        </div>
                      ) : combinedTransactions.length === 0 ? (
-                        <div className="p-20 text-center text-gray-400 flex flex-col items-center gap-4">
-                           <CreditCard size={48} className="text-gray-700" />
-                           <div>
-                              <p className="text-lg font-bold">No transactions found</p>
-                              <p className="text-sm">Recent payments and tips will appear here in real-time.</p>
+                        <div className="bg-[#0B0B0F] p-32 rounded-[3.5rem] border border-white/5 shadow-2xl flex flex-col items-center gap-6">
+                           <div className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center text-gray-700">
+                              <CreditCard size={48} />
+                           </div>
+                           <div className="text-center">
+                              <p className="text-xl font-black text-white tracking-tight">Zero Transactions Flagged</p>
+                              <p className="text-sm text-gray-500 font-medium mt-1">Awaiting initial fiscal activity across all vectors</p>
                            </div>
                         </div>
                      ) : (
-                        <table className="w-full text-left">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr>
-                                 <th className="px-6 py-4">Type</th>
-                                 <th className="px-6 py-4">Ref Code</th>
-                                 <th className="px-6 py-4">Date/Time</th>
-                                 <th className="px-6 py-4">User</th>
-                                 <th className="px-6 py-4">Items</th>
-                                 <th className="px-6 py-4">Amount</th>
-                                 <th className="px-6 py-4">Status</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {combinedTransactions.map(tx => (
-                                 <tr key={tx.id} className="hover:bg-white/5 transition">
-                                    <td className="px-6 py-4">
-                                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500' :
-                                          tx.type === 'Tip' ? 'bg-yellow-500/10 text-yellow-500' :
-                                             'bg-purple-500/10 text-purple-500'
-                                          }`}>{tx.type}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-500 font-mono text-xs">{tx.ref || 'N/A'}</td>
-                                    <td className="px-6 py-4">
-                                       <div className="text-white">{tx.date}</div>
-                                       <div className="text-xs text-gray-500">{tx.time}</div>
-                                    </td>
-                                    <td className="px-6 py-4 font-bold">{tx.name}</td>
-                                    <td className="px-6 py-4 text-xs max-w-[200px] truncate">{tx.items}</td>
-                                    <td className="px-6 py-4 font-bold text-brand-purple">KES {tx.amount.toLocaleString()}</td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-xs px-2 py-1 rounded capitalize ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active' ? 'bg-green-500/10 text-green-500' :
-                                          tx.status === 'pending' || tx.status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                                             'bg-red-500/10 text-red-500'
-                                          }`}>{tx.status}</span>
-                                    </td>
-                                 </tr>
-                              ))}
-                           </tbody>
-                        </table>
+                        <div className="bg-[#0B0B0F] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Fiscal Type</th>
+                                       <th className="px-8 py-6">Ref Hash</th>
+                                       <th className="px-8 py-6">Temporal Stamp</th>
+                                       <th className="px-8 py-6">Counterparty</th>
+                                       <th className="px-8 py-6">Asset Payload</th>
+                                       <th className="px-8 py-6">Equity Value</th>
+                                       <th className="px-8 py-6 text-right">State</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {combinedTransactions.map(tx => (
+                                       <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <span className={`px-4 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest border ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                                tx.type === 'Tip' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                   'bg-brand-purple/10 text-brand-purple border-brand-purple/20'
+                                                }`}>{tx.type}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="font-mono text-[11px] text-gray-500 select-all">{tx.ref || 'VOID_PRTCL'}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className="font-black text-white text-xs">{tx.date}</span>
+                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{tx.time}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="font-black text-white text-sm tracking-tight">{tx.name}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <p className="text-[11px] text-gray-500 font-medium max-w-[200px] truncate">{tx.items}</p>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="font-black text-white text-base tracking-tighter">KES {tx.amount.toLocaleString()}</span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <span className={`px-4 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest border ${['completed', 'paid', 'success', 'shipped', 'active'].includes(tx.status.toLowerCase()) ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                ['pending', 'processing'].includes(tx.status.toLowerCase()) ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                   'bg-red-500/10 text-red-500 border-red-500/20'
+                                                }`}>{tx.status}</span>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
                      )}
                   </div>
                )}
 
                {activeTab === 'newsletters' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="flex gap-4 border-b border-white/5 pb-4">
-                        <button onClick={() => setNewsletterSubTab('subscribers')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'subscribers' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Subscribers</button>
-                        <button onClick={() => setNewsletterSubTab('campaigns')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'campaigns' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Campaigns</button>
-                        <button onClick={() => setNewsletterSubTab('blast')} className={`px-4 py-2 rounded-lg text-sm font-bold uppercase ${newsletterSubTab === 'blast' ? 'bg-brand-purple text-white' : 'text-gray-400'}`}>Quick Blast</button>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Broadcast Network</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage subscriber clusters and cross-vector campaign performance</p>
+                        </div>
+                        <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
+                           <button onClick={() => setNewsletterSubTab('subscribers')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'subscribers' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Audience</button>
+                           <button onClick={() => setNewsletterSubTab('campaigns')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'campaigns' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Campaigns</button>
+                           <button onClick={() => setNewsletterSubTab('blast')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'blast' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Emergency broadcast</button>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <Users size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Total Audience</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{subscribers.length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                                 <Activity size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Open Rate Avg</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">
+                              {newsletterCampaigns?.length > 0 ? (newsletterCampaigns.reduce((acc, c) => acc + (c.openRate || 0), 0) / newsletterCampaigns.length).toFixed(1) : '0'}%
+                           </p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <Send size={24} />
+                              </div>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Active Modules</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{newsletterCampaigns?.length || 0}</p>
+                        </div>
                      </div>
 
                      {newsletterSubTab === 'subscribers' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden"><div className="p-4 border-b border-white/5 font-bold flex justify-between"><div className="flex items-center gap-2"><span>Subscribers ({subscribers.length})</span>{subscribersLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</div><button className="text-brand-purple text-xs font-bold" onClick={() => alert('Feature coming soon')}>+ Add Manual</button></div><div className="max-h-96 overflow-y-auto"><table className="w-full text-left"><tbody className="divide-y divide-white/5 text-sm">{subscribers.map(s => (<tr key={s.id}><td className="px-6 py-3">{s.email}</td><td className="px-6 py-3 text-gray-500">{s.status}</td><td className="px-6 py-3 text-xs text-gray-600">{s.source}</td></tr>))}</tbody></table></div></div>
+                        <div className="bg-[#0B0B0F] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-cyan/20 to-transparent" />
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Identity Mask</th>
+                                       <th className="px-8 py-6">Subscription State</th>
+                                       <th className="px-8 py-6">Point of Origin</th>
+                                       <th className="px-8 py-6 text-right">Data Health</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {subscribers.map(s => (
+                                       <tr key={s.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-9 h-9 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan font-black text-[10px]">
+                                                   {s.email.substring(0, 1).toUpperCase()}
+                                                </div>
+                                                <span className="font-black text-white text-base tracking-tight group-hover:text-brand-cyan transition-colors">{s.email}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${s.status === 'active' || s.status === 'subscribed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-gray-500/10 text-gray-500 border-white/5'
+                                                }`}>{s.status}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{s.source || 'Direct Entry'}</span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="w-2 h-2 bg-emerald-500 rounded-full inline-block shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                          </td>
+                                       </tr>
+                                    ))}
+                                    {subscribers.length === 0 && (
+                                       <tr><td colSpan={4} className="px-8 py-32 text-center text-gray-600 font-bold italic opacity-40">Empty audience registry. No entities detected.</td></tr>
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
                      )}
 
                      {newsletterSubTab === 'campaigns' && (
-                        <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                           <div className="p-4 border-b border-white/5 font-bold flex justify-between"><span>Recent Campaigns</span><button onClick={() => alert('Feature coming soon')} className="bg-brand-purple text-white text-xs font-bold px-3 py-1 rounded">+ Create</button></div>
-                           <table className="w-full text-left">
-                              <tbody className="divide-y divide-white/5 text-sm">
-                                 <tr className="bg-black/20 text-gray-500 text-xs uppercase"><th className="px-6 py-3 flex items-center gap-2">Name {campaignsLoading && <RefreshCw size={12} className="animate-spin text-brand-cyan" />}</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Opens</th></tr>
-                                 {newsletterCampaigns?.map(c => (
-                                    <tr key={c.id}>
-                                       <td className="px-6 py-3 font-bold">{c.name}</td>
-                                       <td className="px-6 py-3 capitalize">{c.type}</td>
-                                       <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs ${c.status === 'sent' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{c.status}</span></td>
-                                       <td className="px-6 py-3">{c.openRate ? `${c.openRate}%` : '-'}</td>
+                        <div className="bg-[#0B0B0F] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Cluster Name</th>
+                                       <th className="px-8 py-6">Protocol Type</th>
+                                       <th className="px-8 py-6">Phase Status</th>
+                                       <th className="px-8 py-6 text-right">Yield (Opens)</th>
                                     </tr>
-                                 ))}
-                              </tbody>
-                           </table>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {newsletterCampaigns?.map(c => (
+                                       <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className="font-black text-white text-base tracking-tight group-hover:text-brand-purple transition-colors">{c.name}</span>
+                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-1">Manual Deployment</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest bg-brand-purple/5 px-3 py-1 rounded-lg border border-brand-purple/10">{c.type}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${c.status === 'sent' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                                }`}>{c.status}</span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <span className="font-black text-white text-base">{c.openRate ? `${c.openRate}%` : 'N/A'}</span>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                    {(newsletterCampaigns || []).length === 0 && (
+                                       <tr><td colSpan={4} className="px-8 py-32 text-center text-gray-600 font-bold italic opacity-40">Zero historical campaigns logged in memory hub.</td></tr>
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
                      )}
 
                      {newsletterSubTab === 'blast' && (
-                        <div className="bg-[#15151A] p-8 rounded-xl border border-white/5">
-                           <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Send size={20} /> Quick Email Blast</h3>
-                           <div className="space-y-4">
-                              <InputGroup label="Subject" value={emailSubject} onChange={setEmailSubject} />
-                              <InputGroup label="Message" type="textarea" value={emailBody} onChange={setEmailBody} />
-                              <button
-                                 onClick={sendCampaign}
-                                 disabled={isSending}
-                                 className={`bg-brand-purple text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 ${isSending ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-600'}`}
-                              >
-                                 {isSending ? <><RefreshCw size={20} className="animate-spin" /> Sending...</> : <><Send size={20} /> Send Now</>}
-                              </button>
+                        <div className="bg-[#0B0B0F] p-10 rounded-[3.5rem] border border-white/10 shadow-2xl space-y-8 relative overflow-hidden max-w-4xl mx-auto w-full">
+                           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-purple/5 blur-[100px] rounded-full -mr-32 -mt-32" />
+                           <div className="relative z-10 space-y-8">
+                              <div className="flex items-center gap-6">
+                                 <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                    <Send size={32} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-2xl font-black text-white tracking-tight">Emergency Broadcast</h4>
+                                    <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Global Audience Push Protocol</p>
+                                 </div>
+                              </div>
+                              <div className="space-y-6">
+                                 <InputGroup label="Broadcast Subject Line" value={emailSubject} onChange={setEmailSubject} placeholder="System Alert: Action Required..." />
+                                 <InputGroup label="Signal Payload (Message)" type="textarea" value={emailBody} onChange={setEmailBody} placeholder="Encrypted message context..." />
+                                 <div className="pt-4">
+                                    <button
+                                       onClick={sendCampaign}
+                                       disabled={isSending}
+                                       className="w-full py-5 bg-brand-purple hover:bg-purple-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 disabled:opacity-50"
+                                    >
+                                       {isSending ? <RefreshCw className="animate-spin" size={18} /> : <Zap size={18} />}
+                                       {isSending ? 'Transmitting...' : 'Execute Global Blast'}
+                                    </button>
+                                 </div>
+                              </div>
                            </div>
                         </div>
                      )}
@@ -2538,161 +3772,245 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'messages' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <StatCard label="Total Messages" value={(contactMessages || []).length} icon={MessageSquare} color="text-brand-purple" />
-                        <StatCard label="New" value={(contactMessages || []).filter(m => m.status === 'new').length} icon={Bell} color="text-brand-cyan" />
-                        <StatCard label="WhatsApp" value={(contactMessages || []).filter(m => m.source === 'whatsapp').length} icon={MessageCircle} color="text-green-500" />
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Communication Pulse</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Monitor inbound inquiries and system-linked communication vectors</p>
+                        </div>
                      </div>
 
-                     <div className="bg-[#15151A] rounded-xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-left">
-                           <thead className="bg-black/20 text-gray-500 text-xs uppercase">
-                              <tr>
-                                 <th className="px-6 py-4">Sender</th>
-                                 <th className="px-6 py-4">Subject</th>
-                                 <th className="px-6 py-4">Source</th>
-                                 <th className="px-6 py-4">Status</th>
-                                 <th className="px-6 py-4">Date</th>
-                                 <th className="px-6 py-4">Actions</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-white/5 text-sm">
-                              {contactMessages.map(m => (
-                                 <tr key={m.id} className={m.status === 'new' ? 'bg-white/[0.02]' : ''}>
-                                    <td className="px-6 py-4">
-                                       <div className="font-bold">{m.name}</div>
-                                       <div className="text-[10px] text-gray-500">{m.email}</div>
-                                    </td>
-                                    <td className="px-6 py-4 truncate max-w-[200px]">{m.subject}</td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-[10px] px-2 py-0.5 rounded capitalize ${m.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                                          {m.source}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       <span className={`text-[10px] px-2 py-1 rounded-full border ${m.status === 'new' ? 'border-brand-cyan text-brand-cyan bg-brand-cyan/10' : 'border-white/10 text-gray-500'}`}>
-                                          {m.status}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-500 text-xs">{new Date(m.createdAt).toLocaleDateString()}</td>
-                                    <td className="px-6 py-4">
-                                       <button
-                                          onClick={() => {
-                                             setSelectedMessage(m);
-                                             setActiveModal('viewMessage');
-                                             if (m.status === 'new') {
-                                                updateContactMessage(m.id, { status: 'read' });
-                                             }
-                                          }}
-                                          className="text-brand-purple hover:underline font-bold text-xs flex items-center gap-1"
-                                       >
-                                          <Eye size={14} /> View
-                                       </button>
-                                    </td>
-                                 </tr>
-                              ))}
-                              {contactMessages.length === 0 && (
-                                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No messages found.</td></tr>
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-brand-purple/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple mb-4">
+                              <MessageSquare size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Total Inquiries</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(contactMessages || []).length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-brand-cyan/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan mb-4 relative">
+                              <Bell size={24} />
+                              {(contactMessages || []).filter(m => m.status === 'new').length > 0 && (
+                                 <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0B0B0F]" />
                               )}
-                           </tbody>
-                        </table>
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Unread Alerts</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(contactMessages || []).filter(m => m.status === 'new').length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-green-500/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 mb-4">
+                              <MessageCircle size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">WhatsApp Tunnel</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{(contactMessages || []).filter(m => m.source === 'whatsapp').length}</p>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-blue-500/20 transition-all">
+                           <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 mb-4">
+                              <Zap size={24} />
+                           </div>
+                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Response Rate</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">98%</p>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Sender Identity</th>
+                                    <th className="px-8 py-6">Subject Line</th>
+                                    <th className="px-8 py-6">Tunnel Vector</th>
+                                    <th className="px-8 py-6">Alert Logic</th>
+                                    <th className="px-8 py-6 text-right">Ops Control</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {contactMessages.map(m => (
+                                    <tr key={m.id} className={`hover:bg-white/[0.02] transition-colors group ${m.status === 'new' ? 'bg-brand-purple/[0.02]' : ''}`}>
+                                       <td className="px-8 py-6">
+                                          <div className="flex flex-col">
+                                             <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{m.name}</span>
+                                             <span className="text-[10px] text-gray-500 font-bold tracking-widest">{m.email}</span>
+                                          </div>
+                                       </td>
+                                       <td className="px-8 py-6">
+                                          <p className="text-gray-400 font-medium truncate max-w-[200px]">{m.subject}</p>
+                                       </td>
+                                       <td className="px-8 py-6">
+                                          <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border shadow-sm ${m.source === 'whatsapp' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                             'bg-blue-500/5 text-blue-500 border-blue-500/20'
+                                             }`}>
+                                             {m.source}
+                                          </span>
+                                       </td>
+                                       <td className="px-8 py-6">
+                                          <div className="flex items-center gap-2">
+                                             <div className={`w-1.5 h-1.5 rounded-full ${m.status === 'new' ? 'bg-brand-cyan animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.5)]' : 'bg-gray-700'}`} />
+                                             <span className={`text-[10px] font-black uppercase tracking-widest ${m.status === 'new' ? 'text-brand-cyan' : 'text-gray-600'}`}>
+                                                {m.status}
+                                             </span>
+                                          </div>
+                                       </td>
+                                       <td className="px-8 py-6 text-right">
+                                          <button
+                                             onClick={() => {
+                                                setSelectedMessage(m);
+                                                setActiveModal('viewMessage');
+                                                if (m.status === 'new') {
+                                                   updateContactMessage(m.id, { status: 'read' });
+                                                }
+                                             }}
+                                             className="px-6 py-2.5 bg-[#15151A] hover:bg-brand-purple hover:text-white text-brand-purple border border-white/5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all transform hover:-translate-y-1"
+                                          >
+                                             Inspect
+                                          </button>
+                                       </td>
+                                    </tr>
+                                 ))}
+                                 {contactMessages.length === 0 && (
+                                    <tr><td colSpan={5} className="px-8 py-20 text-center">
+                                       <div className="flex flex-col items-center gap-4 text-gray-600">
+                                          <Inbox size={48} className="opacity-20" />
+                                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No Messages Logged</p>
+                                       </div>
+                                    </td></tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                )}
 
                {activeTab === 'system' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 space-y-4">
-                        <h3 className="text-xl font-bold mb-4">System Utilities</h3>
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Governance & Integrity</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Global system utilities and structural health maintenance</p>
+                        </div>
+                     </div>
 
-                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
-                           <h4 className="font-bold text-white mb-2">Cleanup & Maintenance</h4>
-                           <p className="text-sm text-gray-400 mb-4">
-                              Scan database for items that are not synchronized with valid Firebase Storage (e.g. broken links, old seeded data).
-                           </p>
-
-                           <div className="mb-4 text-xs bg-yellow-500/10 text-yellow-500 p-3 rounded border border-yellow-500/20">
-                              <div className="font-bold mb-2 flex items-center gap-2">
-                                 <AlertTriangle size={14} />
-                                 ⚠️ Warning: This action will permanently delete:
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Cleanup & Maintenance Card */}
+                        <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/5 blur-[80px] rounded-full -mr-24 -mt-24 group-hover:bg-red-500/10 transition-all" />
+                           <div className="relative z-10 space-y-6">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                                    <Trash2 size={28} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Core Scrubber</h4>
+                                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Database Sanitization</p>
+                                 </div>
                               </div>
-                              <ul className="list-disc list-inside space-y-1 ml-4">
-                                 <li>Mixtapes without Firebase Storage URLs</li>
-                                 <li>Products without Firebase Storage image URLs</li>
-                                 <li>Specific corrupted entries (e.g., "DJ FLOWERZ CLUB BANGERS DECEMBER SHUTDOWN 2025")</li>
-                              </ul>
-                           </div>
+                              <p className="text-sm text-gray-500 font-medium leading-relaxed">Scan global registries for orphaned assets or broken Firebase Storage pointers. Permanently deallocates corrupted entries.</p>
 
+                              <div className="p-5 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-3">
+                                 <div className="flex items-center gap-2 text-red-500">
+                                    <AlertTriangle size={16} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Irreversible Protocols</span>
+                                 </div>
+                                 <ul className="space-y-2">
+                                    <li className="flex items-center gap-3 text-[11px] text-gray-500 font-bold"><X size={12} className="text-red-900" /> Mixtapes without verified audio assets</li>
+                                    <li className="flex items-center gap-3 text-[11px] text-gray-500 font-bold"><X size={12} className="text-red-900" /> Catalog items with null image blobs</li>
+                                 </ul>
+                              </div>
+
+                              <button
+                                 onClick={handleCleanupData}
+                                 disabled={isCleaning}
+                                 className="w-full py-5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-red-500/10 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 disabled:opacity-50"
+                              >
+                                 {isCleaning ? <RefreshCw className="animate-spin" size={18} /> : <Zap size={18} />}
+                                 {isCleaning ? 'Processing Scrubber...' : 'Execute Data Purge'}
+                              </button>
+                           </div>
+                        </div>
+
+                        {/* Music Pool Card */}
+                        <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-48 h-48 bg-brand-purple/5 blur-[80px] rounded-full -mr-24 -mt-24 group-hover:bg-brand-purple/10 transition-all" />
+                           <div className="relative z-10 space-y-6">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-14 h-14 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                    <Infinity size={28} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Pool Maintenance</h4>
+                                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Audio Repository Integrity</p>
+                                 </div>
+                              </div>
+                              <p className="text-sm text-gray-500 font-medium leading-relaxed">Global health audit for the audio repository. Identifies missing versions or corrupted download vectors for all track identities.</p>
+
+                              {scanResults.checked > 0 ? (
+                                 <div className="grid grid-cols-3 gap-3">
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                                       <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">PROBED</p>
+                                       <p className="text-xl font-black text-white">{scanResults.checked}</p>
+                                    </div>
+                                    <div className="bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/10">
+                                       <p className="text-[9px] text-yellow-600 font-black uppercase tracking-widest mb-1">VARIANCE</p>
+                                       <p className="text-xl font-black text-yellow-500">{scanResults.missingVersions}</p>
+                                    </div>
+                                    <div className="bg-red-500/5 p-4 rounded-2xl border border-red-500/10">
+                                       <p className="text-[9px] text-red-600 font-black uppercase tracking-widest mb-1">FRACTURES</p>
+                                       <p className="text-xl font-black text-red-500">{scanResults.broken}</p>
+                                    </div>
+                                 </div>
+                              ) : (
+                                 <div className="p-8 border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center gap-2">
+                                    <Activity size={24} className="text-gray-700" />
+                                    <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">System Idle</p>
+                                 </div>
+                              )}
+
+                              <div className="grid grid-cols-2 gap-4">
+                                 <button
+                                    onClick={handleScanPool}
+                                    disabled={isScanningPool}
+                                    className="py-4 bg-[#15151A] hover:bg-brand-purple hover:text-white text-brand-purple border border-brand-purple/20 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2"
+                                 >
+                                    {isScanningPool ? <RefreshCw className="animate-spin" size={16} /> : <Search size={16} />}
+                                    Health Audit
+                                 </button>
+                                 <button
+                                    onClick={handleFixPool}
+                                    disabled={isScanningPool || scanResults.broken === 0}
+                                    className="py-4 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2"
+                                 >
+                                    <Shield size={16} />
+                                    Repair Data
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl space-y-6">
+                        <div className="flex items-center justify-between">
+                           <div>
+                              <h4 className="text-xl font-black text-white tracking-tight">Sync Protocols</h4>
+                              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Global External Integration</p>
+                           </div>
                            <button
-                              onClick={handleCleanupData}
-                              disabled={isCleaning}
-                              className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={async () => {
+                                 const res = await manualSync();
+                                 alert(res.message);
+                              }}
+                              className="px-8 py-4 bg-brand-cyan text-black text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-cyan-400 shadow-xl shadow-brand-cyan/20 transition-all transform hover:-translate-y-1 flex items-center gap-3"
                            >
-                              {isCleaning ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                              {isCleaning ? 'Running Cleanup...' : 'Cleanup Invalid Data'}
+                              <RefreshCw size={18} /> Forced Global Sync
                            </button>
                         </div>
-
-                        <div className="bg-black/20 p-4 rounded-lg border border-white/5 mb-6">
-                           <h4 className="font-bold text-white mb-2">Music Pool Health & Maintenance</h4>
-                           <p className="text-sm text-gray-400 mb-4">
-                              Scan and repair the Music Pool tracks. Identifies tracks with missing versions or broken download links.
-                           </p>
-
-                           {scanResults.checked > 0 && (
-                              <div className="grid grid-cols-3 gap-4 mb-6">
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Checked</div>
-                                    <div className="text-xl font-bold">{scanResults.checked}</div>
-                                 </div>
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-yellow-500 text-[10px] uppercase font-bold mb-1">Missing Vers.</div>
-                                    <div className="text-xl font-bold text-yellow-500">{scanResults.missingVersions}</div>
-                                 </div>
-                                 <div className="bg-white/5 p-3 rounded border border-white/5">
-                                    <div className="text-red-500 text-[10px] uppercase font-bold mb-1">Broken/Empty</div>
-                                    <div className="text-xl font-bold text-red-500">{scanResults.broken}</div>
-                                 </div>
-                              </div>
-                           )}
-
-                           <div className="flex flex-wrap gap-4">
-                              <button
-                                 onClick={handleScanPool}
-                                 disabled={isScanningPool}
-                                 className="bg-brand-purple hover:bg-brand-purple/80 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-                              >
-                                 {isScanningPool ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
-                                 {isScanningPool ? `Scanning... (${Math.round((scanResults.checked / (poolTracks.length || 1)) * 100)}%)` : 'Scan Pool Health'}
-                              </button>
-
-                              <button
-                                 onClick={handleFixPool}
-                                 disabled={isScanningPool || scanResults.broken === 0}
-                                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-                              >
-                                 <Shield size={18} />
-                                 Repair Broken Tracks
-                              </button>
-
-                              <button
-                                 onClick={async () => {
-                                    const res = await manualSync();
-                                    alert(res.message);
-                                 }}
-                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                              >
-                                 <RefreshCw size={18} />
-                                 Force Sync from Sources
-                              </button>
-                           </div>
-                        </div>
-
                         {cleanupLog.length > 0 && (
-                           <div className="bg-black/40 p-4 rounded-lg border border-white/10 font-mono text-xs text-gray-400 max-h-60 overflow-y-auto">
+                           <div className="bg-black/60 p-6 rounded-2xl border border-white/5 font-mono text-[10px] text-gray-500 max-h-60 overflow-y-auto custom-scrollbar shadow-inner">
                               {cleanupLog.map((line, i) => (
-                                 <div key={i} className="mb-1">{line}</div>
+                                 <div key={i} className="mb-1 py-1 border-b border-white/[0.02] last:border-0">{line}</div>
                               ))}
                            </div>
                         )}
@@ -2781,47 +4099,54 @@ const AdminDashboard: React.FC = () => {
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'viewMessage'} onClose={() => setActiveModal(null)} title="View Contact Message">
+            <Modal isOpen={activeModal === 'viewMessage'} onClose={() => setActiveModal(null)} title="Message Details">
                {selectedMessage && (
                   <div className="space-y-6">
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-xs text-gray-500 uppercase font-bold mb-1">From</p>
-                           <p className="font-bold text-white text-lg">{selectedMessage.name}</p>
-                           <p className="text-gray-400 text-sm">{selectedMessage.email}</p>
+                     <div className="flex items-center justify-between bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
+                        <div className="flex items-center gap-4">
+                           <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple font-bold text-lg">
+                              {selectedMessage.name.charAt(0)}
+                           </div>
+                           <div>
+                              <h4 className="text-white font-bold leading-none mb-1 tracking-tight">{selectedMessage.name}</h4>
+                              <p className="text-xs text-gray-500">{selectedMessage.email}</p>
+                           </div>
                         </div>
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-xs text-gray-500 uppercase font-bold mb-1">Source & Status</p>
-                           <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded text-xs capitalize ${selectedMessage.source === 'whatsapp' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                        <div className="text-right">
+                           <div className="flex items-center gap-2 justify-end mb-1">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${selectedMessage.source === 'whatsapp' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
                                  {selectedMessage.source}
                               </span>
-                              <span className="px-2 py-0.5 rounded text-xs capitalize bg-white/10 text-gray-300">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 text-gray-400 border border-white/10">
                                  {selectedMessage.status}
                               </span>
                            </div>
-                           <p className="text-gray-500 text-xs mt-2">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
+                           <p className="text-[10px] text-gray-600 font-medium">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
                         </div>
                      </div>
 
-                     <div className="bg-white/5 p-6 rounded-xl border border-white/5">
-                        <p className="text-xs text-gray-500 uppercase font-bold mb-3">Subject</p>
-                        <p className="text-white font-bold text-xl mb-4">{selectedMessage.subject}</p>
-                        <div className="w-full h-px bg-white/10 mb-4" />
-                        <p className="text-xs text-gray-500 uppercase font-bold mb-2">Message</p>
-                        <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">{selectedMessage.message}</p>
+                     <div className="bg-[#0B0B0F] p-8 rounded-3xl border border-white/5 space-y-4 relative">
+                        <div className="absolute top-0 left-8 -translate-y-1/2 bg-[#15151A] px-2 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em]">Message Content</div>
+                        <div>
+                           <p className="text-xs text-brand-purple font-bold uppercase tracking-widest mb-1">Subject</p>
+                           <h3 className="text-white font-bold text-xl tracking-tight">{selectedMessage.subject}</h3>
+                        </div>
+                        <div className="w-full h-px bg-white/5" />
+                        <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap pt-2">
+                           {selectedMessage.message}
+                        </div>
                      </div>
 
-                     <div className="flex gap-4">
+                     <div className="flex gap-4 pt-4">
                         <a
                            href={`mailto:${selectedMessage.email}?subject=RE: ${selectedMessage.subject}`}
-                           className="flex-1 bg-brand-purple hover:bg-brand-purple/80 text-white py-3 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2"
+                           className="flex-1 bg-brand-purple hover:bg-purple-600 text-white py-4 rounded-2xl font-bold text-center transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-purple/20 shadow-none hover:shadow-brand-purple/20"
                         >
                            <Mail size={18} /> Reply via Email
                         </a>
                         {selectedMessage.source === 'whatsapp' && (
-                           <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all">
-                              <MessageCircle size={18} /> Open WhatsApp
+                           <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-500/20 shadow-none hover:shadow-green-500/20">
+                              <MessageCircle size={18} /> WhatsApp
                            </button>
                         )}
                         <button
@@ -2829,7 +4154,7 @@ const AdminDashboard: React.FC = () => {
                               updateContactMessage(selectedMessage.id, { status: 'archived' });
                               setActiveModal(null);
                            }}
-                           className="px-6 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 py-3 rounded-xl font-bold transition-all"
+                           className="px-6 bg-[#0B0B0F] text-red-500 hover:bg-red-500 hover:text-white border border-white/5 hover:border-red-500 py-4 rounded-2xl font-bold transition-all"
                         >
                            Archive
                         </button>
@@ -2839,115 +4164,130 @@ const AdminDashboard: React.FC = () => {
             </Modal>
 
             <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="lg">
-               <div className="space-y-6">
-                  <div className="flex gap-4 border-b border-white/10 pb-2">
-                     <button onClick={() => setProductFormTab('type')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'type' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Type</button>
-                     <button onClick={() => setProductFormTab('basic')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'basic' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Basic Info</button>
-                     <button onClick={() => setProductFormTab('variants')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'variants' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Variants</button>
-                     {newProduct.type === 'physical' && <button onClick={() => setProductFormTab('shipping')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'shipping' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Shipping</button>}
-                     {newProduct.type === 'digital' && <button onClick={() => setProductFormTab('digital')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'digital' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Files</button>}
-                     <button onClick={() => setProductFormTab('images')} className={`px-4 py-2 text-sm font-bold uppercase ${productFormTab === 'images' ? 'text-brand-purple border-b-2 border-brand-purple' : 'text-gray-400'}`}>Images</button>
+               <div className="space-y-8">
+                  {/* Step Indicators */}
+                  <div className="flex bg-[#0B0B0F] p-1.5 rounded-2xl border border-white/5 overflow-x-auto scrollbar-hide">
+                     <button onClick={() => setProductFormTab('type')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'type' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <Box size={14} /> Type
+                     </button>
+                     <button onClick={() => setProductFormTab('basic')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'basic' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <FileText size={14} /> Basic
+                     </button>
+                     <button onClick={() => setProductFormTab('variants')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'variants' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <List size={14} /> Variants
+                     </button>
+                     {newProduct.type === 'physical' && (
+                        <button onClick={() => setProductFormTab('shipping')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'shipping' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                           <Truck size={14} /> Shipping
+                        </button>
+                     )}
+                     {newProduct.type === 'digital' && (
+                        <button onClick={() => setProductFormTab('digital')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'digital' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                           <Download size={14} /> Digital
+                        </button>
+                     )}
+                     <button onClick={() => setProductFormTab('images')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'images' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <ImageIcon size={14} /> Images
+                     </button>
                   </div>
 
                   {productFormTab === 'type' && (
-                     <div className="grid grid-cols-2 gap-4">
-                        <div onClick={() => updateProductField('type', 'physical')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'physical' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
-                           <Package size={32} />
-                           <h3 className="font-bold">Physical Product</h3>
-                           <p className="text-xs text-gray-400 text-center">Apparel, Equipment, Merch</p>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div
+                           onClick={() => updateProductField('type', 'physical')}
+                           className={`p-8 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center gap-4 text-center group ${newProduct.type === 'physical' ? 'bg-brand-purple/10 border-brand-purple shadow-xl shadow-brand-purple/10' : 'bg-black/20 border-white/5 hover:border-white/10'}`}
+                        >
+                           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-2 transition-transform group-hover:scale-110 ${newProduct.type === 'physical' ? 'bg-brand-purple text-white' : 'bg-white/5 text-gray-400'}`}>
+                              <Package size={32} />
+                           </div>
+                           <h3 className={`text-lg font-bold ${newProduct.type === 'physical' ? 'text-white' : 'text-gray-400'}`}>Physical Product</h3>
+                           <p className="text-sm text-gray-500 leading-relaxed max-w-[200px]">Perfect for apparel, hardware, equipment, and physical merchandise.</p>
+                           <div className={`mt-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${newProduct.type === 'physical' ? 'border-brand-purple bg-brand-purple text-white' : 'border-white/10'}`}>
+                              {newProduct.type === 'physical' && <Check size={14} />}
+                           </div>
                         </div>
-                        <div onClick={() => updateProductField('type', 'digital')} className={`p-6 rounded-xl border cursor-pointer flex flex-col items-center gap-2 ${newProduct.type === 'digital' ? 'bg-brand-purple/20 border-brand-purple' : 'bg-black/20 border-white/10'}`}>
-                           <Download size={32} />
-                           <h3 className="font-bold">Digital Product</h3>
-                           <p className="text-xs text-gray-400 text-center">Music, Samples, Software</p>
+                        <div
+                           onClick={() => updateProductField('type', 'digital')}
+                           className={`p-8 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center gap-4 text-center group ${newProduct.type === 'digital' ? 'bg-brand-cyan/10 border-brand-cyan shadow-xl shadow-brand-cyan/10' : 'bg-black/20 border-white/5 hover:border-white/10'}`}
+                        >
+                           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-2 transition-transform group-hover:scale-110 ${newProduct.type === 'digital' ? 'bg-brand-cyan text-white' : 'bg-white/5 text-gray-400'}`}>
+                              <Download size={32} />
+                           </div>
+                           <h3 className={`text-lg font-bold ${newProduct.type === 'digital' ? 'text-white' : 'text-gray-400'}`}>Digital Product</h3>
+                           <p className="text-sm text-gray-500 leading-relaxed max-w-[200px]">Best for music, samples, software downloads, and virtual services.</p>
+                           <div className={`mt-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${newProduct.type === 'digital' ? 'border-brand-cyan bg-brand-cyan text-white' : 'border-white/10'}`}>
+                              {newProduct.type === 'digital' && <Check size={14} />}
+                           </div>
                         </div>
                      </div>
                   )}
 
                   {productFormTab === 'basic' && (
-                     <div className="space-y-4">
-                        <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required />
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required placeholder="Enter a catchy name..." />
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
                            <InputGroup label="Base Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
-                           <InputGroup label="Discount Price (Opt)" type="number" value={newProduct.discountPrice || 0} onChange={v => updateProductField('discountPrice', Number(v))} />
+                           <InputGroup label="Discount Price" type="number" value={newProduct.discountPrice || 0} onChange={v => updateProductField('discountPrice', Number(v))} helperText="Leave 0 for no discount" />
                            <InputGroup label="Compare At Price" type="number" value={newProduct.compareAtPrice || 0} onChange={v => updateProductField('compareAtPrice', Number(v))} />
                         </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <InputGroup
                               label="Category"
                               options={[
-                                 'Head Phones & Ear Buds',
-                                 'Laptops',
-                                 'Gaming',
-                                 'CPUs',
-                                 'Monitors',
-                                 'Printers',
-                                 'Speakers',
-                                 'All-In-One Desktops',
-                                 'Tablets',
-                                 'Computer Accessories',
-                                 'Mobile Phones',
-                                 'Apparel',
-                                 'Accessories',
-                                 'Software',
-                                 'Samples',
-                                 'Music Production',
-                                 'Studio Furniture',
-                                 'Vinyl Records',
-                                 'Digital Downloads',
-                                 'Hard Drives/USB',
-                                 'DJ Lighting',
-                                 'Microphones',
-                                 'Studio Monitors',
-                                 'Cables',
-                                 'Merchandise',
-                                 'DJ Controllers',
-                                 'Other'
+                                 'Head Phones & Ear Buds', 'Laptops', 'Gaming', 'CPUs', 'Monitors', 'Printers', 'Speakers',
+                                 'All-In-One Desktops', 'Tablets', 'Computer Accessories', 'Mobile Phones', 'Apparel',
+                                 'Accessories', 'Software', 'Samples', 'Music Production', 'Studio Furniture', 'Vinyl Records',
+                                 'Digital Downloads', 'Hard Drives/USB', 'DJ Lighting', 'Microphones', 'Studio Monitors',
+                                 'Cables', 'Merchandise', 'DJ Controllers', 'Other'
                               ]}
                               value={newProduct.category}
                               onChange={v => updateProductField('category', v)}
                            />
-                           {newProduct.type === 'physical' && (
-                              <InputGroup label="Condition" options={['new', 'refurbished']} value={newProduct.condition || 'new'} onChange={v => updateProductField('condition', v)} />
-                           )}
                            <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
                         </div>
 
-                        {/* OS Selection for Software category */}
                         {newProduct.category === 'Software' && (
-                           <div className="bg-purple-500/10 p-4 rounded-lg border border-purple-500/20">
-                              <InputGroup
-                                 label="Operating System"
-                                 options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
-                                 value={newProduct.os || 'None'}
-                                 onChange={v => updateProductField('os', v)}
-                              />
+                           <div className="bg-brand-purple/5 p-6 rounded-3xl border border-brand-purple/10 flex items-center gap-6">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <Monitor size={24} />
+                              </div>
+                              <div className="flex-1">
+                                 <InputGroup
+                                    label="Operating System Support"
+                                    options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
+                                    value={newProduct.os || 'None'}
+                                    onChange={v => updateProductField('os', v)}
+                                 />
+                              </div>
                            </div>
                         )}
 
-                        {newProduct.type === 'physical' && <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />}
-                        <div className="space-y-2">
-                           <InputGroup
-                              label="Description"
-                              type="textarea"
-                              value={newProduct.description}
-                              onChange={(v) => updateProductField('description', v)}
-                              placeholder="Product description... (Rich text disabled for stability)"
-                           />
-                        </div>
+                        {newProduct.type === 'physical' && (
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <InputGroup label="Condition" options={['new', 'refurbished']} value={newProduct.condition || 'new'} onChange={v => updateProductField('condition', v)} />
+                              <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />
+                           </div>
+                        )}
+
                         <InputGroup
-                           label={newProduct.type === 'digital' ? 'Versions (comma separated)' : 'Variants (comma separated)'}
-                           value={variantsInput}
-                           onChange={setVariantsInput}
-                           placeholder={newProduct.type === 'digital' ? 'e.g. v1.0, v2.0, Pro, Lite' : 'e.g. S, M, L, XL or Red, Blue'}
+                           label="Description"
+                           type="textarea"
+                           value={newProduct.description}
+                           onChange={(v) => updateProductField('description', v)}
+                           placeholder="Describe the features and benefits..."
                         />
                      </div>
                   )}
 
                   {productFormTab === 'variants' && (
-                     <div className="space-y-6">
+                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="flex justify-between items-center">
-                           <h4 className="font-bold text-gray-400 uppercase text-xs">Product Variants</h4>
+                           <div>
+                              <h4 className="font-bold text-white tracking-tight">Product Variants</h4>
+                              <p className="text-xs text-gray-500">Configure size, color, or other options</p>
+                           </div>
                            <button
                               type="button"
                               onClick={() => {
@@ -2955,31 +4295,33 @@ const AdminDashboard: React.FC = () => {
                                  next.push({ name: 'New Group', variants: [] });
                                  updateProductField('variantGroups', next);
                               }}
-                              className="px-3 py-1 bg-brand-purple/20 text-brand-purple rounded text-xs font-bold hover:bg-brand-purple/30 transition"
+                              className="px-4 py-2 bg-brand-purple/10 text-brand-purple rounded-xl text-xs font-bold hover:bg-brand-purple/20 transition-all flex items-center gap-2 border border-brand-purple/20"
                            >
-                              + Add Group
+                              <Plus size={14} /> Add Group
                            </button>
                         </div>
 
                         {(newProduct.variantGroups || []).length === 0 && (
-                           <div className="text-center py-8 bg-black/20 rounded-xl border border-dashed border-white/10">
-                              <p className="text-gray-500 text-sm italic">No variants defined for this product.</p>
+                           <div className="text-center py-12 bg-[#0B0B0F] rounded-3xl border-2 border-dashed border-white/5">
+                              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-600 mx-auto mb-3">
+                                 <List size={24} />
+                              </div>
+                              <p className="text-gray-500 text-sm font-medium">No variants defined yet.</p>
                            </div>
                         )}
 
                         {(newProduct.variantGroups || []).map((group, gIdx) => (
-                           <div key={gIdx} className="bg-black/20 p-4 rounded-xl border border-white/10 space-y-4">
+                           <div key={gIdx} className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
                               <div className="flex justify-between items-start gap-4">
                                  <div className="flex-1">
                                     <InputGroup
-                                       label="Group Name"
+                                       label="Group Name (e.g. Size)"
                                        value={group.name}
                                        onChange={v => {
                                           const next = [...(newProduct.variantGroups || [])];
                                           next[gIdx].name = v;
                                           updateProductField('variantGroups', next);
                                        }}
-                                       placeholder="e.g. Storage, Color, Size"
                                     />
                                  </div>
                                  <button
@@ -2988,25 +4330,20 @@ const AdminDashboard: React.FC = () => {
                                        const next = (newProduct.variantGroups || []).filter((_, i) => i !== gIdx);
                                        updateProductField('variantGroups', next);
                                     }}
-                                    className="text-red-500 hover:text-red-400 mt-7"
+                                    className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-all mt-7"
                                  >
-                                    <Trash2 size={18} />
+                                    <Trash2 size={20} />
                                  </button>
                               </div>
 
-                              <div className="space-y-2">
-                                 <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Options</label>
+                              <div className="space-y-3">
+                                 <div className="flex justify-between items-center px-1">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Variant Options</label>
                                     <button
                                        type="button"
                                        onClick={() => {
                                           const next = [...(newProduct.variantGroups || [])];
-                                          next[gIdx].variants.push({
-                                             id: `v${Date.now()}`,
-                                             name: '',
-                                             price: newProduct.price,
-                                             stock: newProduct.stock || 0
-                                          });
+                                          next[gIdx].variants.push({ id: `v${Date.now()}`, name: '', price: newProduct.price, stock: newProduct.stock || 0 });
                                           updateProductField('variantGroups', next);
                                        }}
                                        className="text-brand-purple text-[10px] font-bold hover:underline"
@@ -3015,61 +4352,63 @@ const AdminDashboard: React.FC = () => {
                                     </button>
                                  </div>
 
-                                 {group.variants.map((variant, vIdx) => (
-                                    <div key={vIdx} className="grid grid-cols-12 gap-2 items-end bg-white/5 p-2 rounded-lg">
-                                       <div className="col-span-5">
-                                          <input
-                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
-                                             placeholder="Name (e.g. 1TB)"
-                                             value={variant.name}
-                                             onChange={e => {
-                                                const next = [...(newProduct.variantGroups || [])];
-                                                next[gIdx].variants[vIdx].name = e.target.value;
-                                                updateProductField('variantGroups', next);
-                                             }}
-                                          />
+                                 <div className="space-y-2">
+                                    {group.variants.map((variant, vIdx) => (
+                                       <div key={vIdx} className="grid grid-cols-12 gap-3 items-center bg-[#15151A] p-2 rounded-2xl border border-white/5">
+                                          <div className="col-span-5">
+                                             <input
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
+                                                placeholder="Label (e.g. XL)"
+                                                value={variant.name}
+                                                onChange={e => {
+                                                   const next = [...(newProduct.variantGroups || [])];
+                                                   next[gIdx].variants[vIdx].name = e.target.value;
+                                                   updateProductField('variantGroups', next);
+                                                }}
+                                             />
+                                          </div>
+                                          <div className="col-span-4">
+                                             <input
+                                                type="number"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
+                                                placeholder="Price"
+                                                value={variant.price}
+                                                onChange={e => {
+                                                   const next = [...(newProduct.variantGroups || [])];
+                                                   next[gIdx].variants[vIdx].price = Number(e.target.value);
+                                                   updateProductField('variantGroups', next);
+                                                }}
+                                             />
+                                          </div>
+                                          <div className="col-span-2">
+                                             <input
+                                                type="number"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
+                                                placeholder="Stock"
+                                                value={variant.stock}
+                                                onChange={e => {
+                                                   const next = [...(newProduct.variantGroups || [])];
+                                                   next[gIdx].variants[vIdx].stock = Number(e.target.value);
+                                                   updateProductField('variantGroups', next);
+                                                }}
+                                             />
+                                          </div>
+                                          <div className="col-span-1 flex justify-center">
+                                             <button
+                                                type="button"
+                                                onClick={() => {
+                                                   const next = [...(newProduct.variantGroups || [])];
+                                                   next[gIdx].variants = next[gIdx].variants.filter((_, i) => i !== vIdx);
+                                                   updateProductField('variantGroups', next);
+                                                }}
+                                                className="text-gray-600 hover:text-red-500 transition-colors"
+                                             >
+                                                <X size={16} />
+                                             </button>
+                                          </div>
                                        </div>
-                                       <div className="col-span-4">
-                                          <input
-                                             type="number"
-                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
-                                             placeholder="Price"
-                                             value={variant.price}
-                                             onChange={e => {
-                                                const next = [...(newProduct.variantGroups || [])];
-                                                next[gIdx].variants[vIdx].price = Number(e.target.value);
-                                                updateProductField('variantGroups', next);
-                                             }}
-                                          />
-                                       </div>
-                                       <div className="col-span-2">
-                                          <input
-                                             type="number"
-                                             className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-purple"
-                                             placeholder="Stock"
-                                             value={variant.stock}
-                                             onChange={e => {
-                                                const next = [...(newProduct.variantGroups || [])];
-                                                next[gIdx].variants[vIdx].stock = Number(e.target.value);
-                                                updateProductField('variantGroups', next);
-                                             }}
-                                          />
-                                       </div>
-                                       <div className="col-span-1 flex justify-center pb-1">
-                                          <button
-                                             type="button"
-                                             onClick={() => {
-                                                const next = [...(newProduct.variantGroups || [])];
-                                                next[gIdx].variants = next[gIdx].variants.filter((_, i) => i !== vIdx);
-                                                updateProductField('variantGroups', next);
-                                             }}
-                                             className="text-gray-500 hover:text-red-500"
-                                          >
-                                             <X size={14} />
-                                          </button>
-                                       </div>
-                                    </div>
-                                 ))}
+                                    ))}
+                                 </div>
                               </div>
                            </div>
                         ))}
@@ -3077,413 +4416,545 @@ const AdminDashboard: React.FC = () => {
                   )}
 
                   {productFormTab === 'digital' && (
-                     <div className="space-y-4">
-                        <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
-                           <h4 className="font-bold text-blue-400 mb-4">Digital Delivery</h4>
-                           <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} />
-                           <InputGroup label="Access Password (Optional)" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} />
-                           <InputGroup label="Access Control" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
-
-                           <div className="mt-4 pt-4 border-t border-blue-500/20">
-                              <InputGroup
-                                 label="Free Download"
-                                 type="checkbox"
-                                 checked={newProduct.isFree || false}
-                                 onChange={v => updateProductField('isFree', v)}
-                                 helperText="Check this if the product is completely free (price will still be shown but marked as free)"
-                              />
+                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="bg-brand-cyan/5 p-8 rounded-3xl border border-brand-cyan/10 space-y-6">
+                           <div className="flex items-center gap-4 mb-2">
+                              <div className="w-10 h-10 rounded-xl bg-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                 <Download size={20} />
+                              </div>
+                              <h4 className="font-bold text-white tracking-tight">Delivery Configuration</h4>
                            </div>
+                           <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} placeholder="S3/R2 direct link or external URL" />
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <InputGroup label="Access Password" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} placeholder="Optional" />
+                              <InputGroup label="Visibility" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
+                           </div>
+                           <InputGroup
+                              label="Free Download"
+                              type="checkbox"
+                              checked={newProduct.isFree || false}
+                              onChange={v => updateProductField('isFree', v)}
+                              helperText="The 'Buy' button will be replaced with 'Free Download'"
+                           />
                         </div>
                      </div>
                   )}
 
                   {productFormTab === 'shipping' && (
-                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                           <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} />
-                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} />
-                           <InputGroup label="SKU" value={newProduct.sku} onChange={v => updateProductField('sku', v)} />
+                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0B0B0F] p-8 rounded-3xl border border-white/5">
+                           <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} placeholder="e.g. 0.5" />
+                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} placeholder="e.g. 20x15x10 cm" />
+                           <InputGroup label="SKU / Model #" value={newProduct.sku} onChange={v => updateProductField('sku', v)} placeholder="Stock keeping unit" />
+                           <div className="flex items-end pb-5">
+                              <InputGroup label="Logistics" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} placeholder="Requires Shipping" />
+                           </div>
                         </div>
-                        <InputGroup label="Requires Shipping" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} />
                      </div>
                   )}
 
                   {productFormTab === 'images' && (
-                     <div className="space-y-4">
-                        <ImageUpload label="Main Product Image" value={newProduct.image} onChange={v => updateProductField('image', v)} required />
-                        <MultiImageUpload label="Gallery Images" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
-                     </div>
-                  )}
-
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveProduct} disabled={isSavingProduct} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingProduct && <RefreshCw className="animate-spin" size={18} />} {isSavingProduct ? "Saving..." : "Save Product"}</button></div>
-               </div>
-            </Modal>
-
-            <Modal isOpen={activeModal === 'addMixtape'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Mixtape" : "Upload New Mixtape"} size="lg">
-               <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <InputGroup label="Mixtape Title" value={newMixtape.title} onChange={v => updateMixtapeField('title', v)} required />
-                     <InputGroup label="Genre" options={MIXTAPE_GENRE_NAMES} value={newMixtape.genre} onChange={v => updateMixtapeField('genre', v)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <InputGroup label="Release Date" type="date" value={newMixtape.releaseDate} onChange={v => updateMixtapeField('releaseDate', v)} />
-                     <InputGroup label="Duration" value={newMixtape.duration} onChange={v => updateMixtapeField('duration', v)} placeholder="e.g. 1:05:00" />
-                     <InputGroup label="Status" options={['draft', 'published']} value={newMixtape.status} onChange={v => updateMixtapeField('status', v)} />
-                  </div>
-                  <ImageUpload label="Cover Artwork" value={newMixtape.coverUrl} onChange={v => updateMixtapeField('coverUrl', v)} required />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <InputGroup
-                        label="Stream URL (Audio Player)"
-                        value={newMixtape.audioUrl}
-                        onChange={v => updateMixtapeField('audioUrl', v)}
-                        helperText="Supports Hearthis.at, SoundCloud, Mixcloud, or direct MP3 links."
-                     />
-                     <InputGroup label="Download Link (MP3)" value={newMixtape.downloadUrl} onChange={v => updateMixtapeField('downloadUrl', v)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <InputGroup label="Video URL (MP4/YouTube)" value={newMixtape.videoDownloadUrl} onChange={v => updateMixtapeField('videoDownloadUrl', v)} />
-                     <InputGroup label="Download Type" options={['free', 'logged_in', 'music_pool']} value={newMixtape.downloadType} onChange={v => updateMixtapeField('downloadType', v)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <InputGroup label="Exclusive to Subscribers" type="checkbox" checked={newMixtape.isExclusive} onChange={v => updateMixtapeField('isExclusive', v)} />
-                     <InputGroup label="Featured on Home" type="checkbox" checked={newMixtape.isFeatured} onChange={v => updateMixtapeField('isFeatured', v)} />
-                  </div>
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveMixtape} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Mixtape</button></div>
-               </div>
-            </Modal>
-
-            <Modal isOpen={activeModal === 'addCoupon'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Coupon" : "Create New Coupon"}>
-               <div className="space-y-4">
-                  <InputGroup label="Coupon Code" value={newCoupon.code} onChange={v => setNewCoupon({ ...newCoupon, code: v.toUpperCase() })} required />
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Type" options={['percentage', 'fixed']} value={newCoupon.discountType} onChange={v => setNewCoupon({ ...newCoupon, discountType: v })} />
-                     <InputGroup label="Value" type="number" value={newCoupon.discountValue} onChange={v => setNewCoupon({ ...newCoupon, discountValue: Number(v) })} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Applies To" options={['store', 'subscription', 'booking', 'all']} value={newCoupon.appliesTo} onChange={v => setNewCoupon({ ...newCoupon, appliesTo: v })} />
-                     <InputGroup label="Expiry Date" type="date" value={newCoupon.expiryDate} onChange={v => setNewCoupon({ ...newCoupon, expiryDate: v })} />
-                  </div>
-
-                  {newCoupon.appliesTo === 'subscription' && (
-                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Applicable Plans</label>
-                        <div className="flex flex-wrap gap-2">
-                           {subscriptionPlans.map(plan => (
-                              <button
-                                 key={plan.id}
-                                 onClick={() => {
-                                    const current = newCoupon.applicablePlans || [];
-                                    const next = current.includes(plan.id) ? current.filter(id => id !== plan.id) : [...current, plan.id];
-                                    setNewCoupon({ ...newCoupon, applicablePlans: next });
-                                 }}
-                                 className={`px-3 py-1 rounded text-xs border ${newCoupon.applicablePlans?.includes(plan.id) ? 'bg-brand-purple border-brand-purple text-white' : 'border-white/20 text-gray-400'}`}
-                              >
-                                 {plan.name}
-                              </button>
-                           ))}
+                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                           <div className="md:col-span-1">
+                              <h4 className="font-bold text-white mb-2 tracking-tight">Main Cover</h4>
+                              <p className="text-xs text-gray-500 mb-6">This image will be used in lists and search results.</p>
+                              <ImageUpload label="" value={newProduct.image} onChange={v => updateProductField('image', v)} required />
+                           </div>
+                           <div className="md:col-span-2">
+                              <h4 className="font-bold text-white mb-2 tracking-tight">Gallery Preview</h4>
+                              <p className="text-xs text-gray-500 mb-6">Add multiple angles or features (max 8 images).</p>
+                              <MultiImageUpload label="" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
+                           </div>
                         </div>
                      </div>
                   )}
 
-                  <InputGroup label="Usage Limit" type="number" value={newCoupon.usageLimit} onChange={v => setNewCoupon({ ...newCoupon, usageLimit: Number(v) })} />
-                  <InputGroup label="Active" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} />
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveCoupon} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Coupon</button></div>
-               </div>
-            </Modal>
-
-            <Modal isOpen={activeModal === 'shipOrder'} onClose={() => !isShipping && setActiveModal(null)} title="Mark Order Shipped">
-               <div className="space-y-4">
-                  <p className="text-gray-400 text-sm mb-4">Update shipping for order <b>#{selectedOrder?.id}</b></p>
-
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Delivery Method" value={shippingDetails.deliveryMethod} onChange={v => setShippingDetails({ ...shippingDetails, deliveryMethod: v })} placeholder="e.g. Air Freight, Pickup" />
-                     <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
-                  </div>
-
-                  <InputGroup label="Pickup/Delivery Location" value={shippingDetails.pickupLocation} onChange={v => setShippingDetails({ ...shippingDetails, pickupLocation: v })} placeholder="Where should the user collect it?" />
-
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
-                     <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
-                  </div>
-
-                  <div className="space-y-2">
-                     <label className="text-xs font-bold text-gray-500 uppercase">Receipt / Waybill Image</label>
-                     <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-gray-400 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-purple/20 file:text-brand-purple hover:file:bg-brand-purple/30"
-                     />
-                     {receiptFile && <p className="text-[10px] text-green-500">Selected: {receiptFile.name}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                     <label className="text-xs font-bold text-gray-500 uppercase">Admin Message to User</label>
-                     <textarea
-                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50"
-                        placeholder="Optional message for the customer..."
-                        value={shippingDetails.adminMessage}
-                        onChange={(e) => setShippingDetails({ ...shippingDetails, adminMessage: e.target.value })}
-                     />
-                  </div>
-
-                  <div className="flex justify-end pt-4">
+                  {/* Modal Footer */}
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-[#15151A] z-10 -m-8 mt-2 p-8 rounded-b-3xl">
+                     <button onClick={() => setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
                      <button
-                        onClick={handleShipOrder}
-                        disabled={isShipping}
-                        className={`px-8 py-3 rounded-lg font-bold text-white flex items-center gap-2 transition ${isShipping ? 'bg-gray-600 cursor-not-allowed' : 'bg-brand-purple hover:bg-brand-purple/80 hover:scale-[1.02]'}`}
+                        onClick={handleSaveProduct}
+                        disabled={isSavingProduct}
+                        className="bg-brand-purple hover:bg-purple-600 px-10 py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-brand-purple/20 transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
                      >
-                        {isShipping ? <RefreshCw size={18} className="animate-spin" /> : <Truck size={18} />}
-                        {isShipping ? 'Shipping...' : 'Confirm Shipment'}
+                        {isSavingProduct ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
+                        {isSavingProduct ? "Processing..." : "Save Product"}
                      </button>
                   </div>
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'editOrderStatus'} onClose={() => setActiveModal(null)} title={`Edit Order: #${selectedOrder?.id}`}>
-               <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="p-4 bg-black/20 rounded-lg border border-white/5">
-                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Customer</p>
-                        <p className="text-sm font-bold">{selectedOrder?.customerName}</p>
-                        <p className="text-[10px] text-gray-400">{selectedOrder?.customerEmail}</p>
-                     </div>
-                     <div className="p-4 bg-black/20 rounded-lg border border-white/5">
-                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Amount</p>
-                        <p className="text-sm font-bold text-brand-purple">KES {selectedOrder?.total.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-400 uppercase">{selectedOrder?.paymentStatus}</p>
-                     </div>
-                  </div>
-
-                  <div className="bg-black/20 rounded-lg border border-white/5 overflow-hidden">
-                     <div className="px-4 py-2 border-b border-white/5 bg-white/5">
-                        <p className="text-[10px] text-gray-500 uppercase font-bold">Purchased Items</p>
-                     </div>
-                     <div className="divide-y divide-white/5 max-h-[200px] overflow-y-auto">
-                        {Array.isArray(selectedOrder?.items) ? selectedOrder.items.map((item: any, idx: number) => (
-                           <div key={idx} className="px-4 py-3 flex justify-between items-center text-sm">
-                              <div className="flex items-center gap-2">
-                                 <span className={`w-2 h-2 rounded-full ${item.type === 'physical' ? 'bg-orange-500' : 'bg-blue-500'}`} />
-                                 <span className="font-medium text-white">{item.productName}</span>
-                              </div>
-                              <div className="text-gray-400">
-                                 {item.quantity} x KES {item.price.toLocaleString()}
-                              </div>
+            <Modal isOpen={activeModal === 'addMixtape'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Mixtape" : "Upload New Mixtape"} size="lg">
+               <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 mb-2">Essential Info</h4>
+                           <InputGroup label="Mixtape Title" value={newMixtape.title} onChange={v => updateMixtapeField('title', v)} required placeholder="e.g. Summer Vibes Vol. 1" />
+                           <InputGroup label="Genre" options={MIXTAPE_GENRE_NAMES} value={newMixtape.genre} onChange={v => updateMixtapeField('genre', v)} />
+                           <div className="grid grid-cols-2 gap-4">
+                              <InputGroup label="Release Date" type="date" value={newMixtape.releaseDate} onChange={v => updateMixtapeField('releaseDate', v)} />
+                              <InputGroup label="Status" options={['draft', 'published']} value={newMixtape.status} onChange={v => updateMixtapeField('status', v)} />
                            </div>
-                        )) : null}
-                        {(!selectedOrder?.items || selectedOrder.items.length === 0) && (
-                           <div className="px-4 py-8 text-center text-gray-500 italic text-xs">
-                              No item details available
-                           </div>
-                        )}
-                     </div>
-                     <div className="bg-white/5 px-4 py-3 border-t border-white/5 space-y-1">
-                        <div className="flex justify-between text-xs">
-                           <span className="text-gray-400">Subtotal:</span>
-                           <span className="text-white">KES {(selectedOrder?.subtotal || selectedOrder?.total || 0).toLocaleString()}</span>
                         </div>
-                        {selectedOrder?.discountAmount ? (
-                           <div className="flex justify-between text-xs">
-                              <span className="text-gray-400">Discount {selectedOrder?.couponCode ? `(${selectedOrder.couponCode})` : ''}:</span>
-                              <span className="text-red-500">- KES {selectedOrder.discountAmount.toLocaleString()}</span>
+
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 mb-2">Media Sources</h4>
+                           <InputGroup
+                              label="Stream URL (Audio Player)"
+                              value={newMixtape.audioUrl}
+                              onChange={v => updateMixtapeField('audioUrl', v)}
+                              placeholder="Direct MP3 link or Hearthis/SC/Mixcloud"
+                              helperText="Supports most major streaming platforms."
+                           />
+                           <InputGroup label="Download Link (MP3)" value={newMixtape.downloadUrl} onChange={v => updateMixtapeField('downloadUrl', v)} placeholder="Direct file link" />
+                           <InputGroup label="Video URL (Optional)" value={newMixtape.videoDownloadUrl} onChange={v => updateMixtapeField('videoDownloadUrl', v)} placeholder="MP4 or YouTube link" />
+                        </div>
+                     </div>
+
+                     <div className="space-y-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
+                           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 mb-4">Artwork</h4>
+                           <ImageUpload label="" value={newMixtape.coverUrl} onChange={v => updateMixtapeField('coverUrl', v)} required />
+                        </div>
+
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 mb-2">Access & Display</h4>
+                           <div className="grid grid-cols-2 gap-4">
+                              <InputGroup label="Duration" value={newMixtape.duration} onChange={v => updateMixtapeField('duration', v)} placeholder="01:00:00" />
+                              <InputGroup label="Download Type" options={['free', 'logged_in', 'music_pool']} value={newMixtape.downloadType} onChange={v => updateMixtapeField('downloadType', v)} />
                            </div>
-                        ) : null}
-                        {selectedOrder?.shippingCost ? (
-                           <div className="flex justify-between text-xs">
-                              <span className="text-gray-400">Shipping:</span>
-                              <span className="text-white">KES {selectedOrder.shippingCost.toLocaleString()}</span>
+                           <div className="space-y-3 pt-2">
+                              <InputGroup label="Exclusive Content" type="checkbox" checked={newMixtape.isExclusive} onChange={v => updateMixtapeField('isExclusive', v)} placeholder="Subscriber Only" />
+                              <InputGroup label="Home Feature" type="checkbox" checked={newMixtape.isFeatured} onChange={v => updateMixtapeField('isFeatured', v)} placeholder="Featured on Home" />
                            </div>
-                        ) : null}
-                        <div className="flex justify-between text-sm font-bold pt-1 border-t border-white/10 mt-1">
-                           <span className="text-white">Total:</span>
-                           <span className="text-brand-purple">KES {(selectedOrder?.total || 0).toLocaleString()}</span>
                         </div>
                      </div>
                   </div>
 
-                  <InputGroup
-                     label="Order Status"
-                     options={['pending', 'processing', 'shipped', 'completed', 'cancelled']}
-                     value={selectedOrder?.status || 'pending'}
-                     onChange={async (v) => {
-                        if (!selectedOrder) return;
-                        try {
-                           await updateOrder(selectedOrder.id, { status: v });
-                           setSelectedOrder({ ...selectedOrder, status: v });
-                           alert(`Order status updated to ${v}`);
-                        } catch (err: any) {
-                           alert("Update failed: " + err.message);
-                        }
-                     }}
-                  />
-
-                  <div className="flex justify-end pt-4">
-                     <button onClick={() => setActiveModal(null)} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Done</button>
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-[#15151A] z-10 -m-8 mt-2 p-8 rounded-b-3xl">
+                     <button onClick={() => setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
+                     <button
+                        onClick={handleSaveMixtape}
+                        className="bg-brand-purple hover:bg-purple-600 px-10 py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-brand-purple/20 transition-all flex items-center gap-3 group"
+                     >
+                        <Save size={18} className="group-hover:scale-110 transition-transform" />
+                        Save Mixtape
+                     </button>
                   </div>
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'userDetail'} onClose={() => setActiveModal(null)} title="User Profile" size="lg">
-               {selectedUser && (
-                  <div className="space-y-8">
-                     <div className="flex items-center gap-6 pb-6 border-b border-white/5">
-                        <div className="w-20 h-20 bg-gray-800 rounded-full overflow-hidden">
-                           {selectedUser.avatarUrl ? <img src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto mt-5 text-gray-500" />}
-                        </div>
-                        <div>
-                           <h2 className="text-2xl font-bold text-white">{selectedUser.name}</h2>
-                           <p className="text-gray-400">{selectedUser.email}</p>
-                           <div className="flex gap-2 mt-2">
-                              <span className="bg-white/10 px-2 py-1 rounded text-xs capitalize">{selectedUser.role}</span>
-                              {selectedUser.isSubscriber && <span className="bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs">Subscriber ({selectedUser.subscriptionPlan})</span>}
+            <Modal isOpen={activeModal === 'addCoupon'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Coupon" : "Create New Coupon"}>
+               <div className="space-y-8">
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                     <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Coupon Identity</h4>
+                     <InputGroup label="Coupon Code" value={newCoupon.code} onChange={v => setNewCoupon({ ...newCoupon, code: v.toUpperCase() })} required placeholder="E.G. SUMMER20" />
+                     <div className="grid grid-cols-2 gap-4">
+                        <InputGroup label="Discount Type" options={['percentage', 'fixed']} value={newCoupon.discountType} onChange={v => setNewCoupon({ ...newCoupon, discountType: v })} />
+                        <InputGroup label="Value" type="number" value={newCoupon.discountValue} onChange={v => setNewCoupon({ ...newCoupon, discountValue: Number(v) })} placeholder="0" />
+                     </div>
+                  </div>
+
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                     <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Applicability</h4>
+                     <div className="grid grid-cols-2 gap-4">
+                        <InputGroup label="Category" options={['store', 'subscription', 'booking', 'all']} value={newCoupon.appliesTo} onChange={v => setNewCoupon({ ...newCoupon, appliesTo: v })} />
+                        <InputGroup label="Expiry Date" type="date" value={newCoupon.expiryDate} onChange={v => setNewCoupon({ ...newCoupon, expiryDate: v })} />
+                     </div>
+
+                     {newCoupon.appliesTo === 'subscription' && (
+                        <div className="pt-2">
+                           <label className="block text-[10px] font-bold text-brand-purple uppercase tracking-widest mb-3 pl-1">Select Applicable Plans</label>
+                           <div className="flex flex-wrap gap-2">
+                              {subscriptionPlans.map(plan => (
+                                 <button
+                                    key={plan.id}
+                                    onClick={() => {
+                                       const current = newCoupon.applicablePlans || [];
+                                       const next = current.includes(plan.id) ? current.filter(id => id !== plan.id) : [...current, plan.id];
+                                       setNewCoupon({ ...newCoupon, applicablePlans: next });
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${newCoupon.applicablePlans?.includes(plan.id) ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/20'}`}
+                                 >
+                                    {plan.name}
+                                 </button>
+                              ))}
                            </div>
+                        </div>
+                     )}
+                  </div>
+
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                     <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Limits & Status</h4>
+                     <div className="grid grid-cols-2 gap-4 items-center">
+                        <InputGroup label="Usage Limit" type="number" value={newCoupon.usageLimit} onChange={v => setNewCoupon({ ...newCoupon, usageLimit: Number(v) })} placeholder="0 (Unlimited)" />
+                        <div className="pt-2">
+                           <InputGroup label="Active Status" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} placeholder="Enabled" />
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-[#15151A] z-10 -m-8 mt-2 p-8 rounded-b-3xl">
+                     <button onClick={() => setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
+                     <button
+                        onClick={handleSaveCoupon}
+                        className="bg-brand-purple hover:bg-purple-600 px-10 py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-brand-purple/20 transition-all flex items-center gap-3 group"
+                     >
+                        <Save size={18} className="group-hover:scale-110 transition-transform" />
+                        {isEditing ? 'Update Coupon' : 'Create Coupon'}
+                     </button>
+                  </div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'shipOrder'} onClose={() => !isShipping && setActiveModal(null)} title="Mark Order Shipped">
+               <div className="space-y-8">
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 flex items-center justify-between">
+                     <div>
+                        <p className="text-xs text-brand-purple font-bold uppercase tracking-widest pl-1 mb-1">Logistics Update</p>
+                        <h3 className="text-white font-bold text-lg tracking-tight">Order #{selectedOrder?.id}</h3>
+                     </div>
+                     <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
+                        <Truck size={24} />
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Shipping Details</h4>
+                           <InputGroup label="Delivery Method" value={shippingDetails.deliveryMethod} onChange={v => setShippingDetails({ ...shippingDetails, deliveryMethod: v })} placeholder="e.g. Air Freight, Pickup" />
+                           <InputGroup label="Courier Name" value={shippingDetails.courierName} onChange={v => setShippingDetails({ ...shippingDetails, courierName: v })} placeholder="e.g. G4S, Wells Fargo" />
+                           <InputGroup label="Pickup/Delivery Location" value={shippingDetails.pickupLocation} onChange={v => setShippingDetails({ ...shippingDetails, pickupLocation: v })} placeholder="Where should the user collect it?" />
                         </div>
                      </div>
 
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                           <h3 className="font-bold text-white mb-4">Account Status</h3>
-                           <div className="space-y-2 text-sm">
-                              <p className="text-gray-400 flex justify-between"><span>Status:</span> <span className="text-white capitalize">{selectedUser.status}</span></p>
-                              <p className="text-gray-400 flex justify-between"><span>Last Login:</span> <span className="text-white">{selectedUser.lastLogin}</span></p>
-                              {selectedUser.isSubscriber && selectedUser.subscriptionExpiry && (() => {
-                                 const expiryDate = new Date(selectedUser.subscriptionExpiry);
-                                 const now = new Date();
-                                 const diffMs = expiryDate.getTime() - now.getTime();
-                                 const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                                 const diffMonths = Math.floor(diffDays / 30);
-
-                                 let timeRemaining = '';
-                                 let statusColor = 'text-green-500';
-
-                                 if (diffDays < 0) {
-                                    timeRemaining = 'Expired';
-                                    statusColor = 'text-red-500';
-                                 } else if (diffDays === 0) {
-                                    timeRemaining = 'Expires today';
-                                    statusColor = 'text-yellow-500';
-                                 } else if (diffDays < 7) {
-                                    timeRemaining = `${diffDays} day${diffDays > 1 ? 's' : ''} left`;
-                                    statusColor = 'text-yellow-500';
-                                 } else if (diffDays < 30) {
-                                    timeRemaining = `${diffDays} days left`;
-                                    statusColor = 'text-green-500';
-                                 } else {
-                                    timeRemaining = `${diffMonths} month${diffMonths > 1 ? 's' : ''} (${diffDays} days) left`;
-                                    statusColor = 'text-green-500';
-                                 }
-
-                                 return (
-                                    <>
-                                       <p className="text-gray-400 flex justify-between">
-                                          <span>Expiry Date:</span>
-                                          <span className="text-white">{expiryDate.toLocaleDateString()}</span>
-                                       </p>
-                                       <p className="text-gray-400 flex justify-between">
-                                          <span>Time Remaining:</span>
-                                          <span className={`font-bold ${statusColor}`}>{timeRemaining}</span>
-                                       </p>
-                                    </>
-                                 );
-                              })()}
-                           </div>
+                     <div className="space-y-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Tracking Info</h4>
+                           <InputGroup label="Tracking Number" value={shippingDetails.trackingNumber} onChange={v => setShippingDetails({ ...shippingDetails, trackingNumber: v })} />
+                           <InputGroup label="Estimated Arrival" type="date" value={shippingDetails.estimatedArrival} onChange={v => setShippingDetails({ ...shippingDetails, estimatedArrival: v })} />
                         </div>
-                        <div>
-                           <h3 className="font-bold text-white mb-4">Admin Actions</h3>
-                           <div className="flex flex-col gap-4">
-                              <div className="flex flex-wrap gap-2">
-                                 <button onClick={() => handleUserAction(selectedUser.id, 'reset')} className="px-3 py-2 bg-white/10 rounded hover:bg-white/20 text-xs">Reset Password</button>
-                                 <button onClick={() => handleUserAction(selectedUser.id, 'ban')} className="px-3 py-2 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 text-xs text-center flex items-center gap-1"><UserX size={12} /> Suspend</button>
-                                 <button onClick={() => handleUserAction(selectedUser.id, 'activate')} className="px-3 py-2 bg-green-500/20 text-green-500 rounded hover:bg-green-500/30 text-xs">Activate</button>
-                                 <button onClick={() => handleUserAction(selectedUser.id, 'delete')} className="px-3 py-2 bg-red-600/20 text-red-600 rounded hover:bg-red-600/30 text-xs flex items-center gap-1"><Trash2 size={12} /> Remove User</button>
-                              </div>
 
-                              <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3">
-                                 <h4 className="text-xs font-bold text-brand-purple uppercase tracking-wider">Grant Manual Access</h4>
-                                 <div className="flex gap-2">
-                                    <select
-                                       value={grantPlan}
-                                       onChange={(e) => setGrantPlan(e.target.value)}
-                                       className="bg-[#15151A] border border-white/10 text-white rounded-lg px-3 py-2 text-xs flex-1 outline-none focus:border-brand-purple"
-                                    >
-                                       <option value="weekly">1 Week</option>
-                                       <option value="monthly">1 Month</option>
-                                       <option value="3months">3 Months</option>
-                                       <option value="6months">6 Months</option>
-                                       <option value="yearly">1 Year</option>
-                                    </select>
-                                    <button
-                                       onClick={() => handleUserAction(selectedUser.id, 'grant_pool', grantPlan)}
-                                       className="px-4 py-2 bg-brand-purple text-white rounded-lg hover:bg-brand-purple/80 text-xs font-bold transition-all"
-                                    >
-                                       Grant Pool Access
-                                    </button>
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-3">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Receipt / Waybill</h4>
+                           <div className="relative group">
+                              <input
+                                 type="file"
+                                 accept="image/*"
+                                 onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                                 className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                              />
+                              <div className="bg-black/40 border-2 border-dashed border-white/10 rounded-2xl p-4 text-center group-hover:bg-white/5 transition-all group-hover:border-brand-purple/30">
+                                 <Upload size={20} className="mx-auto text-gray-500 mb-2 group-hover:text-brand-purple transition-colors" />
+                                 <span className="text-xs text-gray-500 font-medium">{receiptFile ? receiptFile.name : 'Click to upload proof'}</span>
+                              </div>
+                           </div>
+                           {receiptFile && <p className="text-[10px] text-green-500 text-center font-bold">✓ File selected</p>}
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
+                     <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1 mb-4">Message to Customer</h4>
+                     <textarea
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50 focus:ring-4 focus:ring-brand-purple/5 transition-all outline-none"
+                        placeholder="Updates or instructions for the customer..."
+                        value={shippingDetails.adminMessage}
+                        onChange={(e) => setShippingDetails({ ...shippingDetails, adminMessage: e.target.value })}
+                     />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-[#15151A] z-10 -m-8 mt-2 p-8 rounded-b-3xl">
+                     <button onClick={() => !isShipping && setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
+                     <button
+                        onClick={handleShipOrder}
+                        disabled={isShipping}
+                        className={`px-10 py-3.5 rounded-2xl font-bold text-white flex items-center gap-3 transition-all shadow-lg ${isShipping ? 'bg-gray-700 cursor-not-allowed' : 'bg-brand-purple hover:bg-purple-600 hover:shadow-brand-purple/20'}`}
+                     >
+                        {isShipping ? <RefreshCw size={18} className="animate-spin" /> : <Truck size={18} />}
+                        {isShipping ? 'Processing...' : 'Confirm Shipment'}
+                     </button>
+                  </div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'editOrderStatus'} onClose={() => setActiveModal(null)} title={`Order Brief: #${selectedOrder?.id}`}>
+               <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2 pl-1">Customer Profile</p>
+                        <p className="text-white font-bold">{selectedOrder?.customerName}</p>
+                        <p className="text-xs text-gray-500">{selectedOrder?.customerEmail}</p>
+                     </div>
+                     <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2 pl-1">Payment Snapshot</p>
+                        <p className="text-white font-bold text-brand-purple">KES {selectedOrder?.total.toLocaleString()}</p>
+                        <p className="text-[10px] text-brand-cyan uppercase font-bold">{selectedOrder?.paymentStatus}</p>
+                     </div>
+                  </div>
+
+                  <div className="bg-[#0B0B0F] rounded-3xl border border-white/5 overflow-hidden">
+                     <div className="px-6 py-4 border-b border-white/5 bg-white/5">
+                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Order Items</p>
+                     </div>
+                     <div className="divide-y divide-white/5 max-h-[300px] overflow-y-auto scrollbar-hide">
+                        {Array.isArray(selectedOrder?.items) ? selectedOrder.items.map((item: any, idx: number) => (
+                           <div key={idx} className="px-6 py-4 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="flex items-center gap-3">
+                                 <div className={`w-2 h-10 rounded-full ${item.type === 'physical' ? 'bg-orange-500/40' : 'bg-brand-cyan/40'}`} />
+                                 <div>
+                                    <p className="font-bold text-white text-sm">{item.productName}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold">{item.type}</p>
                                  </div>
                               </div>
+                              <div className="text-right">
+                                 <p className="text-white font-bold text-sm">KES {item.price.toLocaleString()}</p>
+                                 <p className="text-[10px] text-gray-600 font-bold">QTY: {item.quantity}</p>
+                              </div>
+                           </div>
+                        )) : null}
+                     </div>
+                     <div className="bg-white/5 px-8 pt-6 pb-8 border-t border-white/5 space-y-2">
+                        <div className="flex justify-between text-xs">
+                           <span className="text-gray-500 font-medium">Subtotal</span>
+                           <span className="text-white font-bold">KES {(selectedOrder?.subtotal || selectedOrder?.total || 0).toLocaleString()}</span>
+                        </div>
+                        {selectedOrder?.discountAmount ? (
+                           <div className="flex justify-between text-xs">
+                              <span className="text-gray-500 font-medium whitespace-nowrap">Discount {selectedOrder?.couponCode ? `(${selectedOrder.couponCode})` : ''}</span>
+                              <span className="text-red-500 font-bold">- KES {selectedOrder.discountAmount.toLocaleString()}</span>
+                           </div>
+                        ) : null}
+                        {selectedOrder?.shippingCost ? (
+                           <div className="flex justify-between text-xs">
+                              <span className="text-gray-500 font-medium">Shipping Fee</span>
+                              <span className="text-white font-bold">KES {selectedOrder.shippingCost.toLocaleString()}</span>
+                           </div>
+                        ) : null}
+                        <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-4">
+                           <span className="text-white font-bold text-base">Grand Total</span>
+                           <span className="text-2xl font-black text-brand-purple tracking-tighter">KES {(selectedOrder?.total || 0).toLocaleString()}</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-brand-purple/10">
+                     <h4 className="text-[10px] font-bold text-brand-purple uppercase tracking-[0.2em] mb-4 pl-1">Change Order Status</h4>
+                     <InputGroup
+                        label=""
+                        options={['pending', 'processing', 'shipped', 'completed', 'cancelled']}
+                        value={selectedOrder?.status || 'pending'}
+                        onChange={async (v) => {
+                           if (!selectedOrder) return;
+                           try {
+                              await updateOrder(selectedOrder.id, { status: v });
+                              setSelectedOrder({ ...selectedOrder, status: v });
+                              alert(`Order status updated to ${v}`);
+                           } catch (err: any) {
+                              alert("Update failed: " + err.message);
+                           }
+                        }}
+                     />
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                     <button onClick={() => setActiveModal(null)} className="w-full bg-brand-purple hover:bg-purple-600 px-8 py-4 rounded-2xl font-bold text-white shadow-lg shadow-brand-purple/10 transition-all">Done</button>
+                  </div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'userDetail'} onClose={() => setActiveModal(null)} title="User Profile Details" size="lg">
+               {selectedUser && (
+                  <div className="space-y-8">
+                     <div className="bg-[#0B0B0F] p-8 rounded-3xl border border-white/5 flex flex-col items-center text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-brand-purple/20 to-transparent" />
+                        <div className="w-24 h-24 rounded-3xl bg-brand-purple/20 flex items-center justify-center text-brand-purple text-4xl font-black mb-4 relative z-10 border border-brand-purple/30 overflow-hidden">
+                           {selectedUser.avatarUrl ? <img src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto text-gray-500" />}
+                        </div>
+                        <div className="relative z-10">
+                           <h3 className="text-white font-bold text-2xl tracking-tight">{selectedUser.name || "No Name"}</h3>
+                           <p className="text-gray-500 font-medium">{selectedUser.email}</p>
+                           <div className="flex items-center gap-2 justify-center mt-3">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${selectedUser.role === 'admin' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20'}`}>
+                                 {selectedUser.role}
+                              </span>
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${selectedUser.isSubscriber ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
+                                 {selectedUser.isSubscriber ? `VIP: ${selectedUser.subscriptionPlan}` : 'Free Tier'}
+                              </span>
                            </div>
                         </div>
                      </div>
 
-                     <div>
-                        <h3 className="font-bold text-white mb-4">Recent History</h3>
-                        <div className="bg-black/20 rounded-lg p-4 text-center text-gray-500 text-sm">
-                           User history logs (orders, downloads) would appear here.
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Account Info</h4>
+                           <div className="space-y-3 text-sm">
+                              <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+                                 <span className="text-gray-500 font-medium">Status</span>
+                                 <span className="text-white font-bold capitalize">{selectedUser.status}</span>
+                              </div>
+                              <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+                                 <span className="text-gray-500 font-medium">Last Login</span>
+                                 <span className="text-white font-bold">{selectedUser.lastLogin || 'Never'}</span>
+                              </div>
+                           </div>
                         </div>
+
+                        <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Subscription Details</h4>
+                           {selectedUser.isSubscriber && selectedUser.subscriptionExpiry && (() => {
+                              const expiryDate = new Date(selectedUser.subscriptionExpiry);
+                              const now = new Date();
+                              const diffMs = expiryDate.getTime() - now.getTime();
+                              const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+                              return (
+                                 <div className="space-y-4">
+                                    <div className="px-4 py-3 bg-brand-purple/5 rounded-2xl border border-brand-purple/20">
+                                       <p className="text-[10px] text-brand-purple font-bold uppercase tracking-widest mb-1">Time Remaining</p>
+                                       <div className="flex items-baseline gap-2">
+                                          <span className={`text-2xl font-black ${diffDays <= 0 ? 'text-red-500' : 'text-white'}`}>{diffDays <= 0 ? 'EXPIRED' : `${diffDays} Days`}</span>
+                                       </div>
+                                    </div>
+                                    <div className="px-4 py-3 bg-white/5 rounded-2xl border border-white/5 flex justify-between items-center">
+                                       <span className="text-xs text-gray-500">Expires On</span>
+                                       <span className="text-xs text-white font-bold">{expiryDate.toLocaleDateString()}</span>
+                                    </div>
+                                 </div>
+                              );
+                           })()}
+                           {!selectedUser.isSubscriber && (
+                              <div className="px-4 py-10 text-center bg-white/5 rounded-2xl border border-white/5 border-dashed">
+                                 <p className="text-xs text-gray-500 font-medium italic">No active subscription</p>
+                              </div>
+                           )}
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-6">
+                        <div className="flex items-baseline justify-between pl-1">
+                           <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Management Controls</h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="bg-black/40 p-5 rounded-2xl border border-white/5 space-y-4">
+                              <h5 className="text-[10px] font-bold text-brand-purple uppercase tracking-widest">Grant Pool Access</h5>
+                              <div className="flex gap-2">
+                                 <select
+                                    value={grantPlan}
+                                    onChange={(e) => setGrantPlan(e.target.value)}
+                                    className="bg-[#15151A] border border-white/10 text-white rounded-xl px-4 py-3 text-xs flex-1 outline-none focus:border-brand-purple/50 focus:ring-4 focus:ring-brand-purple/5 transition-all"
+                                 >
+                                    <option value="weekly">1 Week</option>
+                                    <option value="monthly">1 Month</option>
+                                    <option value="3months">3 Months</option>
+                                    <option value="6months">6 Months</option>
+                                    <option value="yearly">1 Year</option>
+                                 </select>
+                                 <button onClick={() => handleUserAction(selectedUser.id, 'grant_pool', grantPlan)} className="bg-brand-purple hover:bg-purple-600 text-white px-5 py-3 rounded-xl font-bold text-xs transition-all">Grant</button>
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-2 gap-2">
+                              <button onClick={() => handleUserAction(selectedUser.id, 'reset')} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 text-[10px] font-bold text-gray-400 hover:text-white transition-all text-center">Reset Pass</button>
+                              <button onClick={() => handleUserAction(selectedUser.id, 'activate')} className="p-3 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-white rounded-xl border border-green-500/10 transition-all text-[10px] font-bold text-center">Activate</button>
+                              <button onClick={() => handleUserAction(selectedUser.id, 'ban')} className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl border border-red-500/10 transition-all text-[10px] font-bold text-center">Suspend</button>
+                              <button onClick={() => handleUserAction(selectedUser.id, 'delete')} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-600 hover:text-white rounded-xl border border-red-600/10 transition-all text-[10px] font-bold text-center">Permanent</button>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="flex justify-end pt-4 border-t border-white/5 -m-8 mt-2 p-8 bg-[#15151A] rounded-b-3xl">
+                        <button onClick={() => setActiveModal(null)} className="px-10 py-3.5 bg-brand-purple hover:bg-purple-600 text-white rounded-2xl font-bold shadow-lg shadow-brand-purple/10 transition-all">Close Profile</button>
                      </div>
                   </div>
                )}
             </Modal>
 
-            <Modal isOpen={activeModal === 'addBooking'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Booking" : "New Manual Booking"}>
-               <div className="space-y-4">
-                  <InputGroup label="Client Name" value={newBooking.clientName} onChange={v => setNewBooking({ ...newBooking, clientName: v })} required />
-                  <InputGroup label="Service Type" value={newBooking.serviceType} onChange={v => setNewBooking({ ...newBooking, serviceType: v })} />
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Date" type="date" value={newBooking.date} onChange={v => setNewBooking({ ...newBooking, date: v })} />
-                     <InputGroup label="Time" type="time" value={newBooking.time} onChange={v => setNewBooking({ ...newBooking, time: v })} />
+            <Modal isOpen={activeModal === 'addBooking'} onClose={() => setActiveModal(null)} title={isEditing ? "Intercept Booking" : "New Command Booking"}>
+               <div className="space-y-6">
+                  <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                     <InputGroup label="Client Identity" value={newBooking.clientName} onChange={v => setNewBooking({ ...newBooking, clientName: v })} required />
+                     <InputGroup label="Service Vector" value={newBooking.serviceType} onChange={v => setNewBooking({ ...newBooking, serviceType: v })} />
+                     <div className="grid grid-cols-2 gap-6">
+                        <InputGroup label="Temporal Date" type="date" value={newBooking.date} onChange={v => setNewBooking({ ...newBooking, date: v })} />
+                        <InputGroup label="Time Slot" type="time" value={newBooking.time} onChange={v => setNewBooking({ ...newBooking, time: v })} />
+                     </div>
+                     <div className="grid grid-cols-2 gap-6">
+                        <InputGroup label="Budget (KES)" type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
+                        <InputGroup label="Mission Status" options={['pending', 'confirmed', 'completed', 'cancelled']} value={newBooking.status} onChange={v => setNewBooking({ ...newBooking, status: v })} />
+                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Amount" type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
-                     <InputGroup label="Status" options={['pending', 'confirmed', 'completed', 'cancelled']} value={newBooking.status} onChange={v => setNewBooking({ ...newBooking, status: v })} />
+                  <div className="flex justify-end pt-6 border-t border-white/5">
+                     <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
+                     <button onClick={handleSaveBooking} className="bg-brand-purple hover:bg-purple-600 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-[10px]">
+                        Sync Matrix
+                     </button>
                   </div>
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveBooking} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Booking</button></div>
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'addSessionType'} onClose={() => setActiveModal(null)} title="Manage Session Type">
-               <div className="space-y-4">
-                  <InputGroup label="Service Name" value={newSessionType.name} onChange={v => setNewSessionType({ ...newSessionType, name: v })} required />
-                  <InputGroup label="Price (KES)" type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
-                  <InputGroup label="Duration (Hours)" type="number" value={newSessionType.duration} onChange={v => setNewSessionType({ ...newSessionType, duration: Number(v) })} />
-                  <InputGroup label="Description" type="textarea" value={newSessionType.description} onChange={v => setNewSessionType({ ...newSessionType, description: v })} />
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveSessionType} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Service</button></div>
+            <Modal isOpen={activeModal === 'addSessionType'} onClose={() => setActiveModal(null)} title="Manage Studio Service">
+               <div className="space-y-6">
+                  <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                     <InputGroup label="Service Label" value={newSessionType.name} onChange={v => setNewSessionType({ ...newSessionType, name: v })} required />
+                     <div className="grid grid-cols-2 gap-6">
+                        <InputGroup label="Price (KES)" type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
+                        <InputGroup label="Duration (Hrs)" type="number" value={newSessionType.duration} onChange={v => setNewSessionType({ ...newSessionType, duration: Number(v) })} />
+                     </div>
+                     <InputGroup label="Logic Description" type="textarea" value={newSessionType.description} onChange={v => setNewSessionType({ ...newSessionType, description: v })} />
+                  </div>
+                  <div className="flex justify-end pt-6 border-t border-white/5">
+                     <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
+                     <button onClick={handleSaveSessionType} className="bg-brand-purple hover:bg-purple-600 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all uppercase tracking-widest text-[10px]">
+                        Protocol Update
+                     </button>
+                  </div>
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'addEquipment'} onClose={() => setActiveModal(null)} title="Manage Equipment">
-               <div className="space-y-4">
-                  <InputGroup label="Equipment Name" value={newEquipment.name} onChange={v => setNewEquipment({ ...newEquipment, name: v })} required />
-                  <InputGroup label="Category" options={['Microphones', 'Monitoring & Acoustics', 'Hardware & Interface', 'Other']} value={newEquipment.category} onChange={v => setNewEquipment({ ...newEquipment, category: v })} />
-                  <ImageUpload label="Equipment Image" value={newEquipment.image} onChange={v => setNewEquipment({ ...newEquipment, image: v })} />
-                  <InputGroup label="Description" type="textarea" value={newEquipment.description} onChange={v => setNewEquipment({ ...newEquipment, description: v })} />
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveEquipment} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Equipment</button></div>
+            <Modal isOpen={activeModal === 'addEquipment'} onClose={() => setActiveModal(null)} title="Gear Manifest Update">
+               <div className="space-y-6">
+                  <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                     <InputGroup label="Hardware Identity" value={newEquipment.name} onChange={v => setNewEquipment({ ...newEquipment, name: v })} required />
+                     <InputGroup label="Frequency Category" options={['Microphones', 'Monitoring & Acoustics', 'Hardware & Interface', 'Other']} value={newEquipment.category} onChange={v => setNewEquipment({ ...newEquipment, category: v })} />
+                     <ImageUpload label="Visual Reference" value={newEquipment.image} onChange={v => setNewEquipment({ ...newEquipment, image: v })} />
+                     <InputGroup label="Terminal Specs" type="textarea" value={newEquipment.description} onChange={v => setNewEquipment({ ...newEquipment, description: v })} />
+                  </div>
+                  <div className="flex justify-end pt-6 border-t border-white/5">
+                     <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
+                     <button onClick={handleSaveEquipment} className="bg-brand-purple hover:bg-purple-600 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all uppercase tracking-widest text-[10px]">
+                        Save Gear
+                     </button>
+                  </div>
                </div>
             </Modal>
 
-            <Modal isOpen={activeModal === 'addChannel'} onClose={() => setActiveModal(null)} title="Manage Telegram Channel">
-               <div className="space-y-4">
-                  <InputGroup label="Channel Name" value={newChannel.name} onChange={v => setNewChannel({ ...newChannel, name: v })} required />
-                  <InputGroup label="Channel ID" value={newChannel.channelId} onChange={v => setNewChannel({ ...newChannel, channelId: v })} placeholder="-100..." />
-                  <InputGroup label="Genre / Category" value={newChannel.genre} onChange={v => setNewChannel({ ...newChannel, genre: v })} />
-                  <InputGroup label="Invite Link" value={newChannel.inviteLink} onChange={v => setNewChannel({ ...newChannel, inviteLink: v })} />
-                  <InputGroup label="Active" type="checkbox" checked={newChannel.active} onChange={v => setNewChannel({ ...newChannel, active: v })} />
-                  <div className="flex justify-end pt-4"><button onClick={handleSaveChannel} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white">Save Channel</button></div>
+            <Modal isOpen={activeModal === 'addChannel'} onClose={() => setActiveModal(null)} title="Neural Link: Telegram Channel">
+               <div className="space-y-6">
+                  <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                     <InputGroup label="Network Identity" value={newChannel.name} onChange={v => setNewChannel({ ...newChannel, name: v })} required />
+                     <div className="grid grid-cols-2 gap-6">
+                        <InputGroup label="Broadcast ID" value={newChannel.channelId} onChange={v => setNewChannel({ ...newChannel, channelId: v })} placeholder="-100..." />
+                        <InputGroup label="Genre Mapping" value={newChannel.genre} onChange={v => setNewChannel({ ...newChannel, genre: v })} />
+                     </div>
+                     <InputGroup label="Transmission Link" value={newChannel.inviteLink} onChange={v => setNewChannel({ ...newChannel, inviteLink: v })} />
+                     <InputGroup label="Active Status" type="checkbox" checked={newChannel.active} onChange={v => setNewChannel({ ...newChannel, active: v })} />
+                  </div>
+                  <div className="flex justify-end pt-6 border-t border-white/5">
+                     <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
+                     <button onClick={handleSaveChannel} className="bg-brand-purple hover:bg-purple-600 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all uppercase tracking-widest text-[10px]">
+                        Save Network
+                     </button>
+                  </div>
                </div>
             </Modal>
 
          </div>
-      </div>
+      </div >
    );
 };
 
