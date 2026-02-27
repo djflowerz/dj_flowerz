@@ -545,7 +545,8 @@ const useCollection = <T extends { id: string }>(
       orderByField === 'updatedAt' ? 'updated_at' :
         orderByField === 'dateSubscribed' ? 'date_subscribed' :
           orderByField === 'startDate' ? 'start_date' :
-            orderByField;
+            orderByField === 'dateAdded' ? 'date_added' :
+              orderByField;
 
     const [data, setData, isLoading, error, refresh] = useSupabaseCollection<T>(
       tableName,
@@ -656,7 +657,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (!isAdmin) return;
     const fetchTgConfig = async () => {
-      const { data } = await supabase.from('telegram_config').select('*').eq('id', 'main').single();
+      const { data } = await supabase.from('telegram_config').select('*').eq('id', 'main').maybeSingle();
       if (data) {
         setTelegramConfig({
           botToken: data.bot_token || '',
@@ -696,7 +697,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [referralLogs, setReferralLogs] = useState<ReferralLog[]>([]);
 
   const fetchRefSettings = async () => {
-    const { data } = await supabase.from('settings').select('data').eq('id', 'referralSettings').single();
+    const { data } = await supabase.from('settings').select('data').eq('id', 'referralSettings').maybeSingle();
     if (data && data.data) {
       setReferralSettings(data.data as ReferralSettings);
     }
