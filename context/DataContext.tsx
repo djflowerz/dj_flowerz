@@ -208,9 +208,9 @@ interface DataContextType {
   removeUser: (id: string) => void;
   addContactMessage: (msg: Partial<ContactMessage>) => Promise<void>;
   updateContactMessage: (id: string, data: Partial<ContactMessage>) => Promise<void>;
-  addReview: (review: any) => Promise<void>;
   addComment: (comment: any) => Promise<void>;
   incrementMixtapeDownload: (mixtapeId: string) => Promise<void>;
+  isFirstTimeSubscriber: (userId: string) => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -505,27 +505,7 @@ const getTableName = (colName: string): string => {
 };
 
 const SUPABASE_COLLECTIONS = [
-  'orders',
-  'profiles',
-  'subscriptions',
-  'bookings',
-  'studio_rooms',
-  'maintenance_logs',
-  'coupons',
-  'referral_stats',
-  'newsletter_campaigns',
-  'newsletter_segments',
-  'newsletter_subscribers',
-  'telegram_channels',
-  'telegram_mappings',
-  'telegram_users',
-  'telegram_logs',
-  'payments',
-  'tips',
-  'scanned_tracks',
-  'settings',
-  'reviews',
-  'comments'
+  // All business data moving to R2.
 ];
 
 const useCollection = <T extends { id: string }>(
@@ -694,9 +674,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [referralSettings, setReferralSettings] = useState<ReferralSettings>({
     newUserDiscount: 10,
+    newUserDiscountType: 'percentage',
     referrerRewardAmount: 500,
     rewardType: 'flat',
-    enabled: true
+    enabled: true,
+    firstTimeDiscountEnabled: true,
+    firstTimeDiscount: 10,
+    firstTimeDiscountType: 'percentage'
   });
   const [referralLogs, setReferralLogs] = useState<ReferralLog[]>([]);
 
@@ -1127,28 +1111,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const finalId = sub.id || `sub${Date.now()}`;
       const newSub = { ...sub, id: finalId, updatedAt: new Date().toISOString() };
-
-      // 1. Log in R2
       const newSubs = [newSub, ...subscriptions];
       await saveToR2('subscriptions', newSubs);
-
-      // 2. Sync with User Profile to grant access (SUPABASE - AUTH)
-      if (sub.status === 'active') {
-        const { error: profileError } = await supabase.from('profiles').update({
-          is_subscriber: true,
-          subscription_plan: sub.planId,
-          subscription_expiry: sub.expiryDate
-        }).eq('id', sub.userId);
-
-        if (profileError) {
-          console.error("Failed to update user profile for subscription:", profileError);
-        } else {
-          refreshUsers();
-        }
-      }
       refreshSubscriptions();
     } catch (err: any) {
       console.error("Add subscription failed:", err.message);
+    }
+  };
+
+  const isFirstTimeSubscriber = async (userId: string): Promise<boolean> => {
+    try {
+      // Since subscriptions are in state, we can check synchronously
+      const hasPastSubs = subscriptions.some(s => s.userId === userId);
+      return !hasPastSubs;
+    } catch (err) {
+      return true;
     }
   };
   const updateSubscription = async (id: string, data: Partial<Subscription>) => {
@@ -1458,24 +1435,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUser = async (id: string, data: Partial<User>) => {
     try {
-      // 1. Update R2 (Admin's source of truth)
       const updatedUsers = users.map(u => u.id === id ? { ...u, ...data, updatedAt: new Date().toISOString() } : u);
       await saveToR2('profiles', updatedUsers);
-
-      // 2. Mirror some critical fields to Supabase for Auth/Site UI if needed
-      // (This keeps the public-facing site functional while Admin uses R2)
-      const profileData: any = { updated_at: new Date().toISOString() };
-      if (data.name) profileData.name = data.name;
-      if (data.email) profileData.email = data.email;
-      if (data.role) profileData.role = data.role;
-      if (data.isSubscriber !== undefined) profileData.is_subscriber = data.isSubscriber;
-      if (data.subscriptionPlan) profileData.subscription_plan = data.subscriptionPlan;
-      if (data.subscriptionExpiry) profileData.subscription_expiry = data.subscriptionExpiry;
-      if (data.avatarUrl) profileData.avatar_url = data.avatarUrl;
-      if (data.status) profileData.status = data.status;
-
-      await supabase.from('profiles').update(profileData).eq('id', id);
-
       refreshUsers();
     } catch (err: any) {
       console.error("Update user failed:", err.message);
@@ -1506,13 +1467,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const removeUser = async (id: string) => {
     try {
-      // 1. Remove from R2
       const updatedUsers = users.filter(u => u.id !== id);
       await saveToR2('profiles', updatedUsers);
-
-      // 2. Remove from Supabase
-      await supabase.from('profiles').delete().eq('id', id);
-
       refreshUsers();
     } catch (err: any) {
       console.error("Remove user failed:", err.message);
@@ -1686,10 +1642,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     incrementMixtapeDownload,
     referralLogs,
     refreshScannedTracks,
+    scannedTracks,
+    isFirstTimeSubscriber,
     deleteScannedTrack: async (id: string) => {
       const updatedTracks = scannedTracks.filter((t: any) => t.id !== id);
       await saveToR2('scanned_tracks', updatedTracks);
-      await supabase.from('scanned_tracks').delete().eq('id', id);
       refreshScannedTracks();
     }
   }), [

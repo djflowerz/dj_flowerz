@@ -3200,6 +3200,48 @@ const AdminDashboard: React.FC = () => {
                               </div>
                            </div>
 
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10 border-t border-white/5 pt-10">
+                              <div className="space-y-4">
+                                 <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">First-Time Discount</label>
+                                    <select
+                                       value={referralSettings.firstTimeDiscountType || 'percentage'}
+                                       onChange={(e) => updateReferralSettings({ firstTimeDiscountType: e.target.value as 'percentage' | 'flat' })}
+                                       className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-cyan uppercase outline-none focus:border-brand-cyan/50 transition-all cursor-pointer"
+                                    >
+                                       <option value="percentage">% MAGNITUDE</option>
+                                       <option value="flat">KES QUANTITY</option>
+                                    </select>
+                                 </div>
+                                 <div className="relative group">
+                                    <input
+                                       type="number"
+                                       value={referralSettings.firstTimeDiscount || 0}
+                                       onChange={(e) => updateReferralSettings({ firstTimeDiscount: Number(e.target.value) })}
+                                       className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-cyan/50 outline-none font-black text-xl text-white transition-all shadow-inner"
+                                    />
+                                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-cyan transition-colors">
+                                       {referralSettings.firstTimeDiscountType === 'percentage' ? '%' : 'KES'}
+                                    </span>
+                                 </div>
+                              </div>
+                              <div className="space-y-4">
+                                 <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">First-Time Protocol</label>
+                                    <button
+                                       onClick={() => updateReferralSettings({ firstTimeDiscountEnabled: !referralSettings.firstTimeDiscountEnabled })}
+                                       className={`px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${referralSettings.firstTimeDiscountEnabled ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}
+                                    >
+                                       {referralSettings.firstTimeDiscountEnabled ? 'ACTIVE' : 'INACTIVE'}
+                                    </button>
+                                 </div>
+                                 <p className="text-[10px] text-gray-500 font-medium px-4 leading-relaxed">
+                                    Automatically apply this discount to first-time subscribers who don't have a referral code.
+                                 </p>
+                              </div>
+                           </div>
+
+
                            <div className="p-8 bg-brand-purple/5 border border-brand-purple/10 rounded-[2rem] flex gap-6 items-start relative z-10">
                               <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shrink-0">
                                  <Info size={24} />

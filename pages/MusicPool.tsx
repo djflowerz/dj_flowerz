@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
@@ -188,17 +189,9 @@ const MusicPool: React.FC = () => {
       });
    }, [poolTracks, searchQuery, activeCategory, selectedYear, selectedMonth, selectedGenre]);
 
-   // Pagination State
-   const [currentPage, setCurrentPage] = useState(1);
-   const tracksPerPage = 100;
-
-   // Reset page on filter change
-   useEffect(() => {
-      setCurrentPage(1);
-   }, [activeCategory, selectedYear, selectedMonth, selectedGenre, searchQuery]);
-
-   const totalPages = Math.ceil(filteredTracks.length / tracksPerPage);
-   const visibleTracks = filteredTracks.slice((currentPage - 1) * tracksPerPage, currentPage * tracksPerPage);
+   // Pagination is now handled by Virtuoso virtualization
+   // const totalPages = Math.ceil(filteredTracks.length / tracksPerPage);
+   // const visibleTracks = filteredTracks.slice((currentPage - 1) * tracksPerPage, currentPage * tracksPerPage);
 
    const toggleExpand = (id: string) => {
       setExpandedTrackId(expandedTrackId === id ? null : id);
@@ -390,201 +383,206 @@ const MusicPool: React.FC = () => {
                         )}
 
                         {filteredTracks.length > 0 ? (
-                           <div className="divide-y divide-white/5">
-                              {visibleTracks.map(track => (
-                                 <div key={track.id} className={`group hover:bg-white/[0.05] border border-white/5 rounded-3xl mb-4 transition-all duration-300 overflow-hidden ${expandedTrackId === track.id ? 'bg-white/[0.05] border-brand-purple/30 ring-1 ring-brand-purple/20' : ''}`}>
+                           <div className="divide-y divide-white/5 px-4 md:px-0">
+                              <Virtuoso
+                                 useWindowScroll
+                                 data={filteredTracks}
+                                 increaseViewportBy={300}
+                                 itemContent={(index, track) => (
+                                    <div key={track.id} className={`group hover:bg-white/[0.05] border border-white/5 rounded-3xl mb-4 transition-all duration-300 overflow-hidden ${expandedTrackId === track.id ? 'bg-white/[0.05] border-brand-purple/30 ring-1 ring-brand-purple/20' : ''}`}>
 
-                                    {/* Main Content Area */}
-                                    <div className="p-6">
-                                       <div className="flex flex-col md:flex-row gap-6">
-                                          {/* Left: Play Icon & Song Details */}
-                                          <div className="flex-1 flex flex-col gap-4">
-                                             <div className="flex items-start gap-4">
-                                                {/* Play Toggle */}
-                                                <div
-                                                   onClick={() => togglePlay(track)}
-                                                   className="relative flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden group-hover:ring-2 ring-white/10 cursor-pointer shadow-xl transition-all duration-300 group-hover:scale-105 active:scale-95"
-                                                >
-                                                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
-                                                      {playingTrackId === track.id ? (
-                                                         <Pause size={28} className="text-brand-cyan fill-current animate-pulse" />
-                                                      ) : (
-                                                         <Play size={28} className="text-white fill-current translate-x-0.5" />
+                                       {/* Main Content Area */}
+                                       <div className="p-6">
+                                          <div className="flex flex-col md:flex-row gap-6">
+                                             {/* Left: Play Icon & Song Details */}
+                                             <div className="flex-1 flex flex-col gap-4">
+                                                <div className="flex items-start gap-4">
+                                                   {/* Play Toggle */}
+                                                   <div
+                                                      onClick={() => togglePlay(track)}
+                                                      className="relative flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden group-hover:ring-2 ring-white/10 cursor-pointer shadow-xl transition-all duration-300 group-hover:scale-105 active:scale-95"
+                                                   >
+                                                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
+                                                         {playingTrackId === track.id ? (
+                                                            <Pause size={28} className="text-brand-cyan fill-current animate-pulse" />
+                                                         ) : (
+                                                            <Play size={28} className="text-white fill-current translate-x-0.5" />
+                                                         )}
+                                                      </div>
+                                                      {playingTrackId === track.id && (
+                                                         <div className="absolute inset-0 bg-brand-cyan/10 animate-pulse"></div>
                                                       )}
                                                    </div>
-                                                   {playingTrackId === track.id && (
-                                                      <div className="absolute inset-0 bg-brand-cyan/10 animate-pulse"></div>
+
+                                                   {/* Details: Title & Artist */}
+                                                   <div className="min-w-0 flex-1">
+                                                      <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words">
+                                                         {track.title}
+                                                      </h4>
+                                                      <p className="text-brand-purple text-sm font-medium opacity-90 truncate italic">{track.artist}</p>
+                                                   </div>
+                                                </div>
+
+                                                {/* Metadata Info (Genres, Tags, Categories) - Stacked Below Title */}
+                                                <div className="flex flex-wrap gap-2 items-center mt-1">
+                                                   {/* Primary Genre Tag */}
+                                                   <span className="bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-lg border border-brand-purple/30 text-[10px] font-black uppercase tracking-widest whitespace-normal max-w-full">
+                                                      {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
+                                                   </span>
+
+                                                   {/* NEW Badge */}
+                                                   {(track.category || []).map(c => c.toLowerCase()).includes('new') && (
+                                                      <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
+                                                         NEW
+                                                      </span>
+                                                   )}
+
+                                                   {/* Version/Type Tag */}
+                                                   <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
+                                                      {track.versions?.[0]?.type || 'Video'}
+                                                   </span>
+
+                                                   {/* Additional Category Tags */}
+                                                   {track.category && track.category.length > 0 &&
+                                                      track.category
+                                                         .filter(cat => {
+                                                            const c = cat.toLowerCase();
+                                                            const g = track.genre?.toLowerCase() || '';
+                                                            return !c.includes('video pool') &&
+                                                               !c.includes('tracks') &&
+                                                               !c.includes('genres') &&
+                                                               c !== g &&
+                                                               c !== track.versions?.[0]?.type?.toLowerCase();
+                                                         })
+                                                         .map((cat, idx) => {
+                                                            // Clean up formatting for display
+                                                            let displayCat = cat.toUpperCase();
+                                                            // If it's a year but doesn't have EDITS, add it
+                                                            if (/20\d{2}/.test(displayCat) && !displayCat.includes('EDITS')) {
+                                                               displayCat = displayCat.replace(/(20\d{2})/, '$1 EDITS');
+                                                            }
+
+                                                            return (
+                                                               <span key={idx} className="bg-brand-cyan/10 text-brand-cyan px-2 py-0.5 rounded-lg border border-brand-cyan/20 text-[10px] font-bold uppercase whitespace-nowrap">
+                                                                  {displayCat}
+                                                               </span>
+                                                            );
+                                                         })
+                                                   }
+
+                                                   {/* Show year ONLY if NOT 2026 and not already in tags */}
+                                                   {track.year && Number(track.year) > 0 && Number(track.year) !== 2026 && (
+                                                      <span className="bg-brand-cyan/10 text-brand-cyan px-3 py-1 rounded-lg border border-brand-cyan/20 text-[10px] font-bold">
+                                                         {track.year}
+                                                      </span>
                                                    )}
                                                 </div>
-
-                                                {/* Details: Title & Artist */}
-                                                <div className="min-w-0 flex-1">
-                                                   <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words">
-                                                      {track.title}
-                                                   </h4>
-                                                   <p className="text-brand-purple text-sm font-medium opacity-90 truncate italic">{track.artist}</p>
-                                                </div>
                                              </div>
 
-                                             {/* Metadata Info (Genres, Tags, Categories) - Stacked Below Title */}
-                                             <div className="flex flex-wrap gap-2 items-center mt-1">
-                                                {/* Primary Genre Tag */}
-                                                <span className="bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-lg border border-brand-purple/30 text-[10px] font-black uppercase tracking-widest whitespace-normal max-w-full">
-                                                   {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
-                                                </span>
-
-                                                {/* NEW Badge */}
-                                                {(track.category || []).map(c => c.toLowerCase()).includes('new') && (
-                                                   <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
-                                                      NEW
-                                                   </span>
-                                                )}
-
-                                                {/* Version/Type Tag */}
-                                                <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
-                                                   {track.versions?.[0]?.type || 'Video'}
-                                                </span>
-
-                                                {/* Additional Category Tags */}
-                                                {track.category && track.category.length > 0 &&
-                                                   track.category
-                                                      .filter(cat => {
-                                                         const c = cat.toLowerCase();
-                                                         const g = track.genre?.toLowerCase() || '';
-                                                         return !c.includes('video pool') &&
-                                                            !c.includes('tracks') &&
-                                                            !c.includes('genres') &&
-                                                            c !== g &&
-                                                            c !== track.versions?.[0]?.type?.toLowerCase();
-                                                      })
-                                                      .map((cat, idx) => {
-                                                         // Clean up formatting for display
-                                                         let displayCat = cat.toUpperCase();
-                                                         // If it's a year but doesn't have EDITS, add it
-                                                         if (/20\d{2}/.test(displayCat) && !displayCat.includes('EDITS')) {
-                                                            displayCat = displayCat.replace(/(20\d{2})/, '$1 EDITS');
-                                                         }
-
-                                                         return (
-                                                            <span key={idx} className="bg-brand-cyan/10 text-brand-cyan px-2 py-0.5 rounded-lg border border-brand-cyan/20 text-[10px] font-bold uppercase whitespace-nowrap">
-                                                               {displayCat}
-                                                            </span>
-                                                         );
-                                                      })
-                                                }
-
-                                                {/* Show year ONLY if NOT 2026 and not already in tags */}
-                                                {track.year && track.year > 0 && track.year !== 2026 && (
-                                                   <span className="bg-brand-cyan/10 text-brand-cyan px-3 py-1 rounded-lg border border-brand-cyan/20 text-[10px] font-bold">
-                                                      {track.year}
-                                                   </span>
-                                                )}
+                                             {/* Right: Action Buttons (Download & Expand) */}
+                                             <div className="flex flex-row md:flex-col lg:flex-row items-center gap-3 w-full md:w-auto self-end md:self-center">
+                                                <button
+                                                   onClick={() => {
+                                                      const firstVersion = track.versions?.[0];
+                                                      if (firstVersion?.downloadUrl) {
+                                                         const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
+                                                         handleDownload(firstVersion.downloadUrl, `${track.artist} - ${track.title}.${ext}`, track);
+                                                      }
+                                                   }}
+                                                   onContextMenu={(e) => {
+                                                      e.preventDefault();
+                                                      alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
+                                                      return false;
+                                                   }}
+                                                   className="flex-1 md:flex-none px-10 py-4 bg-white text-black font-black rounded-2xl hover:bg-brand-cyan hover:scale-105 transition-all duration-300 text-sm shadow-2xl flex items-center justify-center gap-2 group/btn active:scale-95 uppercase tracking-widest"
+                                                >
+                                                   <Download size={18} className="group-hover/btn:translate-y-0.5 transition-transform" />
+                                                   Download
+                                                </button>
+                                                <button
+                                                   onClick={() => toggleExpand(track.id)}
+                                                   className={`p-4 rounded-2xl border transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/10 border-white/30 text-white' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'}`}
+                                                >
+                                                   {expandedTrackId === track.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                                                </button>
                                              </div>
-                                          </div>
-
-                                          {/* Right: Action Buttons (Download & Expand) */}
-                                          <div className="flex flex-row md:flex-col lg:flex-row items-center gap-3 w-full md:w-auto self-end md:self-center">
-                                             <button
-                                                onClick={() => {
-                                                   const firstVersion = track.versions?.[0];
-                                                   if (firstVersion?.downloadUrl) {
-                                                      const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                      handleDownload(firstVersion.downloadUrl, `${track.artist} - ${track.title}.${ext}`, track);
-                                                   }
-                                                }}
-                                                onContextMenu={(e) => {
-                                                   e.preventDefault();
-                                                   alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
-                                                   return false;
-                                                }}
-                                                className="flex-1 md:flex-none px-10 py-4 bg-white text-black font-black rounded-2xl hover:bg-brand-cyan hover:scale-105 transition-all duration-300 text-sm shadow-2xl flex items-center justify-center gap-2 group/btn active:scale-95 uppercase tracking-widest"
-                                             >
-                                                <Download size={18} className="group-hover/btn:translate-y-0.5 transition-transform" />
-                                                Download
-                                             </button>
-                                             <button
-                                                onClick={() => toggleExpand(track.id)}
-                                                className={`p-4 rounded-2xl border transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/10 border-white/30 text-white' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'}`}
-                                             >
-                                                {expandedTrackId === track.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                                             </button>
                                           </div>
                                        </div>
-                                    </div>
 
-                                    {/* Mini Player */}
-                                    {playingTrackId === track.id && (track.previewUrl || track.versions?.[0]?.downloadUrl) && (() => {
-                                       const mediaUrl = track.previewUrl || track.versions?.[0]?.downloadUrl || '';
-                                       const isVideo = mediaUrl.toLowerCase().match(/\.(mp4|mov|webm|m4v|avi|mkv|flv|wmv)/) || mediaUrl.toLowerCase().includes('video');
-                                       return (
-                                          <div className="px-5 pb-5 animate-fade-in relative z-10">
-                                             {isVideo ? (
-                                                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10">
-                                                   <video
-                                                      controls
-                                                      autoPlay
-                                                      playsInline
-                                                      onContextMenu={(e) => e.preventDefault()}
-                                                      onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
-                                                      className="w-full max-h-[600px] object-contain"
-                                                      src={mediaUrl}
-                                                      onEnded={() => setPlayingTrackId(null)}
-                                                   />
-                                                </div>
-                                             ) : (
-                                                <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20">
-                                                   <audio
-                                                      controls
-                                                      autoPlay
-                                                      onContextMenu={(e) => e.preventDefault()}
-                                                      onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
-                                                      className="w-full h-10 accent-brand-purple"
-                                                      src={mediaUrl}
-                                                      onEnded={() => setPlayingTrackId(null)}
-                                                   />
-                                                </div>
-                                             )}
-                                          </div>
-                                       );
-                                    })()}
-
-                                    {/* Expanded Versions */}
-                                    {expandedTrackId === track.id && (
-                                       <div className="bg-black/40 p-6 border-t border-white/5 animate-fade-in">
-                                          <h5 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 ml-1">Available Versions</h5>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                             {(track.versions || []).map(version => (
-                                                <div key={version.id} className="flex items-center justify-between p-4 rounded-2xl bg-[#15151A] border border-white/5 hover:border-brand-purple/40 hover:bg-brand-purple/5 transition-all duration-300 group/v shadow-sm">
-                                                   <div className="flex flex-col">
-                                                      <span className={`text-xs font-black px-2.5 py-1 rounded-lg w-fit mb-1 ${version.type.includes('Dirty') ? 'bg-red-500/10 text-red-500' :
-                                                         version.type.includes('Clean') ? 'bg-green-500/10 text-green-500' :
-                                                            'bg-blue-500/10 text-blue-500'
-                                                         }`}>
-                                                         {version.type.toUpperCase()}
-                                                      </span>
-                                                      {version.label && <span className="text-xs text-gray-500 font-medium">{version.label}</span>}
+                                       {/* Mini Player */}
+                                       {playingTrackId === track.id && (track.previewUrl || track.versions?.[0]?.downloadUrl) && (() => {
+                                          const mediaUrl = track.previewUrl || track.versions?.[0]?.downloadUrl || '';
+                                          const isVideo = mediaUrl.toLowerCase().match(/\.(mp4|mov|webm|m4v|avi|mkv|flv|wmv)/) || mediaUrl.toLowerCase().includes('video');
+                                          return (
+                                             <div className="px-5 pb-5 animate-fade-in relative z-10">
+                                                {isVideo ? (
+                                                   <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10">
+                                                      <video
+                                                         controls
+                                                         autoPlay
+                                                         playsInline
+                                                         onContextMenu={(e) => e.preventDefault()}
+                                                         onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
+                                                         className="w-full max-h-[600px] object-contain"
+                                                         src={mediaUrl}
+                                                         onEnded={() => setPlayingTrackId(null)}
+                                                      />
                                                    </div>
-                                                   <button
-                                                      onClick={() => {
-                                                         const ext = version.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                         handleDownload(version.downloadUrl, `${track.artist} - ${track.title} (${version.type}).${ext}`, track);
-                                                      }}
-                                                      onContextMenu={(e) => {
-                                                         e.preventDefault();
-                                                         alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
-                                                         return false;
-                                                      }}
-                                                      className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-brand-purple transition-all duration-300 group-hover/v:scale-105 active:scale-95"
-                                                   >
-                                                      <Download size={18} />
-                                                   </button>
-                                                </div>
-                                             ))}
+                                                ) : (
+                                                   <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20">
+                                                      <audio
+                                                         controls
+                                                         autoPlay
+                                                         onContextMenu={(e) => e.preventDefault()}
+                                                         onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
+                                                         className="w-full h-10 accent-brand-purple"
+                                                         src={mediaUrl}
+                                                         onEnded={() => setPlayingTrackId(null)}
+                                                      />
+                                                   </div>
+                                                )}
+                                             </div>
+                                          );
+                                       })()}
+
+                                       {/* Expanded Versions */}
+                                       {expandedTrackId === track.id && (
+                                          <div className="bg-black/40 p-6 border-t border-white/5 animate-fade-in">
+                                             <h5 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 ml-1">Available Versions</h5>
+                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {(track.versions || []).map((version: any) => (
+                                                   <div key={version.id} className="flex items-center justify-between p-4 rounded-2xl bg-[#15151A] border border-white/5 hover:border-brand-purple/40 hover:bg-brand-purple/5 transition-all duration-300 group/v shadow-sm">
+                                                      <div className="flex flex-col">
+                                                         <span className={`text-xs font-black px-2.5 py-1 rounded-lg w-fit mb-1 ${version.type.includes('Dirty') ? 'bg-red-500/10 text-red-500' :
+                                                            version.type.includes('Clean') ? 'bg-green-500/10 text-green-500' :
+                                                               'bg-blue-500/10 text-blue-500'
+                                                            }`}>
+                                                            {version.type.toUpperCase()}
+                                                         </span>
+                                                         {version.label && <span className="text-xs text-gray-500 font-medium">{version.label}</span>}
+                                                      </div>
+                                                      <button
+                                                         onClick={() => {
+                                                            const ext = version.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
+                                                            handleDownload(version.downloadUrl, `${track.artist} - ${track.title} (${version.type}).${ext}`, track);
+                                                         }}
+                                                         onContextMenu={(e) => {
+                                                            e.preventDefault();
+                                                            alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
+                                                            return false;
+                                                         }}
+                                                         className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-brand-purple transition-all duration-300 group-hover/v:scale-105 active:scale-95"
+                                                      >
+                                                         <Download size={18} />
+                                                      </button>
+                                                   </div>
+                                                ))}
+                                             </div>
                                           </div>
-                                       </div>
-                                    )}
-                                 </div>
-                              ))}
+                                       )}
+                                    </div>
+                                 )}
+                              />
                            </div>
                         ) : (
                            <div className="p-20 text-center">
@@ -629,59 +627,10 @@ const MusicPool: React.FC = () => {
                            </p>
                         </div>
 
-                        {/* Pagination UI */}
-                        {totalPages > 1 && (
-                           <div className="p-10 flex flex-col items-center justify-center gap-6 border-t border-white/5 bg-black/5 flex-shrink-0">
-                              <div className="flex items-center gap-4">
-                                 <button
-                                    onClick={() => {
-                                       setCurrentPage(prev => Math.max(1, prev - 1));
-                                       document.getElementById('track-list-top')?.scrollIntoView({ behavior: 'smooth' });
-                                    }}
-                                    disabled={currentPage === 1}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all duration-300 ${currentPage === 1 ? 'bg-white/5 text-gray-600 cursor-not-allowed' : 'bg-[#15151A] text-white border border-white/10 hover:border-brand-purple hover:bg-brand-purple/5'}`}
-                                 >
-                                    <ChevronDown size={20} className="rotate-90" />
-                                    Previous
-                                 </button>
-
-                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-400 text-sm font-medium">Page</span>
-                                    <span className="w-10 h-10 flex items-center justify-center bg-brand-purple text-white font-bold rounded-xl shadow-lg shadow-brand-purple/20">
-                                       {currentPage}
-                                    </span>
-                                    <span className="text-gray-400 text-sm font-medium">of {totalPages}</span>
-                                 </div>
-
-                                 <button
-                                    onClick={() => {
-                                       setCurrentPage(prev => Math.min(totalPages, prev + 1));
-                                       document.getElementById('track-list-top')?.scrollIntoView({ behavior: 'smooth' });
-                                    }}
-                                    disabled={currentPage === totalPages}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all duration-300 ${currentPage === totalPages ? 'bg-white/5 text-gray-600 cursor-not-allowed' : 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 hover:scale-105 active:scale-95'}`}
-                                 >
-                                    Next
-                                    <ChevronDown size={20} className="-rotate-90" />
-                                 </button>
-                              </div>
-
-                              {/* Quick Jump Buttons (Show first and last) */}
-                              <div className="flex gap-2">
-                                 {currentPage > 2 && (
-                                    <button onClick={() => { setCurrentPage(1); document.getElementById('track-list-top')?.scrollIntoView({ behavior: 'smooth' }); }} className="px-3 py-1.5 text-xs text-gray-500 hover:text-white transition uppercase font-black tracking-widest">First</button>
-                                 )}
-                                 {currentPage < totalPages - 1 && (
-                                    <button onClick={() => { setCurrentPage(totalPages); document.getElementById('track-list-top')?.scrollIntoView({ behavior: 'smooth' }); }} className="px-3 py-1.5 text-xs text-gray-500 hover:text-white transition uppercase font-black tracking-widest">Last</button>
-                                 )}
-                              </div>
-                           </div>
-                        )}
-
                         {/* Summary Footer */}
                         <div className="p-6 bg-black/20 border-t border-white/5 flex flex-col items-center gap-4">
                            <p className="text-gray-500 text-xs font-medium">
-                              Showing tracks <span className="text-white font-bold">{((currentPage - 1) * tracksPerPage) + 1}</span> - <span className="text-white font-bold">{Math.min(currentPage * tracksPerPage, filteredTracks.length)}</span> of <span className="text-white font-bold">{filteredTracks.length}</span> results
+                              Showing <span className="text-white font-bold">{filteredTracks.length.toLocaleString()}</span> total tracks in library
                            </p>
                         </div>
                      </div>

@@ -105,7 +105,6 @@ const Success: React.FC = () => {
                         paymentStatus: 'paid',
                         date: new Date().toISOString().split('T')[0],
                         referenceCode: reference,
-                        type: 'store',
                         items: items || [],
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()

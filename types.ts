@@ -500,6 +500,9 @@ export interface ReferralSettings {
   referrerRewardAmount: number;
   rewardType: 'flat' | 'percentage';
   enabled: boolean;
+  firstTimeDiscountEnabled?: boolean;
+  firstTimeDiscount?: number;
+  firstTimeDiscountType?: 'flat' | 'percentage';
 }
 
 export interface ReferralLog {

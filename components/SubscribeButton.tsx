@@ -2,6 +2,7 @@ import React from 'react';
 import { usePaystackPayment } from 'react-paystack';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useData } from '../context/DataContext';
 
 interface SubscribeButtonProps {
     plan: {
@@ -20,17 +21,38 @@ interface SubscribeButtonProps {
 
 const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, className }) => {
     const { user } = useAuth();
+    const { isFirstTimeSubscriber, referralSettings } = useData();
     const navigate = useNavigate();
+    const [isFirstTimer, setIsFirstTimer] = React.useState(false);
+
+    React.useEffect(() => {
+        if (user?.id) {
+            isFirstTimeSubscriber(user.id).then(setIsFirstTimer);
+        }
+    }, [user?.id, isFirstTimeSubscriber]);
 
     const calculateAmount = () => {
-        if (!referralInfo) return Math.round(plan.price * 100);
+        let basePrice = plan.price;
+        let discount = 0;
+        let discountType: 'flat' | 'percentage' = 'percentage';
 
-        if (referralInfo.discountType === 'flat') {
-            return Math.max(0, Math.round((plan.price - referralInfo.discount) * 100));
+        // 1. Check for manual referral code first (usually higher precedence)
+        if (referralInfo) {
+            discount = referralInfo.discount;
+            discountType = referralInfo.discountType || 'percentage';
+        }
+        // 2. Otherwise check for first-time discount
+        else if (isFirstTimer && referralSettings.firstTimeDiscountEnabled) {
+            discount = referralSettings.firstTimeDiscount || 0;
+            discountType = referralSettings.firstTimeDiscountType || 'percentage';
         }
 
-        // Default to percentage (round KES amount first, then multiply by 100 for cents)
-        return Math.round(plan.price * (1 - (referralInfo.discount / 100))) * 100;
+        if (discountType === 'flat') {
+            return Math.max(0, Math.round((basePrice - discount) * 100));
+        }
+
+        // Percentage discount
+        return Math.round(basePrice * (1 - (discount / 100))) * 100;
     };
 
     const finalAmount = calculateAmount();
@@ -50,8 +72,8 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
             planId: plan.id,
             referralCode: referralInfo?.code,
             referrerId: referralInfo?.referrerId,
-            discount: referralInfo?.discount,
-            discountType: referralInfo?.discountType || 'percentage',
+            discount: referralInfo?.discount || (isFirstTimer ? referralSettings.firstTimeDiscount : 0),
+            discountType: referralInfo?.discountType || referralSettings.firstTimeDiscountType || 'percentage',
             custom_fields: [
                 {
                     display_name: "Plan Name",
@@ -77,7 +99,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
                 amount: plan.price,
                 plan: plan.name,
                 email: user?.email,
-                discount: referralInfo?.discount || 0,
+                discount: referralInfo?.discount || (isFirstTimer ? referralSettings.firstTimeDiscount : 0),
                 referrerId: referralInfo?.referrerId,
                 date: new Date().toLocaleDateString()
             }
