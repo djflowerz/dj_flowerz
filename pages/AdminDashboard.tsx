@@ -2110,22 +2110,93 @@ const AdminDashboard: React.FC = () => {
 
                         const handleManualScan = async () => {
                            setIsManualScanning(true);
-                           setManualScanMsg('Scanning sources...');
+                           setManualScanMsg('Fetching tracks from sources...');
                            try {
-                              const resp = await fetch('/api/admin/scan-tracks', {
-                                 method: 'POST',
-                                 headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({ since: scanSince }),
-                              });
-                              const data = await resp.json();
-                              if (data.success) {
-                                 setManualScanMsg(`✅ Found ${data.found} new tracks. ${data.saved} saved to staging.`);
+                              const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
+                              const resp = await fetch(REMIX_HUB_URL);
+                              if (!resp.ok) throw new Error(`Remix Hub returned HTTP ${resp.status}`);
+                              const tracks: any[] = await resp.json();
+
+                              const sinceTime = new Date(scanSince).getTime();
+
+                              // Build de-duplication sets
+                              // Pool tracks: derive the same ID pattern we use for scanned tracks
+                              const poolIds = new Set(
+                                 (poolTracks || []).map((t: any) => {
+                                    // pool tracks have id like "pt_..." but also we stored scanned ones as scanned_KEY
+                                    // Cross-check by downloadUrl domain presence or exact id match
+                                    return t.id;
+                                 })
+                              );
+                              // Pool download URLs for URL-based dedup
+                              const poolUrls = new Set(
+                                 (poolTracks || []).flatMap((t: any) =>
+                                    (t.versions || []).map((v: any) => v.downloadUrl).filter(Boolean)
+                                 )
+                              );
+                              // Already-staged scanned track ids
+                              const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
+
+                              const toSave: any[] = [];
+                              let skippedOld = 0;
+                              let skippedDupe = 0;
+
+                              for (const t of tracks) {
+                                 const uploadTime = new Date(t.uploaded).getTime();
+                                 if (uploadTime < sinceTime) { skippedOld++; continue; }
+
+                                 const scannedId = `scanned_${t.key.replace(/\//g, '_')}`;
+                                 const downloadUrl = `https://remix-and-mashups-worker.dennismacharia20.workers.dev/${t.key}`;
+
+                                 // Skip if already in pool (by URL) or already staged
+                                 if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId)) {
+                                    skippedDupe++;
+                                    continue;
+                                 }
+
+                                 let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
+                                 title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
+                                 const parts = title.split(' - ');
+                                 const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
+                                 const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
+
+                                 toSave.push({
+                                    id: scannedId,
+                                    source: 'Remix & Mashups Hub',
+                                    title: displayTitle,
+                                    artist,
+                                    genre: t.month || 'Other',
+                                    bpm: t.bpm || null,
+                                    downloadUrl,
+                                    previewUrl: downloadUrl,
+                                    dateAdded: t.uploaded,
+                                    status: 'scanned',
+                                    created_at: new Date().toISOString(),
+                                 });
+                              }
+
+                              setManualScanMsg(`Found ${tracks.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
+
+                              if (toSave.length > 0) {
+                                 // Insert in batches of 100 to avoid payload limits
+                                 const BATCH = 100;
+                                 let savedCount = 0;
+                                 for (let i = 0; i < toSave.length; i += BATCH) {
+                                    const batch = toSave.slice(i, i + BATCH);
+                                    const { error } = await supabase
+                                       .from('scanned_tracks')
+                                       .upsert(batch, { onConflict: 'id' });
+                                    if (error) throw new Error(error.message);
+                                    savedCount += batch.length;
+                                    setManualScanMsg(`Saving... ${savedCount}/${toSave.length}`);
+                                 }
                                  if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
+                                 setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue. (${skippedDupe} duplicates skipped)`);
                               } else {
-                                 setManualScanMsg(`❌ Scan failed: ${data.error}`);
+                                 setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince}. (${skippedDupe} already in pool/queue)`);
                               }
                            } catch (e: any) {
-                              setManualScanMsg(`❌ Network error: ${e.message}`);
+                              setManualScanMsg(`❌ Scan error: ${e.message}`);
                            } finally {
                               setIsManualScanning(false);
                            }
@@ -2222,10 +2293,10 @@ const AdminDashboard: React.FC = () => {
                                  {/* scan feedback */}
                                  {manualScanMsg && (
                                     <div className={`mt-4 px-5 py-3 rounded-2xl text-[11px] font-bold ${manualScanMsg.startsWith('✅')
-                                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                                          : manualScanMsg.startsWith('❌')
-                                             ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                                             : 'bg-white/5 border border-white/10 text-gray-400'
+                                       ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                       : manualScanMsg.startsWith('❌')
+                                          ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+                                          : 'bg-white/5 border border-white/10 text-gray-400'
                                        }`}>
                                        {manualScanMsg}
                                     </div>
