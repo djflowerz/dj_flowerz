@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, MOCK_SUBSCRIBERS, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { supabase } from '../utils/supabase';
@@ -110,6 +110,10 @@ interface DataContextType {
   telegramUsers: TelegramUser[];
   telegramLogs: TelegramLog[];
   referralSettings: ReferralSettings;
+  reviews: Review[];
+  comments: any[];
+  reviewsLoading: boolean;
+  commentsLoading: boolean;
   mixtapesError: string | null;
   mixtapesLoading: boolean;
   poolError: string | null;
@@ -204,6 +208,9 @@ interface DataContextType {
   removeUser: (id: string) => void;
   addContactMessage: (msg: Partial<ContactMessage>) => Promise<void>;
   updateContactMessage: (id: string, data: Partial<ContactMessage>) => Promise<void>;
+  addReview: (review: any) => Promise<void>;
+  addComment: (comment: any) => Promise<void>;
+  incrementMixtapeDownload: (mixtapeId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -491,23 +498,15 @@ const getTableName = (colName: string): string => {
     'telegramLogs': 'telegram_logs',
     'poolTracks': 'pool_tracks',
     'payments': 'payments',
-    'tips': 'tips'
+    'tips': 'tips',
+    'scannedTracks': 'scanned_tracks'
   };
   return mapping[colName] || colName;
 };
 
 const SUPABASE_COLLECTIONS = [
-  'profiles',
-  'users',
-  'products',
-  'mixtapes',
-  'session_types',
-  'studio_equipment',
-  'subscription_plans',
-  'shipping_zones',
-  'genres',
-  'videos',
   'orders',
+  'profiles',
   'subscriptions',
   'bookings',
   'studio_rooms',
@@ -521,10 +520,12 @@ const SUPABASE_COLLECTIONS = [
   'telegram_mappings',
   'telegram_users',
   'telegram_logs',
-  'pool_tracks',
   'payments',
   'tips',
-  'contact_messages'
+  'scanned_tracks',
+  'settings',
+  'reviews',
+  'comments'
 ];
 
 const useCollection = <T extends { id: string }>(
@@ -620,36 +621,38 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Pool tracks: load ALL tracks for everyone — no row limit.
   // This allows full search in the homepage preview for all users.
   // Downloads and the full library page are restricted to subscribers/admins via UI.
-  const [poolTracks, , poolLoading, , poolError] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'date_added', 'desc', false);
+  const [poolTracks, , poolLoading, , poolError, refreshPoolTracks] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'date_added', 'desc', false);
+
+  // Scanned Tracks (Supabase) - Only for admins
+  const [scannedTracks, , scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
 
   const loadMorePoolTracks = () => {
     // With progressive loading, we might not need this
   };
 
-  const refreshPoolTracks = () => {
-    // refresh logic is handled by the hook
-  };
-
   // Admin Only Collections (Supabase)
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapSupabaseOrder, 500, 'createdAt', 'desc', false);
-  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapSupabaseUser, 500, 'createdAt', 'desc', false);
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapSupabaseSubscription, 500, 'startDate', 'desc', false);
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, mapSupabaseBooking, 200, 'createdAt', 'desc', false);
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
+  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapSupabaseUser, 1000, 'createdAt', 'desc', true);
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapSupabaseSubscription, 1000, 'startDate', 'desc', true);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, mapSupabaseBooking, 500, 'createdAt', 'desc', true);
 
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], isAdmin, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', false);
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], isAdmin, mapSupabaseMaintenanceLog, 100, 'createdAt', 'desc', false);
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapSupabaseCoupon, undefined, 'createdAt', 'desc', false);
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], isAdmin, mapSupabaseReferralStats, 200, 'createdAt', 'desc', false);
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapSupabaseCampaign, 50, 'createdAt', 'desc', false);
-  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapSupabaseGeneric, 50, 'createdAt', 'desc', false);
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapSupabaseSubscriber, 500, 'date_subscribed', 'desc', false);
-  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapSupabaseChannel, undefined, 'createdAt', 'desc', false);
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, (p) => ({ ...p, createdAt: p.created_at }), 200, 'created_at', 'desc', false);
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, (t) => ({ ...t, createdAt: t.created_at }), 200, 'created_at', 'desc', false);
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], isAdmin, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', true);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], isAdmin, mapSupabaseMaintenanceLog, 200, 'createdAt', 'desc', true);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapSupabaseCoupon, undefined, 'createdAt', 'desc', true);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], isAdmin, mapSupabaseReferralStats, 500, 'createdAt', 'desc', true);
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapSupabaseCampaign, 100, 'createdAt', 'desc', true);
+  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapSupabaseGeneric, 100, 'createdAt', 'desc', true);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapSupabaseSubscriber, 1000, 'date_subscribed', 'desc', true);
+  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapSupabaseChannel, undefined, 'createdAt', 'desc', true);
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, (p) => ({ ...p, createdAt: p.created_at }), 500, 'created_at', 'desc', true);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, (t) => ({ ...t, createdAt: t.created_at }), 500, 'created_at', 'desc', true);
   const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
   const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], isAdmin, mapSupabaseGeneric, 500, 'createdAt', 'desc', false);
   const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], isAdmin, mapSupabaseGeneric, 200, 'timestamp', 'desc', false);
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', true);
+
+  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 1000, 'date', 'desc', true);
+  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 1000, 'date', 'desc', true);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -1454,24 +1457,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (id: string, data: Partial<User>) => {
-    const profileData: any = { updated_at: new Date().toISOString() };
-    if (data.name) profileData.name = data.name;
-    if (data.email) profileData.email = data.email;
-    if (data.role) profileData.role = data.role;
-    if (data.isSubscriber !== undefined) profileData.is_subscriber = data.isSubscriber;
-    if (data.subscriptionPlan) profileData.subscription_plan = data.subscriptionPlan;
-    if (data.subscriptionExpiry) profileData.subscription_expiry = data.subscriptionExpiry;
-    if (data.avatarUrl) profileData.avatar_url = data.avatarUrl;
-    if (data.referralCode) profileData.referral_code = data.referralCode;
-    if (data.status) profileData.status = data.status;
+    try {
+      // 1. Update R2 (Admin's source of truth)
+      const updatedUsers = users.map(u => u.id === id ? { ...u, ...data, updatedAt: new Date().toISOString() } : u);
+      await saveToR2('profiles', updatedUsers);
 
-    const { error: sbError } = await supabase
-      .from('profiles')
-      .update(profileData)
-      .eq('id', id);
+      // 2. Mirror some critical fields to Supabase for Auth/Site UI if needed
+      // (This keeps the public-facing site functional while Admin uses R2)
+      const profileData: any = { updated_at: new Date().toISOString() };
+      if (data.name) profileData.name = data.name;
+      if (data.email) profileData.email = data.email;
+      if (data.role) profileData.role = data.role;
+      if (data.isSubscriber !== undefined) profileData.is_subscriber = data.isSubscriber;
+      if (data.subscriptionPlan) profileData.subscription_plan = data.subscriptionPlan;
+      if (data.subscriptionExpiry) profileData.subscription_expiry = data.subscriptionExpiry;
+      if (data.avatarUrl) profileData.avatar_url = data.avatarUrl;
+      if (data.status) profileData.status = data.status;
 
-    if (sbError) throw sbError;
-    refreshUsers();
+      await supabase.from('profiles').update(profileData).eq('id', id);
+
+      refreshUsers();
+    } catch (err: any) {
+      console.error("Update user failed:", err.message);
+    }
   };
 
   const addContactMessage = async (msg: Partial<ContactMessage>) => {
@@ -1497,88 +1505,201 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const removeUser = async (id: string) => {
-    // 1. Delete from profiles
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', id);
+    try {
+      // 1. Remove from R2
+      const updatedUsers = users.filter(u => u.id !== id);
+      await saveToR2('profiles', updatedUsers);
 
-    if (profileError) throw profileError;
+      // 2. Remove from Supabase
+      await supabase.from('profiles').delete().eq('id', id);
 
-    // 2. Delete from auth (requires service role key, normally handled by edge function or admin client)
-    // Since we are using the service role key client in DataContext (if SUPABASE_SERVICE_ROLE_KEY is provided in env), it might work.
-    // However, usually we don't expose service role key to frontend.
-    // Let's assume for now we only delete from profiles or the admin uses a specialized client.
-    // If we want to truly remove from Auth, we need a server action or edge function.
+      refreshUsers();
+    } catch (err: any) {
+      console.error("Remove user failed:", err.message);
+    }
+  };
 
-    refreshUsers();
+  const addReview = async (review: any) => {
+    try {
+      const { error } = await supabase.from('reviews').insert([{
+        ...review,
+        created_at: new Date().toISOString()
+      }]);
+      if (error) throw error;
+      refreshReviews();
+
+      // If product review, also update product rating locally
+      if (review.productId) {
+        setProducts(prev => prev.map(p => p.id === review.productId ? { ...p, reviewCount: (p.reviewCount || 0) + 1 } : p));
+      }
+    } catch (err) {
+      console.error("Add review error:", err);
+    }
+  };
+
+  const addComment = async (comment: any) => {
+    try {
+      const { error } = await supabase.from('comments').insert([{
+        ...comment,
+        created_at: new Date().toISOString()
+      }]);
+      if (error) throw error;
+      refreshComments();
+
+      // Update mixtape comment count locally
+      if (comment.mixtapeId) {
+        setMixtapes(prev => prev.map(m => m.id === comment.mixtapeId ? { ...m, commentsCount: (m.commentsCount || 0) + 1 } : m));
+      }
+    } catch (err) {
+      console.error("Add comment error:", err);
+    }
+  };
+
+  const incrementMixtapeDownload = async (mixtapeId: string) => {
+    try {
+      // We'll use a Supabase table for increments to avoid R2 race conditions
+      const { error } = await supabase.rpc('increment_mixtape_downloads', { mid: mixtapeId });
+      if (error) {
+        // Fallback if RPC doesn't exist: simple insert into a log table
+        await supabase.from('mixtape_downloads').insert([{ mixtape_id: mixtapeId, user_id: user?.id }]);
+      }
+
+      // Update local state
+      setMixtapes(prev => prev.map(m => m.id === mixtapeId ? { ...m, downloadsCount: (m.downloadsCount || 0) + 1 } : m));
+    } catch (err) {
+      console.error("Increment download error:", err);
+    }
   };
 
   const value = useMemo(() => ({
-    siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
-    subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, contactMessages,
-    payments, tips,
-    telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
-    mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
-    studioEquipmentLoading: equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
-    poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
+    siteConfig,
+    products,
+    mixtapes,
+    bookings,
+    sessionTypes,
+    youtubeVideos,
+    poolTracks,
+    genres,
+    studioEquipment,
+    shippingZones,
+    subscribers,
+    subscriptions,
+    subscriptionPlans,
+    studioRooms,
+    maintenanceLogs,
+    orders,
+    newsletterCampaigns,
+    newsletterSegments,
+    coupons,
+    referralStats,
+    users,
+    contactMessages,
+    payments,
+    tips,
+    telegramConfig,
+    telegramChannels,
+    telegramMappings,
+    telegramUsers,
+    telegramLogs,
+    referralSettings,
+    reviews,
+    comments,
+    mixtapesLoading: mixtapesLoading || false,
+    poolLoading: poolLoading || false,
+    productsLoading: productsLoading || false,
+    ordersLoading: ordersLoading || false,
+    usersLoading: usersLoading || false,
+    subscriptionsLoading: subscriptionsLoading || false,
+    bookingsLoading: bookingsLoading || false,
+    subscribersLoading: subscribersLoading || false,
+    campaignsLoading: campaignsLoading || false,
+    paymentsLoading: paymentsLoading || false,
+    tipsLoading: tipsLoading || false,
+    studioEquipmentLoading: equipmentLoading || false,
+    studioRoomsLoading: studioRoomsLoading || false,
+    maintenanceLogsLoading: maintenanceLogsLoading || false,
+    sessionTypesLoading: sessionTypesLoading || false,
+    reviewsLoading,
+    commentsLoading,
+    mixtapesError: mixtapesError || null,
+    poolError: poolError || null,
     hasQuotaExceeded,
+
     seedDatabase,
-    updateSiteConfig, addProduct, updateProduct, deleteProduct,
-    addMixtape, updateMixtape, deleteMixtape,
-    addPoolTrack, updatePoolTrack, deletePoolTrack, loadMorePoolTracks, updateGenre,
-    addBooking, updateBooking,
-    addSessionType, updateSessionType, deleteSessionType,
-    addVideo, deleteVideo,
-    addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-    addSubscription, updateSubscription, addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
-    addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-    addOrder, updateOrder, addPayment, addTip, addCampaign, updateCampaign,
-    addCoupon, updateCoupon, deleteCoupon, validateCoupon,
-    updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
-    updateShippingZone, addSubscriber,
+    updateSiteConfig,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    addMixtape,
+    updateMixtape,
+    deleteMixtape,
+    addPoolTrack,
+    updatePoolTrack,
+    deletePoolTrack,
+    loadMorePoolTracks,
+    updateGenre,
+    addBooking,
+    updateBooking,
+    addSessionType,
+    updateSessionType,
+    deleteSessionType,
+    addVideo,
+    deleteVideo,
+    applyReferralCode,
+    updateReferralSettings,
+    issueReferralReward,
+    addStudioEquipment,
+    updateStudioEquipment,
+    deleteStudioEquipment,
+    addSubscription,
+    updateSubscription,
+    addSubscriptionPlan,
+    updateSubscriptionPlan,
+    deleteSubscriptionPlan,
+    addStudioRoom,
+    updateStudioRoom,
+    deleteStudioRoom,
+    addMaintenanceLog,
+    updateMaintenanceLog,
+    addOrder,
+    updateOrder,
+    addPayment,
+    addTip,
+    addCampaign,
+    updateCampaign,
+    addCoupon,
+    updateCoupon,
+    deleteCoupon,
+    validateCoupon,
+    updateTelegramConfig,
+    addTelegramChannel,
+    updateTelegramChannel,
+    deleteTelegramChannel,
+    updateShippingZone,
+    addSubscriber,
     updateUser,
     removeUser,
     addContactMessage,
     updateContactMessage,
-    referralSettings,
-    updateReferralSettings,
-    applyReferralCode,
-    issueReferralReward,
-    referralLogs
+    addReview,
+    addComment,
+    incrementMixtapeDownload,
+    referralLogs,
+    refreshScannedTracks,
+    deleteScannedTrack: async (id: string) => {
+      const updatedTracks = scannedTracks.filter((t: any) => t.id !== id);
+      await saveToR2('scanned_tracks', updatedTracks);
+      await supabase.from('scanned_tracks').delete().eq('id', id);
+      refreshScannedTracks();
+    }
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
-    subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages,
-    payments, tips,
+    subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,
+    payments, tips, reviews, comments,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
-    equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
-    poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
-    hasQuotaExceeded,
-    // dependencies for functions (they are defined in the component, so they change on every render unless wrapped in useCallback)
-    // For now, I'll just include them, but wrapping them in useCallback would be better.
-    updateSiteConfig, addProduct, updateProduct, deleteProduct,
-    addMixtape, updateMixtape, deleteMixtape,
-    addPoolTrack, updatePoolTrack, deletePoolTrack, loadMorePoolTracks, updateGenre,
-    addBooking, updateBooking,
-    addSessionType, updateSessionType, deleteSessionType,
-    addVideo, deleteVideo,
-    addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-    addSubscription, updateSubscription, addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
-    addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-    addOrder, updateOrder, addPayment, addTip, addCampaign, updateCampaign,
-    addCoupon, updateCoupon, deleteCoupon,
-    updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
-    updateShippingZone, addSubscriber,
-    updateUser,
-    removeUser,
-    addContactMessage,
-    updateContactMessage,
-    referralSettings,
-    updateReferralSettings,
-    applyReferralCode,
-    issueReferralReward,
-    referralLogs
+    equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,
+    poolError, mixtapesError, hasQuotaExceeded, referralSettings
   ]);
 
   return (

@@ -57,7 +57,7 @@ const Mixtapes: React.FC = () => {
             bgImage={siteConfig.hero.bgImage}
             showNewsletter={false}
          />
-         <div id="mixtapes" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+         <div id="mixtapes" className="w-full px-4 sm:px-6 lg:px-12 mt-12">
 
 
             {/* Search & Filters */}

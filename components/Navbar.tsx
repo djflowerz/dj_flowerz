@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, LogIn, ChevronRight } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, LogIn, ChevronRight, Bell, MessageCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -94,6 +94,14 @@ const Navbar: React.FC = () => {
                 JOIN POOL
               </Link>
 
+              <Link to="/notifications" className="text-gray-300 hover:text-white transition group relative">
+                <Bell size={22} className="group-hover:text-brand-purple transition" />
+              </Link>
+
+              <Link to="/messages" className="text-gray-300 hover:text-white transition group relative">
+                <MessageCircle size={22} className="group-hover:text-brand-purple transition" />
+              </Link>
+
               <Link to="/cart" className="relative text-gray-300 hover:text-white transition group">
                 <ShoppingCart size={22} className="group-hover:text-brand-purple transition" />
                 {itemCount > 0 && (
@@ -121,6 +129,12 @@ const Navbar: React.FC = () => {
 
             {/* Mobile Toggle & Cart */}
             <div className="md:hidden flex items-center gap-4 z-50">
+              <Link to="/notifications" className="text-gray-300">
+                <Bell size={24} />
+              </Link>
+              <Link to="/messages" className="text-gray-300">
+                <MessageCircle size={24} />
+              </Link>
               <Link to="/cart" className="relative text-gray-300" onClick={() => setIsOpen(false)}>
                 <ShoppingCart size={24} />
                 {itemCount > 0 && (

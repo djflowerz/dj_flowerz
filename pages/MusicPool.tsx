@@ -22,7 +22,7 @@ import Hero from '../components/Hero';
 
 const MusicPool: React.FC = () => {
    const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode, siteConfig } = useData();
+   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode, siteConfig, referralSettings } = useData();
    const [referralCode, setReferralCode] = useState('');
    const [appliedReferral, setAppliedReferral] = useState<{ code: string; discount: number; discountType: 'flat' | 'percentage'; referrerId: string } | null>(null);
    const [referralError, setReferralError] = useState('');
@@ -49,6 +49,21 @@ const MusicPool: React.FC = () => {
    };
    const { pauseTrack: pauseGlobalTrack } = usePlayer();
    const isUnlocked = isUserSubscriber(user);
+
+   // Auto-apply promotional discount for non-subscribers
+   useEffect(() => {
+      if (!isUnlocked && referralSettings?.enabled && referralSettings?.newUserDiscount > 0) {
+         setAppliedReferral(prev => {
+            if (prev) return prev; // Already applied
+            return {
+               code: 'PROMO_DISCOUNT',
+               discount: referralSettings.newUserDiscount,
+               discountType: referralSettings.newUserDiscountType || 'percentage',
+               referrerId: 'system'
+            };
+         });
+      }
+   }, [isUnlocked, referralSettings]);
 
    // View State
    const [activeCategory, setActiveCategory] = useState('All');
@@ -193,7 +208,7 @@ const MusicPool: React.FC = () => {
    if (isUnlocked) {
       return (
          <div className="pt-24 pb-20 min-h-screen bg-[#0B0B0F]">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="w-full px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32">
 
                {/* Header & Search */}
                <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
@@ -690,64 +705,69 @@ const MusicPool: React.FC = () => {
             bgImage={siteConfig.hero.bgImage}
             showNewsletter={false}
          />
-         <div id="plans" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+         <div id="plans" className="w-full px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 mt-12">
 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
-               {subscriptionPlans.map((plan) => (
-                  <div
-                     key={plan.id}
-                     className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
-                  >
-                     {appliedReferral && (
-                        <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
-                           {appliedReferral.discountType === 'percentage' ? `${appliedReferral.discount}%` : `KES ${appliedReferral.discount}`} APPLIED
-                        </div>
-                     )}
-                     {plan.isBestValue && (
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
-                           Best Value
-                        </div>
-                     )}
-                     <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                     <div className="mb-6 flex items-baseline gap-2">
-                        <div className="flex items-baseline">
-                           <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
-                           <span className={`text-4xl font-bold tracking-tight ${appliedReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
-                              {plan.price.toLocaleString()}
-                           </span>
-                        </div>
-                        {appliedReferral && (
-                           <div className="flex items-baseline">
-                              <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
-                              <span className="text-4xl font-bold text-white tracking-tight">
-                                 {appliedReferral.discountType === 'percentage'
-                                    ? (plan.price * (1 - appliedReferral.discount / 100)).toLocaleString()
-                                    : Math.max(0, plan.price - appliedReferral.discount).toLocaleString()
-                                 }
-                              </span>
+               {subscriptionPlans.map((plan) => {
+                  // Only apply referral discount for plans that are NOT the weekly plan
+                  const currentReferral = plan.id !== 'weekly' ? appliedReferral : null;
+
+                  return (
+                     <div
+                        key={plan.id}
+                        className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
+                     >
+                        {currentReferral && (
+                           <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
+                              {currentReferral.discountType === 'percentage' ? `${currentReferral.discount}%` : `KES ${currentReferral.discount}`} APPLIED
                            </div>
                         )}
-                     </div>
+                        {plan.isBestValue && (
+                           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                              Best Value
+                           </div>
+                        )}
+                        <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                        <div className="mb-6 flex items-baseline gap-2">
+                           <div className="flex items-baseline">
+                              <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
+                              <span className={`text-4xl font-bold tracking-tight ${currentReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
+                                 {plan.price.toLocaleString()}
+                              </span>
+                           </div>
+                           {currentReferral && (
+                              <div className="flex items-baseline">
+                                 <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
+                                 <span className="text-4xl font-bold text-white tracking-tight">
+                                    {currentReferral.discountType === 'percentage'
+                                       ? Math.round(plan.price * (1 - currentReferral.discount / 100)).toLocaleString()
+                                       : Math.max(0, plan.price - currentReferral.discount).toLocaleString()
+                                    }
+                                 </span>
+                              </div>
+                           )}
+                        </div>
 
-                     <div className="flex-1">
-                        <ul className="space-y-4 mb-8">
-                           {(plan.features || []).map((feature, idx) => (
-                              <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
-                                 <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
-                                 {feature}
-                              </li>
-                           ))}
-                        </ul>
-                     </div>
+                        <div className="flex-1">
+                           <ul className="space-y-4 mb-8">
+                              {(plan.features || []).map((feature, idx) => (
+                                 <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
+                                    <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
+                                    {feature}
+                                 </li>
+                              ))}
+                           </ul>
+                        </div>
 
-                     <SubscribeButton
-                        plan={plan}
-                        referralInfo={appliedReferral || undefined}
-                        className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                     />
-                  </div>
-               ))}
+                        <SubscribeButton
+                           plan={plan}
+                           referralInfo={currentReferral || undefined}
+                           className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                        />
+                     </div>
+                  )
+               })}
             </div>
 
             {/* Referral Code Input */}

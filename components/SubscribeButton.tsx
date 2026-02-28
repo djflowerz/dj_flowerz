@@ -29,8 +29,8 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
             return Math.max(0, Math.round((plan.price - referralInfo.discount) * 100));
         }
 
-        // Default to percentage
-        return Math.round(plan.price * (1 - (referralInfo.discount / 100)) * 100);
+        // Default to percentage (round KES amount first, then multiply by 100 for cents)
+        return Math.round(plan.price * (1 - (referralInfo.discount / 100))) * 100;
     };
 
     const finalAmount = calculateAmount();

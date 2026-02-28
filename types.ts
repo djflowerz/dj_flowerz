@@ -44,6 +44,8 @@ export interface Mixtape {
   ogImage?: string;
   isExclusive: boolean;
   date?: string;
+  downloadsCount?: number;
+  commentsCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -109,9 +111,10 @@ export interface Product {
   metaDescription?: string;
   ogImage?: string;
   condition?: 'new' | 'refurbished';
-  reviews?: Review[];
   status: 'draft' | 'published' | 'hidden';
   rating?: number;
+  reviewCount?: number;
+  reviews?: Review[];
   commentsCount?: number;
   sharesCount?: number;
   createdAt?: string;

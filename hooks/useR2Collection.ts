@@ -58,8 +58,9 @@ export const useR2Collection = <T extends { id: string }>(
 
         fetchData();
 
-        // Note: Realtime is not available for R2 static files without a worker/poll
-        // We could implement polling if needed, but for now we'll rely on manual refresh/reload
+        // Auto-polling for "realtime" feel as requested by user
+        const interval = setInterval(fetchData, 30000); // Poll every 30s
+        return () => clearInterval(interval);
     }, [collectionName, enabled, orderByField, orderDirection]);
 
     return [data, setData, isLoading, error, fetchData] as const;

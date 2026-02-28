@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail } from 'lucide-react';
+import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -132,7 +132,7 @@ const Store: React.FC = () => {
 
   return (
     <div className="pt-24 pb-20 min-h-screen bg-[#050507]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
 
         {/* Store Hero Section (Vercel Match) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 md:mb-12">
@@ -213,7 +213,7 @@ const Store: React.FC = () => {
         </div>
 
         {/* Controls: Search, Sort & Mobile Filters Toggle */}
-        <div id="products-section" className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 bg-[#15151A] p-2 md:p-3 rounded-2xl md:rounded-[20px] border border-white/5 shadow-lg">
+        <div id="products-section" className="flex flex-col md:flex-row justify-between items-center gap-4 mb-10 bg-[#15151A]/80 backdrop-blur-xl p-4 rounded-[32px] border border-white/10 shadow-2xl">
           <div className="w-full md:flex-1 relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
@@ -225,12 +225,24 @@ const Store: React.FC = () => {
             />
           </div>
 
-          <div className="w-full md:w-auto flex items-center gap-2 md:gap-3">
+          <div className="w-full md:w-auto flex flex-wrap items-center gap-2 md:gap-3">
+            {/* Category Filter for Search */}
+            <div className="relative w-full md:w-48 flex-shrink-0">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full bg-black/20 border border-white/5 rounded-xl py-3.5 pl-4 pr-10 text-sm text-gray-300 focus:outline-none focus:bg-black/40 focus:ring-1 focus:ring-brand-purple/50 appearance-none transition-all cursor-pointer"
+              >
+                {categories.map(cat => <option key={cat} value={cat} className="bg-[#15151A]">{cat}</option>)}
+              </select>
+              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+
             <div className="relative w-full md:w-48 flex-shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full bg-black/20 border border-transparent rounded-xl py-3.5 pl-4 pr-10 text-sm text-gray-300 focus:outline-none focus:bg-black/40 focus:ring-1 focus:ring-brand-purple/50 appearance-none transition-all cursor-pointer"
+                className="w-full bg-black/20 border border-white/5 rounded-xl py-3.5 pl-4 pr-10 text-sm text-gray-300 focus:outline-none focus:bg-black/40 focus:ring-1 focus:ring-brand-purple/50 appearance-none transition-all cursor-pointer"
               >
                 {sortOptions.map(opt => <option key={opt} value={opt} className="bg-[#15151A]">{opt}</option>)}
               </select>
@@ -238,7 +250,7 @@ const Store: React.FC = () => {
             </div>
 
             <button
-              className="md:hidden flex items-center justify-center gap-2 px-4 py-3.5 bg-black/20 border border-transparent rounded-xl text-sm font-bold text-gray-300 hover:text-white transition-colors flex-shrink-0"
+              className="md:hidden flex items-center justify-center gap-2 px-4 py-3.5 bg-black/20 border border-white/5 rounded-xl text-sm font-bold text-gray-300 hover:text-white transition-colors flex-shrink-0"
               onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
             >
               <Filter size={16} /> Filters
@@ -288,29 +300,50 @@ const Store: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar pb-6 px-2 -mx-2">
-            {categories.map(cat => {
-              const asset = categoryAssets[cat] || categoryAssets['Other'];
-              const isSelected = selectedCategory === cat;
-              return (
-                <div
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className="flex flex-col items-center gap-4 cursor-pointer group flex-shrink-0"
-                >
-                  <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden relative shadow-lg transition-all duration-300 border-[3px] ${isSelected ? 'border-brand-purple scale-110 shadow-[0_0_25px_rgba(157,78,221,0.5)]' : 'border-[#15151A] group-hover:border-white/20 group-hover:scale-105'}`}>
-                    <img src={asset.img} alt={cat} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
-                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors duration-500" />
-                    <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${isSelected ? 'text-white scale-110' : 'text-gray-300 group-hover:text-white group-hover:scale-110'}`}>
-                      {asset.icon}
+          <div className="relative group/slider">
+            <button
+              onClick={() => {
+                const el = document.getElementById('category-slider');
+                if (el) el.scrollBy({ left: -300, behavior: 'smooth' });
+              }}
+              className="absolute -left-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/80 border border-white/10 flex items-center justify-center text-white opacity-100 md:group-hover/slider:opacity-100 transition-opacity hover:bg-brand-purple hover:border-brand-purple shadow-xl flex"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button
+              onClick={() => {
+                const el = document.getElementById('category-slider');
+                if (el) el.scrollBy({ left: 300, behavior: 'smooth' });
+              }}
+              className="absolute -right-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/80 border border-white/10 flex items-center justify-center text-white opacity-100 md:group-hover/slider:opacity-100 transition-opacity hover:bg-brand-purple hover:border-brand-purple shadow-xl flex"
+            >
+              <ChevronRight size={24} />
+            </button>
+
+            <div id="category-slider" className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar pb-6 px-2 -mx-2 scroll-smooth">
+              {categories.map(cat => {
+                const asset = categoryAssets[cat] || categoryAssets['Other'];
+                const isSelected = selectedCategory === cat;
+                return (
+                  <div
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className="flex flex-col items-center gap-4 cursor-pointer group flex-shrink-0"
+                  >
+                    <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden relative shadow-lg transition-all duration-300 border-[3px] ${isSelected ? 'border-brand-purple scale-110 shadow-[0_0_25px_rgba(157,78,221,0.5)]' : 'border-[#15151A] group-hover:border-white/20 group-hover:scale-105'}`}>
+                      <img src={asset.img} alt={cat} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                      <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors duration-500" />
+                      <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${isSelected ? 'text-white scale-110' : 'text-gray-300 group-hover:text-white group-hover:scale-110'}`}>
+                        {asset.icon}
+                      </div>
                     </div>
+                    <span className={`text-[11px] md:text-sm font-bold text-center w-20 md:w-28 break-words transition-colors ${isSelected ? 'text-brand-purple' : 'text-gray-400 group-hover:text-white'}`}>
+                      {cat}
+                    </span>
                   </div>
-                  <span className={`text-[11px] md:text-sm font-bold text-center w-20 md:w-28 break-words transition-colors ${isSelected ? 'text-brand-purple' : 'text-gray-400 group-hover:text-white'}`}>
-                    {cat}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           {/* Mobile Types/Prices toggle */}
@@ -364,12 +397,12 @@ const Store: React.FC = () => {
           {
             filteredProducts.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 md:gap-6">
                   {paginatedProducts.map((product) => (
                     <div key={product.id} className="bg-[#15151A] rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-purple/50 transition duration-300 group flex flex-col shadow-xl hover:shadow-2xl hover:-translate-y-1 relative h-full">
 
-                      <Link to={`/store/${product.id}`} className="relative h-[200px] md:h-[240px] p-4 md:p-6 flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
-                        <img src={product.image} alt={product.name} className="max-w-full max-h-full object-contain group-hover/img:scale-110 transition duration-500 drop-shadow-md" />
+                      <Link to={`/store/${product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover/img:scale-110 transition duration-500" />
 
                         {/* Tags */}
                         <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
@@ -403,13 +436,15 @@ const Store: React.FC = () => {
                           <p className="text-gray-400 text-[10px] md:text-xs capitalize flex-shrink-0 border border-white/10 px-2 py-0.5 rounded-full">{getDisplayCategory(product.category)}</p>
                         </div>
 
-                        <div className="flex gap-1 mb-3">
-                          <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
-                          <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
-                          <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
-                          <Star size={12} className="text-[#E8C053] fill-[#E8C053]" />
-                          <Star size={12} className="text-brand-purple fill-brand-purple opacity-50" />
-                          <span className="text-[10px] text-gray-500 ml-1 font-medium">(24)</span>
+                        <div className="flex gap-1 mb-3 items-center">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={12}
+                              className={i < Math.round(product.rating || 4.5) ? "text-[#E8C053] fill-[#E8C053]" : "text-gray-600 fill-gray-600"}
+                            />
+                          ))}
+                          <span className="text-[10px] text-gray-500 ml-1 font-medium">({product.reviewCount || 24})</span>
                         </div>
 
                         <div className="flex justify-between items-center mt-auto pt-3">

@@ -9,7 +9,7 @@ export const useSupabaseCollection = <T extends { id: string }>(
     orderByField?: string,
     orderDirection: 'asc' | 'desc' = 'desc',
     isRealtime: boolean = true,
-    limit: number = 1000
+    limit?: number
 ) => {
     const [data, setData] = useState<T[]>(initialData);
     const [isLoading, setIsLoading] = useState(enabled);
