@@ -1,10 +1,8 @@
 
 /**
  * Utility for fetching data from Cloudflare R2 (Object Storage)
- * This replaces Supabase direct database calls for content data.
- */
-
-const R2_URL = import.meta.env.VITE_R2_URL || '/r2';
+// We hard-code the proxy route to bypass browser CORS locally and on Edge
+const R2_URL = '/r2';
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
