@@ -320,6 +320,18 @@ const AdminDashboard: React.FC = () => {
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
+   // --- Scanned Updates state ---
+   const [scanSince, setScanSince] = useState(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d.toISOString().split('T')[0]; // e.g. "2026-01-29"
+   });
+   const [isManualScanning, setIsManualScanning] = useState(false);
+   const [manualScanMsg, setManualScanMsg] = useState('');
+   const [selectedScanIds, setSelectedScanIds] = useState<Set<string>>(new Set());
+   const [editingScannedTrack, setEditingScannedTrack] = useState<any | null>(null);
+   const [isBulkAdding, setIsBulkAdding] = useState(false);
+
    const [isSyncing, setIsSyncing] = useState(false);
    const [syncMessage, setSyncMessage] = useState('');
 
@@ -2076,116 +2088,310 @@ const AdminDashboard: React.FC = () => {
                         </div>
                      )}
 
-                     {poolSubTab === 'updates' && (
-                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                           <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                              <div>
-                                 <h4 className="text-xl font-black text-white">Scanned Updates</h4>
-                                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mt-1">Pending integrations from script</p>
+                     {poolSubTab === 'updates' && (() => {
+                        const allIds = (scannedTracks || []).map((t: any) => t.id);
+                        const allSelected = allIds.length > 0 && allIds.every((id: string) => selectedScanIds.has(id));
+
+                        const toggleAll = () => {
+                           if (allSelected) {
+                              setSelectedScanIds(new Set());
+                           } else {
+                              setSelectedScanIds(new Set(allIds));
+                           }
+                        };
+
+                        const toggleOne = (id: string) => {
+                           setSelectedScanIds(prev => {
+                              const next = new Set(prev);
+                              next.has(id) ? next.delete(id) : next.add(id);
+                              return next;
+                           });
+                        };
+
+                        const handleManualScan = async () => {
+                           setIsManualScanning(true);
+                           setManualScanMsg('Scanning sources...');
+                           try {
+                              const resp = await fetch('/api/admin/scan-tracks', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ since: scanSince }),
+                              });
+                              const data = await resp.json();
+                              if (data.success) {
+                                 setManualScanMsg(`✅ Found ${data.found} new tracks. ${data.saved} saved to staging.`);
+                                 if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
+                              } else {
+                                 setManualScanMsg(`❌ Scan failed: ${data.error}`);
+                              }
+                           } catch (e: any) {
+                              setManualScanMsg(`❌ Network error: ${e.message}`);
+                           } finally {
+                              setIsManualScanning(false);
+                           }
+                        };
+
+                        const handleBulkAddToPool = async () => {
+                           if (selectedScanIds.size === 0) return;
+                           if (!window.confirm(`Add ${selectedScanIds.size} selected track(s) to Music Pool?`)) return;
+                           setIsBulkAdding(true);
+                           const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
+                           for (const track of toAdd) {
+                              const versions: any[] = [];
+                              if (track.downloadUrl) {
+                                 versions.push({
+                                    id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                    type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
+                                    storagePath: '',
+                                    duration: 0,
+                                    downloadUrl: track.downloadUrl,
+                                 });
+                              }
+                              await addPoolTrack({
+                                 ...INITIAL_POOL_TRACK_STATE,
+                                 id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                 title: track.title,
+                                 artist: track.artist || 'Unknown Artist',
+                                 genre: track.genre || genres[0]?.name || 'Afrobeats',
+                                 key: track.key || '',
+                                 bpm: track.bpm || 100,
+                                 previewUrl: track.previewUrl || track.downloadUrl || '',
+                                 versions,
+                                 dateAdded: new Date().toISOString(),
+                                 createdAt: new Date().toISOString(),
+                                 updatedAt: new Date().toISOString(),
+                              });
+                              await deleteScannedTrack(track.id);
+                           }
+                           setSelectedScanIds(new Set());
+                           setIsBulkAdding(false);
+                           alert(`✅ ${toAdd.length} track(s) added to Music Pool!`);
+                        };
+
+                        return (
+                           <div className="space-y-6">
+                              {/* ── Toolbar ── */}
+                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 p-6 shadow-2xl">
+                                 <div className="flex flex-wrap items-center justify-between gap-4">
+                                    {/* Left: stats + date picker */}
+                                    <div className="flex flex-wrap items-center gap-4">
+                                       <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
+                                          <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending</p>
+                                          <p className="text-2xl font-black text-white mt-0.5">{scannedTracks?.length || 0}</p>
+                                       </div>
+                                       {selectedScanIds.size > 0 && (
+                                          <div className="px-5 py-3 bg-brand-purple/10 border border-brand-purple/20 rounded-2xl text-center">
+                                             <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Selected</p>
+                                             <p className="text-2xl font-black text-white mt-0.5">{selectedScanIds.size}</p>
+                                          </div>
+                                       )}
+                                       <div className="flex flex-col gap-1">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Scan Since</label>
+                                          <input
+                                             type="date"
+                                             value={scanSince}
+                                             onChange={e => setScanSince(e.target.value)}
+                                             className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] font-bold text-white outline-none focus:border-brand-purple transition-all"
+                                          />
+                                       </div>
+                                    </div>
+
+                                    {/* Right: action buttons */}
+                                    <div className="flex flex-wrap gap-3">
+                                       {selectedScanIds.size > 0 && (
+                                          <button
+                                             onClick={handleBulkAddToPool}
+                                             disabled={isBulkAdding}
+                                             className="px-6 py-3 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+                                          >
+                                             {isBulkAdding ? <RefreshCw size={15} className="animate-spin" /> : <Plus size={15} />}
+                                             {isBulkAdding ? 'Adding...' : `Add ${selectedScanIds.size} to Pool`}
+                                          </button>
+                                       )}
+                                       <button
+                                          onClick={handleManualScan}
+                                          disabled={isManualScanning}
+                                          className="px-6 py-3 bg-brand-cyan/10 hover:bg-brand-cyan text-brand-cyan hover:text-[#0B0B0F] border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+                                       >
+                                          {isManualScanning ? <RefreshCw size={15} className="animate-spin" /> : <Search size={15} />}
+                                          {isManualScanning ? 'Scanning...' : 'Manual Scan'}
+                                       </button>
+                                    </div>
+                                 </div>
+
+                                 {/* scan feedback */}
+                                 {manualScanMsg && (
+                                    <div className={`mt-4 px-5 py-3 rounded-2xl text-[11px] font-bold ${manualScanMsg.startsWith('✅')
+                                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                          : manualScanMsg.startsWith('❌')
+                                             ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+                                             : 'bg-white/5 border border-white/10 text-gray-400'
+                                       }`}>
+                                       {manualScanMsg}
+                                    </div>
+                                 )}
                               </div>
-                              <div className="flex gap-4">
-                                 <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
-                                    <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending Tracks</p>
-                                    <p className="text-2xl font-black text-white mt-1">{scannedTracks?.length || 0}</p>
+
+                              {/* ── Inline edit modal ── */}
+                              {editingScannedTrack && (
+                                 <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-brand-purple/30 p-8 shadow-2xl space-y-4">
+                                    <div className="flex items-center justify-between">
+                                       <h4 className="text-lg font-black text-white">Edit Scanned Track</h4>
+                                       <button onClick={() => setEditingScannedTrack(null)} className="p-2 text-gray-500 hover:text-white transition-colors"><X size={18} /></button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                       <div className="space-y-2">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Title</label>
+                                          <input value={editingScannedTrack.title || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                       </div>
+                                       <div className="space-y-2">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Artist</label>
+                                          <input value={editingScannedTrack.artist || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                       </div>
+                                       <div className="space-y-2">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
+                                          <select value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
+                                             {genres.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                                          </select>
+                                       </div>
+                                       <div className="space-y-2">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BPM</label>
+                                          <input type="number" value={editingScannedTrack.bpm || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, bpm: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                       </div>
+                                       <div className="space-y-2 md:col-span-2">
+                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Download URL</label>
+                                          <input value={editingScannedTrack.downloadUrl || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, downloadUrl: e.target.value, previewUrl: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                       </div>
+                                    </div>
+                                    <div className="flex gap-3 pt-2">
+                                       <button
+                                          onClick={async () => {
+                                             // Save inline edit back to supabase via DataContext upsert
+                                             // We reuse addScannedTrack pattern - since upsert handles update too
+                                             try {
+                                                const { createClient } = await import('@supabase/supabase-js');
+                                                const supa = createClient(
+                                                   import.meta.env.VITE_SUPABASE_URL,
+                                                   import.meta.env.VITE_SUPABASE_ANON_KEY
+                                                );
+                                                const { error } = await supa.from('scanned_tracks').update(editingScannedTrack).eq('id', editingScannedTrack.id);
+                                                if (error) throw error;
+                                                if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
+                                                setEditingScannedTrack(null);
+                                             } catch (err: any) {
+                                                alert('Save failed: ' + err.message);
+                                             }
+                                          }}
+                                          className="px-8 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 transition-all"
+                                       >
+                                          Save Changes
+                                       </button>
+                                       <button onClick={() => setEditingScannedTrack(null)} className="px-8 py-3 bg-white/5 border border-white/10 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">Cancel</button>
+                                    </div>
+                                 </div>
+                              )}
+
+                              {/* ── Table ── */}
+                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                                 <div className="overflow-x-auto">
+                                    <table className="w-full text-left whitespace-nowrap">
+                                       <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                          <tr>
+                                             <th className="px-6 py-6">
+                                                <input
+                                                   type="checkbox"
+                                                   checked={allSelected}
+                                                   onChange={toggleAll}
+                                                   className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
+                                                />
+                                             </th>
+                                             <th className="px-6 py-6">Signal Meta</th>
+                                             <th className="px-6 py-6">Genre</th>
+                                             <th className="px-6 py-6">Source</th>
+                                             <th className="px-6 py-6">Scanned</th>
+                                             <th className="px-6 py-6 text-right">Actions</th>
+                                          </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-white/[0.03] text-sm">
+                                          {(scannedTracks || []).map((track: any) => (
+                                             <tr key={track.id} className={`hover:bg-white/[0.02] transition-colors group ${selectedScanIds.has(track.id) ? 'bg-brand-purple/5' : ''}`}>
+                                                <td className="px-6 py-5">
+                                                   <input
+                                                      type="checkbox"
+                                                      checked={selectedScanIds.has(track.id)}
+                                                      onChange={() => toggleOne(track.id)}
+                                                      className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
+                                                   />
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                   <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
+                                                   <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                                   {track.bpm && <div className="text-[10px] text-gray-600 font-bold mt-0.5">{track.bpm} BPM</div>}
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                   <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400">{track.genre || '—'}</span>
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                   <span className="text-[10px] text-brand-purple tracking-widest uppercase">{track.source || 'Auto Script'}</span>
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                   <span className="text-xs text-gray-400 font-medium">{new Date(track.dateAdded || track.created_at || Date.now()).toLocaleDateString()}</span>
+                                                </td>
+                                                <td className="px-6 py-5 text-right">
+                                                   <div className="flex justify-end gap-2">
+                                                      {/* Single: inject to pool */}
+                                                      <button
+                                                         title="Add to Pool"
+                                                         onClick={async () => {
+                                                            const versions: any[] = [];
+                                                            if (track.downloadUrl) {
+                                                               versions.push({ id: `v_${Date.now()}`, type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3', storagePath: '', duration: 0, downloadUrl: track.downloadUrl });
+                                                            }
+                                                            await addPoolTrack({ ...INITIAL_POOL_TRACK_STATE, id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`, title: track.title, artist: track.artist || 'Unknown Artist', genre: track.genre || genres[0]?.name || 'Afrobeats', bpm: track.bpm || 100, previewUrl: track.previewUrl || track.downloadUrl || '', versions, dateAdded: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                                                            await deleteScannedTrack(track.id);
+                                                            setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; });
+                                                         }}
+                                                         className="p-2.5 text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 rounded-xl transition-all"
+                                                      >
+                                                         <Plus size={15} />
+                                                      </button>
+                                                      {/* Edit */}
+                                                      <button
+                                                         title="Edit"
+                                                         onClick={() => setEditingScannedTrack({ ...track })}
+                                                         className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 border border-transparent hover:border-brand-cyan/20 rounded-xl transition-all"
+                                                      >
+                                                         <PenSquare size={15} />
+                                                      </button>
+                                                      {/* Delete */}
+                                                      <button
+                                                         title="Discard"
+                                                         onClick={() => { if (window.confirm(`Discard "${track.title}"?`)) { deleteScannedTrack(track.id); setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; }); } }}
+                                                         className="p-2.5 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all"
+                                                      >
+                                                         <Trash2 size={15} />
+                                                      </button>
+                                                   </div>
+                                                </td>
+                                             </tr>
+                                          ))}
+                                          {(!scannedTracks || scannedTracks.length === 0) && (
+                                             <tr>
+                                                <td colSpan={6} className="px-8 py-24 text-center">
+                                                   <div className="flex flex-col items-center gap-4 text-gray-600">
+                                                      <Activity size={48} className="opacity-20" />
+                                                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No pending signals — run a Manual Scan to fetch new tracks</p>
+                                                   </div>
+                                                </td>
+                                             </tr>
+                                          )}
+                                       </tbody>
+                                    </table>
                                  </div>
                               </div>
                            </div>
-                           <div className="overflow-x-auto">
-                              <table className="w-full text-left whitespace-nowrap">
-                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                    <tr>
-                                       <th className="px-8 py-6">Signal Meta</th>
-                                       <th className="px-8 py-6">Genre</th>
-                                       <th className="px-8 py-6">Source Node</th>
-                                       <th className="px-8 py-6">Timestamp</th>
-                                       <th className="px-8 py-6 text-right">Protocol</th>
-                                    </tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {(scannedTracks || []).map((track: any) => (
-                                       <tr key={track.id} className="hover:bg-white/[0.02] transition-colors group">
-                                          <td className="px-8 py-6">
-                                             <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
-                                             <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400">{track.genre}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.source || 'Auto Script'}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="text-xs text-gray-400 font-medium font-display">{new Date(track.dateAdded || track.created_at).toLocaleDateString()}</span>
-                                          </td>
-                                          <td className="px-8 py-6 text-right">
-                                             <div className="flex justify-end gap-3">
-                                                <button
-                                                   onClick={() => {
-                                                      const versions = [];
-                                                      if (track.downloadUrl) {
-                                                         versions.push({
-                                                            id: `v_${Date.now()}_original`,
-                                                            type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
-                                                            storagePath: '',
-                                                            duration: 0,
-                                                            downloadUrl: track.downloadUrl
-                                                         });
-                                                      }
-                                                      setNewPoolTrack({
-                                                         ...INITIAL_POOL_TRACK_STATE,
-                                                         id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                                         title: track.title,
-                                                         artist: track.artist || 'Unknown Artist',
-                                                         genre: track.genre || genres[0]?.name || 'Afrobeats',
-                                                         key: track.key || '',
-                                                         categories: track.category ? [track.category] : [],
-                                                         bpm: track.bpm || 100,
-                                                         previewUrl: track.previewUrl || track.downloadUrl || '',
-                                                         versions: versions,
-                                                         dateAdded: new Date().toISOString(),
-                                                         createdAt: new Date().toISOString(),
-                                                         updatedAt: new Date().toISOString()
-                                                      });
-                                                      setIsEditing(false);
-                                                      setActiveModal('addPoolTrack');
-
-                                                      // Auto-discard from scanned list after opening it in the Add modal
-                                                      // This ensures the queue is cleared (can also be done explicitly via discard)
-                                                      deleteScannedTrack(track.id);
-                                                   }}
-                                                   className="px-6 py-2.5 bg-brand-cyan/10 hover:bg-brand-cyan text-brand-cyan hover:text-[#0B0B0F] border border-brand-cyan/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all transform hover:-translate-y-0.5"
-                                                >
-                                                   Review & Inject
-                                                </button>
-                                                <button
-                                                   onClick={() => {
-                                                      if (window.confirm(`Discard scanned signal "${track.title}" permanently?`)) {
-                                                         deleteScannedTrack(track.id);
-                                                      }
-                                                   }}
-                                                   className="p-2.5 text-red-500 hover:bg-red-500 hover:text-white border border-transparent hover:border-red-500/20 rounded-xl transition-all transform hover:-translate-y-0.5"
-                                                >
-                                                   <Trash2 size={16} />
-                                                </button>
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                    {(!scannedTracks || scannedTracks.length === 0) && (
-                                       <tr>
-                                          <td colSpan={5} className="px-8 py-24 text-center">
-                                             <div className="flex flex-col items-center gap-4 text-gray-600">
-                                                <Activity size={48} className="opacity-20" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No pending signals detected</p>
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    )}
-                                 </tbody>
-                              </table>
-                           </div>
-                        </div>
-                     )}
+                        );
+                     })()}
                   </div>
                )}
 
