@@ -4,7 +4,7 @@
  * This replaces Supabase direct database calls for content data.
  */
 
-const R2_URL = import.meta.env.VITE_R2_URL || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
+const R2_URL = import.meta.env.VITE_R2_URL || '/r2';
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
