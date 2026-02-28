@@ -318,7 +318,7 @@ const AdminDashboard: React.FC = () => {
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
-   const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres'>('tracks');
+   const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
    const [isSyncing, setIsSyncing] = useState(false);
    const [syncMessage, setSyncMessage] = useState('');
@@ -417,7 +417,8 @@ const AdminDashboard: React.FC = () => {
       addSubscriber, updateShippingZone, updateSubscription, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
       addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
       updateUser, removeUser,
-      referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs, updateContactMessage
+      referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs, updateContactMessage,
+      scannedTracks, deleteScannedTrack
    } = dataContext;
 
    const ordersLoading = odLoading;
@@ -1879,6 +1880,7 @@ const AdminDashboard: React.FC = () => {
                         <div className="flex gap-4 p-1.5 bg-black/40 rounded-[1.25rem] border border-white/5">
                            <button onClick={() => setPoolSubTab('tracks')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'tracks' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Wave Tracks</button>
                            <button onClick={() => setPoolSubTab('genres')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'genres' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Genre Taxonomy</button>
+                           <button onClick={() => setPoolSubTab('updates')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'updates' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Scanned Updates</button>
                         </div>
                      </div>
 
@@ -2071,6 +2073,117 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                               </div>
                            ))}
+                        </div>
+                     )}
+
+                     {poolSubTab === 'updates' && (
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                           <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                              <div>
+                                 <h4 className="text-xl font-black text-white">Scanned Updates</h4>
+                                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mt-1">Pending integrations from script</p>
+                              </div>
+                              <div className="flex gap-4">
+                                 <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
+                                    <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending Tracks</p>
+                                    <p className="text-2xl font-black text-white mt-1">{scannedTracks?.length || 0}</p>
+                                 </div>
+                              </div>
+                           </div>
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-left whitespace-nowrap">
+                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                       <th className="px-8 py-6">Signal Meta</th>
+                                       <th className="px-8 py-6">Genre</th>
+                                       <th className="px-8 py-6">Source Node</th>
+                                       <th className="px-8 py-6">Timestamp</th>
+                                       <th className="px-8 py-6 text-right">Protocol</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {(scannedTracks || []).map((track: any) => (
+                                       <tr key={track.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
+                                             <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400">{track.genre}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.source || 'Auto Script'}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-xs text-gray-400 font-medium font-display">{new Date(track.dateAdded || track.created_at).toLocaleDateString()}</span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button
+                                                   onClick={() => {
+                                                      const versions = [];
+                                                      if (track.downloadUrl) {
+                                                         versions.push({
+                                                            id: `v_${Date.now()}_original`,
+                                                            type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
+                                                            storagePath: '',
+                                                            duration: 0,
+                                                            downloadUrl: track.downloadUrl
+                                                         });
+                                                      }
+                                                      setNewPoolTrack({
+                                                         ...INITIAL_POOL_TRACK_STATE,
+                                                         id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                                         title: track.title,
+                                                         artist: track.artist || 'Unknown Artist',
+                                                         genre: track.genre || genres[0]?.name || 'Afrobeats',
+                                                         key: track.key || '',
+                                                         categories: track.category ? [track.category] : [],
+                                                         bpm: track.bpm || 100,
+                                                         previewUrl: track.previewUrl || track.downloadUrl || '',
+                                                         versions: versions,
+                                                         dateAdded: new Date().toISOString(),
+                                                         createdAt: new Date().toISOString(),
+                                                         updatedAt: new Date().toISOString()
+                                                      });
+                                                      setIsEditing(false);
+                                                      setActiveModal('addPoolTrack');
+
+                                                      // Auto-discard from scanned list after opening it in the Add modal
+                                                      // This ensures the queue is cleared (can also be done explicitly via discard)
+                                                      deleteScannedTrack(track.id);
+                                                   }}
+                                                   className="px-6 py-2.5 bg-brand-cyan/10 hover:bg-brand-cyan text-brand-cyan hover:text-[#0B0B0F] border border-brand-cyan/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all transform hover:-translate-y-0.5"
+                                                >
+                                                   Review & Inject
+                                                </button>
+                                                <button
+                                                   onClick={() => {
+                                                      if (window.confirm(`Discard scanned signal "${track.title}" permanently?`)) {
+                                                         deleteScannedTrack(track.id);
+                                                      }
+                                                   }}
+                                                   className="p-2.5 text-red-500 hover:bg-red-500 hover:text-white border border-transparent hover:border-red-500/20 rounded-xl transition-all transform hover:-translate-y-0.5"
+                                                >
+                                                   <Trash2 size={16} />
+                                                </button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                    {(!scannedTracks || scannedTracks.length === 0) && (
+                                       <tr>
+                                          <td colSpan={5} className="px-8 py-24 text-center">
+                                             <div className="flex flex-col items-center gap-4 text-gray-600">
+                                                <Activity size={48} className="opacity-20" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No pending signals detected</p>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
                      )}
                   </div>
