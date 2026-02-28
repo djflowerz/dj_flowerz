@@ -442,7 +442,7 @@ const MusicPool: React.FC = () => {
 
                                                 {/* Version/Type Tag */}
                                                 <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
-                                                   {track.versions[0]?.type || 'Video'}
+                                                   {track.versions?.[0]?.type || 'Video'}
                                                 </span>
 
                                                 {/* Additional Category Tags */}
@@ -455,7 +455,7 @@ const MusicPool: React.FC = () => {
                                                             !c.includes('tracks') &&
                                                             !c.includes('genres') &&
                                                             c !== g &&
-                                                            c !== track.versions[0]?.type?.toLowerCase();
+                                                            c !== track.versions?.[0]?.type?.toLowerCase();
                                                       })
                                                       .map((cat, idx) => {
                                                          // Clean up formatting for display
