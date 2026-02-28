@@ -598,10 +598,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [youtubeVideos, setYoutubeVideos, videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
 
 
-  // Pool tracks: load ALL tracks for everyone — no row limit.
-  // This allows full search in the homepage preview for all users.
-  // Downloads and the full library page are restricted to subscribers/admins via UI.
-  const [poolTracks, , poolLoading, , poolError, refreshPoolTracks] = useCollection<Track>('poolTracks', [], true, mapSupabaseTrack, undefined, 'date_added', 'desc', false);
+  // Pool tracks: fetch directly from our Cloudflare Worker proxying KV caching to avoid DB lag
+  const [poolTracks, setPoolTracks] = useState<Track[]>([]);
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [poolError, setPoolError] = useState<Error | null>(null);
+
+  const refreshPoolTracks = async () => {
+    try {
+      setPoolLoading(true);
+      const res = await fetch("https://music-worker.ianmuriithiflowerz.workers.dev");
+      if (!res.ok) throw new Error("Failed to load music pool");
+      const data = await res.json();
+      setPoolTracks(data.map(mapSupabaseTrack));
+    } catch (err: any) {
+      console.warn("Worker fetch failed, falling back to R2 directly...", err);
+      // Fallback to our existing R2 logic
+      try {
+        const fallbackData = await fetchFromR2<any>('pool_tracks');
+        setPoolTracks(fallbackData.map(mapSupabaseTrack));
+      } catch (fallbackErr: any) {
+        setPoolError(fallbackErr);
+      }
+    } finally {
+      setPoolLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshPoolTracks();
+  }, []);
 
   // Scanned Tracks (Supabase) - Only for admins
   const [scannedTracks, , scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
