@@ -20,7 +20,7 @@ import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 import { MailerLiteService } from '../services/MailerLiteService';
 import { uploadFileToR2 } from '../utils/r2';
-
+import { TableVirtuoso } from 'react-virtuoso';
 
 
 const StatCard: React.FC<{
@@ -1986,8 +1986,17 @@ const AdminDashboard: React.FC = () => {
 
                            <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
                               <div className="overflow-x-auto">
-                                 <table className="w-full text-left whitespace-nowrap">
-                                    <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <TableVirtuoso
+                                    data={(poolTracks || []).slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage)}
+                                    useWindowScroll
+                                    className="w-full text-left whitespace-nowrap bg-[#0B0B0F]"
+                                    components={{
+                                       Table: (props) => <table {...props} className="w-full text-left whitespace-nowrap empty-table:hidden" />,
+                                       TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5" />),
+                                       TableRow: (props) => <tr {...props} className="hover:bg-white/[0.02] transition-colors group" />,
+                                       TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-white/[0.03] text-sm" />)
+                                    }}
+                                    fixedHeaderContent={() => (
                                        <tr>
                                           <th className="px-8 py-6">Signal Meta</th>
                                           <th className="px-8 py-6">Genre Classification</th>
@@ -1996,41 +2005,39 @@ const AdminDashboard: React.FC = () => {
                                           <th className="px-8 py-6">Timeline</th>
                                           <th className="px-8 py-6 text-right">Ops Protocol</th>
                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.03] text-sm">
-                                       {(poolTracks || []).slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage).map(track => (
-                                          <tr key={track.id} className="hover:bg-white/[0.02] transition-colors group">
-                                             <td className="px-8 py-6">
-                                                <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
-                                                <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
-                                             </td>
-                                             <td className="px-8 py-6">
-                                                <span className="px-3 py-1 bg-brand-cyan/5 border border-brand-cyan/10 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-cyan">{track.genre}</span>
-                                             </td>
-                                             <td className="px-8 py-6 font-black">
-                                                <div className="text-white text-xs">{track.bpm} <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">BPM</span></div>
-                                                <div className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.key || 'NODE_MISSING'}</div>
-                                             </td>
-                                             <td className="px-8 py-6">
-                                                <div className="flex flex-wrap gap-2">
-                                                   {(track.versions || []).map(v => (
-                                                      <span key={v.id} className="text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/5 px-2 py-1 rounded-md text-gray-400 group-hover:text-white transition-colors">{v.type}</span>
-                                                   ))}
-                                                </div>
-                                             </td>
-                                             <td className="px-8 py-6 font-black font-display text-gray-400">
-                                                {track.year}
-                                             </td>
-                                             <td className="px-8 py-6 text-right">
-                                                <div className="flex justify-end gap-3">
-                                                   <button onClick={() => openEditPoolTrack(track)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
-                                                   <button onClick={() => { if (window.confirm(`Purge signal "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
-                                                </div>
-                                             </td>
-                                          </tr>
-                                       ))}
-                                    </tbody>
-                                 </table>
+                                    )}
+                                    itemContent={(index, track) => (
+                                       <>
+                                          <td className="px-8 py-6">
+                                             <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
+                                             <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="px-3 py-1 bg-brand-cyan/5 border border-brand-cyan/10 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-cyan">{track.genre}</span>
+                                          </td>
+                                          <td className="px-8 py-6 font-black">
+                                             <div className="text-white text-xs">{track.bpm} <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">BPM</span></div>
+                                             <div className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.key || 'NODE_MISSING'}</div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-wrap gap-2">
+                                                {(track.versions || []).map((v: any) => (
+                                                   <span key={v.id} className="text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/5 px-2 py-1 rounded-md text-gray-400 group-hover:text-white transition-colors">{v.type}</span>
+                                                ))}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6 font-black font-display text-gray-400">
+                                             {track.year}
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openEditPoolTrack(track)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
+                                                <button onClick={() => { if (window.confirm(`Purge signal "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </>
+                                    )}
+                                 />
                               </div>
 
                               <div className="p-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">

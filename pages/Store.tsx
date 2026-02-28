@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { VirtuosoGrid } from 'react-virtuoso';
 
 const Store: React.FC = () => {
   const { user } = useAuth();
@@ -397,9 +398,12 @@ const Store: React.FC = () => {
           {
             filteredProducts.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 md:gap-6">
-                  {paginatedProducts.map((product) => (
-                    <div key={product.id} className="bg-[#15151A] rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-purple/50 transition duration-300 group flex flex-col shadow-xl hover:shadow-2xl hover:-translate-y-1 relative h-full">
+                <VirtuosoGrid
+                  useWindowScroll
+                  data={paginatedProducts}
+                  listClassName="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 md:gap-6"
+                  itemContent={(index, product) => (
+                    <div className="bg-[#15151A] rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-purple/50 transition duration-300 group flex flex-col shadow-xl hover:shadow-2xl hover:-translate-y-1 relative h-full">
 
                       <Link to={`/store/${product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover/img:scale-110 transition duration-500" />
@@ -476,8 +480,8 @@ const Store: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
