@@ -1668,7 +1668,7 @@ const AdminDashboard: React.FC = () => {
                                  </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {liveOrders.length === 0 ? (
+                                 {(liveOrders || []).length === 0 ? (
                                     <tr>
                                        <td colSpan={6} className="px-8 py-20 text-center">
                                           <div className="flex flex-col items-center gap-4 opacity-50">
@@ -1680,7 +1680,7 @@ const AdminDashboard: React.FC = () => {
                                        </td>
                                     </tr>
                                  ) : (
-                                    liveOrders.map(order => (
+                                    (liveOrders || []).map(order => (
                                        <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">
@@ -2069,7 +2069,7 @@ const AdminDashboard: React.FC = () => {
 
                      {poolSubTab === 'genres' && (
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                           {genres.map(g => (
+                           {(genres || []).map(g => (
                               <div key={g.id} className="group relative bg-[#0B0B0F] rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer transition-all duration-500 shadow-2xl" onClick={() => openEditGenre(g)}>
                                  <div className="aspect-square relative overflow-hidden">
                                     <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" />
@@ -2322,7 +2322,7 @@ const AdminDashboard: React.FC = () => {
                                        <div className="space-y-2">
                                           <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
                                           <select value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
-                                             {genres.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                                             {(genres || []).map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                                           </select>
                                        </div>
                                        <div className="space-y-2">
@@ -2704,7 +2704,7 @@ const AdminDashboard: React.FC = () => {
                                        </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.03] text-sm">
-                                       {referralStats.map(r => (
+                                       {(referralStats || []).map(r => (
                                           <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6 flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black text-xs uppercase">
@@ -2754,7 +2754,7 @@ const AdminDashboard: React.FC = () => {
                                        </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.03] text-sm">
-                                       {coupons.map(c => (
+                                       {(coupons || []).map(c => (
                                           <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6">
                                                 <span className="font-mono text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 text-[11px] font-black uppercase tracking-[0.1em]">{c.code}</span>
@@ -2833,7 +2833,7 @@ const AdminDashboard: React.FC = () => {
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {bookings.map((b) => (
+                                    {(bookings || []).map((b) => (
                                        <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-4">
@@ -3540,7 +3540,7 @@ const AdminDashboard: React.FC = () => {
                               </button>
                            </div>
                            <div className="grid grid-cols-1 gap-6">
-                              {shippingZones.map(zone => (
+                              {(shippingZones || []).map(zone => (
                                  <div key={zone.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden group">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-brand-purple/20 group-hover:bg-brand-purple transition-all" />
                                     <div className="flex justify-between items-start mb-6">
@@ -3872,7 +3872,7 @@ const AdminDashboard: React.FC = () => {
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {telegramChannels.map(ch => (
+                                    {(telegramChannels || []).map(ch => (
                                        <tr key={ch.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-4">
@@ -4054,7 +4054,7 @@ const AdminDashboard: React.FC = () => {
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {subscribers.map(s => (
+                                    {(subscribers || []).map(s => (
                                        <tr key={s.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-4">
@@ -4218,7 +4218,7 @@ const AdminDashboard: React.FC = () => {
                                  </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {contactMessages.map(m => (
+                                 {(contactMessages || []).map(m => (
                                     <tr key={m.id} className={`hover:bg-white/[0.02] transition-colors group ${m.status === 'new' ? 'bg-brand-purple/[0.02]' : ''}`}>
                                        <td className="px-8 py-6">
                                           <div className="flex flex-col">
