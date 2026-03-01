@@ -189,6 +189,11 @@ const MusicPool: React.FC = () => {
             });
 
          return matchesSearch && matchesCategory && matchesYear && matchesGenre && matchesMonth;
+      }).sort((a, b) => {
+         // Sort newest first — use dateAdded, then createdAt, then updatedAt as fallbacks
+         const aTime = new Date(a.dateAdded || a.createdAt || a.updatedAt || 0).getTime();
+         const bTime = new Date(b.dateAdded || b.createdAt || b.updatedAt || 0).getTime();
+         return bTime - aTime;
       });
    }, [poolTracks, searchQuery, activeCategory, selectedYear, selectedMonth, selectedGenre]);
 

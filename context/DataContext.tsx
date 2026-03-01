@@ -635,8 +635,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, []);
 
-  // Scanned Tracks (Supabase) - Only for admins
-  const [scannedTracks, , scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
+  // Scanned Tracks (R2) - Only for admins
+  const [scannedTracks, setScannedTracks, scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
 
   // Admin Only Collections (R2 - enabled for all to allow local filtering)
   const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
@@ -992,16 +992,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addScannedTracks = async (tracks: any[]) => {
     try {
       // Deduplicate: filter out any incoming tracks whose ID already exists in staging
-      const existingIds = new Set((scannedTracks || []).map((t: any) => t.id));
-      const newUnique = tracks.filter(nt => !scannedTracks.some(st => st.id === nt.id));
+      const newUnique = tracks.filter(nt => !scannedTracks.some((st: any) => st.id === nt.id));
 
-      // Increased capacity from 2000 to 50000 to show all tracks without limit
+      // Merge newest first (new tracks at the front)
       const merged = [...newUnique, ...(scannedTracks || [])].slice(0, 50000);
 
+      // Optimistically update local state immediately so the table shows tracks right away
+      setScannedTracks(merged);
+
+      // Persist to R2 in background
       await saveToR2('scanned_tracks', merged);
-      refreshScannedTracks();
     } catch (err: any) {
       console.error("Add scanned tracks failed:", err.message);
+      // Revert on failure by refreshing from R2
+      refreshScannedTracks();
     }
   };
 
@@ -1693,8 +1697,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addScannedTracks,
     deleteScannedTrack: async (id: string) => {
       const updatedTracks = (scannedTracks || []).filter((t: any) => t.id !== id);
-      await saveToR2('scanned_tracks', updatedTracks);
-      if (refreshScannedTracks) refreshScannedTracks();
+      // Optimistically update local state immediately
+      setScannedTracks(updatedTracks);
+      // Persist to R2 in background
+      try {
+        await saveToR2('scanned_tracks', updatedTracks);
+      } catch (err: any) {
+        console.error("Delete scanned track failed:", err.message);
+        refreshScannedTracks();
+      }
     },
 
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
