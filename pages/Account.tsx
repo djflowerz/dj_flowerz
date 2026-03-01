@@ -89,8 +89,8 @@ const Account: React.FC = () => {
       }
 
       // Get Referrals
-      if (referralLogs.length > 0) {
-        const logs = referralLogs.filter(l => l.referrer_id === user.id || l.referrerId === user.id);
+      if ((referralLogs || []).length > 0) {
+        const logs = (referralLogs || []).filter(l => l.referrer_id === user.id || l.referrerId === user.id);
         setMyReferrals(logs);
 
         const stats = allReferralStats.find(s => s.user_id === user.id || s.userId === user.id);

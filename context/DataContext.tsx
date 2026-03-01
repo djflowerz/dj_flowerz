@@ -99,10 +99,13 @@ interface DataContextType {
   newsletterSegments: NewsletterSegment[];
   coupons: Coupon[];
   referralStats: ReferralStats[];
+  referralLogs: ReferralLog[];
   users: User[];
   contactMessages: ContactMessage[];
   payments: any[];
   tips: any[];
+  scannedTracks: any[];
+  scannedLoading: boolean;
 
   telegramConfig: TelegramConfig;
   telegramChannels: TelegramChannel[];
@@ -1602,10 +1605,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     newsletterSegments,
     coupons,
     referralStats,
+    referralLogs,
     users,
     contactMessages,
     payments,
     tips,
+    scannedTracks,
+    scannedLoading: scannedLoading || false,
     telegramConfig,
     telegramChannels,
     telegramMappings,
