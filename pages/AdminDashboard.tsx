@@ -341,7 +341,7 @@ const AdminDashboard: React.FC = () => {
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
    // --- Scanned Updates state ---
-   const [scanSince, setScanSince] = useState('2026-02-25');
+   const [scanSince, setScanSince] = useState('2026-02-01');
    const [isManualScanning, setIsManualScanning] = useState(false);
    const [manualScanMsg, setManualScanMsg] = useState('');
    const [selectedScanIds, setSelectedScanIds] = useState<Set<string>>(new Set());
@@ -2150,40 +2150,59 @@ const AdminDashboard: React.FC = () => {
                                  setManualScanMsg('Fetching tracks from sources...');
                                  try {
                                     const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
-                                    const resp = await fetch(REMIX_HUB_URL);
-                                    if (!resp.ok) throw new Error(`Remix Hub returned HTTP ${resp.status}`);
-                                    const tracks: any[] = await resp.json();
+                                    const VID_POOL_URL = 'https://r2.vicknickvideopool.com/';
+
+                                    let allIncoming: any[] = [];
+
+                                    // 1. Fetch from Remix Hub (JSON)
+                                    try {
+                                       const resp = await fetch(REMIX_HUB_URL);
+                                       if (resp.ok) {
+                                          const tracks = await resp.json();
+                                          allIncoming = [...allIncoming, ...tracks];
+                                       }
+                                    } catch (e) {
+                                       console.error('Remix Hub fetch failed:', e);
+                                    }
+
+                                    // 2. Fetch from Video Pool (HTML + Regex)
+                                    try {
+                                       const resp = await fetch(VID_POOL_URL);
+                                       if (resp.ok) {
+                                          const html = await resp.text();
+                                          const match = html.match(/ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/);
+                                          if (match && match[1]) {
+                                             const tracks = JSON.parse(match[1]);
+                                             allIncoming = [...allIncoming, ...tracks];
+                                          }
+                                       }
+                                    } catch (e) {
+                                       console.error('Video Pool fetch failed:', e);
+                                    }
 
                                     const sinceTime = new Date(scanSince).getTime();
 
                                     // Build de-duplication sets
-                                    // Pool tracks: derive the same ID pattern we use for scanned tracks
-                                    const poolIds = new Set(
-                                       (poolTracks || []).map((t: any) => {
-                                          // pool tracks have id like "pt_..." but also we stored scanned ones as scanned_KEY
-                                          // Cross-check by downloadUrl domain presence or exact id match
-                                          return t.id;
-                                       })
-                                    );
-                                    // Pool download URLs for URL-based dedup
                                     const poolUrls = new Set(
                                        (poolTracks || []).flatMap((t: any) =>
                                           (t.versions || []).map((v: any) => v.downloadUrl).filter(Boolean)
                                        )
                                     );
-                                    // Already-staged scanned track ids
                                     const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
 
                                     const toSave: any[] = [];
                                     let skippedOld = 0;
                                     let skippedDupe = 0;
 
-                                    for (const t of tracks) {
-                                       const uploadTime = new Date(t.uploaded).getTime();
+                                    for (const t of allIncoming) {
+                                       const uploadTime = new Date(t.uploaded || t.date || Date.now()).getTime();
                                        if (uploadTime < sinceTime) { skippedOld++; continue; }
 
-                                       const scannedId = `scanned_${t.key.replace(/\//g, '_')}`;
-                                       const downloadUrl = `/mashups/${t.key}`;
+                                       const key = t.key || t.storagePath || t.id;
+                                       if (!key) continue;
+
+                                       const scannedId = `scanned_${key.replace(/\//g, '_')}`;
+                                       const downloadUrl = t.url || t.downloadUrl || `/mashups/${key}`;
 
                                        // Skip if already in pool (by URL) or already staged
                                        if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId)) {
@@ -2199,26 +2218,26 @@ const AdminDashboard: React.FC = () => {
 
                                        toSave.push({
                                           id: scannedId,
-                                          source: 'CloudFlare R2 (Auto)',
+                                          source: t.source || 'CloudFlare R2 (Auto)',
                                           title: displayTitle,
                                           artist,
-                                          genre: t.month || 'Other',
+                                          genre: t.month || t.genre || 'Other',
                                           bpm: t.bpm || null,
                                           downloadUrl,
-                                          previewUrl: downloadUrl,
-                                          dateAdded: t.uploaded,
+                                          previewUrl: t.previewUrl || downloadUrl,
+                                          dateAdded: t.uploaded || t.date || new Date().toISOString(),
                                           status: 'scanned',
                                           created_at: new Date().toISOString(),
                                        });
                                     }
 
-                                    setManualScanMsg(`Found ${tracks.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
+                                    setManualScanMsg(`Found ${allIncoming.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
 
                                     if (toSave.length > 0) {
                                        await addScannedTracks(toSave);
-                                       setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue (exclusively via Cloudflare). (${skippedDupe} duplicates skipped)`);
+                                       setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue. (${skippedDupe} duplicates skipped)`);
                                     } else {
-                                       setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince} in Cloudflare. (${skippedDupe} already in pool/queue)`);
+                                       setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince}. (${skippedDupe} already in pool/queue)`);
                                     }
                                  } catch (e: any) {
                                     setManualScanMsg(`❌ Scan error: ${e.message}`);
