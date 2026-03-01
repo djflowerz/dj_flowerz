@@ -160,6 +160,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } catch (err) {
         console.error("Auth sync error:", err);
+        // Even if R2 profile fetch fails, keep user logged in with minimal data from session
+        if (mounted && sbUser) {
+          const isAdminEmail2 = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com');
+          setUser({
+            id: sbUser.id,
+            name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+            email: sbUser.email || '',
+            role: isAdminEmail2 ? 'admin' : 'user',
+            isAdmin: isAdminEmail2,
+            isSubscriber: false,
+            avatarUrl: sbUser.user_metadata?.avatar_url || '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
         if (mounted) setLoading(false);
       }
     };

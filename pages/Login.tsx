@@ -40,8 +40,10 @@ const Login: React.FC = () => {
 
       // Check if session exists
       if (data.session) {
-        // Successful login with active session
-        navigate('/');
+        // Successful login — redirect back to the page they came from, or home
+        const from = (location.state as any)?.from?.pathname || '/';
+        navigate(from, { replace: true });
+
       } else {
         setError('Please check your email and confirm your account before logging in.');
       }
