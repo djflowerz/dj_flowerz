@@ -113,7 +113,12 @@ const Navbar: React.FC = () => {
 
               {isAuthenticated ? (
                 <Link to="/account" className="flex items-center gap-2 text-gray-300 hover:text-white transition">
-                  <img src={user?.avatarUrl} alt="User" className="w-8 h-8 rounded-full border border-brand-purple object-cover" />
+                  <img
+                    src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                    alt="User"
+                    className="w-8 h-8 rounded-full border border-brand-purple object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
+                  />
                 </Link>
               ) : (
                 <div className="flex items-center gap-3">
@@ -177,7 +182,12 @@ const Navbar: React.FC = () => {
                 to="/account"
                 className="flex items-center justify-center gap-3 w-full bg-white/10 text-white py-4 rounded-xl font-bold"
               >
-                <img src={user?.avatarUrl} alt="User" className="w-6 h-6 rounded-full" /> My Account
+                <img
+                  src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                  alt="User"
+                  className="w-6 h-6 rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
+                /> My Account
               </Link>
             ) : (
               <div className="grid grid-cols-2 gap-4">
