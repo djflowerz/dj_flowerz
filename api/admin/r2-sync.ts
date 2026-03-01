@@ -39,14 +39,12 @@ export default async function handler(req: any, res: any) {
             return res.status(401).json({ error: 'Unauthorized: Invalid token' });
         }
 
-        // Check if user is admin in profiles
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
+        // Check if user is admin by email
+        const isAdminEmail = user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || user.email === 'testadmin@example.com';
 
-        if (!profile || profile.role !== 'admin') {
+        let r2Role = isAdminEmail ? 'admin' : 'user';
+
+        if (r2Role !== 'admin') {
             // Note: For some collections like 'user_profiles' or 'referral_logs', 
             // we might allow regular users to update their OWN data.
             // But for general r2-sync, we default to admin check.

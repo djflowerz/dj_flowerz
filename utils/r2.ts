@@ -37,36 +37,40 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
  * write directly to R2 without exposing AWS keys.
  */
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
-    try {
-        const authHeader = await getAuthHeader();
-        const response = await fetch('/api/admin/r2-sync', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...authHeader
-            },
-            body: JSON.stringify({ collection, data }),
-        });
-        return response.ok;
-    } catch (error) {
-        console.error(`Failed to save ${collection} to R2 via API:`, error);
-        return false;
+    const authHeader = await getAuthHeader();
+    const response = await fetch('/api/admin/r2-sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+        },
+        body: JSON.stringify({ collection, data }),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`R2 Sync Error: ${resStatus(response.status)} - ${err}`);
     }
+    return true;
 }
 
+function resStatus(status: number) { return status; }
+
 export async function addR2Item(collection: string, item: any): Promise<boolean> {
-    try {
-        const authHeader = await getAuthHeader();
-        const response = await fetch('/api/admin/r2-sync', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...authHeader
-            },
-            body: JSON.stringify({ collection, action: 'add', item }),
-        });
-        return response.ok;
-    } catch (e) { return false; }
+    const authHeader = await getAuthHeader();
+    const response = await fetch('/api/admin/r2-sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+        },
+        body: JSON.stringify({ collection, action: 'add', item }),
+    });
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`R2 Add Error: ${err}`);
+    }
+    return true;
 }
 
 export async function updateR2Item(collection: string, id: string, item: any): Promise<boolean> {
