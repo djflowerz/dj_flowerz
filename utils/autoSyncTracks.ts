@@ -7,6 +7,7 @@
  */
 
 import { supabase } from './supabase';
+import { fetchFromR2, saveToR2 } from './r2';
 
 // Track sources configuration
 const TRACK_SOURCES = {
@@ -238,24 +239,22 @@ function transformToR2Track(
 async function ensureGenreExists(genreName: string): Promise<void> {
     if (!genreName) return;
     try {
-        const { data } = await supabase
-            .from('genres')
-            .select('id')
-            .ilike('name', genreName)
-            .maybeSingle();
+        const existingGenres = await fetchFromR2<any>('genres');
+        const exists = existingGenres.some((g: any) => g.name.toLowerCase() === genreName.toLowerCase());
 
-        if (!data) {
+        if (!exists) {
             console.log(`🆕 Creating new genre: ${genreName}`);
             const genreId = genreName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-            await supabase
-                .from('genres')
-                .insert([{
-                    id: genreId,
-                    name: genreName,
-                    cover_url: 'https://cdn.vicknickvideopool.com/default_genre_cover.jpg',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }]);
+            const newGenre = {
+                id: genreId,
+                name: genreName,
+                cover_url: 'https://cdn.vicknickvideopool.com/default_genre_cover.jpg',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            const updatedGenres = [...existingGenres, newGenre];
+            await saveToR2('genres', updatedGenres);
         }
     } catch (err) {
         console.error(`Error ensuring genre ${genreName}:`, err);
@@ -268,35 +267,19 @@ async function ensureGenreExists(genreName: string): Promise<void> {
 async function addTracksToFirestore(tracks: R2Track[], updateExisting: boolean = false): Promise<number> {
     if (tracks.length === 0) return 0;
 
-    console.log(`🔍 Checking ${tracks.length} tracks for duplicates in a pool of 120k+...`);
+    console.log(`🔍 Checking ${tracks.length} tracks for duplicates in R2 bucket...`);
 
-    // Strategy: Fetch all existing URLs once and check in memory. 
-    // This is much faster than thousands of tiny queries without an index.
+    let existingTracks: R2Track[] = [];
     let existingUrls = new Set<string>();
     try {
-        let page = 0;
-        const pageSize = 20000;
-        while (true) {
-            const { data, error } = await supabase
-                .from('pool_tracks')
-                .select('download_url')
-                .range(page * pageSize, (page + 1) * pageSize - 1);
-
-            if (error) throw error;
-            if (!data || data.length === 0) break;
-
-            data.forEach(item => {
-                if (item.download_url) existingUrls.add(item.download_url);
-            });
-
-            if (data.length < pageSize) break;
-            page++;
-            console.log(`✅ Loaded ${existingUrls.size} existing tracks so far...`);
-        }
-        console.log(`✅ Fully loaded ${existingUrls.size} existing tracks for deduplication.`);
+        existingTracks = await fetchFromR2<R2Track>('pool_tracks');
+        existingTracks.forEach(item => {
+            if (item.versions?.[0]?.downloadUrl) existingUrls.add(item.versions[0].downloadUrl);
+            else if ((item as any).download_url) existingUrls.add((item as any).download_url);
+        });
+        console.log(`✅ Loaded ${existingUrls.size} existing tracks from R2 for deduplication.`);
     } catch (err) {
-        console.error('❌ Failed to load existing tracks for deduplication. Aborting to prevent accidental duplicates.', err);
-        return 0;
+        console.error('❌ Failed to load existing tracks from R2. Starting fresh or aborting if this is unexpected.', err);
     }
 
     // Filter out existing tracks
@@ -310,56 +293,28 @@ async function addTracksToFirestore(tracks: R2Track[], updateExisting: boolean =
         return 0;
     }
 
-    console.log(`➕ Adding ${newTracks.length} new tracks to the pool...`);
-    let addedCount = 0;
+    // Map results for storage
+    const records = newTracks.map(t => {
+        return {
+            ...t,
+            id: t.id.startsWith('temp_') ? t.id.replace('temp_', '') : t.id,
+            // Ensure schema compatibility
+            download_url: t.versions[0].downloadUrl,
+            preview_url: t.previewUrl,
+            date_added: t.dateAdded
+        };
+    });
 
-    // Process in batches of 100 for insertion
-    for (let i = 0; i < newTracks.length; i += 100) {
-        const batch = newTracks.slice(i, i + 100);
-
-        try {
-            // Ensure genres exist for this batch
-            const uniqueGenres = Array.from(new Set(batch.map(t => t.genre)));
-            for (const genre of uniqueGenres) {
-                await ensureGenreExists(genre);
-            }
-
-            // Prepare records for insert
-            const records = batch.map(track => ({
-                title: track.title,
-                artist: track.artist,
-                genre: track.genre,
-                category: track.category,
-                bpm: track.bpm,
-                year: track.year,
-                preview_url: track.previewUrl,
-                download_url: track.versions[0]?.downloadUrl,
-                versions: track.versions.map(v => ({ ...v, download_url: v.downloadUrl })),
-                date_added: track.dateAdded
-            }));
-
-            const { error: insertError } = await supabase
-                .from('pool_tracks')
-                .insert(records);
-
-            if (insertError) {
-                console.error(`❌ Batch insert error (batch ${i / 100 + 1}):`, insertError);
-                // Fallback to one-by-one if batch fails
-                for (const single of records) {
-                    const { error: singleError } = await supabase.from('pool_tracks').insert([single]);
-                    if (!singleError) addedCount++;
-                }
-            } else {
-                addedCount += batch.length;
-                console.log(`✅ Batch ${i / 100 + 1} added (${batch.length} tracks)`);
-            }
-        } catch (err) {
-            console.error(`❌ Unexpected error in batch ${i / 100 + 1}:`, err);
-        }
+    try {
+        console.log(`📤 Saving ${records.length} new tracks to R2 pool_tracks.json...`);
+        const updatedTracks = [...records, ...existingTracks];
+        await saveToR2('pool_tracks', updatedTracks);
+        console.log(`✅ Successfully updated R2 with ${records.length} new tracks. Total: ${updatedTracks.length}`);
+        return records.length;
+    } catch (err) {
+        console.error('❌ Error saving to R2:', err);
+        return 0;
     }
-
-    console.log(`📊 Sync Summary: ${addedCount} tracks added.`);
-    return addedCount;
 }
 
 /**

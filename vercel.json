@@ -26,6 +26,10 @@
             "destination": "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/$1"
         },
         {
+            "source": "/mashups/(.*)",
+            "destination": "https://remix-and-mashups-worker.dennismacharia20.workers.dev/$1"
+        },
+        {
             "source": "/api/(.*)",
             "destination": "/api/$1"
         },

@@ -52,6 +52,8 @@ const MusicPool: React.FC = () => {
    const isUnlocked = isUserSubscriber(user);
 
    // Auto-apply promotional discount for non-subscribers
+   // REMOVED as per user request: "prices in plans restore to normal prices without discount, discount only if you have promo code"
+   /*
    useEffect(() => {
       if (!isUnlocked && referralSettings?.enabled && referralSettings?.newUserDiscount > 0) {
          setAppliedReferral(prev => {
@@ -65,6 +67,7 @@ const MusicPool: React.FC = () => {
          });
       }
    }, [isUnlocked, referralSettings]);
+   */
 
    // View State
    const [activeCategory, setActiveCategory] = useState('All');
@@ -659,8 +662,17 @@ const MusicPool: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
                {subscriptionPlans.map((plan) => {
-                  // Only apply referral discount for plans that are NOT the weekly plan
-                  const currentReferral = plan.id !== 'weekly' ? appliedReferral : null;
+                  // 1. Check if this specific plan is allowed to have discounts
+                  // Per User Request: The One Week plan NEVER has a discount
+                  const isOneWeek = plan.id === 'KHpgU9C3B5Vnmr1iZsOa' || plan.name.toLowerCase().includes('1 week');
+
+                  // 2. Check if the applied coupon/referral is restricted to specific plans
+                  const isPlanApplicable = appliedReferral?.applicablePlans
+                     ? appliedReferral.applicablePlans.includes(plan.id)
+                     : true;
+
+                  const canApplyDiscount = !isOneWeek && isPlanApplicable;
+                  const currentReferral = canApplyDiscount ? appliedReferral : null;
 
                   return (
                      <div

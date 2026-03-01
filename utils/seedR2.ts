@@ -23,7 +23,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const seedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     startFromIndex: number = 0,
-    maxTracks: number = 10000
+    maxTracks: number = 1000000
 ) => {
     try {
         console.log("🚀 Starting R2 track seeding to Supabase...");
@@ -133,5 +133,5 @@ export const resumeSeedR2Tracks = async (
     onProgress: (msg: string, progress?: SeedProgress) => void,
     lastIndex: number
 ) => {
-    return seedR2Tracks(onProgress, lastIndex + 1, 10000);
+    return seedR2Tracks(onProgress, lastIndex + 1, 1000000);
 };

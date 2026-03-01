@@ -17,15 +17,33 @@ export default async function handler(req: Request) {
     }
 
     try {
-        const { userId, adminEmail } = await req.json();
+        const { userId } = await req.json();
 
-        // Verify Admin Email (Basic Check)
-        if (!adminEmail || adminEmail !== process.env.VITE_ADMIN_EMAIL) {
-            return new Response(JSON.stringify({ error: 'Unauthorized: Admin email mismatch' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        // --- SECURITY LAYER ---
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: Missing token' }), { status: 401 });
         }
+        const token = authHeader.split(' ')[1];
+        try {
+            const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+            if (authError || !user) {
+                return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token' }), { status: 401 });
+            }
+
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            if (!profile || profile.role !== 'admin') {
+                return new Response(JSON.stringify({ error: 'Forbidden: Admin access required' }), { status: 403 });
+            }
+        } catch (err) {
+            return new Response(JSON.stringify({ error: 'Auth verification failed' }), { status: 500 });
+        }
+        // --- END SECURITY LAYER ---
 
         // Attempt to delete user from Supabase Auth
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);

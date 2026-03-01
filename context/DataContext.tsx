@@ -7,7 +7,7 @@ import { supabase } from '../utils/supabase';
 import { withRetry } from '../utils/supabaseRetry';
 import { useSupabaseCollection } from '../hooks/useSupabaseCollection';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2 } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item } from '../utils/r2';
 
 
 
@@ -504,9 +504,7 @@ const getTableName = (colName: string): string => {
   return mapping[colName] || colName;
 };
 
-const SUPABASE_COLLECTIONS = [
-  // All business data moving to R2.
-];
+const SUPABASE_COLLECTIONS: string[] = [];
 
 const useCollection = <T extends { id: string }>(
   colName: string,
@@ -571,20 +569,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Site Config (R2)
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(INITIAL_CONFIG);
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const data = await fetchFromR2<any>('settings');
-        const config = data.find((s: any) => s.id === 'siteConfig');
-        if (config && config.data) {
-          setSiteConfig(config.data as SiteConfig);
-        }
-      } catch (error) {
-        console.warn("R2 fetch error for siteConfig:", error);
-      }
-    };
 
+  const fetchConfig = async () => {
+    try {
+      const data = await fetchFromR2<any>('settings');
+      const config = data.find((s: any) => s.id === 'siteConfig');
+      if (config && config.data) {
+        setSiteConfig(config.data as SiteConfig);
+      }
+    } catch (error) {
+      console.warn("R2 fetch error for siteConfig:", error);
+    }
+  };
+
+  useEffect(() => {
     fetchConfig();
+
+    // Poll for config updates every 60 seconds
+    const interval = setInterval(fetchConfig, 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Public Collections (Supabase)
@@ -606,7 +609,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshPoolTracks = async () => {
     try {
       setPoolLoading(true);
-      const res = await fetch("https://music-worker.ianmuriithiflowerz.workers.dev");
+      // Increased limit from 100k to 1M to ensure all tracks are loaded as requested
+      const res = await fetch("https://music-worker.ianmuriithiflowerz.workers.dev?limit=1000000");
       if (!res.ok) throw new Error("Failed to load music pool");
       const data = await res.json();
       setPoolTracks(data.map(mapSupabaseTrack));
@@ -626,35 +630,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     refreshPoolTracks();
+    // Refresh pool tracks every 10 minutes (less frequent as it's large)
+    const interval = setInterval(refreshPoolTracks, 10 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Scanned Tracks (Supabase) - Only for admins
   const [scannedTracks, , scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
 
-  const loadMorePoolTracks = () => {
-    // With progressive loading, we might not need this
-  };
+  // Admin Only Collections (R2 - enabled for all to allow local filtering)
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
+  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapSupabaseUser, 1000, 'createdAt', 'desc', true);
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapSupabaseSubscription, 1000, 'startDate', 'desc', true);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapSupabaseBooking, 500, 'createdAt', 'desc', true);
 
-  // Admin Only Collections (Supabase)
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
-  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapSupabaseUser, 1000, 'createdAt', 'desc', true);
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapSupabaseSubscription, 1000, 'startDate', 'desc', true);
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], isAdmin, mapSupabaseBooking, 500, 'createdAt', 'desc', true);
-
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], isAdmin, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', true);
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], isAdmin, mapSupabaseMaintenanceLog, 200, 'createdAt', 'desc', true);
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapSupabaseCoupon, undefined, 'createdAt', 'desc', true);
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], isAdmin, mapSupabaseReferralStats, 500, 'createdAt', 'desc', true);
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapSupabaseCampaign, 100, 'createdAt', 'desc', true);
-  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapSupabaseGeneric, 100, 'createdAt', 'desc', true);
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapSupabaseSubscriber, 1000, 'date_subscribed', 'desc', true);
-  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapSupabaseChannel, undefined, 'createdAt', 'desc', true);
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, (p) => ({ ...p, createdAt: p.created_at }), 500, 'created_at', 'desc', true);
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, (t) => ({ ...t, createdAt: t.created_at }), 500, 'created_at', 'desc', true);
-  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
-  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], isAdmin, mapSupabaseGeneric, 500, 'createdAt', 'desc', false);
-  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], isAdmin, mapSupabaseGeneric, 200, 'timestamp', 'desc', false);
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], isAdmin, mapSupabaseGeneric, 200, 'createdAt', 'desc', true);
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapSupabaseStudioRoom, undefined, 'createdAt', 'desc', true);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapSupabaseMaintenanceLog, 200, 'createdAt', 'desc', true);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapSupabaseCoupon, undefined, 'createdAt', 'desc', true);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapSupabaseReferralStats, 500, 'createdAt', 'desc', true);
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapSupabaseCampaign, 100, 'createdAt', 'desc', true);
+  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapSupabaseGeneric, 100, 'createdAt', 'desc', true);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapSupabaseSubscriber, 1000, 'date_subscribed', 'desc', true);
+  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapSupabaseChannel, undefined, 'createdAt', 'desc', true);
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, (p) => ({ ...p, createdAt: p.created_at }), 500, 'created_at', 'desc', true);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, (t) => ({ ...t, createdAt: t.created_at }), 500, 'created_at', 'desc', true);
+  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapSupabaseGeneric, 200, 'createdAt', 'desc', false);
+  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapSupabaseGeneric, 500, 'createdAt', 'desc', false);
+  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapSupabaseGeneric, 200, 'timestamp', 'desc', false);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapSupabaseGeneric, 200, 'createdAt', 'desc', true);
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 1000, 'date', 'desc', true);
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 1000, 'date', 'desc', true);
@@ -665,158 +668,197 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Fetch Telegram Config (Single Doc from Supabase)
   useEffect(() => {
     if (!isAdmin) return;
+
     const fetchTgConfig = async () => {
-      const { data } = await supabase.from('telegram_config').select('*').eq('id', 'main').maybeSingle();
-      if (data) {
-        setTelegramConfig({
-          botToken: data.bot_token || '',
-          botUsername: data.bot_username || '',
-          status: data.status || 'Disconnected'
-        });
-      }
+      try {
+        const sets = await fetchFromR2<any>('settings');
+        const data = sets.find((s: any) => s.id === 'telegram_config');
+        if (data) {
+          setTelegramConfig({
+            botToken: data.botToken || '',
+            botUsername: data.botUsername || '',
+            status: data.status || 'Disconnected'
+          });
+        }
+      } catch (err) { console.error('Error fetching tg config:', err); }
     };
 
     fetchTgConfig();
-
-    const channel = supabase
-      .channel('public:telegram_config')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'telegram_config', filter: 'id=eq.main' }, (payload) => {
-        if (payload.new) {
-          const newItem = payload.new as any;
-          setTelegramConfig({
-            botToken: newItem.bot_token || '',
-            botUsername: newItem.bot_username || '',
-            status: newItem.status || 'Disconnected'
-          });
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [isAdmin]);
 
   const [referralSettings, setReferralSettings] = useState<ReferralSettings>({
-    newUserDiscount: 10,
+    newUserDiscount: 28.57,
     newUserDiscountType: 'percentage',
     referrerRewardAmount: 500,
     rewardType: 'flat',
     enabled: true,
     firstTimeDiscountEnabled: true,
-    firstTimeDiscount: 10,
+    firstTimeDiscount: 28.57,
     firstTimeDiscountType: 'percentage'
   });
   const [referralLogs, setReferralLogs] = useState<ReferralLog[]>([]);
 
   const fetchRefSettings = async () => {
-    const { data } = await supabase.from('settings').select('data').eq('id', 'referralSettings').maybeSingle();
-    if (data && data.data) {
-      setReferralSettings(data.data as ReferralSettings);
-    }
+    try {
+      const sets = await fetchFromR2<any>('settings');
+      const data = sets.find((s: any) => s.id === 'referralSettings');
+      if (data && data.data) {
+        setReferralSettings(data.data as ReferralSettings);
+      }
+    } catch (err) { console.error('Error fetching referral settings', err); }
   };
 
+  useEffect(() => {
+    fetchRefSettings();
+    // Poll for referral settings every 60 seconds
+    const interval = setInterval(fetchRefSettings, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchReferralLogs = async () => {
-    const { data } = await supabase.from('referral_logs').select('*').order('created_at', { ascending: false });
-    if (data) setReferralLogs(data.map(l => ({
-      id: l.id,
-      referrerId: l.referrer_id,
-      refereeId: l.referee_id,
-      referrerName: l.referrer_name,
-      refereeName: l.referee_name,
-      planPurchased: l.plan_purchased,
-      discountApplied: l.discount_applied,
-      rewardIssued: l.reward_issued,
-      createdAt: l.created_at,
-      status: l.status
-    })));
+    try {
+      const data = await fetchFromR2<any>('referral_logs');
+      if (data) {
+        setReferralLogs(data.map((l: any) => ({
+          id: l.id,
+          referrerId: l.referrer_id,
+          refereeId: l.referee_id,
+          referrerName: l.referrer_name,
+          refereeName: l.referee_name,
+          planPurchased: l.plan_purchased,
+          discountApplied: l.discount_applied,
+          rewardIssued: l.reward_issued,
+          createdAt: l.created_at,
+          status: l.status
+        })));
+      }
+    } catch (err) { console.error('Error fetching referral logs', err); }
   };
 
   useEffect(() => {
     fetchRefSettings();
     fetchReferralLogs();
-
-    const channel = supabase
-      .channel('public:referral_settings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.referralSettings' }, (payload) => {
-        if (payload.new && (payload.new as any).data) {
-          setReferralSettings((payload.new as any).data as ReferralSettings);
-        }
-      })
-      .subscribe();
-
-    const logsChannel = supabase
-      .channel('public:referral_logs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'referral_logs' }, () => {
-        fetchReferralLogs();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(logsChannel);
-    };
   }, []);
 
 
-  // --- ACTIONS (Write to Supabase) ---
+  // --- ACTIONS (Now exclusively R2) ---
 
   const updateReferralSettings = async (settings: Partial<ReferralSettings>) => {
     const newSettings = { ...referralSettings, ...settings };
-    const { error } = await supabase.from('settings').upsert({ id: 'referralSettings', data: newSettings, updated_at: new Date().toISOString() });
-    if (error) throw error;
-    setReferralSettings(newSettings);
-  };
+    try {
+      const allSettings = await fetchFromR2<any>('settings');
+      const updated = allSettings.filter((s: any) => s.id !== 'referralSettings');
+      updated.push({ id: 'referralSettings', data: newSettings, updated_at: new Date().toISOString() });
+      await saveToR2('settings', updated);
+      setReferralSettings(newSettings);
+    } catch (err) { console.error('Error updating referral settings', err); }
+  };  // Admin Data Polling
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    // Poll for high-priority admin data every 2 minutes
+    const interval = setInterval(() => {
+      refreshOrders();
+      refreshUsers();
+      refreshSubscriptions();
+      refreshBookings();
+      refreshPayments();
+    }, 2 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isAdmin, refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments]);
 
   const applyReferralCode = async (code: string) => {
     if (!referralSettings.enabled) return { success: false, message: 'Referral system is currently disabled.' };
 
-    const { data: profile, error } = await supabase.from('profiles')
-      .select('id, name')
-      .eq('referral_code', code.toUpperCase())
-      .single();
+    const normalizedCode = (code || '').trim().toUpperCase();
 
-    if (error || !profile) return { success: false, message: 'Invalid referral code.' };
-    if (profile.id === user?.id) return { success: false, message: 'You cannot refer yourself!' };
+    // 1. Check for Administrative Coupons first
+    const activeCoupon = coupons.find(c => c.active && c.code.toUpperCase() === normalizedCode);
+    if (activeCoupon) {
+      // Basic check for expiry
+      if (new Date(activeCoupon.expiryDate).getTime() < Date.now()) {
+        return { success: false, message: 'This promo code has expired.' };
+      }
 
-    const discountLabel = referralSettings.newUserDiscountType === 'percentage'
-      ? `${referralSettings.newUserDiscount}% OFF`
-      : `KES ${referralSettings.newUserDiscount} OFF`;
+      const discountLabel = activeCoupon.discountType === 'percentage'
+        ? `${activeCoupon.discountValue}% OFF`
+        : `KES ${activeCoupon.discountValue} OFF`;
 
-    return {
-      success: true,
-      discount: referralSettings.newUserDiscount,
-      discountType: referralSettings.newUserDiscountType,
-      message: `Code applied! You'll get ${discountLabel} your subscription.`,
-      referrerId: profile.id
-    };
+      return {
+        success: true,
+        discount: activeCoupon.discountValue,
+        discountType: activeCoupon.discountType,
+        message: `Promo code applied! You'll get ${discountLabel} your subscription.`,
+        referrerId: 'system',
+        applicablePlans: activeCoupon.applicablePlans
+      };
+    }
+
+    // 2. Special handling for legacy/hardcoded PROMO_DISCOUNT if not in coupons
+    if (normalizedCode === 'PROMO_DISCOUNT') {
+      const discountLabel = referralSettings.newUserDiscountType === 'percentage'
+        ? `${referralSettings.newUserDiscount}% OFF`
+        : `KES ${referralSettings.newUserDiscount} OFF`;
+
+      return {
+        success: true,
+        discount: referralSettings.newUserDiscount,
+        discountType: referralSettings.newUserDiscountType,
+        message: `Promo code applied! You'll get ${discountLabel} your subscription.`,
+        referrerId: 'system'
+      };
+    }
+
+    // 3. Check for User Referral Codes (Auto-generated)
+    try {
+      const allProfiles = await fetchFromR2<any>('profiles');
+      const profile = allProfiles.find((p: any) => (p.referral_code || p.referralCode) === normalizedCode);
+
+      if (!profile) return { success: false, message: 'Invalid referral code.' };
+      if (profile.id === user?.id) return { success: false, message: 'You cannot refer yourself!' };
+
+      const discountLabel = referralSettings.newUserDiscountType === 'percentage'
+        ? `${referralSettings.newUserDiscount}% OFF`
+        : `KES ${referralSettings.newUserDiscount} OFF`;
+
+      return {
+        success: true,
+        discount: referralSettings.newUserDiscount,
+        discountType: referralSettings.newUserDiscountType,
+        message: `Code applied! You'll get ${discountLabel} your subscription.`,
+        referrerId: profile.id
+      };
+    } catch (err) {
+      console.error("Apply referral code error:", err);
+      return { success: false, message: 'Error validating referral code.' };
+    }
   };
 
   const issueReferralReward = async (log: ReferralLog) => {
-    // Determine reward amount
     const rewardAmount = referralSettings.referrerRewardAmount;
 
     try {
-      const { error } = await supabase.rpc('issue_referral_reward', {
-        referrer_id: log.referrerId,
-        referee_id: log.refereeId,
-        referrer_name: log.referrerName,
-        referee_name: log.refereeName,
-        plan_purchased: log.planPurchased,
-        discount_applied: log.discountApplied,
-        reward_amount: rewardAmount
-      });
+      const logEntry = {
+        ...log,
+        id: `reflog_${Date.now()}`,
+        rewardIssued: true,
+        createdAt: new Date().toISOString(),
+        status: 'completed'
+      };
+      await addR2Item('referral_logs', logEntry);
 
-      if (error) {
-        console.error('Error issuing referral reward:', error);
-        throw error;
+      const allProfiles = await fetchFromR2<any>('profiles');
+      const referrer = allProfiles.find((p: any) => p.id === log.referrerId);
+      if (referrer) {
+        const currentBalance = referrer.balance || 0;
+        await updateR2Item('profiles', log.referrerId, { balance: currentBalance + rewardAmount });
       }
 
-      // No need to fetch logs here as this is usually run by the referee, not the referrer.
-      // The referrer will see updated data next time they refresh.
+      refreshUsers();
+      fetchReferralLogs();
     } catch (err) {
-      console.error('Failed to issue referral reward via RPC:', err);
-      // Fallback or retry logic could go here, but RPC is the primary method now.
+      console.error('Failed to issue referral reward to R2:', err);
       throw err;
     }
   };
@@ -828,36 +870,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      const now = new Date().toISOString();
+      await saveToR2('products', PRODUCTS);
+      await saveToR2('mixtapes', FEATURED_MIXTAPES);
+      await saveToR2('studio_equipment', INITIAL_STUDIO_EQUIPMENT);
+      await saveToR2('subscription_plans', SUBSCRIPTION_PLANS);
+      await saveToR2('shipping_zones', INITIAL_SHIPPING_ZONES);
+      await saveToR2('genres', INITIAL_GENRES);
 
-      // Seed Supabase
-      await supabase.from('products').upsert(PRODUCTS.map(p => ({
-        id: p.id, name: p.name, price: p.price, type: p.type, images: p.images, inventory: p.inventory || p.stock || 0, is_active: p.isActive, updated_at: now
-      })));
+      const settingsData = [
+        { id: 'siteConfig', data: INITIAL_CONFIG, updated_at: new Date().toISOString() },
+        { id: 'referralSettings', data: referralSettings, updated_at: new Date().toISOString() }
+      ];
+      await saveToR2('settings', settingsData);
 
-      await supabase.from('mixtapes').upsert(FEATURED_MIXTAPES.map(m => ({
-        id: m.id, title: m.title, slug: m.slug, genre: m.genre, description: m.description, release_date: m.releaseDate, cover_url: m.coverUrl, audio_url: m.audioUrl, tracklist: m.tracklist, updated_at: now
-      })));
-
-      await supabase.from('studio_equipment').upsert(INITIAL_STUDIO_EQUIPMENT.map(e => ({
-        id: e.id, name: e.name, category: e.category, image: e.image, description: e.description, status: e.status, updated_at: now
-      })));
-
-      await supabase.from('subscription_plans').upsert(SUBSCRIPTION_PLANS.map(p => ({
-        id: p.id, name: p.name, price: p.price, period: p.period, features: p.features, active: true, updated_at: now
-      })));
-
-      await supabase.from('shipping_zones').upsert(INITIAL_SHIPPING_ZONES.map(z => ({
-        id: z.id, name: z.name, description: z.description, rates: z.rates, updated_at: now
-      })));
-
-      await supabase.from('genres').upsert(INITIAL_GENRES.map(g => ({
-        id: g.id, name: g.name, cover_url: g.coverUrl, updated_at: now
-      })));
-
-      await supabase.from('settings').upsert({ id: 'siteConfig', data: INITIAL_CONFIG, updated_at: now });
-      console.log("Database Seeded Successfully!");
-      alert("Database has been connected and seeded with initial data!");
+      alert("Database has been seeded successfully!");
     } catch (e: any) {
       console.error("Error seeding database:", e);
       alert("Error seeding database: " + e.message);
@@ -867,61 +893,40 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateSiteConfig = async (config: SiteConfig) => {
     try {
       setSiteConfig(config);
-      await saveToR2('settings', { id: 'siteConfig', ...config });
+      await updateR2Item('settings', 'siteConfig', { data: config, updated_at: new Date().toISOString() });
       console.log("Site config saved to R2");
     } catch (err: any) {
       console.error("Update site config failed:", err.message);
     }
   };
 
-  const addProduct = async (product: Product) => {
+  const addProduct = async (product: Omit<Product, 'id'>) => {
     try {
-      const finalId = product.id || `p${Date.now()}`;
-      const mappedProduct: Product = {
-        ...product,
-        id: finalId,
-        createdAt: product.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      const newProducts = [mappedProduct, ...products.filter(p => p.id !== finalId)];
-      setProducts(newProducts);
-
-      // Sync with R2
+      const docId = `prod_${Date.now()}`;
+      const newProduct = { ...product, id: docId, createdAt: new Date().toISOString() };
+      const newProducts = [newProduct, ...products];
       await saveToR2('products', newProducts);
-      console.log("Product saved to R2");
       refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
-      refreshProducts();
     }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
     try {
-      const updatedProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
-      setProducts(updatedProducts);
-
-      // Sync with R2
-      await saveToR2('products', updatedProducts);
-      console.log("Product updated on R2");
+      const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
+      await saveToR2('products', newProducts);
       refreshProducts();
     } catch (err: any) {
       console.error("Update product failed:", err.message);
-      refreshProducts();
     }
   };
   const deleteProduct = async (id: string) => {
     try {
-      const updatedProducts = products.filter(p => p.id !== id);
-      setProducts(updatedProducts);
-
-      // Sync with R2
-      await saveToR2('products', updatedProducts);
-      console.log("Product deleted from R2");
+      const newProducts = products.filter(p => p.id !== id);
+      await saveToR2('products', newProducts);
       refreshProducts();
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
-      refreshProducts();
     }
   };
 
@@ -977,20 +982,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addPoolTrack = async (track: Track) => {
     try {
-      const newTracks = [track, ...poolTracks];
-      // Note: We don't have a local state for poolTracks since it's huge, 
-      // but if we do manual sync, we should update R2
-      await saveToR2('pool_tracks', newTracks);
+      await addR2Item('pool_tracks', track);
       refreshPoolTracks();
     } catch (error: any) {
       console.error("Add track failed:", error.message);
     }
   };
 
+  const addScannedTracks = async (tracks: any[]) => {
+    try {
+      // Deduplicate: filter out any incoming tracks whose ID already exists in staging
+      const existingIds = new Set((scannedTracks || []).map((t: any) => t.id));
+      const newUnique = tracks.filter(nt => !scannedTracks.some(st => st.id === nt.id));
+
+      // Increased capacity from 2000 to 50000 to show all tracks without limit
+      const merged = [...newUnique, ...(scannedTracks || [])].slice(0, 50000);
+
+      await saveToR2('scanned_tracks', merged);
+      refreshScannedTracks();
+    } catch (err: any) {
+      console.error("Add scanned tracks failed:", err.message);
+    }
+  };
+
+  const loadMorePoolTracks = async (limit: number = 1000000) => {
+    try {
+      setPoolLoading(true);
+      // Increased default limit to 1M to satisfy "no limits" requirement
+      const res = await fetch(`https://music-worker.ianmuriithiflowerz.workers.dev?limit=${limit}`);
+      if (!res.ok) throw new Error("Failed to load music pool tracks");
+      const data = await res.json();
+
+      // We replace with the full set to ensure searchability across all tracks
+      setPoolTracks(data.map(mapSupabaseTrack));
+    } catch (err: any) {
+      console.error("Load tracks failed:", err);
+    } finally {
+      setPoolLoading(false);
+    }
+  };
+
   const updatePoolTrack = async (id: string, data: Partial<Track>) => {
     try {
-      const newTracks = poolTracks.map(t => t.id === id ? { ...t, ...data } : t);
-      await saveToR2('pool_tracks', newTracks);
+      await updateR2Item('pool_tracks', id, data);
       refreshPoolTracks();
     } catch (error: any) {
       console.error("Update track failed:", error.message);
@@ -999,8 +1033,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deletePoolTrack = async (id: string) => {
     try {
-      const newTracks = poolTracks.filter(t => t.id !== id);
-      await saveToR2('pool_tracks', newTracks);
+      await removeR2Item('pool_tracks', id);
       refreshPoolTracks();
     } catch (err: any) {
       console.error("Delete track failed:", err.message);
@@ -1159,22 +1192,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newSubs = subscriptions.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s);
       await saveToR2('subscriptions', newSubs);
 
-      // 2. Sync changes to User Profile (SUPABASE - AUTH)
+      // 2. Sync changes to User Profile (R2)
       const sub = subscriptions.find(s => s.id === id);
       if (sub && sub.userId) {
-        const profileUpdate: any = {};
+        const profileUpdate: any = { updatedAt: new Date().toISOString() };
         if (data.status === 'active') {
-          profileUpdate.is_subscriber = true;
-          if (data.expiryDate) profileUpdate.subscription_expiry = data.expiryDate;
+          profileUpdate.isSubscriber = true;
+          if (data.expiryDate) profileUpdate.subscriptionExpiry = data.expiryDate;
         } else if (data.status) {
-          profileUpdate.is_subscriber = false;
+          profileUpdate.isSubscriber = false;
         }
         if (data.expiryDate) {
-          profileUpdate.subscription_expiry = data.expiryDate;
+          profileUpdate.subscriptionExpiry = data.expiryDate;
         }
 
-        if (Object.keys(profileUpdate).length > 0) {
-          await supabase.from('profiles').update(profileUpdate).eq('id', sub.userId);
+        if (Object.keys(profileUpdate).length > 1) { // more than just updatedAt
+          await updateR2Item('profiles', sub.userId, profileUpdate);
           refreshUsers();
         }
       }
@@ -1468,11 +1501,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addContactMessage = async (msg: Partial<ContactMessage>) => {
+  const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
-      const now = new Date().toISOString();
-      const newMessage = { ...msg, id: `msg_${Date.now()}`, createdAt: now, updatedAt: now };
-      const newMessages = [newMessage, ...contactMessages];
+      const docId = `msg_${Date.now()}`;
+      const newMessage: ContactMessage = {
+        ...message,
+        id: docId,
+        status: 'new',
+        createdAt: new Date().toISOString(),
+      };
+      const newMessages = [newMessage, ...(contactMessages || [])];
       await saveToR2('contact_messages', newMessages);
       refreshContactMessages();
     } catch (err: any) {
@@ -1480,9 +1518,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateContactMessage = async (id: string, data: Partial<ContactMessage>) => {
+  const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
     try {
-      const newMessages = contactMessages.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
+      const newMessages = (contactMessages || []).map(m => m.id === id ? { ...m, ...updates } : m);
       await saveToR2('contact_messages', newMessages);
       refreshContactMessages();
     } catch (err: any) {
@@ -1500,53 +1538,40 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addReview = async (review: any) => {
+  const addReview = async (productId: string, rating: number, text: string) => {
     try {
-      const { error } = await supabase.from('reviews').insert([{
-        ...review,
-        created_at: new Date().toISOString()
-      }]);
-      if (error) throw error;
+      if (!user) throw new Error('Must be logged in to review');
+      const docId = `rev_${Date.now()}`;
+      const newReview = { id: docId, productId, userId: user.id, userName: user.name || 'User', rating, text, createdAt: new Date().toISOString(), status: 'pending' };
+      const newReviews = [newReview, ...(reviews || [])];
+      await saveToR2('reviews', newReviews);
       refreshReviews();
-
-      // If product review, also update product rating locally
-      if (review.productId) {
-        setProducts(prev => prev.map(p => p.id === review.productId ? { ...p, reviewCount: (p.reviewCount || 0) + 1 } : p));
-      }
-    } catch (err) {
-      console.error("Add review error:", err);
+    } catch (err: any) {
+      console.error("Add review failed:", err.message);
     }
   };
 
-  const addComment = async (comment: any) => {
+  const addComment = async (mixtapeId: string, text: string) => {
     try {
-      const { error } = await supabase.from('comments').insert([{
-        ...comment,
-        created_at: new Date().toISOString()
-      }]);
-      if (error) throw error;
+      if (!user) throw new Error('Must be logged in to comment');
+      const docId = `com_${Date.now()}`;
+      const newComment = { id: docId, mixtapeId, userId: user.id, userName: user.name || 'User', text, createdAt: new Date().toISOString(), status: 'pending' };
+      const newComments = [newComment, ...(comments || [])];
+      await saveToR2('comments', newComments);
       refreshComments();
-
-      // Update mixtape comment count locally
-      if (comment.mixtapeId) {
-        setMixtapes(prev => prev.map(m => m.id === comment.mixtapeId ? { ...m, commentsCount: (m.commentsCount || 0) + 1 } : m));
-      }
-    } catch (err) {
-      console.error("Add comment error:", err);
+    } catch (err: any) {
+      console.error("Add comment failed:", err.message);
     }
   };
 
   const incrementMixtapeDownload = async (mixtapeId: string) => {
     try {
-      // We'll use a Supabase table for increments to avoid R2 race conditions
-      const { error } = await supabase.rpc('increment_mixtape_downloads', { mid: mixtapeId });
-      if (error) {
-        // Fallback if RPC doesn't exist: simple insert into a log table
-        await supabase.from('mixtape_downloads').insert([{ mixtape_id: mixtapeId, user_id: user?.id }]);
-      }
+      // In R2, we update the mixtape's download count directly
+      const newMixtapes = mixtapes.map(m => m.id === mixtapeId ? { ...m, downloadsCount: (m.downloadsCount || 0) + 1 } : m);
+      await saveToR2('mixtapes', newMixtapes);
 
       // Update local state
-      setMixtapes(prev => prev.map(m => m.id === mixtapeId ? { ...m, downloadsCount: (m.downloadsCount || 0) + 1 } : m));
+      setMixtapes(newMixtapes);
     } catch (err) {
       console.error("Increment download error:", err);
     }
@@ -1665,15 +1690,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addReview,
     addComment,
     incrementMixtapeDownload,
-    referralLogs,
-    refreshScannedTracks,
-    scannedTracks,
-    isFirstTimeSubscriber,
+    addScannedTracks,
     deleteScannedTrack: async (id: string) => {
-      const updatedTracks = scannedTracks.filter((t: any) => t.id !== id);
+      const updatedTracks = (scannedTracks || []).filter((t: any) => t.id !== id);
       await saveToR2('scanned_tracks', updatedTracks);
-      refreshScannedTracks();
-    }
+      if (refreshScannedTracks) refreshScannedTracks();
+    },
+
+    refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
+    refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
+    refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
+    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,

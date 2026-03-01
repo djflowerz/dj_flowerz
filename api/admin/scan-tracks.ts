@@ -11,15 +11,33 @@ const SOURCES = [
 ];
 
 export default async function handler(req: any, res: any) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-        return res.status(500).json({ error: 'Server configuration error: Missing Supabase credentials.' });
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // --- SECURITY LAYER ---
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Unauthorized: Missing token' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+        }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile || profile.role !== 'admin') {
+            return res.status(403).json({ error: 'Forbidden: Admin access required' });
+        }
+    } catch (err) {
+        return res.status(500).json({ error: 'Auth verification failed' });
+    }
+    // --- END SECURITY LAYER ---
 
     // Accept a "since" date from the request body, defaulting to 30 days ago
     const { since } = req.body || {};
@@ -66,16 +84,26 @@ export default async function handler(req: any, res: any) {
     }
 
     let saved = 0;
+    const { fetchFromR2Server, saveToR2Server } = await import('../../utils/r2-server.js');
 
     if (allScanned.length > 0) {
-        const { error } = await supabase
-            .from('scanned_tracks')
-            .upsert(allScanned, { onConflict: 'id' });
+        try {
+            // Fetch existing scanned tracks to deduplicate
+            const existingScanned = await fetchFromR2Server<any>('scanned_tracks');
+            const existingIds = new Set(existingScanned.map((t: any) => t.id));
 
-        if (error) {
-            errors.push(`DB upsert error: ${error.message}`);
-        } else {
-            saved = allScanned.length;
+            // Filter out existing
+            const newTracks = allScanned.filter(t => !existingIds.has(t.id));
+
+            if (newTracks.length > 0) {
+                const merged = [...newTracks, ...existingScanned].slice(0, 50000);
+                await saveToR2Server('scanned_tracks', merged);
+                saved = newTracks.length;
+            } else {
+                saved = 0;
+            }
+        } catch (err: any) {
+            errors.push(`R2 Save error: ${err.message}`);
         }
     }
 

@@ -8,6 +8,7 @@ import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
+   Bold, Italic, AlignLeft, AlignCenter, AlignRight,
    Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
@@ -19,7 +20,7 @@ import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 import { MailerLiteService } from '../services/MailerLiteService';
-import { uploadFileToR2 } from '../utils/r2';
+import { uploadFileToR2, saveToR2 } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
 
@@ -96,12 +97,25 @@ const ImageUpload: React.FC<{
    onChange: (v: string) => void;
    required?: boolean;
 }> = ({ label, value, onChange, required }) => {
-   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   const [isUploading, setIsUploading] = useState(false);
+
+   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-         const reader = new FileReader();
-         reader.onloadend = () => onChange(reader.result as string);
-         reader.readAsDataURL(file);
+         setIsUploading(true);
+         try {
+            const result = await uploadFileToR2(file, 'images');
+            if (result?.url) {
+               onChange(result.url);
+            } else {
+               alert("Failed to upload image. Please try again.");
+            }
+         } catch (err: any) {
+            console.error("Upload error:", err);
+            alert("Upload error: " + err.message);
+         } finally {
+            setIsUploading(false);
+         }
       }
    };
 
@@ -113,13 +127,18 @@ const ImageUpload: React.FC<{
          <div className="relative group max-w-sm">
             <div className="absolute inset-0 bg-brand-purple/20 blur-2xl rounded-[2.5rem] opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
             <div className="relative bg-[#0B0B0F] border-2 border-dashed border-white/5 rounded-[2.5rem] p-8 hover:border-brand-purple/30 transition-all duration-300">
-               {value ? (
+               {isUploading ? (
+                  <div className="flex flex-col items-center justify-center h-48">
+                     <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin mb-4" />
+                     <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest animate-pulse">Uploading to R2...</span>
+                  </div>
+               ) : value ? (
                   <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-lg">
                      <img src={value} alt="Preview" className="w-full h-full object-cover" />
                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                         <label className="bg-brand-purple text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-purple-600 transition-all shadow-xl shadow-brand-purple/20">
                            Replace Matrix
-                           <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                           <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
                         </label>
                      </div>
                   </div>
@@ -128,9 +147,9 @@ const ImageUpload: React.FC<{
                      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-600 group-hover/inner:text-brand-purple group-hover/inner:border-brand-purple/30 transition-all duration-300">
                         <Upload size={32} />
                      </div>
-                     <span className="mt-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Inject Base64 Payload</span>
-                     <span className="text-[9px] text-gray-700 mt-1 uppercase tracking-tighter">Drag \u0026 Drop or Click Hub</span>
-                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                     <span className="mt-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Upload to CF R2</span>
+                     <span className="text-[9px] text-gray-700 mt-1 uppercase tracking-tighter">Click to Upload</span>
+                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
                   </label>
                )}
             </div>
@@ -150,21 +169,22 @@ const MultiImageUpload: React.FC<{
       onChange(newValues);
    }
 
-   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
-         const promises = Array.from(e.target.files).map((file) => {
-            return new Promise<string>((resolve) => {
-               const reader = new FileReader();
-               reader.onloadend = () => {
-                  if (reader.result) resolve(reader.result as string);
-               };
-               reader.readAsDataURL(file as Blob);
-            });
+         const files = Array.from(e.target.files);
+         const uploadPromises = files.map(async (file: File) => {
+            try {
+               const result = await uploadFileToR2(file, 'images');
+               return result?.url || '';
+            } catch (err) {
+               console.error("Multi upload error:", err);
+               return '';
+            }
          });
 
-         Promise.all(promises).then(base64s => {
-            onChange([...values, ...base64s]);
-         });
+         const urls = await Promise.all(uploadPromises);
+         const validUrls = urls.filter(url => url !== '');
+         onChange([...values, ...validUrls]);
       }
    };
 
@@ -321,11 +341,7 @@ const AdminDashboard: React.FC = () => {
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
    // --- Scanned Updates state ---
-   const [scanSince, setScanSince] = useState(() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      return d.toISOString().split('T')[0]; // e.g. "2026-01-29"
-   });
+   const [scanSince, setScanSince] = useState('2026-02-25');
    const [isManualScanning, setIsManualScanning] = useState(false);
    const [manualScanMsg, setManualScanMsg] = useState('');
    const [selectedScanIds, setSelectedScanIds] = useState<Set<string>>(new Set());
@@ -412,7 +428,7 @@ const AdminDashboard: React.FC = () => {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
       payments, tips, contactMessages,
-      mixtapesLoading: mxLoading, productsLoading: pdLoading, ordersLoading: odLoading, usersLoading: usLoading, subscriptionsLoading: sbLoading,
+      mixtapesLoading: mxLoading, productsLoading: pdLoading, ordersLoading: odLoading, usersLoading: usLoading, subscriptionsLoading: sbLoading, poolLoading,
       bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading: pyLoading, tipsLoading,
       studioEquipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
       poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
@@ -421,16 +437,22 @@ const AdminDashboard: React.FC = () => {
       seedDatabase,
       updateSiteConfig, deleteProduct, updateBooking, addBooking, deleteMixtape, deleteVideo,
       addProduct, updateProduct, addMixtape, updateMixtape, addSessionType, updateSessionType, deleteSessionType,
-      updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
       addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-      addSubscription, addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
-      updateOrder, addCampaign, updateCampaign,
-      addCoupon, updateCoupon, deleteCoupon,
-      addSubscriber, updateShippingZone, updateSubscription, updateSubscriptionPlan, addSubscriptionPlan, deleteSubscriptionPlan,
-      addStudioRoom, updateStudioRoom, deleteStudioRoom, addMaintenanceLog, updateMaintenanceLog,
-      updateUser, removeUser,
-      referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs, updateContactMessage,
-      scannedTracks, deleteScannedTrack
+      addSubscription, updateSubscription, addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
+      updateOrder, addPayment, addTip, addCampaign, updateCampaign,
+      addCoupon, updateCoupon, deleteCoupon, validateCoupon,
+      updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
+      updateShippingZone, addSubscriber, updateUser, removeUser,
+      addContactMessage, updateContactMessage, addReview, addComment, incrementMixtapeDownload,
+      addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
+      addStudioRoom, updateStudioRoom, deleteStudioRoom,
+      addMaintenanceLog, updateMaintenanceLog,
+      scannedTracks, addScannedTracks, deleteScannedTrack,
+      referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs,
+      refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
+      refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
+      refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
+      refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
    } = dataContext;
 
    const ordersLoading = odLoading;
@@ -622,6 +644,14 @@ const AdminDashboard: React.FC = () => {
       if (siteConfig) setEditingConfig(siteConfig);
    }, [siteConfig]);
 
+   useEffect(() => {
+      // Automatically load the full music database if the pool is small or empty
+      if (poolTracks && poolTracks.length < 5000 && typeof loadMorePoolTracks === 'function' && !poolLoading) {
+         console.log("Auto-loading full music database...");
+         loadMorePoolTracks(1000000);
+      }
+   }, [poolTracks, poolLoading, loadMorePoolTracks]);
+
    if (loading) {
       return (
          <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
@@ -666,7 +696,7 @@ const AdminDashboard: React.FC = () => {
       const startIdx = resumeFrom >= 0 ? resumeFrom : selectedPart * 10000;
       const confirmMsg = resumeFrom >= 0
          ? `Resume seeding from track ${startIdx + 1}?`
-         : `Start seeding R2 tracks (Part ${selectedPart + 1}: ${startIdx + 1} to ${startIdx + 10000})? This will upload up to 10,000 tracks in this run.`;
+         : `Start seeding R2 tracks? This will index tracks starting from position ${startIdx + 1}.`;
 
       if (!confirm(confirmMsg)) return;
 
@@ -681,7 +711,7 @@ const AdminDashboard: React.FC = () => {
                setSeedProgress(progress);
                setLastSeedIndex(progress.lastProcessedIndex);
             }
-         }, startIdx, 10000);
+         }, startIdx, 1000000);
 
          if (result.rangeComplete) {
             if (result.isComplete) {
@@ -987,15 +1017,17 @@ const AdminDashboard: React.FC = () => {
          if (isEditing) {
             await updateProduct(newProduct.id, productToSave);
          } else {
-            await addProduct({
+            const finalProduct = {
                ...productToSave,
                id: `p${Date.now()}`,
                slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
                createdAt: now
-            });
+            };
+            await addProduct(finalProduct);
          }
-         alert("Product saved successfully!");
+         alert("Product successfully cataloged in matrix!");
          setActiveModal(null);
+         if (refreshProducts) refreshProducts();
       } catch (error: any) {
          console.error("Error saving product:", error);
          alert("Failed to save product: " + error.message);
@@ -1905,29 +1937,17 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div>
                                     <h4 className="text-xl font-black text-white">Cloud Indexing</h4>
-                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">Total indexed signals: {poolTracks.length.toLocaleString()}</p>
+                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">Total indexed tracks: {poolTracks.length.toLocaleString()}</p>
                                  </div>
                               </div>
                               <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-                                 <select
-                                    value={selectedPart}
-                                    onChange={(e) => setSelectedPart(Number(e.target.value))}
-                                    className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-brand-purple transition-all"
-                                    disabled={isSeeding}
-                                 >
-                                    <option value={0}>Segment 01 (0-10k)</option>
-                                    <option value={1}>Segment 02 (10k-20k)</option>
-                                    <option value={2}>Segment 03 (20k-30k)</option>
-                                    <option value={3}>Segment 04 (30k-40k)</option>
-                                    <option value={4}>Segment 05 (40k-50k)</option>
-                                 </select>
                                  <button
-                                    onClick={() => handleSeed(-1)}
+                                    onClick={() => loadMorePoolTracks(1000000)}
                                     disabled={isSeeding}
                                     className="px-6 py-3 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2 group disabled:opacity-50"
                                  >
                                     <Zap size={16} className="group-hover:animate-pulse" />
-                                    {isSeeding ? 'Indexing...' : 'Initiate Seed'}
+                                    {isSeeding ? 'Indexing...' : 'Load Full Database'}
                                  </button>
                                  <button
                                     onClick={handleSyncTracks}
@@ -1937,7 +1957,7 @@ const AdminDashboard: React.FC = () => {
                                     <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
                                     {isSyncing ? 'Syncing...' : 'Force Sync'}
                                  </button>
-                                 <button onClick={openAddPoolTrack} className="px-6 py-3 bg-white text-[#0B0B0F] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all shadow-xl shadow-brand-purple/10">
+                                 <button onClick={openAddPoolTrack} className="px-6 py-3 bg-white text-[#0B0B0F] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all shadow-xl shadow-brand-purple/10 flex items-center gap-2">
                                     <Plus size={16} /> Upload Track
                                  </button>
                               </div>
@@ -1949,7 +1969,7 @@ const AdminDashboard: React.FC = () => {
                                  <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
                                     <div
                                        className={`h-full transition-all duration-500 ${isSeeding ? 'bg-brand-purple' : 'bg-brand-cyan'}`}
-                                       style={{ width: isSeeding && seedProgress ? `${Math.round((seedProgress.processedTracks / 10000) * 100)}%` : '100%' }}
+                                       style={{ width: isSeeding && seedProgress ? `${Math.round((seedProgress.processedTracks / (seedProgress.totalTracks || 10000)) * 100)}%` : '100%' }}
                                     ></div>
                                  </div>
                                  <div className="flex flex-col md:flex-row justify-between items-center gap-6">
@@ -1987,7 +2007,7 @@ const AdminDashboard: React.FC = () => {
                            <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
                               <div className="overflow-x-auto">
                                  <TableVirtuoso
-                                    data={(poolTracks || []).slice((poolPage - 1) * tracksPerPage, poolPage * tracksPerPage)}
+                                    data={poolTracks || []}
                                     useWindowScroll
                                     className="w-full text-left whitespace-nowrap bg-[#0B0B0F]"
                                     components={{
@@ -1998,6 +2018,7 @@ const AdminDashboard: React.FC = () => {
                                     }}
                                     fixedHeaderContent={() => (
                                        <tr>
+                                          <th className="px-4 py-6 w-16">Cover</th>
                                           <th className="px-8 py-6">Signal Meta</th>
                                           <th className="px-8 py-6">Genre Classification</th>
                                           <th className="px-8 py-6">Dynamics</th>
@@ -2008,16 +2029,35 @@ const AdminDashboard: React.FC = () => {
                                     )}
                                     itemContent={(index, track) => (
                                        <>
+                                          {/* Cover Art */}
+                                          <td className="px-4 py-4">
+                                             {track.coverUrl || track.cover_url || track.thumbnail ? (
+                                                <img
+                                                   src={track.coverUrl || track.cover_url || track.thumbnail}
+                                                   alt={track.title}
+                                                   className="w-12 h-12 rounded-lg object-cover border border-white/10 shadow-md"
+                                                   onError={(e: any) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                                />
+                                             ) : null}
+                                             <div className="w-12 h-12 rounded-lg bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple" style={{ display: (track.coverUrl || track.cover_url || track.thumbnail) ? 'none' : 'flex' }}>
+                                                <Headphones size={20} />
+                                             </div>
+                                          </td>
                                           <td className="px-8 py-6">
                                              <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
                                              <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                             {(track.versions || []).length > 0 && (
+                                                <div className="text-[10px] text-gray-600 font-mono mt-0.5 truncate max-w-[200px]" title={(track.versions[0]?.downloadUrl || '')}>
+                                                   {(track.versions[0]?.downloadUrl || '').replace(/^https?:\/\/[^/]+/, '')}
+                                                </div>
+                                             )}
                                           </td>
                                           <td className="px-8 py-6">
                                              <span className="px-3 py-1 bg-brand-cyan/5 border border-brand-cyan/10 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-cyan">{track.genre}</span>
                                           </td>
                                           <td className="px-8 py-6 font-black">
                                              <div className="text-white text-xs">{track.bpm} <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">BPM</span></div>
-                                             <div className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.key || 'NODE_MISSING'}</div>
+                                             <div className="text-[11px] text-brand-purple tracking-widest uppercase mt-0.5">{track.key || '—'}</div>
                                           </td>
                                           <td className="px-8 py-6">
                                              <div className="flex flex-wrap gap-2">
@@ -2027,7 +2067,7 @@ const AdminDashboard: React.FC = () => {
                                              </div>
                                           </td>
                                           <td className="px-8 py-6 font-black font-display text-gray-400">
-                                             {track.year}
+                                             {track.year || new Date(track.dateAdded || track.createdAt || Date.now()).getFullYear()}
                                           </td>
                                           <td className="px-8 py-6 text-right">
                                              <div className="flex justify-end gap-3">
@@ -2040,36 +2080,24 @@ const AdminDashboard: React.FC = () => {
                                  />
                               </div>
 
-                              <div className="p-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">
-                                 <div className="flex items-center gap-4 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
-                                    <button
-                                       onClick={() => setPoolPage(p => Math.max(1, p - 1))}
-                                       disabled={poolPage === 1}
-                                       className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-all"
-                                    >
-                                       Previous
-                                    </button>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">Cycle {poolPage} / {Math.ceil(poolTracks.length / tracksPerPage)}</span>
-                                    <button
-                                       onClick={() => setPoolPage(p => p + 1)}
-                                       disabled={poolPage >= Math.ceil(poolTracks.length / tracksPerPage)}
-                                       className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-all"
-                                    >
-                                       Next
-                                    </button>
-                                 </div>
 
-                                 <div className="flex flex-col md:flex-row items-center gap-6">
-                                    <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest">Buffer Status: <span className="text-white">{(poolPage * tracksPerPage).toLocaleString()}</span> / {poolTracks.length.toLocaleString()}</p>
+                              {!poolLoading && poolTracks.length > 0 && (
+                                 <div className="p-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">
+                                    <div className="flex items-center gap-3">
+                                       <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                                       <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">
+                                          Database Fully Synchronized ({poolTracks.length.toLocaleString()} tracks)
+                                       </p>
+                                    </div>
                                     <button
-                                       onClick={() => loadMorePoolTracks(500)}
-                                       className="px-6 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all flex items-center gap-2 group"
+                                       onClick={() => loadMorePoolTracks(1000000)}
+                                       className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2"
                                     >
-                                       <Database size={16} className="group-hover:scale-110 transition-transform" />
-                                       Extend Database Fetch
+                                       <Database size={16} />
+                                       Refresh Connection
                                     </button>
                                  </div>
-                              </div>
+                              )}
                            </div>
                         </>
                      )}
@@ -2095,381 +2123,398 @@ const AdminDashboard: React.FC = () => {
                         </div>
                      )}
 
-                     {poolSubTab === 'updates' && (() => {
-                        const allIds = (scannedTracks || []).map((t: any) => t.id);
-                        const allSelected = allIds.length > 0 && allIds.every((id: string) => selectedScanIds.has(id));
+                     {poolSubTab === 'updates' && (
+                        <div className="space-y-6">
+                           {(() => {
+                              const allIds = (scannedTracks || []).map((t: any) => t.id);
+                              const allSelected = allIds.length > 0 && allIds.every((id: string) => selectedScanIds.has(id));
 
-                        const toggleAll = () => {
-                           if (allSelected) {
-                              setSelectedScanIds(new Set());
-                           } else {
-                              setSelectedScanIds(new Set(allIds));
-                           }
-                        };
-
-                        const toggleOne = (id: string) => {
-                           setSelectedScanIds(prev => {
-                              const next = new Set(prev);
-                              next.has(id) ? next.delete(id) : next.add(id);
-                              return next;
-                           });
-                        };
-
-                        const handleManualScan = async () => {
-                           setIsManualScanning(true);
-                           setManualScanMsg('Fetching tracks from sources...');
-                           try {
-                              const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
-                              const resp = await fetch(REMIX_HUB_URL);
-                              if (!resp.ok) throw new Error(`Remix Hub returned HTTP ${resp.status}`);
-                              const tracks: any[] = await resp.json();
-
-                              const sinceTime = new Date(scanSince).getTime();
-
-                              // Build de-duplication sets
-                              // Pool tracks: derive the same ID pattern we use for scanned tracks
-                              const poolIds = new Set(
-                                 (poolTracks || []).map((t: any) => {
-                                    // pool tracks have id like "pt_..." but also we stored scanned ones as scanned_KEY
-                                    // Cross-check by downloadUrl domain presence or exact id match
-                                    return t.id;
-                                 })
-                              );
-                              // Pool download URLs for URL-based dedup
-                              const poolUrls = new Set(
-                                 (poolTracks || []).flatMap((t: any) =>
-                                    (t.versions || []).map((v: any) => v.downloadUrl).filter(Boolean)
-                                 )
-                              );
-                              // Already-staged scanned track ids
-                              const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
-
-                              const toSave: any[] = [];
-                              let skippedOld = 0;
-                              let skippedDupe = 0;
-
-                              for (const t of tracks) {
-                                 const uploadTime = new Date(t.uploaded).getTime();
-                                 if (uploadTime < sinceTime) { skippedOld++; continue; }
-
-                                 const scannedId = `scanned_${t.key.replace(/\//g, '_')}`;
-                                 const downloadUrl = `https://remix-and-mashups-worker.dennismacharia20.workers.dev/${t.key}`;
-
-                                 // Skip if already in pool (by URL) or already staged
-                                 if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId)) {
-                                    skippedDupe++;
-                                    continue;
+                              const toggleAll = () => {
+                                 if (allSelected) {
+                                    setSelectedScanIds(new Set());
+                                 } else {
+                                    setSelectedScanIds(new Set(allIds));
                                  }
+                              };
 
-                                 let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
-                                 title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
-                                 const parts = title.split(' - ');
-                                 const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
-                                 const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
-
-                                 toSave.push({
-                                    id: scannedId,
-                                    source: 'Remix & Mashups Hub',
-                                    title: displayTitle,
-                                    artist,
-                                    genre: t.month || 'Other',
-                                    bpm: t.bpm || null,
-                                    downloadUrl,
-                                    previewUrl: downloadUrl,
-                                    dateAdded: t.uploaded,
-                                    status: 'scanned',
-                                    created_at: new Date().toISOString(),
+                              const toggleOne = (id: string) => {
+                                 setSelectedScanIds(prev => {
+                                    const next = new Set(prev);
+                                    next.has(id) ? next.delete(id) : next.add(id);
+                                    return next;
                                  });
-                              }
+                              };
 
-                              setManualScanMsg(`Found ${tracks.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
+                              const handleManualScan = async () => {
+                                 setIsManualScanning(true);
+                                 setManualScanMsg('Fetching tracks from sources...');
+                                 try {
+                                    const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
+                                    const resp = await fetch(REMIX_HUB_URL);
+                                    if (!resp.ok) throw new Error(`Remix Hub returned HTTP ${resp.status}`);
+                                    const tracks: any[] = await resp.json();
 
-                              if (toSave.length > 0) {
-                                 // Insert in batches of 100 to avoid payload limits
-                                 const BATCH = 100;
-                                 let savedCount = 0;
-                                 for (let i = 0; i < toSave.length; i += BATCH) {
-                                    const batch = toSave.slice(i, i + BATCH);
-                                    const { error } = await supabase
-                                       .from('scanned_tracks')
-                                       .upsert(batch, { onConflict: 'id' });
-                                    if (error) throw new Error(error.message);
-                                    savedCount += batch.length;
-                                    setManualScanMsg(`Saving... ${savedCount}/${toSave.length}`);
+                                    const sinceTime = new Date(scanSince).getTime();
+
+                                    // Build de-duplication sets
+                                    // Pool tracks: derive the same ID pattern we use for scanned tracks
+                                    const poolIds = new Set(
+                                       (poolTracks || []).map((t: any) => {
+                                          // pool tracks have id like "pt_..." but also we stored scanned ones as scanned_KEY
+                                          // Cross-check by downloadUrl domain presence or exact id match
+                                          return t.id;
+                                       })
+                                    );
+                                    // Pool download URLs for URL-based dedup
+                                    const poolUrls = new Set(
+                                       (poolTracks || []).flatMap((t: any) =>
+                                          (t.versions || []).map((v: any) => v.downloadUrl).filter(Boolean)
+                                       )
+                                    );
+                                    // Already-staged scanned track ids
+                                    const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
+
+                                    const toSave: any[] = [];
+                                    let skippedOld = 0;
+                                    let skippedDupe = 0;
+
+                                    for (const t of tracks) {
+                                       const uploadTime = new Date(t.uploaded).getTime();
+                                       if (uploadTime < sinceTime) { skippedOld++; continue; }
+
+                                       const scannedId = `scanned_${t.key.replace(/\//g, '_')}`;
+                                       const downloadUrl = `/mashups/${t.key}`;
+
+                                       // Skip if already in pool (by URL) or already staged
+                                       if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId)) {
+                                          skippedDupe++;
+                                          continue;
+                                       }
+
+                                       let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
+                                       title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
+                                       const parts = title.split(' - ');
+                                       const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
+                                       const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
+
+                                       toSave.push({
+                                          id: scannedId,
+                                          source: 'CloudFlare R2 (Auto)',
+                                          title: displayTitle,
+                                          artist,
+                                          genre: t.month || 'Other',
+                                          bpm: t.bpm || null,
+                                          downloadUrl,
+                                          previewUrl: downloadUrl,
+                                          dateAdded: t.uploaded,
+                                          status: 'scanned',
+                                          created_at: new Date().toISOString(),
+                                       });
+                                    }
+
+                                    setManualScanMsg(`Found ${tracks.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
+
+                                    if (toSave.length > 0) {
+                                       await addScannedTracks(toSave);
+                                       setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue (exclusively via Cloudflare). (${skippedDupe} duplicates skipped)`);
+                                    } else {
+                                       setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince} in Cloudflare. (${skippedDupe} already in pool/queue)`);
+                                    }
+                                 } catch (e: any) {
+                                    setManualScanMsg(`❌ Scan error: ${e.message}`);
+                                 } finally {
+                                    setIsManualScanning(false);
                                  }
-                                 if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
-                                 setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue. (${skippedDupe} duplicates skipped)`);
-                              } else {
-                                 setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince}. (${skippedDupe} already in pool/queue)`);
-                              }
-                           } catch (e: any) {
-                              setManualScanMsg(`❌ Scan error: ${e.message}`);
-                           } finally {
-                              setIsManualScanning(false);
-                           }
-                        };
+                              };
 
-                        const handleBulkAddToPool = async () => {
-                           if (selectedScanIds.size === 0) return;
-                           if (!window.confirm(`Add ${selectedScanIds.size} selected track(s) to Music Pool?`)) return;
-                           setIsBulkAdding(true);
-                           const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
-                           for (const track of toAdd) {
-                              const versions: any[] = [];
-                              if (track.downloadUrl) {
-                                 versions.push({
-                                    id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                    type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
-                                    storagePath: '',
-                                    duration: 0,
-                                    downloadUrl: track.downloadUrl,
-                                 });
-                              }
-                              await addPoolTrack({
-                                 ...INITIAL_POOL_TRACK_STATE,
-                                 id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                 title: track.title,
-                                 artist: track.artist || 'Unknown Artist',
-                                 genre: track.genre || genres[0]?.name || 'Afrobeats',
-                                 key: track.key || '',
-                                 bpm: track.bpm || 100,
-                                 previewUrl: track.previewUrl || track.downloadUrl || '',
-                                 versions,
-                                 dateAdded: new Date().toISOString(),
-                                 createdAt: new Date().toISOString(),
-                                 updatedAt: new Date().toISOString(),
-                              });
-                              await deleteScannedTrack(track.id);
-                           }
-                           setSelectedScanIds(new Set());
-                           setIsBulkAdding(false);
-                           alert(`✅ ${toAdd.length} track(s) added to Music Pool!`);
-                        };
+                              const handleBulkAddToPool = async () => {
+                                 if (selectedScanIds.size === 0) return;
+                                 if (!window.confirm(`Add ${selectedScanIds.size} selected track(s) to Music Pool?`)) return;
+                                 setIsBulkAdding(true);
+                                 const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
+                                 for (const track of toAdd) {
+                                    const versions: any[] = [];
+                                    if (track.downloadUrl) {
+                                       versions.push({
+                                          id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                          type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
+                                          storagePath: '',
+                                          duration: 0,
+                                          downloadUrl: track.downloadUrl,
+                                       });
+                                    }
+                                    await addPoolTrack({
+                                       ...INITIAL_POOL_TRACK_STATE,
+                                       id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                       title: track.title,
+                                       artist: track.artist || 'Unknown Artist',
+                                       genre: track.genre || genres[0]?.name || 'Afrobeats',
+                                       key: track.key || '',
+                                       bpm: track.bpm || 100,
+                                       previewUrl: track.previewUrl || track.downloadUrl || '',
+                                       versions,
+                                       dateAdded: new Date().toISOString(),
+                                       createdAt: new Date().toISOString(),
+                                       updatedAt: new Date().toISOString(),
+                                    });
+                                    await deleteScannedTrack(track.id);
+                                 }
+                                 setSelectedScanIds(new Set());
+                                 setIsBulkAdding(false);
+                                 alert(`✅ ${toAdd.length} track(s) added to Music Pool!`);
+                              };
 
-                        return (
-                           <div className="space-y-6">
-                              {/* ── Toolbar ── */}
-                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 p-6 shadow-2xl">
-                                 <div className="flex flex-wrap items-center justify-between gap-4">
-                                    {/* Left: stats + date picker */}
-                                    <div className="flex flex-wrap items-center gap-4">
-                                       <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
-                                          <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending</p>
-                                          <p className="text-2xl font-black text-white mt-0.5">{scannedTracks?.length || 0}</p>
-                                       </div>
-                                       {selectedScanIds.size > 0 && (
-                                          <div className="px-5 py-3 bg-brand-purple/10 border border-brand-purple/20 rounded-2xl text-center">
-                                             <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Selected</p>
-                                             <p className="text-2xl font-black text-white mt-0.5">{selectedScanIds.size}</p>
-                                          </div>
-                                       )}
-                                       <div className="flex flex-col gap-1">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Scan Since</label>
-                                          <input
-                                             type="date"
-                                             value={scanSince}
-                                             onChange={e => setScanSince(e.target.value)}
-                                             className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] font-bold text-white outline-none focus:border-brand-purple transition-all"
-                                          />
-                                       </div>
-                                    </div>
-
-                                    {/* Right: action buttons */}
-                                    <div className="flex flex-wrap gap-3">
-                                       {selectedScanIds.size > 0 && (
-                                          <button
-                                             onClick={handleBulkAddToPool}
-                                             disabled={isBulkAdding}
-                                             className="px-6 py-3 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
-                                          >
-                                             {isBulkAdding ? <RefreshCw size={15} className="animate-spin" /> : <Plus size={15} />}
-                                             {isBulkAdding ? 'Adding...' : `Add ${selectedScanIds.size} to Pool`}
-                                          </button>
-                                       )}
-                                       <button
-                                          onClick={handleManualScan}
-                                          disabled={isManualScanning}
-                                          className="px-6 py-3 bg-brand-cyan/10 hover:bg-brand-cyan text-brand-cyan hover:text-[#0B0B0F] border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
-                                       >
-                                          {isManualScanning ? <RefreshCw size={15} className="animate-spin" /> : <Search size={15} />}
-                                          {isManualScanning ? 'Scanning...' : 'Manual Scan'}
-                                       </button>
-                                    </div>
-                                 </div>
-
-                                 {/* scan feedback */}
-                                 {manualScanMsg && (
-                                    <div className={`mt-4 px-5 py-3 rounded-2xl text-[11px] font-bold ${manualScanMsg.startsWith('✅')
-                                       ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                                       : manualScanMsg.startsWith('❌')
-                                          ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                                          : 'bg-white/5 border border-white/10 text-gray-400'
-                                       }`}>
-                                       {manualScanMsg}
-                                    </div>
-                                 )}
-                              </div>
-
-                              {/* ── Inline edit modal ── */}
-                              {editingScannedTrack && (
-                                 <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-brand-purple/30 p-8 shadow-2xl space-y-4">
-                                    <div className="flex items-center justify-between">
-                                       <h4 className="text-lg font-black text-white">Edit Scanned Track</h4>
-                                       <button onClick={() => setEditingScannedTrack(null)} className="p-2 text-gray-500 hover:text-white transition-colors"><X size={18} /></button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                       <div className="space-y-2">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Title</label>
-                                          <input value={editingScannedTrack.title || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
-                                       </div>
-                                       <div className="space-y-2">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Artist</label>
-                                          <input value={editingScannedTrack.artist || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
-                                       </div>
-                                       <div className="space-y-2">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
-                                          <select value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
-                                             {(genres || []).map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
-                                          </select>
-                                       </div>
-                                       <div className="space-y-2">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BPM</label>
-                                          <input type="number" value={editingScannedTrack.bpm || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, bpm: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
-                                       </div>
-                                       <div className="space-y-2 md:col-span-2">
-                                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Download URL</label>
-                                          <input value={editingScannedTrack.downloadUrl || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, downloadUrl: e.target.value, previewUrl: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
-                                       </div>
-                                    </div>
-                                    <div className="flex gap-3 pt-2">
-                                       <button
-                                          onClick={async () => {
-                                             // Save inline edit back to supabase via DataContext upsert
-                                             // We reuse addScannedTrack pattern - since upsert handles update too
-                                             try {
-                                                const { createClient } = await import('@supabase/supabase-js');
-                                                const supa = createClient(
-                                                   import.meta.env.VITE_SUPABASE_URL,
-                                                   import.meta.env.VITE_SUPABASE_ANON_KEY
-                                                );
-                                                const { error } = await supa.from('scanned_tracks').update(editingScannedTrack).eq('id', editingScannedTrack.id);
-                                                if (error) throw error;
-                                                if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
-                                                setEditingScannedTrack(null);
-                                             } catch (err: any) {
-                                                alert('Save failed: ' + err.message);
-                                             }
-                                          }}
-                                          className="px-8 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 transition-all"
-                                       >
-                                          Save Changes
-                                       </button>
-                                       <button onClick={() => setEditingScannedTrack(null)} className="px-8 py-3 bg-white/5 border border-white/10 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">Cancel</button>
-                                    </div>
-                                 </div>
-                              )}
-
-                              {/* ── Table ── */}
-                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left whitespace-nowrap">
-                                       <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                          <tr>
-                                             <th className="px-6 py-6">
-                                                <input
-                                                   type="checkbox"
-                                                   checked={allSelected}
-                                                   onChange={toggleAll}
-                                                   className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
-                                                />
-                                             </th>
-                                             <th className="px-6 py-6">Signal Meta</th>
-                                             <th className="px-6 py-6">Genre</th>
-                                             <th className="px-6 py-6">Source</th>
-                                             <th className="px-6 py-6">Scanned</th>
-                                             <th className="px-6 py-6 text-right">Actions</th>
-                                          </tr>
-                                       </thead>
-                                       <tbody className="divide-y divide-white/[0.03] text-sm">
-                                          {(scannedTracks || []).map((track: any) => (
-                                             <tr key={track.id} className={`hover:bg-white/[0.02] transition-colors group ${selectedScanIds.has(track.id) ? 'bg-brand-purple/5' : ''}`}>
-                                                <td className="px-6 py-5">
+                              return (
+                                 <>
+                                    {/* ── Toolbar ── */}
+                                    <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 p-6 shadow-2xl">
+                                       <div className="flex flex-wrap items-center justify-between gap-4">
+                                          {/* Left: stats + date picker */}
+                                          <div className="flex flex-wrap items-center gap-4">
+                                             <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
+                                                <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending</p>
+                                                <p className="text-2xl font-black text-white mt-0.5">{scannedTracks?.length || 0}</p>
+                                             </div>
+                                             {selectedScanIds.size > 0 && (
+                                                <div className="px-5 py-3 bg-brand-purple/10 border border-brand-purple/20 rounded-2xl text-center">
+                                                   <p className="text-[10px] text-brand-purple font-black uppercase tracking-widest">Selected</p>
+                                                   <p className="text-2xl font-black text-white mt-0.5">{selectedScanIds.size}</p>
+                                                </div>
+                                             )}
+                                             <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Scan Reference Date</label>
+                                                <div className="flex gap-2">
                                                    <input
-                                                      type="checkbox"
-                                                      checked={selectedScanIds.has(track.id)}
-                                                      onChange={() => toggleOne(track.id)}
-                                                      className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
+                                                      type="date"
+                                                      value={scanSince}
+                                                      onChange={e => setScanSince(e.target.value)}
+                                                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] font-bold text-white outline-none focus:border-brand-purple transition-all"
                                                    />
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                   <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
-                                                   <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
-                                                   {track.bpm && <div className="text-[10px] text-gray-600 font-bold mt-0.5">{track.bpm} BPM</div>}
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                   <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400">{track.genre || '—'}</span>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                   <span className="text-[10px] text-brand-purple tracking-widest uppercase">{track.source || 'Auto Script'}</span>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                   <span className="text-xs text-gray-400 font-medium">{new Date(track.dateAdded || track.created_at || Date.now()).toLocaleDateString()}</span>
-                                                </td>
-                                                <td className="px-6 py-5 text-right">
-                                                   <div className="flex justify-end gap-2">
-                                                      {/* Single: inject to pool */}
-                                                      <button
-                                                         title="Add to Pool"
-                                                         onClick={async () => {
-                                                            const versions: any[] = [];
-                                                            if (track.downloadUrl) {
-                                                               versions.push({ id: `v_${Date.now()}`, type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3', storagePath: '', duration: 0, downloadUrl: track.downloadUrl });
-                                                            }
-                                                            await addPoolTrack({ ...INITIAL_POOL_TRACK_STATE, id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`, title: track.title, artist: track.artist || 'Unknown Artist', genre: track.genre || genres[0]?.name || 'Afrobeats', bpm: track.bpm || 100, previewUrl: track.previewUrl || track.downloadUrl || '', versions, dateAdded: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-                                                            await deleteScannedTrack(track.id);
-                                                            setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; });
-                                                         }}
-                                                         className="p-2.5 text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 rounded-xl transition-all"
-                                                      >
-                                                         <Plus size={15} />
-                                                      </button>
-                                                      {/* Edit */}
-                                                      <button
-                                                         title="Edit"
-                                                         onClick={() => setEditingScannedTrack({ ...track })}
-                                                         className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 border border-transparent hover:border-brand-cyan/20 rounded-xl transition-all"
-                                                      >
-                                                         <PenSquare size={15} />
-                                                      </button>
-                                                      {/* Delete */}
-                                                      <button
-                                                         title="Discard"
-                                                         onClick={() => { if (window.confirm(`Discard "${track.title}"?`)) { deleteScannedTrack(track.id); setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; }); } }}
-                                                         className="p-2.5 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all"
-                                                      >
-                                                         <Trash2 size={15} />
-                                                      </button>
+                                                   <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
+                                                      <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending</p>
+                                                      <p className="text-xl font-black text-white">{scannedTracks?.length || 0}</p>
                                                    </div>
-                                                </td>
-                                             </tr>
-                                          ))}
-                                          {(!scannedTracks || scannedTracks.length === 0) && (
-                                             <tr>
-                                                <td colSpan={6} className="px-8 py-24 text-center">
-                                                   <div className="flex flex-col items-center gap-4 text-gray-600">
-                                                      <Activity size={48} className="opacity-20" />
-                                                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No pending signals — run a Manual Scan to fetch new tracks</p>
-                                                   </div>
-                                                </td>
-                                             </tr>
+                                                </div>
+                                             </div>
+
+                                             {/* Right: action buttons */}
+                                             <div className="flex flex-wrap gap-3">
+                                                {selectedScanIds.size > 0 && (
+                                                   <button
+                                                      onClick={handleBulkAddToPool}
+                                                      disabled={isBulkAdding}
+                                                      className="px-6 py-3 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+                                                   >
+                                                      {isBulkAdding ? <RefreshCw size={15} className="animate-spin" /> : <Plus size={15} />}
+                                                      {isBulkAdding ? 'Adding...' : `Add ${selectedScanIds.size} to Pool`}
+                                                   </button>
+                                                )}
+                                                <button
+                                                   onClick={handleManualScan}
+                                                   disabled={isManualScanning}
+                                                   className="px-6 py-3 bg-brand-cyan/10 hover:bg-brand-cyan text-brand-cyan hover:text-[#0B0B0F] border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+                                                >
+                                                   {isManualScanning ? <RefreshCw size={15} className="animate-spin" /> : <Search size={15} />}
+                                                   {isManualScanning ? 'Scanning...' : 'Manual Scan'}
+                                                </button>
+                                             </div>
+                                          </div>
+
+                                          {/* scan feedback */}
+                                          {manualScanMsg && (
+                                             <div className={`mt-4 px-5 py-3 rounded-2xl text-[11px] font-bold ${manualScanMsg.startsWith('✅')
+                                                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                                : manualScanMsg.startsWith('❌')
+                                                   ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+                                                   : 'bg-white/5 border border-white/10 text-gray-400'
+                                                }`}>
+                                                {manualScanMsg}
+                                             </div>
                                           )}
-                                       </tbody>
-                                    </table>
-                                 </div>
-                              </div>
-                           </div>
-                        );
-                     })()}
+                                       </div>
+                                    </div>
+
+                                    {/* ── Inline edit modal ── */}
+                                    {editingScannedTrack && (
+                                       <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-brand-purple/30 p-8 shadow-2xl space-y-4">
+                                          <div className="flex items-center justify-between">
+                                             <h4 className="text-lg font-black text-white">Edit Scanned Track</h4>
+                                             <button onClick={() => setEditingScannedTrack(null)} className="p-2 text-gray-500 hover:text-white transition-colors"><X size={18} /></button>
+                                          </div>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                             <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Title</label>
+                                                <input value={editingScannedTrack.title || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                             </div>
+                                             <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Artist</label>
+                                                <input value={editingScannedTrack.artist || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                             </div>
+                                             <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
+                                                <select value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
+                                                   {(genres || []).map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                                                </select>
+                                             </div>
+                                             <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BPM</label>
+                                                <input type="number" value={editingScannedTrack.bpm || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, bpm: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                             </div>
+                                             <div className="space-y-2 md:col-span-2">
+                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Download URL</label>
+                                                <input value={editingScannedTrack.downloadUrl || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, downloadUrl: e.target.value, previewUrl: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                             </div>
+                                          </div>
+                                          <div className="flex gap-3 pt-2">
+                                             <button
+                                                onClick={async () => {
+                                                   try {
+                                                      // Update in R2: replace the matching track in scannedTracks array
+                                                      const updated = (scannedTracks || []).map((t: any) =>
+                                                         t.id === editingScannedTrack.id ? { ...t, ...editingScannedTrack } : t
+                                                      );
+                                                      await saveToR2('scanned_tracks', updated);
+                                                      if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
+                                                      setEditingScannedTrack(null);
+                                                   } catch (err: any) {
+                                                      alert('Save failed: ' + err.message);
+                                                   }
+                                                }}
+                                                className="px-8 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 transition-all"
+                                             >
+                                                Save Changes
+                                             </button>
+                                             <button onClick={() => setEditingScannedTrack(null)} className="px-8 py-3 bg-white/5 border border-white/10 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">Cancel</button>
+                                          </div>
+                                       </div>
+                                    )}
+
+                                    {/* ── Table ── */}
+                                    <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                                       <div className="overflow-x-auto">
+                                          <table className="w-full text-left whitespace-nowrap">
+                                             <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                                <tr>
+                                                   <th className="px-6 py-6">
+                                                      <input
+                                                         type="checkbox"
+                                                         checked={allSelected}
+                                                         onChange={toggleAll}
+                                                         className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
+                                                      />
+                                                   </th>
+                                                   <th className="px-4 py-6 w-14">Art</th>
+                                                   <th className="px-6 py-6">Signal Meta</th>
+                                                   <th className="px-6 py-6">Genre</th>
+                                                   <th className="px-6 py-6">URL</th>
+                                                   <th className="px-6 py-6">Scanned</th>
+                                                   <th className="px-6 py-6 text-right">Actions</th>
+                                                </tr>
+                                             </thead>
+                                             <tbody className="divide-y divide-white/[0.03] text-sm">
+                                                {(scannedTracks || []).map((track: any) => (
+                                                   <tr key={track.id} className={`hover:bg-white/[0.02] transition-colors group ${selectedScanIds.has(track.id) ? 'bg-brand-purple/5' : ''}`}>
+                                                      <td className="px-6 py-5">
+                                                         <input
+                                                            type="checkbox"
+                                                            checked={selectedScanIds.has(track.id)}
+                                                            onChange={() => toggleOne(track.id)}
+                                                            className="w-4 h-4 accent-brand-purple rounded cursor-pointer"
+                                                         />
+                                                      </td>
+                                                      {/* Cover Art thumbnail */}
+                                                      <td className="px-4 py-4">
+                                                         {track.coverUrl || track.thumbnail ? (
+                                                            <img
+                                                               src={track.coverUrl || track.thumbnail}
+                                                               alt={track.title}
+                                                               className="w-10 h-10 rounded-lg object-cover border border-white/10"
+                                                            />
+                                                         ) : (
+                                                            <div className="w-10 h-10 rounded-lg bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
+                                                               <Music size={16} />
+                                                            </div>
+                                                         )}
+                                                      </td>
+                                                      <td className="px-6 py-5">
+                                                         <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{track.title}</div>
+                                                         <div className="text-[11px] text-gray-500 font-medium">{track.artist}</div>
+                                                         {track.bpm && <div className="text-[10px] text-gray-600 font-bold mt-0.5">{track.bpm} BPM</div>}
+                                                      </td>
+                                                      <td className="px-6 py-5">
+                                                         <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400">{track.genre || '—'}</span>
+                                                      </td>
+                                                      <td className="px-6 py-5 max-w-[180px]">
+                                                         <a
+                                                            href={track.downloadUrl || '#'}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="text-[10px] text-brand-purple hover:underline truncate block font-mono"
+                                                            title={track.downloadUrl}
+                                                         >
+                                                            {track.downloadUrl ? track.downloadUrl.split('/').pop() : '—'}
+                                                         </a>
+                                                      </td>
+                                                      <td className="px-6 py-5">
+                                                         <span className="text-xs text-gray-400 font-medium">{new Date(track.dateAdded || track.created_at || Date.now()).toLocaleDateString()}</span>
+                                                      </td>
+                                                      <td className="px-6 py-5 text-right">
+                                                         <div className="flex justify-end gap-2">
+                                                            {/* Single: inject to pool */}
+                                                            <button
+                                                               title="Add to Pool"
+                                                               onClick={async () => {
+                                                                  const versions: any[] = [];
+                                                                  if (track.downloadUrl) {
+                                                                     versions.push({ id: `v_${Date.now()}`, type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3', storagePath: '', duration: 0, downloadUrl: track.downloadUrl });
+                                                                  }
+                                                                  await addPoolTrack({ ...INITIAL_POOL_TRACK_STATE, id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`, title: track.title, artist: track.artist || 'Unknown Artist', genre: track.genre || genres[0]?.name || 'Afrobeats', bpm: track.bpm || 100, previewUrl: track.previewUrl || track.downloadUrl || '', versions, dateAdded: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                                                                  await deleteScannedTrack(track.id);
+                                                                  setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; });
+                                                               }}
+                                                               className="p-2.5 text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 rounded-xl transition-all"
+                                                            >
+                                                               <Plus size={15} />
+                                                            </button>
+                                                            {/* Edit */}
+                                                            <button
+                                                               title="Edit"
+                                                               onClick={() => setEditingScannedTrack({ ...track })}
+                                                               className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 border border-transparent hover:border-brand-cyan/20 rounded-xl transition-all"
+                                                            >
+                                                               <PenSquare size={15} />
+                                                            </button>
+                                                            {/* Delete */}
+                                                            <button
+                                                               title="Discard"
+                                                               onClick={() => { if (window.confirm(`Discard "${track.title}"?`)) { deleteScannedTrack(track.id); setSelectedScanIds(prev => { const n = new Set(prev); n.delete(track.id); return n; }); } }}
+                                                               className="p-2.5 text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all"
+                                                            >
+                                                               <Trash2 size={15} />
+                                                            </button>
+                                                         </div>
+                                                      </td>
+                                                   </tr>
+                                                ))}
+                                                {(!scannedTracks || scannedTracks.length === 0) && (
+                                                   <tr>
+                                                      <td colSpan={6} className="px-8 py-24 text-center">
+                                                         <div className="flex flex-col items-center gap-4 text-gray-600">
+                                                            <Activity size={48} className="opacity-20" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No pending signals — run a Manual Scan to fetch new tracks</p>
+                                                         </div>
+                                                      </td>
+                                                   </tr>
+                                                )}
+                                             </tbody>
+                                          </table>
+                                       </div>
+                                    </div>
+                                 </>
+                              );
+                           })()}
+                        </div>
+                     )}
                   </div>
                )}
 
@@ -4710,13 +4755,76 @@ const AdminDashboard: React.FC = () => {
                            </div>
                         )}
 
-                        <InputGroup
-                           label="Description"
-                           type="textarea"
-                           value={newProduct.description}
-                           onChange={(v) => updateProductField('description', v)}
-                           placeholder="Describe the features and benefits..."
-                        />
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center mb-1">
+                              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Description Matrix</label>
+                              <div className="flex gap-1.5 p-1 bg-white/5 rounded-xl border border-white/10">
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '<b>' + t.substring(s, e) + '</b>' + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Bold"
+                                 ><Bold size={14} /></button>
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '<i>' + t.substring(s, e) + '</i>' + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Italic"
+                                 ><Italic size={14} /></button>
+                                 <div className="w-[1px] h-4 bg-white/10 my-auto mx-1" />
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: left">' + t.substring(s, e) + '</div>' + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Left"
+                                 ><AlignLeft size={14} /></button>
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: center">' + t.substring(s, e) + '</div>' + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Center"
+                                 ><AlignCenter size={14} /></button>
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: right">' + t.substring(s, e) + '</div>' + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Right"
+                                 ><AlignRight size={14} /></button>
+                                 <div className="w-[1px] h-4 bg-white/10 my-auto mx-1" />
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
+                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
+                                       updateProductField('description', t.substring(0, s) + '\n- ' + t.substring(s, e) + t.substring(e));
+                                    }}
+                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Bullet Points"
+                                 ><List size={14} /></button>
+                              </div>
+                           </div>
+                           <textarea
+                              id="prodDesc"
+                              value={newProduct.description}
+                              onChange={(e) => updateProductField('description', e.target.value)}
+                              className="w-full bg-[#050507] border-2 border-white/5 rounded-2xl px-6 py-5 focus:border-brand-purple/50 focus:outline-none focus:ring-4 focus:ring-brand-purple/10 text-gray-300 min-h-[220px] font-medium resize-none transition-all placeholder:text-gray-700"
+                              placeholder="Inject product description logic / specs / delivery details..."
+                           />
+                        </div>
                      </div>
                   )}
 

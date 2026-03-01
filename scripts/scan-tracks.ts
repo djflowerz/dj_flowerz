@@ -80,13 +80,15 @@ async function scanTracks() {
     console.log(`✨ Found ${allScanned.length} new tracks since Feb 20, 2026.`);
 
     if (allScanned.length > 0) {
-        // Save to scanned_tracks table in Supabase (as a temporary staging area before R2)
-        // or direct to R2 if we have the keys. 
-        // The user wants "everything in Cloudflare", so we'll push to R2 eventually.
-        // For now, let's upsert to a staging table.
-        const { error } = await supabase.from('scanned_tracks').upsert(allScanned, { onConflict: 'id' });
-        if (error) console.error('❌ Error saving scanned tracks:', error.message);
-        else console.log('✅ Scanned tracks saved to staging.');
+        try {
+            const { fetchFromR2Server, saveToR2Server } = await import('../utils/r2-server.js');
+            const existing = await fetchFromR2Server<any>('scanned_tracks');
+            const merged = [...allScanned, ...existing].slice(0, 50000);
+            await saveToR2Server('scanned_tracks', merged);
+            console.log(`✅ ${allScanned.length} scanned tracks saved to R2.`);
+        } catch (err: any) {
+            console.error('❌ Error saving to R2:', err.message);
+        }
     }
 }
 

@@ -111,23 +111,26 @@ const Success: React.FC = () => {
                      };
                      await addOrder(orderObj);
                   } else if (type === 'subscription') {
-                     // Handle Referral Reward (Supabase for profiles)
+                     // Handle Referral Reward (R2 for profiles)
                      try {
-                        const { data: profile } = await supabase.from('profiles').select('id, name, referred_by').eq('email', email).single();
+                        const { fetchFromR2 } = await import('../utils/r2');
+                        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
+                        const profile = profiles.find(p => p.email === email);
                         if (profile) {
-                           const referrerId = profile.referred_by || location.state.referrerId;
+                           const referrerId = profile.referred_by || profile.referredBy || location.state?.referrerId;
 
                            if (referrerId) {
-                              const { data: existingLog } = await supabase.from('referral_logs').select('id').eq('referee_id', profile.id).maybeSingle();
+                              const referralLogs = await fetchFromR2<any[]>('referral_logs').catch(() => []);
+                              const existingLog = referralLogs.find(l => (l.referee_id || l.refereeId) === profile.id);
                               if (!existingLog) {
-                                 const { data: referrer } = await supabase.from('profiles').select('name').eq('id', referrerId).single();
+                                 const referrer = profiles.find(p => p.id === referrerId);
                                  await issueReferralReward({
                                     referrerId: referrerId,
                                     refereeId: profile.id,
                                     referrerName: referrer?.name || 'User',
                                     refereeName: profile.name,
-                                    planPurchased: location.state.plan || 'Plan',
-                                    discountApplied: location.state.discount || 0
+                                    planPurchased: location.state?.plan || 'Plan',
+                                    discountApplied: location.state?.discount || 0
                                  });
                               }
                            }

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
+import { useData } from '../context/DataContext';
 import { supabase } from '../utils/supabase';
 import { isUserSubscriber, getSubscriptionTimeLeft } from '../utils/authHelpers';
 import { downloadFileSecurely } from '../utils/downloadHelper';
@@ -11,6 +12,7 @@ import ReauthModal from '../components/ReauthModal';
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
+  const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'profile' | 'downloads' | 'subscription' | 'referrals'>('profile');
 
@@ -32,7 +34,7 @@ const Account: React.FC = () => {
 
   // Referral State
   const [myReferrals, setMyReferrals] = useState<any[]>([]);
-  const [referralStats, setReferralStats] = useState<any>(null);
+  const [userReferralStats, setUserReferralStats] = useState<any>(null);
 
   const handleActionClick = (action: 'email' | 'delete' | 'password') => {
     if (action === 'email' && !newEmail) {
@@ -66,86 +68,43 @@ const Account: React.FC = () => {
       setEditPhone(user.phoneNumber || '');
       setEditAvatar(user.avatarUrl || '');
 
-      // Fetch Downloads (Orders) from Supabase
-      const fetchDownloads = async () => {
-        if (!user?.email) return;
-
-        try {
-          const { data, error } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('customer_email', user.email)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-          if (error) throw error;
-
-          const downloads = (data || []).map((order: any) => {
+      // Get Downloads (Orders) from context
+      if (orders.length > 0) {
+        const downloads = orders
+          .filter(o => o.customerEmail === user.email)
+          .map((order: any) => {
             const digitalItems = (order.items || []).filter((item: any) => item.type === 'digital');
-
             if (digitalItems.length === 0) return null;
-
             return {
               id: order.id,
-              date: order.created_at,
+              date: order.createdAt,
               items: digitalItems
             };
-          }).filter(Boolean);
+          })
+          .filter(Boolean);
+        setMyDownloads(downloads);
+        setDownloadsLoading(false);
+      } else if (!contextOrdersLoading) {
+        setDownloadsLoading(false);
+      }
 
-          setMyDownloads(downloads);
-        } catch (error) {
-          console.error('Error fetching downloads:', error);
-        } finally {
-          setDownloadsLoading(false);
+      // Get Referrals
+      if (referralLogs.length > 0) {
+        const logs = referralLogs.filter(l => l.referrer_id === user.id || l.referrerId === user.id);
+        setMyReferrals(logs);
+
+        const stats = allReferralStats.find(s => s.user_id === user.id || s.userId === user.id);
+        if (stats) {
+          setUserReferralStats(stats);
+        } else if (logs.length > 0) {
+          setUserReferralStats({
+            total_referrals: logs.length,
+            total_earned: logs.reduce((acc: number, log: any) => acc + (Number(log.reward_amount || log.rewardAmount) || 0), 0)
+          });
         }
-      };
-
-      fetchDownloads();
-
-      // Fetch Referrals
-      const fetchReferrals = async () => {
-        if (!user?.id) return;
-
-        try {
-          // Get Logs (who did I refer?)
-          const { data: logs, error: logsError } = await supabase
-            .from('referral_logs')
-            .select('*')
-            .eq('referrer_id', user.id)
-            .order('created_at', { ascending: false });
-
-          if (logsError) throw logsError;
-          setMyReferrals(logs || []);
-
-          // Get Stats
-          const { data: stats, error: statsError } = await supabase
-            .from('referral_stats')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-
-          if (statsError && statsError.code !== 'PGRST116') {
-            console.error('Error fetching referral stats:', statsError);
-          }
-
-          if (stats) {
-            setReferralStats(stats);
-          } else if (logs) {
-            // Fallback: Calculate stats from logs
-            const calculatedStats = {
-              total_referrals: logs.length,
-              total_earned: logs.reduce((acc: number, log: any) => acc + (Number(log.reward_amount) || 0), 0)
-            };
-            setReferralStats(calculatedStats);
-          }
-        } catch (error) {
-          console.error('Error fetching referrals:', error);
-        }
-      };
-
-      fetchReferrals();
+      }
     }
-  }, [user]);
+  }, [user, orders, contextOrdersLoading, referralLogs, allReferralStats]);
 
   useEffect(() => {
     if (!user?.isSubscriber || !user?.subscriptionExpiry) {
@@ -526,14 +485,14 @@ const Account: React.FC = () => {
                             <Users size={14} />
                             <span className="text-xs font-bold uppercase">Referrals</span>
                           </div>
-                          <p className="text-2xl font-bold text-white">{referralStats?.total_referrals || 0}</p>
+                          <p className="text-2xl font-bold text-white">{userReferralStats?.total_referrals || userReferralStats?.totalReferrals || 0}</p>
                         </div>
                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                           <div className="flex items-center gap-2 text-gray-400 mb-2">
                             <DollarSign size={14} />
                             <span className="text-xs font-bold uppercase">Earned</span>
                           </div>
-                          <p className="text-2xl font-bold text-brand-purple">KES {referralStats?.total_earned || 0}</p>
+                          <p className="text-2xl font-bold text-brand-purple">KES {userReferralStats?.total_earned || userReferralStats?.totalEarned || 0}</p>
                         </div>
                       </div>
 
@@ -573,11 +532,11 @@ const Account: React.FC = () => {
                               <div key={log.id} className="p-3 border-b border-white/5 last:border-0 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-white">
-                                    {log.referee_name?.[0] || 'U'}
+                                    {(log.referee_name || log.refereeName)?.[0] || 'U'}
                                   </div>
-                                  <span className="text-xs text-white line-clamp-1">{log.referee_name || 'Anonymous'}</span>
+                                  <span className="text-xs text-white line-clamp-1">{log.referee_name || log.refereeName || 'Anonymous'}</span>
                                 </div>
-                                <span className="text-[10px] text-green-500 font-bold">+ {log.reward_amount}</span>
+                                <span className="text-[10px] text-green-500 font-bold">+ {log.reward_amount || log.rewardAmount}</span>
                               </div>
                             ))}
                           </div>

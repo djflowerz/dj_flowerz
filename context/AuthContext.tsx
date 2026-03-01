@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
 import { supabase } from '../utils/supabase';
+import { fetchFromR2, updateR2Item, addR2Item } from '../utils/r2';
 
 interface AuthContextType {
   user: User | null;
@@ -58,28 +59,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const isAdminEmail = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || sbUser.email === 'testadmin@example.com';
 
       try {
-        // Fetch or Create Profile
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', sbUser.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error("Error fetching profile:", error);
-        }
+        // Fetch Profiles from R2
+        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
+        const profile = profiles.find(p => p.id === sbUser.id);
 
         let userData: User;
 
         if (profile) {
           // Profile exists
-          // Update last seen
-          supabase.from('profiles').update({
+          // Update last seen in R2 (Optimistic/Background)
+          updateR2Item('profiles', sbUser.id, {
             last_seen: new Date().toISOString(),
             presence_status: 'online'
-          }).eq('id', sbUser.id).then(({ error: updateError }) => {
-            if (updateError) console.error("Error updating last_seen:", updateError);
-          });
+          }).catch(err => console.error("Error updating last_seen:", err));
 
           userData = {
             id: sbUser.id,
@@ -87,45 +79,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             email: sbUser.email || '',
             role: profile.role || (isAdminEmail ? 'admin' : 'user'),
             isAdmin: (profile.role === 'admin') || isAdminEmail,
-            isSubscriber: profile.is_subscriber || false,
-            subscriptionPlan: profile.subscription_plan,
-            subscriptionExpiry: profile.subscription_expiry,
-            avatarUrl: profile.avatar_url || sbUser.user_metadata?.avatar_url || '',
-            referralCode: profile.referral_code,
+            isSubscriber: profile.is_subscriber || profile.isSubscriber || false,
+            subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
+            subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
+            avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
+            referralCode: profile.referral_code || profile.referralCode,
             balance: profile.balance || 0,
-            createdAt: profile.created_at || new Date().toISOString(),
-            updatedAt: profile.updated_at || new Date().toISOString()
+            createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
+            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString()
           };
         } else {
-          // Profile doesn't exist, create it
+          // Profile doesn't exist, create it in R2
           const now = new Date().toISOString();
           const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
 
           let referrerId = null;
           const refCode = localStorage.getItem('referralCode');
           if (refCode) {
-            const { data: refProfile } = await supabase.from('profiles').select('id').eq('referral_code', refCode).single();
+            const refProfile = profiles.find(p => p.referral_code === refCode || p.referralCode === refCode);
             if (refProfile) referrerId = refProfile.id;
           }
 
-          // Check for existing active subscription (e.g. guest checkout or manual entry)
+          // Check for existing active subscription (from R2)
           let initialSubscriberStatus = false;
           let initialSubscriptionPlan = null;
           let initialSubscriptionExpiry = null;
 
-          if (sbUser.email) {
-            const { data: existingSub } = await supabase
-              .from('subscriptions')
-              .select('plan_id, expiry_date')
-              .eq('user_email', sbUser.email)
-              .eq('status', 'active')
-              .maybeSingle();
+          const subscriptions = await fetchFromR2<any[]>('subscriptions').catch(() => []);
+          const existingSub = subscriptions.find(s => s.user_email === sbUser.email && s.status === 'active');
 
-            if (existingSub) {
-              initialSubscriberStatus = true;
-              initialSubscriptionPlan = existingSub.plan_id;
-              initialSubscriptionExpiry = existingSub.expiry_date;
-            }
+          if (existingSub) {
+            initialSubscriberStatus = true;
+            initialSubscriptionPlan = existingSub.plan_id;
+            initialSubscriptionExpiry = existingSub.expiry_date;
           }
 
           const newProfile = {
@@ -139,17 +125,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
             referral_code: referralCode,
             referred_by: referrerId,
+            balance: 0,
             created_at: now,
             updated_at: now,
             last_seen: now,
             presence_status: 'online'
           };
 
-          const { error: insertError } = await supabase.from('profiles').insert(newProfile);
-
-          if (insertError) {
-            console.error("Error creating profile:", insertError);
-          }
+          // Save to R2
+          await addR2Item('profiles', newProfile).catch(err => {
+            console.error("Error creating profile in R2:", err);
+          });
 
           userData = {
             id: newProfile.id,
@@ -162,6 +148,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             subscriptionExpiry: newProfile.subscription_expiry,
             avatarUrl: newProfile.avatar_url,
             referralCode: newProfile.referral_code,
+            balance: 0,
             createdAt: newProfile.created_at,
             updatedAt: newProfile.updated_at
           };
@@ -321,19 +308,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.avatarUrl) updates.avatar_url = data.avatarUrl;
       if (data.role) updates.role = data.role;
       if (data.isSubscriber !== undefined) updates.is_subscriber = data.isSubscriber;
-      // Map other fields as necessary
+      if (data.subscriptionPlan) updates.subscription_plan = data.subscriptionPlan;
+      if (data.subscriptionExpiry) updates.subscription_expiry = data.subscriptionExpiry;
+      if (data.balance !== undefined) updates.balance = data.balance;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (error) throw error;
+      await updateR2Item('profiles', user.id, updates);
 
       // Update local state
       setUser(prev => prev ? { ...prev, ...data } : null);
     } catch (error) {
-      console.error("Error updating profile:", error);
+      console.error("Error updating profile in R2:", error);
       throw error;
     }
   };
@@ -356,10 +340,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // For now, we'll just try to delete the profile.
     if (!user) return;
 
-    const { error } = await supabase.rpc('delete_user'); // Requires a custom RPC or Edge Function usually
-    // Fallback: Delete profile
-    const { error: profileError } = await supabase.from('profiles').delete().eq('id', user.id);
-    if (profileError) console.error("Could not delete profile", profileError);
+    try {
+      // Delete profile from R2
+      const { removeR2Item } = await import('../utils/r2');
+      await removeR2Item('profiles', user.id);
+    } catch (profileError) {
+      console.error("Could not delete profile from R2", profileError);
+    }
 
     await supabase.auth.signOut();
     setUser(null);
@@ -389,12 +376,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       try {
-        const { error } = await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', user.id);
-
-        if (error) throw error;
+        await updateR2Item('profiles', user.id, updates);
 
         setUser(prev => prev ? ({
           ...prev,
@@ -404,7 +386,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }) : null);
 
       } catch (e) {
-        console.error("Failed to update subscription:", e);
+        console.error("Failed to update subscription in R2:", e);
         alert("Failed to update subscription. Check console.");
       }
     }
@@ -432,12 +414,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         try {
-          const { error } = await supabase
-            .from('profiles')
-            .update(updates)
-            .eq('id', user.id);
-
-          if (error) throw error;
+          await updateR2Item('profiles', user.id, updates);
 
           setUser(prev => prev ? ({
             ...prev,
@@ -470,11 +447,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const updatePresence = async () => {
       try {
         const now = new Date().toISOString();
-        await supabase.from('profiles').update({
+        await updateR2Item('profiles', user.id, {
           last_seen: now,
           presence_status: 'online',
           updated_at: now
-        }).eq('id', user.id);
+        });
       } catch (e) {
         console.warn("Presence update failed:", e);
       }
@@ -485,44 +462,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(presenceInterval);
   }, [user?.id, loading]);
 
-  // --- Real-time Profile Sync ---
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase.channel(`profile:${user.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'profiles',
-        filter: `id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.new) {
-          const newProfile = payload.new as any;
-          setUser(prev => {
-            if (!prev) return null;
-            // Merge updates
-            return {
-              ...prev,
-              isSubscriber: newProfile.is_subscriber,
-              subscriptionPlan: newProfile.subscription_plan,
-              subscriptionExpiry: newProfile.subscription_expiry,
-              role: newProfile.role,
-              isAdmin: newProfile.role === 'admin' || prev.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com'),
-              avatarUrl: newProfile.avatar_url,
-              name: newProfile.name,
-              balance: newProfile.balance,
-              referralCode: newProfile.referral_code,
-              updatedAt: newProfile.updated_at
-            };
-          });
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+  // --- Removed Real-time Profile Sync (Supabase) ---
 
   return (
     <AuthContext.Provider value={{
