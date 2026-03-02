@@ -39,8 +39,8 @@ export default async function handler(req: any, res: any) {
             return res.status(401).json({ error: 'Unauthorized: Invalid token' });
         }
 
-        // Check if user is admin by email
-        const isAdminEmail = user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || user.email === 'testadmin@example.com';
+        // Check if user is admin by email or metadata role
+        const isAdminEmail = user.user_metadata?.role === 'admin' || user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || user.email === 'testadmin@example.com' || user.email === 'djflowerz254@gmail.com';
 
         let r2Role = isAdminEmail ? 'admin' : 'user';
 

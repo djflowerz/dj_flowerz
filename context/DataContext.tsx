@@ -913,6 +913,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
+      throw err;
     }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
@@ -922,6 +923,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshProducts();
     } catch (err: any) {
       console.error("Update product failed:", err.message);
+      throw err;
     }
   };
   const deleteProduct = async (id: string) => {
@@ -931,6 +933,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshProducts();
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
+      throw err;
     }
   };
 
