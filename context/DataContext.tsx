@@ -149,6 +149,7 @@ interface DataContextType {
   deleteMixtape: (id: string) => void;
 
   addPoolTrack: (track: Track) => void;
+  bulkAddPoolTracks: (tracks: Track[], idsToRemoveFromScanned: string[]) => Promise<void>;
   updatePoolTrack: (id: string, data: Partial<Track>) => Promise<void>;
   deletePoolTrack: (id: string) => void;
   loadMorePoolTracks: (count?: number) => void;
@@ -992,6 +993,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Bulk-add many tracks in a SINGLE R2 write (instead of N sequential writes)
+  const bulkAddPoolTracks = async (newTracks: Track[], idsToRemoveFromScanned: string[]) => {
+    try {
+      // 1. Fetch the current pool once
+      const existing = await fetchFromR2<Track>('pool_tracks');
+      // 2. Merge — newest tracks at the front
+      const merged = [...newTracks, ...existing];
+      // 3. One write for pool_tracks
+      await saveToR2('pool_tracks', merged);
+      // 4. Update local state immediately
+      setPoolTracks(merged);
+      // 5. Remove promoted tracks from scannedTracks in one pass
+      const remainingScanned = (scannedTracks || []).filter((t: any) => !idsToRemoveFromScanned.includes(t.id));
+      setScannedTracks(remainingScanned);
+      // 6. One write for scanned_tracks
+      await saveToR2('scanned_tracks', remainingScanned);
+    } catch (error: any) {
+      console.error("Bulk add pool tracks failed:", error.message);
+      // Refresh from R2 on failure
+      refreshPoolTracks();
+      refreshScannedTracks();
+      throw error;
+    }
+  };
+
   const addScannedTracks = async (tracks: any[]) => {
     try {
       // Deduplicate: filter out any incoming tracks whose ID already exists in staging
@@ -1650,6 +1676,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateMixtape,
     deleteMixtape,
     addPoolTrack,
+    bulkAddPoolTracks,
     updatePoolTrack,
     deletePoolTrack,
     loadMorePoolTracks,

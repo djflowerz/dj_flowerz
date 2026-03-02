@@ -439,7 +439,7 @@ const MusicPool: React.FC = () => {
                                                    </span>
 
                                                    {/* NEW Badge */}
-                                                   {(track.category || []).map(c => c.toLowerCase()).includes('new') && (
+                                                   {((track.category || []).map(c => c.toLowerCase()).includes('new') || (track as any).isNew) && (
                                                       <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
                                                          NEW
                                                       </span>

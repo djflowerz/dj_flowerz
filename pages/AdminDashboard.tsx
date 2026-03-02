@@ -438,7 +438,7 @@ const AdminDashboard: React.FC = () => {
       updateSiteConfig, deleteProduct, updateBooking, addBooking, deleteMixtape, deleteVideo,
       addProduct, updateProduct, addMixtape, updateMixtape, addSessionType, updateSessionType, deleteSessionType,
       addStudioEquipment, updateStudioEquipment, deleteStudioEquipment,
-      addSubscription, updateSubscription, addPoolTrack, updatePoolTrack, deletePoolTrack, updateGenre,
+      addSubscription, updateSubscription, addPoolTrack, bulkAddPoolTracks, updatePoolTrack, deletePoolTrack, updateGenre,
       updateOrder, addPayment, addTip, addCampaign, updateCampaign,
       addCoupon, updateCoupon, deleteCoupon, validateCoupon,
       updateTelegramConfig, addTelegramChannel, updateTelegramChannel, deleteTelegramChannel,
@@ -2250,37 +2250,47 @@ const AdminDashboard: React.FC = () => {
                                  if (selectedScanIds.size === 0) return;
                                  if (!window.confirm(`Add ${selectedScanIds.size} selected track(s) to Music Pool?`)) return;
                                  setIsBulkAdding(true);
-                                 const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
-                                 for (const track of toAdd) {
-                                    const versions: any[] = [];
-                                    if (track.downloadUrl) {
-                                       versions.push({
-                                          id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                          type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
-                                          storagePath: '',
-                                          duration: 0,
-                                          downloadUrl: track.downloadUrl,
-                                       });
-                                    }
-                                    await addPoolTrack({
-                                       ...INITIAL_POOL_TRACK_STATE,
-                                       id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                       title: track.title,
-                                       artist: track.artist || 'Unknown Artist',
-                                       genre: track.genre || genres[0]?.name || 'Afrobeats',
-                                       key: track.key || '',
-                                       bpm: track.bpm || 100,
-                                       previewUrl: track.previewUrl || track.downloadUrl || '',
-                                       versions,
-                                       dateAdded: new Date().toISOString(),
-                                       createdAt: new Date().toISOString(),
-                                       updatedAt: new Date().toISOString(),
+
+                                 try {
+                                    const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
+                                    const newBatch: any[] = toAdd.map((track: any) => {
+                                       const versions: any[] = [];
+                                       if (track.downloadUrl) {
+                                          versions.push({
+                                             id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                             type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
+                                             storagePath: '',
+                                             duration: 0,
+                                             downloadUrl: track.downloadUrl,
+                                          });
+                                       }
+                                       return {
+                                          ...INITIAL_POOL_TRACK_STATE,
+                                          id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                          title: track.title,
+                                          artist: track.artist || 'Unknown Artist',
+                                          genre: track.genre || genres[0]?.name || 'Afrobeats',
+                                          key: track.key || '',
+                                          bpm: track.bpm || 100,
+                                          previewUrl: track.previewUrl || track.downloadUrl || '',
+                                          versions,
+                                          dateAdded: new Date().toISOString(),
+                                          createdAt: new Date().toISOString(),
+                                          updatedAt: new Date().toISOString(),
+                                          isNew: true // Set flag to mark tracks with 'NEW' badge in pool list
+                                       };
                                     });
-                                    await deleteScannedTrack(track.id);
+
+                                    // Batch save to Pool and batch delete from Scanned
+                                    await bulkAddPoolTracks(newBatch, Array.from(selectedScanIds));
+
+                                    setSelectedScanIds(new Set());
+                                    alert(`✅ ${toAdd.length} track(s) added to Music Pool instantly!`);
+                                 } catch (error) {
+                                    alert('Failed to add tracks: ' + (error as Error).message);
+                                 } finally {
+                                    setIsBulkAdding(false);
                                  }
-                                 setSelectedScanIds(new Set());
-                                 setIsBulkAdding(false);
-                                 alert(`✅ ${toAdd.length} track(s) added to Music Pool!`);
                               };
 
                               return (
