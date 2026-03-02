@@ -448,6 +448,7 @@ const Account: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                )}
 
                 {activeTab === 'subscription' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
