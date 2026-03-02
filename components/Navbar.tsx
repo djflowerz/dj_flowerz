@@ -9,8 +9,12 @@ const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { itemCount } = useCart();
   const { user, isAuthenticated } = useAuth();
-  const { hasQuotaExceeded, siteConfig } = useData();
+  const { hasQuotaExceeded, siteConfig, notifications, markNotificationAsRead } = useData();
   const location = useLocation();
+
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const isAdminPage = location.pathname.startsWith('/admin');
 
@@ -94,13 +98,84 @@ const Navbar: React.FC = () => {
                 JOIN POOL
               </Link>
 
-              <Link to="/notifications" className="text-gray-300 hover:text-white transition group relative">
-                <Bell size={22} className="group-hover:text-brand-purple transition" />
-              </Link>
+              {/* Notifications Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => { setShowNotifications(!showNotifications); setShowMessages(false); setShowUserMenu(false); }}
+                  className="text-gray-300 hover:text-white transition group relative p-1"
+                >
+                  <Bell size={22} className="group-hover:text-brand-purple transition" />
+                  {notifications?.filter(n => !n.read).length > 0 && (
+                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0B0B0F]"></span>
+                  )}
+                </button>
 
-              <Link to="/messages" className="text-gray-300 hover:text-white transition group relative">
-                <MessageCircle size={22} className="group-hover:text-brand-purple transition" />
-              </Link>
+                {showNotifications && (
+                  <div className="absolute right-0 mt-4 w-80 bg-[#15151A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-white">Notifications</h3>
+                      <button className="text-[10px] text-brand-purple font-bold hover:underline">Mark all read</button>
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto">
+                      {notifications?.length > 0 ? (
+                        notifications.slice(0, 5).map(n => (
+                          <div
+                            key={n.id}
+                            onClick={() => { markNotificationAsRead(n.id); if (n.link) window.location.href = n.link; }}
+                            className={`p-4 border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition ${!n.read ? 'bg-brand-purple/5' : ''}`}
+                          >
+                            <div className="flex justify-between items-start mb-1">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${n.type === 'mixtape' ? 'bg-brand-purple/20 text-brand-purple' :
+                                  n.type === 'product' ? 'bg-brand-cyan/20 text-brand-cyan' :
+                                    'bg-white/10 text-gray-400'
+                                }`}>
+                                {n.type}
+                              </span>
+                              <span className="text-[10px] text-gray-500">{new Date(n.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <h4 className="text-sm font-bold text-white mb-1">{n.title}</h4>
+                            <p className="text-xs text-gray-400 line-clamp-2">{n.message}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center">
+                          <Bell size={32} className="mx-auto mb-3 opacity-10 text-white" />
+                          <p className="text-xs text-gray-500">No notifications yet</p>
+                        </div>
+                      )}
+                    </div>
+                    <Link to="/notifications" className="block text-center p-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
+                      View All Notifications
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Messages Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => { setShowMessages(!showMessages); setShowNotifications(false); setShowUserMenu(false); }}
+                  className="text-gray-300 hover:text-white transition group relative p-1"
+                >
+                  <MessageCircle size={22} className="group-hover:text-brand-purple transition" />
+                </button>
+
+                {showMessages && (
+                  <div className="absolute right-0 mt-4 w-80 bg-[#15151A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-white">Messages</h3>
+                      <button className="text-[10px] text-brand-purple font-bold hover:underline">New Message</button>
+                    </div>
+                    <div className="p-8 text-center text-gray-500">
+                      <MessageCircle size={32} className="mx-auto mb-3 opacity-10" />
+                      <p className="text-xs">Your inbox is empty</p>
+                    </div>
+                    <Link to="/messages" className="block text-center p-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
+                      Go to Messenger
+                    </Link>
+                  </div>
+                )}
+              </div>
 
               <Link to="/cart" className="relative text-gray-300 hover:text-white transition group">
                 <ShoppingCart size={22} className="group-hover:text-brand-purple transition" />
@@ -112,14 +187,39 @@ const Navbar: React.FC = () => {
               </Link>
 
               {isAuthenticated ? (
-                <Link to="/account" className="flex items-center gap-2 text-gray-300 hover:text-white transition">
-                  <img
-                    src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
-                    alt="User"
-                    className="w-8 h-8 rounded-full border border-brand-purple object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
-                  />
-                </Link>
+                <div className="relative">
+                  <button
+                    onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); setShowMessages(false); }}
+                    className="flex items-center gap-2 text-gray-300 hover:text-white transition"
+                  >
+                    <img
+                      src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                      alt="User"
+                      className="w-8 h-8 rounded-full border border-brand-purple object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
+                    />
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-4 w-48 bg-[#15151A] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 py-2">
+                      <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
+                        <User size={16} /> My Profile
+                      </Link>
+                      {user?.role === 'admin' && (
+                        <Link to="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-brand-purple/10 transition">
+                          <LogIn size={16} /> Admin Panel
+                        </Link>
+                      )}
+                      <hr className="my-2 border-white/5" />
+                      <button
+                        onClick={() => { /* Logout logic */ }}
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-white/5 transition"
+                      >
+                        <X size={16} /> Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="flex items-center gap-3">
                   <Link to="/login" className="text-sm font-medium text-gray-400 hover:text-white transition">

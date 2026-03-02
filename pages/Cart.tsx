@@ -11,7 +11,7 @@ const PICKUP_RATE = 116;
 
 const Cart: React.FC = () => {
    const { items, removeFromCart, updateQuantity, cartSubtotal, taxAmount, cartTotal, clearCart } = useCart();
-   const { user } = useAuth();
+   const { user, isAuthenticated, updateUserProfile } = useAuth();
    const navigate = useNavigate();
    const [isProcessing, setIsProcessing] = useState(false);
 
@@ -34,7 +34,7 @@ const Cart: React.FC = () => {
    const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
    const [couponError, setCouponError] = useState('');
 
-   const { shippingZones, validateCoupon } = useData();
+   const { shippingZones, validateCoupon, addNotification } = useData();
 
    // Shipping State
    const [shippingRegion, setShippingRegion] = useState(shippingZones[0]?.id || 'nbi_central');
@@ -163,6 +163,7 @@ const Cart: React.FC = () => {
    const onSuccess = (reference: any) => {
       setIsProcessing(false);
       // Order Data
+      const orderId = reference.reference || `ORD-${Date.now()}`;
       const orderData = {
          items: items.map(item => ({
             ...item,
@@ -171,12 +172,12 @@ const Cart: React.FC = () => {
             downloadUrl: item.digitalFileUrl || '',
             digitalFileUrl: item.digitalFileUrl || '',
             downloadPassword: item.downloadPassword || ''
-         })), // Copy items before clearing
+         })),
          total: finalTotal,
          subtotal: cartSubtotal,
          shippingCost: shippingCost,
          discountAmount: discountAmount,
-         orderId: reference.reference || `ORD-${Date.now()}`,
+         orderId: orderId,
          date: new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' }),
          email: email,
          type: 'store',
@@ -188,6 +189,25 @@ const Cart: React.FC = () => {
          reference: reference.reference || `FREE-${Date.now()}`,
          couponCode: appliedCoupon?.code
       };
+
+      // Add Notification
+      addNotification({
+         userId: user?.id || 'guest',
+         title: 'Order Confirmed! 🚀',
+         message: `Your payment was successful. Total: KES ${finalTotal.toLocaleString()}. Reference: ${orderId}`,
+         type: 'success',
+         link: '/account?tab=orders'
+      });
+
+      // Award Aura Points (1 point per 100 KES spent)
+      if (isAuthenticated && user) {
+         const pointsEarned = Math.floor(finalTotal / 100);
+         if (pointsEarned > 0) {
+            updateUserProfile({
+               auraPoints: (user.auraPoints || 0) + pointsEarned
+            });
+         }
+      }
 
       clearCart();
       navigate('/success', { state: orderData });

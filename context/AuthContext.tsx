@@ -85,6 +85,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
             referralCode: profile.referral_code || profile.referralCode,
             balance: profile.balance || 0,
+            auraPoints: profile.aura_points || profile.auraPoints || 0,
+            auraLevel: profile.aura_level || profile.auraLevel || 1,
+            phoneNumber: profile.phone_number || profile.phoneNumber || '',
             createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
             updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString()
           };
@@ -123,13 +126,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             subscription_plan: initialSubscriptionPlan,
             subscription_expiry: initialSubscriptionExpiry,
             avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
+            phone_number: sbUser.user_metadata?.phone_number || '',
             referral_code: referralCode,
             referred_by: referrerId,
             balance: 0,
+            aura_points: 0,
+            aura_level: 1,
             created_at: now,
             updated_at: now,
             last_seen: now,
             presence_status: 'online'
+          };
+
+          // Save to local state
+          userData = {
+            id: newProfile.id,
+            name: newProfile.name,
+            email: newProfile.email,
+            role: newProfile.role as any,
+            isSubscriber: newProfile.is_subscriber,
+            subscriptionPlan: newProfile.subscription_plan as any,
+            subscriptionExpiry: newProfile.subscription_expiry,
+            avatarUrl: newProfile.avatar_url,
+            phoneNumber: newProfile.phone_number,
+            referralCode: newProfile.referral_code,
+            balance: newProfile.balance,
+            auraPoints: newProfile.aura_points,
+            auraLevel: newProfile.aura_level,
+            createdAt: newProfile.created_at,
+            updatedAt: newProfile.updated_at
           };
 
           // Save to R2
@@ -149,6 +174,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             avatarUrl: newProfile.avatar_url,
             referralCode: newProfile.referral_code,
             balance: 0,
+            auraPoints: 0,
+            auraLevel: 1,
             createdAt: newProfile.created_at,
             updatedAt: newProfile.updated_at
           };
@@ -222,6 +249,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             name: updated.name || prev.name,
             avatarUrl: updated.avatar_url || prev.avatarUrl,
             balance: updated.balance || 0,
+            auraPoints: updated.aura_points || updated.auraPoints || 0,
+            auraLevel: updated.aura_level || updated.auraLevel || 1,
+            phoneNumber: updated.phone_number || updated.phoneNumber || prev.phoneNumber,
           } : prev);
         }
       )
@@ -326,6 +356,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.subscriptionPlan) updates.subscription_plan = data.subscriptionPlan;
       if (data.subscriptionExpiry) updates.subscription_expiry = data.subscriptionExpiry;
       if (data.balance !== undefined) updates.balance = data.balance;
+      if (data.auraPoints !== undefined) updates.aura_points = data.auraPoints;
+      if (data.auraLevel !== undefined) updates.aura_level = data.auraLevel;
+      if (data.phoneNumber) updates.phone_number = data.phoneNumber;
 
       await updateR2Item('profiles', user.id, updates);
 

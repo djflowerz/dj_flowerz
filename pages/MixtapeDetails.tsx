@@ -1,26 +1,32 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle } from 'lucide-react';
+import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle, Instagram, Twitter, Facebook, ChevronDown, ChevronRight, ThumbsUp, RefreshCw } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { getEmbedUrl, isStreamable } from '../utils/embedHelper';
 import { downloadFileSecurely } from '../utils/downloadHelper';
+import { Comment } from '../types';
 
-interface Comment {
-   id: string;
-   user: string;
-   text: string;
-   date: string;
-   avatar?: string;
-   rating?: number;
-}
+const timestampToSeconds = (timestamp: string): number => {
+   if (!timestamp) return 0;
+   const parts = timestamp.split(':').map(Number);
+   if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+   } else if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+   }
+   return 0;
+};
 
 const MixtapeDetails: React.FC = () => {
    const { id } = useParams<{ id: string }>();
-   const { playTrack, currentTrack, isPlaying, pauseTrack, resumeTrack } = usePlayer();
-   const { mixtapes } = useData();
-   const { user } = useAuth();
+   const { playTrack, currentTrack, isPlaying, pauseTrack, resumeTrack, currentTime, seek } = usePlayer();
+   const { mixtapes, siteConfig, comments, addComment } = useData();
+   const { user, isAuthenticated } = useAuth();
+
+   const [newComment, setNewComment] = useState('');
+   const [isSubmitting, setIsSubmitting] = useState(false);
 
    // Find mix (mock logic)
    // Find mix by ID or Slug
@@ -45,9 +51,28 @@ const MixtapeDetails: React.FC = () => {
             url: window.location.href,
          });
       } else {
+         navigator.clipboard.writeText(window.location.href);
          alert('Link copied to clipboard!');
       }
    };
+
+   const handleSubmitComment = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newComment.trim() || !isAuthenticated) return;
+
+      setIsSubmitting(true);
+      try {
+         await addComment(mixtape.id, newComment);
+         setNewComment('');
+      } catch (error) {
+         console.error("Failed to post comment:", error);
+      } finally {
+         setIsSubmitting(false);
+      }
+   };
+
+   const mixtapeComments = (comments || []).filter((c: Comment) => c.mixtapeId === mixtape?.id && (c.status === 'published' || c.status === 'pending'));
+   const socials = siteConfig?.socials || {};
 
    const handleDownload = async (url: string, type: 'mixtape_audio' | 'mixtape_video') => {
       if (!mixtape) return;
@@ -147,15 +172,30 @@ const MixtapeDetails: React.FC = () => {
                      <h3 className="font-bold text-white mb-4">Tracklist</h3>
                      {mixtape.tracklist && mixtape.tracklist.length > 0 ? (
                         <ul className="space-y-3 text-sm text-gray-400 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                           {mixtape.tracklist.map((track, index) => (
-                              <li key={track.id || index} className="flex justify-between items-center gap-4 py-1 border-b border-white/5 last:border-0">
-                                 <div className="flex gap-3">
-                                    <span className="text-gray-600 w-4">{index + 1}.</span>
-                                    <span className="text-gray-300 font-medium">{track.title} {track.artist ? `- ${track.artist}` : ''}</span>
-                                 </div>
-                                 <span className="text-xs font-mono">{track.timestamp}</span>
-                              </li>
-                           ))}
+                           {mixtape.tracklist.map((track, index) => {
+                              const trackSeconds = timestampToSeconds(track.timestamp);
+                              const isActive = isCurrent && currentTime >= trackSeconds && (index === mixtape.tracklist.length - 1 || currentTime < timestampToSeconds(mixtape.tracklist[index + 1].timestamp));
+
+                              return (
+                                 <li
+                                    key={track.id || index}
+                                    onClick={() => {
+                                       if (!isCurrent) playTrack(mixtape);
+                                       setTimeout(() => seek(trackSeconds), 100);
+                                    }}
+                                    className={`flex justify-between items-center gap-4 py-2 px-3 rounded-lg border-b border-white/5 last:border-0 cursor-pointer transition-all hover:bg-white/5 group ${isActive ? 'bg-brand-purple/10 border-brand-purple/20' : ''}`}
+                                 >
+                                    <div className="flex gap-3">
+                                       <span className={`${isActive ? 'text-brand-purple' : 'text-gray-600'} w-4 font-black`}>{index + 1}.</span>
+                                       <span className={`${isActive ? 'text-white' : 'text-gray-300'} font-medium group-hover:text-white transition-colors`}>{track.title} {track.artist ? `- ${track.artist}` : ''}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                       {isActive && isPlaying && <div className="flex gap-0.5 items-end h-3 mb-0.5"><div className="w-0.5 h-2 bg-brand-purple animate-pulse" /><div className="w-0.5 h-3 bg-brand-purple animate-pulse delay-75" /><div className="w-0.5 h-1 bg-brand-purple animate-pulse delay-150" /></div>}
+                                       <span className={`text-xs font-mono ${isActive ? 'text-brand-purple' : 'text-gray-500'}`}>{track.timestamp}</span>
+                                    </div>
+                                 </li>
+                              );
+                           })}
                         </ul>
                      ) : (
                         <p className="text-sm text-gray-500 italic">No tracklist available for this mix.</p>
@@ -171,38 +211,180 @@ const MixtapeDetails: React.FC = () => {
                      <h2 className="text-2xl font-bold text-white">Comments & Feedback</h2>
                   </div>
 
-                  <div className="bg-[#15151A] p-10 rounded-2xl border border-white/5 mb-10 text-center flex flex-col items-center">
-                     <MessageCircle size={48} className="text-brand-purple mb-4" />
-                     <h3 className="text-xl font-bold text-white mb-2">What do you think of this mix?</h3>
-                     <p className="text-gray-400 mb-8 max-w-md">
-                        Drop us a message directly on WhatsApp to let us know your thoughts, request similar tracks, or leave a review for DJ Flowerz.
-                     </p>
+                  <div className="space-y-8">
+                     {mixtape.enableComments ? (
+                        <>
+                           {/* Comment Form */}
+                           <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5">
+                              <h3 className="font-bold text-white mb-4">Post a Comment</h3>
+                              {isAuthenticated ? (
+                                 <form onSubmit={handleSubmitComment} className="space-y-4">
+                                    <textarea
+                                       value={newComment}
+                                       onChange={(e) => setNewComment(e.target.value)}
+                                       placeholder="What do you think of this mix?"
+                                       className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-brand-purple outline-none min-h-[100px] transition-all"
+                                       required
+                                    ></textarea>
+                                    <div className="flex justify-end">
+                                       <button
+                                          type="submit"
+                                          disabled={isSubmitting || !newComment.trim()}
+                                          className="px-6 py-2.5 bg-brand-purple text-white font-bold rounded-xl hover:bg-purple-600 transition disabled:opacity-50 flex items-center gap-2"
+                                       >
+                                          {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
+                                          Post Comment
+                                       </button>
+                                    </div>
+                                 </form>
+                              ) : (
+                                 <div className="text-center py-6 bg-black/20 rounded-xl border border-dashed border-white/10">
+                                    <p className="text-gray-500 mb-4">Please log in to join the conversation.</p>
+                                    <Link to="/login" className="px-6 py-2 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition">Login</Link>
+                                 </div>
+                              )}
+                           </div>
 
-                     <button
-                        onClick={() => {
-                           const msg = encodeURIComponent(`Hi DJ Flowerz, I'm listening to your mix "${mixtape.title}".\n\nMy thoughts: `);
-                           const whatsappNumber = mixtape.whatsappNumber || '254707173166'; // fallback if siteConfig not available immediately
-                           window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, '_blank');
-                        }}
-                        className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-bold transition flex items-center justify-center gap-3 shadow-lg shadow-green-500/20"
-                     >
-                        <MessageCircle size={20} />
-                        Leave a Comment via WhatsApp
-                     </button>
+                           {/* Comment List */}
+                           <div className="space-y-6">
+                              {mixtapeComments.length > 0 ? (
+                                 mixtapeComments.map((comment: any) => (
+                                    <div key={comment.id} className="bg-[#15151A] p-6 rounded-2xl border border-white/5 flex gap-4">
+                                       <div className="w-10 h-10 rounded-full bg-brand-purple/20 border border-brand-purple/30 flex items-center justify-center text-brand-purple font-bold shrink-0">
+                                          {comment.userName?.substring(0, 1).toUpperCase() || 'U'}
+                                       </div>
+                                       <div className="flex-1">
+                                          <div className="flex justify-between items-center mb-1">
+                                             <span className="font-bold text-white">{comment.userName}</span>
+                                             <span className="text-[10px] text-gray-500 uppercase tracking-widest">{new Date(comment.date).toLocaleDateString()}</span>
+                                          </div>
+                                          <p className="text-gray-400 text-sm leading-relaxed">{comment.text}</p>
+                                       </div>
+                                    </div>
+                                 ))
+                              ) : (
+                                 <div className="text-center py-12 text-gray-600">
+                                    <MessageSquare size={48} className="mx-auto mb-4 opacity-10" />
+                                    <p>No comments yet. Be the first to share your thoughts!</p>
+                                 </div>
+                              )}
+                           </div>
+                        </>
+                     ) : (
+                        <div className="bg-[#15151A] p-10 rounded-2xl border border-white/5 text-center flex flex-col items-center">
+                           <MessageCircle size={48} className="text-brand-purple mb-4" />
+                           <h3 className="text-xl font-bold text-white mb-2">What do you think of this mix?</h3>
+                           <p className="text-gray-400 mb-8 max-w-md">
+                              Drop us a message directly on WhatsApp to let us know your thoughts, request similar tracks, or leave a review for DJ Flowerz.
+                           </p>
+
+                           <button
+                              onClick={() => {
+                                 const msg = encodeURIComponent(`Hi DJ Flowerz, I'm listening to your mix "${mixtape.title}".\n\nMy thoughts: `);
+                                 const whatsappNumber = mixtape.whatsappNumber || '254707173166';
+                                 window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, '_blank');
+                              }}
+                              className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-bold transition flex items-center justify-center gap-3 shadow-lg shadow-green-500/20"
+                           >
+                              <MessageCircle size={20} />
+                              Leave a Comment via WhatsApp
+                           </button>
+                        </div>
+                     )}
                   </div>
                </div>
 
-               {/* Sidebar Stats */}
                <div className="lg:col-span-1">
-                  <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 sticky top-24">
-                     <h3 className="font-bold text-white mb-6">Share this Mix</h3>
-                     <p className="text-gray-400 text-sm mb-6">Help us reach more listeners by sharing this mixtape with your friends.</p>
-                     <button
-                        onClick={handleShare}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-lg hover:bg-brand-purple/20 transition font-bold"
-                     >
-                        <Share2 size={20} /> Share Now
-                     </button>
+                  <div className="bg-[#15151A] p-8 rounded-[2.5rem] border border-white/5 space-y-10">
+                     <div>
+                        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 pl-1 italic">Direct Transmission</h3>
+                        <div className="flex flex-wrap gap-3">
+                           <button
+                              onClick={() => {
+                                 const msg = encodeURIComponent(`Check out this mix by DJ Flowerz: ${mixtape.title}\n\nListen here: ${window.location.href}`);
+                                 window.open(`https://wa.me/?text=${msg}`, '_blank');
+                              }}
+                              className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[#25D366] hover:bg-[#25D366]/10 hover:border-[#25D366]/40 transition-all group"
+                              title="Share on WhatsApp"
+                           >
+                              <MessageCircle size={20} className="group-hover:scale-110 transition-transform" />
+                           </button>
+                           <button
+                              onClick={() => {
+                                 const msg = encodeURIComponent(`Vibing to ${mixtape.title} by DJ Flowerz! 🔥`);
+                                 window.open(`https://twitter.com/intent/tweet?text=${msg}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+                              }}
+                              className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all group"
+                              title="Share on X"
+                           >
+                              <Twitter size={20} className="group-hover:scale-110 transition-transform" />
+                           </button>
+                           <button
+                              onClick={() => {
+                                 window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(mixtape.title)}`, '_blank');
+                              }}
+                              className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[#0088cc] hover:bg-[#0088cc]/10 hover:border-[#0088cc]/40 transition-all group"
+                              title="Share on Telegram"
+                           >
+                              <Send size={20} className="group-hover:scale-110 transition-transform" />
+                           </button>
+                           <button
+                              onClick={handleShare}
+                              className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple hover:bg-brand-purple hover:text-white transition-all group"
+                              title="Systems Share"
+                           >
+                              <Share2 size={20} className="group-hover:rotate-12 transition-transform" />
+                           </button>
+                        </div>
+                     </div>
+
+                     <div>
+                        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 pl-1 italic">Channel Subscription</h3>
+                        <div className="grid grid-cols-1 gap-3">
+                           {socials.instagram && (
+                              <a href={socials.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-purple/30 group transition-all duration-300">
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:bg-pink-500 group-hover:text-white transition-all">
+                                       <Instagram size={18} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="text-white font-black text-[10px] uppercase tracking-widest">Instagram</span>
+                                       <span className="text-[9px] text-gray-600 font-bold">@dj_flowerz</span>
+                                    </div>
+                                 </div>
+                                 <ChevronRight size={14} className="text-gray-700 group-hover:text-brand-purple transition-colors" />
+                              </a>
+                           )}
+                           {socials.youtube && (
+                              <a href={socials.youtube} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-purple/30 group transition-all duration-300">
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
+                                       <Youtube size={18} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="text-white font-black text-[10px] uppercase tracking-widest">YouTube</span>
+                                       <span className="text-[9px] text-gray-600 font-bold">Official Channel</span>
+                                    </div>
+                                 </div>
+                                 <ChevronRight size={14} className="text-gray-700 group-hover:text-brand-purple transition-colors" />
+                              </a>
+                           )}
+                           {socials.telegram && (
+                              <a href={socials.telegram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-purple/30 group transition-all duration-300">
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition-all">
+                                       <Send size={18} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="text-white font-black text-[10px] uppercase tracking-widest">Telegram</span>
+                                       <span className="text-[9px] text-gray-600 font-bold">Community Link</span>
+                                    </div>
+                                 </div>
+                                 <ChevronRight size={14} className="text-gray-700 group-hover:text-brand-purple transition-colors" />
+                              </a>
+                           )}
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle } from 'lucide-react';
+import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { supabase } from '../utils/supabase';
@@ -14,7 +14,7 @@ const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
   const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'downloads' | 'subscription' | 'referrals'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals'>('profile');
 
   // Sensitive Actions State
   const [showReauth, setShowReauth] = useState(false);
@@ -248,12 +248,24 @@ const Account: React.FC = () => {
                       <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 flex items-center justify-center md:justify-start gap-2">
                         {user.name}
                         {user.isAdmin && <Shield size={18} className="text-brand-purple" fill="currentColor" />}
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-brand-purple/20 border border-brand-purple/30 rounded-full">
+                          <Zap size={10} className="text-brand-purple fill-current" />
+                          <span className="text-[10px] font-black uppercase text-brand-purple tracking-widest">
+                            Aura: {user.auraPoints || 0}
+                          </span>
+                        </div>
                       </h1>
-                      <p className="text-gray-400 flex items-center justify-center md:justify-start gap-2 text-sm md:text-base">
-                        {user.email}
-                        {user.phoneNumber && <span className="w-1 h-1 bg-gray-600 rounded-full" />}
-                        {user.phoneNumber}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-1">
+                        <p className="text-gray-400 flex items-center justify-center md:justify-start gap-2 text-sm md:text-base">
+                          {user.email}
+                          {user.phoneNumber && <span className="w-1 h-1 bg-gray-600 rounded-full" />}
+                          {user.phoneNumber}
+                        </p>
+                        <div className="w-1 h-1 rounded-full bg-white/10 hidden md:block" />
+                        <div className="flex items-center gap-1.5 text-xs text-brand-cyan font-bold uppercase tracking-wider">
+                          <Star size={12} className="fill-current" /> Level {Math.floor((user.auraPoints || 0) / 100) + 1}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex flex-col gap-2">
                       <button
@@ -281,7 +293,9 @@ const Account: React.FC = () => {
               <div className="space-y-2">
                 {[
                   { id: 'profile', icon: Settings, label: 'Profile Settings' },
-                  { id: 'downloads', icon: Download, label: 'My Downloads' },
+                  { id: 'aura-rewards', icon: Zap, label: 'Aura Rewards' },
+                  { id: 'orders', icon: Clock, label: 'Order History' },
+                  { id: 'downloads', icon: Download, label: 'Direct Downloads' },
                   { id: 'subscription', icon: CreditCard, label: 'Subscription' },
                   { id: 'referrals', icon: Gift, label: 'Referrals' },
                   { id: 'admin', icon: Shield, label: 'Admin Panel', show: user.email === 'ianmuriithiflowerz@gmail.com', link: '/admin' },
@@ -352,6 +366,89 @@ const Account: React.FC = () => {
                   </div>
                 )}
 
+                {activeTab === 'aura-rewards' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-gradient-to-br from-brand-purple/20 to-brand-cyan/10 rounded-2xl border border-white/10 p-8 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-brand-purple/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+
+                      <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                        <div className="w-24 h-24 bg-gradient-to-br from-brand-purple to-brand-cyan rounded-3xl flex items-center justify-center shadow-2xl shadow-brand-purple/40 ring-4 ring-white/10 rotate-3 transition-transform">
+                          <Zap size={48} className="text-white fill-current" />
+                        </div>
+
+                        <div className="flex-1">
+                          <h2 className="text-3xl font-display font-black text-white mb-2 tracking-tight">Your Aura Balance</h2>
+                          <div className="flex items-center justify-center md:justify-start gap-4">
+                            <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">
+                              {user.auraPoints || 0}
+                            </span>
+                            <div className="h-10 w-px bg-white/10" />
+                            <div>
+                              <p className="text-white font-bold text-lg flex items-center gap-2">
+                                <Star size={18} className="text-brand-cyan fill-current" /> Level {Math.floor((user.auraPoints || 0) / 100) + 1}
+                              </p>
+                              <p className="text-gray-400 text-xs font-medium uppercase tracking-widest">Aura Pioneer</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mt-8 relative z-10">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-widest mb-2">
+                          <span className="text-gray-500">Progress to Level {Math.floor((user.auraPoints || 0) / 100) + 2}</span>
+                          <span className="text-brand-cyan">{(user.auraPoints || 0) % 100} / 100 XP</span>
+                        </div>
+                        <div className="h-3 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                          <div
+                            className="h-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+                            style={{ width: `${(user.auraPoints || 0) % 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* How to Earn */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 hover:border-brand-purple/30 transition group">
+                        <div className="w-10 h-10 bg-brand-purple/10 rounded-lg flex items-center justify-center mb-4 text-brand-purple group-hover:scale-110 transition">
+                          <Package size={20} />
+                        </div>
+                        <h4 className="text-white font-bold mb-1">Shopping</h4>
+                        <p className="text-gray-500 text-xs">Earn 1 Aura Point for every KES 100 spent on digital or physical items.</p>
+                      </div>
+
+                      <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 hover:border-brand-cyan/30 transition group">
+                        <div className="w-10 h-10 bg-brand-cyan/10 rounded-lg flex items-center justify-center mb-4 text-brand-cyan group-hover:scale-110 transition">
+                          <Mail size={20} />
+                        </div>
+                        <h4 className="text-white font-bold mb-1">Engagement</h4>
+                        <p className="text-gray-500 text-xs">Post reviews and comments to earn 5 Aura Points per action.</p>
+                      </div>
+
+                      <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 hover:border-yellow-500/30 transition group">
+                        <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center mb-4 text-yellow-500 group-hover:scale-110 transition">
+                          <Share2 size={20} />
+                        </div>
+                        <h4 className="text-white font-bold mb-1">Referrals</h4>
+                        <p className="text-gray-500 text-xs">Invite friends and earn bonus points when they make their first purchase.</p>
+                      </div>
+                    </div>
+
+                    {/* Redemption Logic */}
+                    <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 border-dashed">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Gift size={24} className="text-gray-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-bold mb-1">Aura Redemption Coming Soon</h3>
+                          <p className="text-gray-500 text-sm">Soon you'll be able to exchange your Aura points for store discounts, exclusive mixtapes, and VIP access.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                 {activeTab === 'subscription' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* Subscription Box */}
@@ -395,6 +492,92 @@ const Account: React.FC = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'orders' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                      <Clock size={18} className="text-brand-purple" /> Purchase History
+                    </h3>
+
+                    {contextOrdersLoading ? (
+                      <div className="bg-black/20 rounded-xl border border-white/5 p-12 text-center">
+                        <div className="w-10 h-10 border-4 border-brand-purple border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-gray-500 font-medium">Retrieving your orders...</p>
+                      </div>
+                    ) : (orders || []).filter(o => o.customerEmail === user.email).length === 0 ? (
+                      <div className="bg-black/20 rounded-xl border border-white/5 p-12 text-center">
+                        <Package size={48} className="mx-auto text-gray-800 mb-4" />
+                        <p className="text-gray-500">You haven't placed any orders yet.</p>
+                        <Link to="/store" className="mt-4 inline-block text-brand-purple hover:text-white font-bold transition">Start Shopping</Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {(orders || [])
+                          .filter(o => o.customerEmail === user.email)
+                          .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+                          .map((order) => (
+                            <div key={order.id} className="bg-[#15151A] rounded-2xl border border-white/5 overflow-hidden group hover:border-white/10 transition-all duration-300">
+                              <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/[0.02]">
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Order ID</p>
+                                  <p className="text-white font-mono text-xs">#{order.id.slice(-8).toUpperCase()}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Date</p>
+                                  <p className="text-white text-xs font-bold">{new Date(order.date || order.createdAt).toLocaleDateString()}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total</p>
+                                  <p className="text-brand-purple font-black text-xs">KES {order.total.toLocaleString()}</p>
+                                </div>
+                                <div>
+                                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${order.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                    order.status === 'processing' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                      order.status === 'shipped' ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20' :
+                                        'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                    }`}>
+                                    {order.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="p-4 sm:p-6 border-t border-white/5 space-y-4">
+                                <div className="space-y-3">
+                                  {order.items.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/[0.03]">
+                                      <div>
+                                        <p className="text-white text-xs font-bold">{item.productName}</p>
+                                        <p className="text-gray-500 text-[10px]">{item.quantity}x — {item.variant || 'Standard'}</p>
+                                      </div>
+                                      {item.type === 'digital' && (
+                                        <button
+                                          onClick={() => downloadFileSecurely(item.digitalFileUrl || '', { fileName: item.productName, type: 'digital_product', orderId: order.id })}
+                                          className="p-2 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white rounded-lg transition"
+                                          title="Download Digital Asset"
+                                        >
+                                          <Download size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {order.trackingNumber && (
+                                  <div className="bg-brand-cyan/5 border border-brand-cyan/10 rounded-xl p-4 flex items-center justify-between">
+                                    <div>
+                                      <p className="text-[10px] font-black text-brand-cyan uppercase tracking-widest mb-1">Tracking Info</p>
+                                      <p className="text-white text-xs font-bold">{order.courierName}: {order.trackingNumber}</p>
+                                    </div>
+                                    <ShieldCheck size={18} className="text-brand-cyan" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

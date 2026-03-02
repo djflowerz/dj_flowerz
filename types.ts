@@ -71,6 +71,8 @@ export interface Product {
   slug: string;
   type: 'physical' | 'digital' | 'subscription';
   category: string;
+  brand?: string;
+  releaseDate?: string;
   os?: 'macOS' | 'Windows' | 'Android' | 'iOS' | 'Linux' | 'None';
   shortDescription: string;
   description: string;
@@ -123,12 +125,24 @@ export interface Product {
 
 export interface Review {
   id: string;
+  productId: string;
   userId: string;
   userName: string;
   rating: number; // 1-5
   comment: string;
   date: string;
   verifiedPurchase?: boolean;
+  status: 'pending' | 'published' | 'hidden';
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  mixtapeId: string;
+  text: string;
+  date: string;
+  status: 'pending' | 'published' | 'hidden';
 }
 
 export interface User {
@@ -150,6 +164,8 @@ export interface User {
   downloadsToday?: number;
   lastDownloadDate?: string; // ISO date string YYYY-MM-DD
   balance?: number;
+  auraPoints?: number;
+  auraLevel?: number;
   createdAt?: string;
   updatedAt?: string;
   presenceStatus?: 'online' | 'offline';
@@ -529,4 +545,16 @@ export interface ContactMessage {
   userId?: string;
   createdAt: string;
 }
+
+export interface AppNotification {
+  id: string;
+  userId: string | 'all';
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error' | 'product' | 'mixtape';
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
 

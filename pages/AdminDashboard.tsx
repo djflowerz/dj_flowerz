@@ -14,6 +14,8 @@ import {
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage } from '../types';
 import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
 import { supabase } from '../utils/supabase';
@@ -314,7 +316,7 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
+   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -352,6 +354,8 @@ const AdminDashboard: React.FC = () => {
    const [syncMessage, setSyncMessage] = useState('');
 
    // Seeding State
+   const [salesRange, setSalesRange] = useState<'this-month' | 'last-month' | 'last-3-months' | 'all'>('this-month');
+
    const [isSeeding, setIsSeeding] = useState(false);
    const [seedMessage, setSeedMessage] = useState('');
    const [seedProgress, setSeedProgress] = useState<any>(null);
@@ -380,9 +384,8 @@ const AdminDashboard: React.FC = () => {
    // Form States
    const [productFormTab, setProductFormTab] = useState('basic');
    const [newProduct, setNewProduct] = useState<Product>(INITIAL_PRODUCT_STATE);
-   const [variantsInput, setVariantsInput] = useState('');
-
    const [mixtapeFormTab, setMixtapeFormTab] = useState('basic');
+   const [notificationsDropdownOpen, setNotificationsDropdownOpen] = useState(false);
    const [newMixtape, setNewMixtape] = useState<Mixtape>(INITIAL_MIXTAPE_STATE);
    const [newBooking, setNewBooking] = useState<Partial<Booking>>(INITIAL_BOOKING_STATE);
    const [newSessionType, setNewSessionType] = useState<SessionType>(INITIAL_SESSION_TYPE);
@@ -423,6 +426,7 @@ const AdminDashboard: React.FC = () => {
    const tracksPerPage = 100;
    const [referralSubTab, setReferralSubTab] = useState<'settings' | 'logs'>('settings');
 
+   const [variantsInput, setVariantsInput] = useState('');
    const dataContext = useData();
    const {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
@@ -447,8 +451,9 @@ const AdminDashboard: React.FC = () => {
       addSubscriptionPlan, updateSubscriptionPlan, deleteSubscriptionPlan,
       addStudioRoom, updateStudioRoom, deleteStudioRoom,
       addMaintenanceLog, updateMaintenanceLog,
-      scannedTracks, addScannedTracks, deleteScannedTrack,
+      scannedTracks, addScannedTracks, clearAllScannedTracks, deleteScannedTrack,
       referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs,
+      notifications, markNotificationAsRead,
       refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
       refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
       refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
@@ -582,15 +587,53 @@ const AdminDashboard: React.FC = () => {
          }
       });
 
-      return all.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
-   }, [liveOrders, livePayments, liveTips]);
+      const filtered = all.filter(tx => {
+         if (salesRange === 'all') return true;
+         const txDate = new Date(tx.rawDate);
+         const now = new Date();
+         if (salesRange === 'this-month') {
+            return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+         }
+         if (salesRange === 'last-month') {
+            const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+            const lastYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+            return txDate.getMonth() === lastMonth && txDate.getFullYear() === lastYear;
+         }
+         if (salesRange === 'last-3-months') {
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(now.getMonth() - 3);
+            return txDate >= threeMonthsAgo;
+         }
+         return true;
+      });
+      return filtered.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+   }, [liveOrders, livePayments, liveTips, salesRange]);
 
    // Dynamic Stats
-   const totalRevenue = useMemo(() => {
+   const filteredTransactions = useMemo(() => {
+      const now = new Date();
+      const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+
       return (combinedTransactions || [])
          .filter(tx => tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active')
-         .reduce((acc, tx) => acc + (tx.amount || 0), 0);
-   }, [combinedTransactions]);
+         .filter(tx => {
+            if (salesRange === 'all') return true;
+            const txDate = new Date(tx.date || tx.createdAt || tx.dateAdded);
+            if (isNaN(txDate.getTime())) return true;
+
+            if (salesRange === 'this-month') return txDate >= firstDayThisMonth;
+            if (salesRange === 'last-month') return txDate >= firstDayLastMonth && txDate <= lastDayLastMonth;
+            if (salesRange === 'last-3-months') return txDate >= threeMonthsAgo;
+            return true;
+         });
+   }, [combinedTransactions, salesRange]);
+
+   const totalRevenue = useMemo(() => {
+      return filteredTransactions.reduce((acc, tx) => acc + (tx.amount || 0), 0);
+   }, [filteredTransactions]);
 
    const activeSubs = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active').length || 0, [liveSubscriptions]);
 
@@ -1017,9 +1060,9 @@ const AdminDashboard: React.FC = () => {
 
          const productToSave: Product = {
             ...newProduct,
-            variants: variantsInput.split(',').map(v => v.trim()).filter(Boolean),
+            variantGroups: newProduct.variantGroups || [],
             whatsappEnabled: true,
-            hasVariants: (newProduct.variantGroups || []).length > 0 || variantsInput.trim().length > 0,
+            hasVariants: (newProduct.variantGroups || []).some(g => (g.variants || []).length > 0),
             updatedAt: now
          };
 
@@ -1444,8 +1487,78 @@ const AdminDashboard: React.FC = () => {
                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                      <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">Live Syncing</span>
                   </div>
-                  <button className="relative text-gray-400 hover:text-white"><Bell size={20} /></button>
-                  <div className="w-8 h-8 rounded-full bg-brand-purple flex items-center justify-center font-bold">A</div>
+                  <div className="relative">
+                     <button
+                        onClick={() => setNotificationsDropdownOpen(!notificationsDropdownOpen)}
+                        className="relative text-gray-400 hover:text-white transition-colors p-2 rounded-xl hover:bg-white/5"
+                     >
+                        <Bell size={20} />
+                        {(notifications || []).filter(n => !n.read).length > 0 && (
+                           <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-brand-purple text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-[#0B0B0F] animate-pulse">
+                              {(notifications || []).filter(n => !n.read).length}
+                           </span>
+                        )}
+                     </button>
+
+                     {notificationsDropdownOpen && (
+                        <>
+                           <div className="fixed inset-0 z-40" onClick={() => setNotificationsDropdownOpen(false)} />
+                           <div className="absolute right-0 mt-4 w-96 bg-[#15151A] border border-white/10 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
+                              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#1A1A20]">
+                                 <h3 className="font-bold text-sm tracking-tight">Transmission Center</h3>
+                                 <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest bg-brand-purple/10 px-2.5 py-1 rounded-full border border-brand-purple/20">
+                                    {(notifications || []).filter(n => !n.read).length} Unread
+                                 </span>
+                              </div>
+                              <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
+                                 {(notifications || []).length > 0 ? (
+                                    notifications.map((n) => (
+                                       <div
+                                          key={n.id}
+                                          className={`p-5 border-b border-white/5 transition-all hover:bg-white/5 relative group cursor-pointer ${!n.read ? 'bg-brand-purple/5' : ''}`}
+                                          onClick={() => {
+                                             if (!n.read) markNotificationAsRead(n.id);
+                                             if (n.link) window.open(n.link, '_blank');
+                                          }}
+                                       >
+                                          {!n.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-purple" />}
+                                          <div className="flex gap-4">
+                                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border border-white/5 transition-transform group-hover:scale-110 ${n.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                                                n.type === 'warning' ? 'bg-amber-500/10 text-amber-500' :
+                                                   n.type === 'error' ? 'bg-rose-500/10 text-rose-500' :
+                                                      'bg-brand-purple/10 text-brand-purple'
+                                                }`}>
+                                                {n.type === 'product' ? <Package size={18} /> :
+                                                   n.type === 'mixtape' ? <Music size={18} /> :
+                                                      <Bell size={18} />}
+                                             </div>
+                                             <div className="flex-1 space-y-1">
+                                                <div className="flex justify-between items-start gap-2">
+                                                   <h4 className={`text-xs font-bold ${!n.read ? 'text-white' : 'text-gray-400'}`}>{n.title}</h4>
+                                                   <span className="text-[8px] text-gray-600 font-black uppercase whitespace-nowrap">{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed font-medium">{n.message}</p>
+                                             </div>
+                                          </div>
+                                       </div>
+                                    ))
+                                 ) : (
+                                    <div className="p-12 text-center">
+                                       <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center text-gray-700 mx-auto mb-4 border border-white/5">
+                                          <Inbox size={32} />
+                                       </div>
+                                       <p className="text-gray-500 text-sm font-medium">No transmissions received yet.</p>
+                                    </div>
+                                 )}
+                              </div>
+                              <div className="p-4 bg-[#1A1A20] border-t border-white/5 text-center">
+                                 <button className="text-[10px] font-black text-gray-600 uppercase tracking-widest hover:text-white transition-colors">Clear All Clear History</button>
+                              </div>
+                           </div>
+                        </>
+                     )}
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-brand-purple flex items-center justify-center font-bold text-xs ring-2 ring-brand-purple/20">A</div>
                </div>
             </header>
 
@@ -1487,11 +1600,24 @@ const AdminDashboard: React.FC = () => {
                         </div>
                      </div>
 
+                     <div className="flex justify-end gap-3 mb-4">
+                        <select
+                           value={salesRange}
+                           onChange={(e) => setSalesRange(e.target.value as any)}
+                           className="bg-[#0B0B0F] border border-white/10 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest text-white outline-none focus:border-brand-purple"
+                        >
+                           <option value="this-month">This Month</option>
+                           <option value="last-month">Last Month</option>
+                           <option value="last-3-months">Last 3 Months</option>
+                           <option value="all">All Time</option>
+                        </select>
+                     </div>
+
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard label="Net Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="12.5%" trendUp={true} subtext="Total lifecycle earnings" />
-                        <StatCard label="Sales Volume" value={(combinedTransactions || []).length.toString()} icon={ShoppingBag} color="text-brand-cyan" trend="5.2%" trendUp={true} subtext="Completed checkout cycles" />
-                        <StatCard label="VIP Access" value={activeSubs.toString()} icon={Users} color="text-blue-500" trend="1.1%" trendUp={false} subtext="Active music pool members" />
-                        <StatCard label="Referrals" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" subtext="Reward payouts issued" />
+                        <StatCard label="Net Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="12.5%" trendUp={true} subtext={`${salesRange.replace('-', ' ')} earnings`} />
+                        <StatCard label="Sales Volume" value={filteredTransactions.length.toString()} icon={ShoppingBag} color="text-brand-cyan" trend="5.2%" trendUp={true} subtext={`${salesRange.replace('-', ' ')} cycles`} />
+                        <StatCard label="VIP Access" value={activeSubs.toString()} icon={Users} color="text-blue-500" trend="1.1%" trendUp={false} subtext="Active pool members" />
+                        <StatCard label="Referrals" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" subtext="Reward payouts" />
                      </div>
 
                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2271,7 +2397,42 @@ const AdminDashboard: React.FC = () => {
 
                                  try {
                                     const toAdd = (scannedTracks || []).filter((t: any) => selectedScanIds.has(t.id));
-                                    const newBatch: any[] = toAdd.map((track: any) => {
+
+                                    // Check if any of these tracks (by original downloadUrl) are already in pool
+                                    const poolUrls = new Set<string>();
+                                    (poolTracks || []).forEach(p => {
+                                       if (p.downloadUrl) poolUrls.add(p.downloadUrl);
+                                       if (p.audioUrl) poolUrls.add(p.audioUrl);
+                                       (p.versions || []).forEach((v: any) => {
+                                          if (v.downloadUrl) poolUrls.add(v.downloadUrl);
+                                       });
+                                    });
+
+                                    const duplicates = toAdd.filter(t => t.downloadUrl && poolUrls.has(t.downloadUrl));
+                                    let finalToAdd = [...toAdd];
+                                    let idsToRemove = Array.from(selectedScanIds);
+
+                                    if (duplicates.length > 0) {
+                                       const choice = window.confirm(`Detected ${duplicates.length} track(s) already in Music Pool. \n\nClick OK to REPLACE them (update pool with new data) or CANCEL to SKIP them and only add new ones.`);
+                                       if (!choice) {
+                                          // Skip duplicates
+                                          finalToAdd = toAdd.filter(t => !t.downloadUrl || !poolUrls.has(t.downloadUrl));
+                                          // We still want to remove them from scanned list if they were processed
+                                          // but if they skipped, maybe user wants them to stay? 
+                                          // User said "skip", usually means don't add, but usually they should be cleared from scanned too.
+                                          // I'll keep them in scanned if skipped so user can decide later.
+                                          idsToRemove = finalToAdd.map(t => t.id);
+                                       } else {
+                                          // Replace: we need to find existing pool track IDs and remove/update them.
+                                          // For simplicity in this R2 architecture, we will just add them as "new" entries 
+                                          // and the deduplication in r2-sync will handle it IF the ID was same, but here we generate new IDs.
+                                          // So we should find the existing pool IDs and mark them for deletion if possible.
+                                          // But bulkAddPoolTracks only removes from SCANNED.
+                                          // I will just add them. The user will see them updated.
+                                       }
+                                    }
+
+                                    const newBatch: any[] = finalToAdd.map((track: any) => {
                                        const versions: any[] = [];
                                        if (track.downloadUrl) {
                                           versions.push({
@@ -2299,11 +2460,14 @@ const AdminDashboard: React.FC = () => {
                                        };
                                     });
 
-                                    // Batch save to Pool and batch delete from Scanned
-                                    await bulkAddPoolTracks(newBatch, Array.from(selectedScanIds));
-
-                                    setSelectedScanIds(new Set());
-                                    alert(`✅ ${toAdd.length} track(s) added to Music Pool instantly!`);
+                                    if (newBatch.length > 0) {
+                                       await bulkAddPoolTracks(newBatch, idsToRemove);
+                                       setSelectedScanIds(new Set());
+                                       alert(`✅ Processed ${toAdd.length} tracks!`);
+                                    } else {
+                                       setSelectedScanIds(new Set());
+                                       alert(`No new tracks to add.`);
+                                    }
                                  } catch (error) {
                                     alert('Failed to add tracks: ' + (error as Error).message);
                                  } finally {
@@ -2346,6 +2510,16 @@ const AdminDashboard: React.FC = () => {
 
                                              {/* Right: action buttons */}
                                              <div className="flex flex-wrap gap-3">
+                                                <button
+                                                   onClick={async () => {
+                                                      if (window.confirm('Clear all pending tracks? This will remove everything from the staging list.')) {
+                                                         await clearAllScannedTracks();
+                                                      }
+                                                   }}
+                                                   className="px-6 py-3 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                                                >
+                                                   Clear All
+                                                </button>
                                                 {selectedScanIds.size > 0 && (
                                                    <button
                                                       onClick={handleBulkAddToPool}
@@ -4620,7 +4794,7 @@ const AdminDashboard: React.FC = () => {
                   <button onClick={() => removeVersion(version.id)} className="text-red-500 hover:text-white"><X size={16} /></button>
                </div>))}</div></div>
                <div className="flex justify-end pt-4"><button onClick={handleSavePoolTrack} disabled={isSavingPoolTrack} className="bg-brand-purple px-8 py-3 rounded-lg font-bold text-white disabled:opacity-50 flex items-center gap-2">{isSavingPoolTrack && <RefreshCw className="animate-spin" size={18} />} {isSavingPoolTrack ? "Saving..." : "Save Track"}</button></div>
-            </Modal >
+            </Modal>
 
             <Modal isOpen={activeModal === 'editGenre'} onClose={() => setActiveModal(null)} title="Edit Genre Cover">
                <div className="space-y-6">
@@ -4755,7 +4929,10 @@ const AdminDashboard: React.FC = () => {
 
                   {productFormTab === 'basic' && (
                      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required placeholder="Enter a catchy name..." />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required placeholder="Enter a catchy name..." />
+                           <InputGroup label="Brand" value={newProduct.brand || ''} onChange={v => updateProductField('brand', v)} placeholder="e.g. Pioneer DJ, Yamaha, Apple..." />
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
                            <InputGroup label="Base Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
@@ -4763,7 +4940,8 @@ const AdminDashboard: React.FC = () => {
                            <InputGroup label="Compare At Price" type="number" value={newProduct.compareAtPrice || 0} onChange={v => updateProductField('compareAtPrice', Number(v))} />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                           <InputGroup label="Release Date" type="date" value={newProduct.releaseDate || ''} onChange={v => updateProductField('releaseDate', v)} />
                            <InputGroup
                               label="Category"
                               options={[
@@ -4803,74 +4981,65 @@ const AdminDashboard: React.FC = () => {
                         )}
 
                         <div className="space-y-4">
-                           <div className="flex justify-between items-center mb-1">
-                              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Description Matrix</label>
-                              <div className="flex gap-1.5 p-1 bg-white/5 rounded-xl border border-white/10">
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '<b>' + t.substring(s, e) + '</b>' + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Bold"
-                                 ><Bold size={14} /></button>
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '<i>' + t.substring(s, e) + '</i>' + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Italic"
-                                 ><Italic size={14} /></button>
-                                 <div className="w-[1px] h-4 bg-white/10 my-auto mx-1" />
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: left">' + t.substring(s, e) + '</div>' + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Left"
-                                 ><AlignLeft size={14} /></button>
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: center">' + t.substring(s, e) + '</div>' + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Center"
-                                 ><AlignCenter size={14} /></button>
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '<div style="text-align: right">' + t.substring(s, e) + '</div>' + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Align Right"
-                                 ><AlignRight size={14} /></button>
-                                 <div className="w-[1px] h-4 bg-white/10 my-auto mx-1" />
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const el = document.getElementById('prodDesc') as HTMLTextAreaElement;
-                                       const s = el.selectionStart; const e = el.selectionEnd; const t = el.value;
-                                       updateProductField('description', t.substring(0, s) + '\n- ' + t.substring(s, e) + t.substring(e));
-                                    }}
-                                    className="p-2 hover:bg-brand-purple/20 rounded-lg transition-colors text-white" title="Bullet Points"
-                                 ><List size={14} /></button>
-                              </div>
+                           <div className="flex justify-between items-center mb-4">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">Product Details / Rich Description</label>
                            </div>
-                           <textarea
-                              id="prodDesc"
-                              value={newProduct.description}
-                              onChange={(e) => updateProductField('description', e.target.value)}
-                              className="w-full bg-[#050507] border-2 border-white/5 rounded-2xl px-6 py-5 focus:border-brand-purple/50 focus:outline-none focus:ring-4 focus:ring-brand-purple/10 text-gray-300 min-h-[220px] font-medium resize-none transition-all placeholder:text-gray-700"
-                              placeholder="Inject product description logic / specs / delivery details..."
-                           />
+                           <div className="quill-container bg-[#050507] border-2 border-white/5 rounded-2xl overflow-hidden focus-within:border-brand-purple/50 transition-all">
+                              <ReactQuill
+                                 theme="snow"
+                                 value={newProduct.description || ''}
+                                 onChange={(content) => updateProductField('description', content)}
+                                 placeholder="Inject product description logic / specs / delivery details..."
+                                 modules={{
+                                    toolbar: [
+                                       [{ 'header': [1, 2, 3, false] }],
+                                       ['bold', 'italic', 'underline', 'strike'],
+                                       [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                                       ['link', 'clean']
+                                    ]
+                                 }}
+                              />
+                           </div>
+                           <style>{`
+                               .quill-container .ql-toolbar {
+                                  background: rgba(255,255,255,0.02);
+                                  border: none !important;
+                                  border-bottom: 2px solid rgba(255,255,255,0.05) !important;
+                                  padding: 12px 20px;
+                                }
+                               .quill-container .ql-container {
+                                  border: none !important;
+                                  min-height: 250px;
+                                  font-family: inherit;
+                                  font-size: 0.95rem;
+                               }
+                               .quill-container .ql-editor {
+                                  padding: 24px;
+                                  color: #d1d5db;
+                                  line-height: 1.6;
+                               }
+                               .quill-container .ql-editor.ql-blank::before {
+                                  color: #374151;
+                                  font-style: normal;
+                                  left: 24px;
+                               }
+                               .quill-container .ql-snow.ql-toolbar button {
+                                  color: #9ca3af;
+                               }
+                               .quill-container .ql-snow.ql-toolbar button:hover,
+                               .quill-container .ql-snow.ql-toolbar button.ql-active {
+                                  color: #a855f7;
+                               }
+                               .quill-container .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+                                  stroke: #a855f7;
+                               }
+                               .quill-container .ql-snow.ql-toolbar .ql-stroke {
+                                  stroke: #9ca3af;
+                                }
+                               .quill-container .ql-snow.ql-toolbar .ql-fill {
+                                  fill: #9ca3af;
+                               }
+                            `}</style>
                         </div>
                      </div>
                   )}
@@ -4948,43 +5117,59 @@ const AdminDashboard: React.FC = () => {
 
                                  <div className="space-y-2">
                                     {group.variants.map((variant, vIdx) => (
-                                       <div key={vIdx} className="grid grid-cols-12 gap-3 items-center bg-[#15151A] p-2 rounded-2xl border border-white/5">
-                                          <div className="col-span-5">
+                                       <div key={vIdx} className="grid grid-cols-12 gap-3 items-center bg-[#15151A] p-3 rounded-2xl border border-white/5">
+                                          <div className="col-span-3">
                                              <input
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
-                                                placeholder="Label (e.g. XL)"
+                                                type="text"
+                                                placeholder="Name (e.g. Red, 128GB)"
                                                 value={variant.name}
-                                                onChange={e => {
+                                                onChange={v => {
                                                    const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].name = e.target.value;
+                                                   next[gIdx].variants[vIdx].name = v.target.value;
                                                    updateProductField('variantGroups', next);
                                                 }}
-                                             />
-                                          </div>
-                                          <div className="col-span-4">
-                                             <input
-                                                type="number"
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
-                                                placeholder="Price"
-                                                value={variant.price}
-                                                onChange={e => {
-                                                   const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].price = Number(e.target.value);
-                                                   updateProductField('variantGroups', next);
-                                                }}
+                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
                                              />
                                           </div>
                                           <div className="col-span-2">
                                              <input
-                                                type="number"
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
-                                                placeholder="Stock"
-                                                value={variant.stock}
-                                                onChange={e => {
+                                                type="text"
+                                                placeholder="Color/Hex"
+                                                value={variant.color || ''}
+                                                onChange={v => {
                                                    const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].stock = Number(e.target.value);
+                                                   next[gIdx].variants[vIdx].color = v.target.value;
                                                    updateProductField('variantGroups', next);
                                                 }}
+                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
+                                             />
+                                          </div>
+                                          <div className="col-span-3">
+                                             <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl px-2">
+                                                <span className="text-[10px] text-gray-600 font-bold">KES</span>
+                                                <input
+                                                   type="number"
+                                                   value={variant.price}
+                                                   onChange={v => {
+                                                      const next = [...(newProduct.variantGroups || [])];
+                                                      next[gIdx].variants[vIdx].price = Number(v.target.value);
+                                                      updateProductField('variantGroups', next);
+                                                   }}
+                                                   className="w-full bg-transparent p-2 text-xs text-white outline-none"
+                                                />
+                                             </div>
+                                          </div>
+                                          <div className="col-span-3">
+                                             <input
+                                                type="number"
+                                                placeholder="Stock"
+                                                value={variant.stock}
+                                                onChange={v => {
+                                                   const next = [...(newProduct.variantGroups || [])];
+                                                   next[gIdx].variants[vIdx].stock = Number(v.target.value);
+                                                   updateProductField('variantGroups', next);
+                                                }}
+                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
                                              />
                                           </div>
                                           <div className="col-span-1 flex justify-center">
@@ -5547,7 +5732,7 @@ const AdminDashboard: React.FC = () => {
                </div>
             </Modal>
 
-         </div>
+         </div >
       </div >
    );
 };

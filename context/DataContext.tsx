@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, MOCK_SUBSCRIBERS, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { supabase } from '../utils/supabase';
@@ -117,6 +117,8 @@ interface DataContextType {
   comments: any[];
   reviewsLoading: boolean;
   commentsLoading: boolean;
+  notifications: AppNotification[];
+  notificationsLoading: boolean;
   mixtapesError: string | null;
   mixtapesLoading: boolean;
   poolError: string | null;
@@ -215,6 +217,11 @@ interface DataContextType {
   addComment: (comment: any) => Promise<void>;
   incrementMixtapeDownload: (mixtapeId: string) => Promise<void>;
   isFirstTimeSubscriber: (userId: string) => Promise<boolean>;
+  addScannedTracks: (tracks: any[]) => Promise<void>;
+  clearAllScannedTracks: () => Promise<void>;
+  refreshPoolTracks: () => Promise<void>;
+  refreshScannedTracks: () => Promise<void>;
+  markNotificationAsRead: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -503,7 +510,8 @@ const getTableName = (colName: string): string => {
     'poolTracks': 'pool_tracks',
     'payments': 'payments',
     'tips': 'tips',
-    'scannedTracks': 'scanned_tracks'
+    'scannedTracks': 'scanned_tracks',
+    'notifications': 'notifications'
   };
   return mapping[colName] || colName;
 };
@@ -562,7 +570,7 @@ const useCollection = <T extends { id: string }>(
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const [hasQuotaExceeded, setHasQuotaExceeded] = useState(false);
 
   // Determine roles for conditional fetching
@@ -665,6 +673,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 1000, 'date', 'desc', true);
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 1000, 'date', 'desc', true);
+  const [notifications, , notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, (n) => ({ ...n, createdAt: n.createdAt || n.created_at }), 1000, 'createdAt', 'desc', true);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -1030,6 +1039,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Deduplicate: filter out any incoming tracks whose ID already exists in staging
       const newUnique = tracks.filter(nt => !scannedTracks.some((st: any) => st.id === nt.id));
 
+      if (newUnique.length === 0) return;
+
       // Merge newest first (new tracks at the front)
       const merged = [...newUnique, ...(scannedTracks || [])].slice(0, 50000);
 
@@ -1041,6 +1052,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Add scanned tracks failed:", err.message);
       // Revert on failure by refreshing from R2
+      refreshScannedTracks();
+    }
+  };
+
+  const clearAllScannedTracks = async () => {
+    try {
+      setScannedTracks([]);
+      await saveToR2('scanned_tracks', []);
+    } catch (err: any) {
+      console.error("Clear scanned tracks failed:", err.message);
       refreshScannedTracks();
     }
   };
@@ -1578,14 +1599,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addReview = async (productId: string, rating: number, text: string) => {
+  const addReview = async (productId: string, rating: number, comment: string) => {
     try {
       if (!user) throw new Error('Must be logged in to review');
       const docId = `rev_${Date.now()}`;
-      const newReview = { id: docId, productId, userId: user.id, userName: user.name || 'User', rating, text, createdAt: new Date().toISOString(), status: 'pending' };
+      const newReview = { id: docId, productId, userId: user.id, userName: user.name || 'User', rating, comment, date: new Date().toISOString(), status: 'pending' };
       const newReviews = [newReview, ...(reviews || [])];
       await saveToR2('reviews', newReviews);
       refreshReviews();
+
+      // Award 5 Aura Points for a review
+      if (updateUserProfile && user) {
+        updateUserProfile({ auraPoints: (user.auraPoints || 0) + 5 });
+      }
     } catch (err: any) {
       console.error("Add review failed:", err.message);
     }
@@ -1595,12 +1621,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (!user) throw new Error('Must be logged in to comment');
       const docId = `com_${Date.now()}`;
-      const newComment = { id: docId, mixtapeId, userId: user.id, userName: user.name || 'User', text, createdAt: new Date().toISOString(), status: 'pending' };
+      const newComment = { id: docId, mixtapeId, userId: user.id, userName: user.name || 'User', text, date: new Date().toISOString(), status: 'pending' };
       const newComments = [newComment, ...(comments || [])];
       await saveToR2('comments', newComments);
       refreshComments();
+
+      // Award 5 Aura Points for a comment
+      if (updateUserProfile && user) {
+        updateUserProfile({ auraPoints: (user.auraPoints || 0) + 5 });
+      }
     } catch (err: any) {
       console.error("Add comment failed:", err.message);
+    }
+  };
+
+  const addNotification = async (notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    try {
+      const newNotif: AppNotification = {
+        ...notif,
+        id: `notif_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        read: false
+      };
+
+      const currentNotifications = notifications || [];
+      await saveToR2('notifications', [newNotif, ...currentNotifications]);
+      refreshNotifications();
+    } catch (err: any) {
+      console.error("Add notification failed:", err.message);
+    }
+  };
+
+  const markNotificationAsRead = async (id: string) => {
+    try {
+      const newNotifications = (notifications || []).map(n => n.id === id ? { ...n, read: true } : n);
+      await saveToR2('notifications', newNotifications);
+      refreshNotifications();
+    } catch (err: any) {
+      console.error("Mark notification as read failed:", err.message);
     }
   };
 
@@ -1733,8 +1791,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateContactMessage,
     addReview,
     addComment,
+    markNotificationAsRead,
+    addNotification,
     incrementMixtapeDownload,
+    isFirstTimeSubscriber,
     addScannedTracks,
+    clearAllScannedTracks,
     deleteScannedTrack: async (id: string) => {
       const updatedTracks = (scannedTracks || []).filter((t: any) => t.id !== id);
       // Optimistically update local state immediately

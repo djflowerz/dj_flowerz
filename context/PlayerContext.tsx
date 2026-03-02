@@ -63,7 +63,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [volume]);
 
   useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
+    if (!audioRef.current) return;
+
+    if (!currentTrack) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      setIsPlaying(false);
+      setCurrentTime(0);
+      return;
+    }
 
     const setupAudio = async () => {
       let url = currentTrack.audioUrl;
