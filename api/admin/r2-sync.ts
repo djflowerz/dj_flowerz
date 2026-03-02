@@ -66,7 +66,7 @@ export default async function handler(req: any, res: any) {
     }
     // --- END SECURITY LAYER ---
 
-    const { collection, data, action, item, id } = req.body;
+    const { collection, data, action, item, id, items, ids } = req.body;
 
     if (!collection) {
         return res.status(400).json({ error: 'Missing collection' });
@@ -89,6 +89,13 @@ export default async function handler(req: any, res: any) {
             if (action === 'add' && item) {
                 // Add to beginning
                 existingData.unshift(item);
+            } else if (action === 'addBatch' && Array.isArray(items)) {
+                // Prepend batch
+                existingData = [...items, ...existingData];
+            } else if (action === 'deleteBatch' && Array.isArray(ids)) {
+                // Remove multiple items at once
+                const idSet = new Set(ids);
+                existingData = existingData.filter((i: any) => !idSet.has(i.id));
             } else if (action === 'update' && item && id) {
                 const idx = existingData.findIndex((i: any) => i.id === id);
                 if (idx !== -1) existingData[idx] = { ...existingData[idx], ...item };
@@ -97,20 +104,33 @@ export default async function handler(req: any, res: any) {
                 existingData = existingData.filter((i: any) => i.id !== id);
             }
 
+            // --- Deduplication Step (Critical for data integrity) ---
+            const seenIds = new Set();
+            existingData = existingData.filter((i: any) => {
+                if (!i.id) return true;
+                if (seenIds.has(i.id)) return false;
+                seenIds.add(i.id);
+                return true;
+            });
+
+            const jsonString = JSON.stringify(existingData);
+            console.log(`Writing ${existingData.length} items to ${collection} [Size: ${Math.round(jsonString.length / 1024)} KB]`);
+
             const putCmd = new PutObjectCommand({
                 Bucket: R2_BUCKET_NAME,
                 Key: key,
-                Body: JSON.stringify(existingData, null, 2),
-                ContentType: "application/json",
+                Body: jsonString,
+                ContentType: 'application/json'
             });
             await s3.send(putCmd);
             return res.status(200).json({ success: true, message: `Synced ${collection} via ${action}` });
         } else if (data) {
             // Full replace
+            console.log(`Fully replacing ${collection} with ${data.length} items [Size: ${Math.round(JSON.stringify(data).length / 1024)} KB]`);
             const command = new PutObjectCommand({
                 Bucket: R2_BUCKET_NAME,
                 Key: key,
-                Body: JSON.stringify(data, null, 2),
+                Body: JSON.stringify(data), // No indentation
                 ContentType: "application/json",
             });
             await s3.send(command);

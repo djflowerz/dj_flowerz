@@ -341,7 +341,7 @@ const AdminDashboard: React.FC = () => {
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
    // --- Scanned Updates state ---
-   const [scanSince, setScanSince] = useState('2026-02-01');
+   const [scanSince, setScanSince] = useState('2026-03-02');
    const [isManualScanning, setIsManualScanning] = useState(false);
    const [manualScanMsg, setManualScanMsg] = useState('');
    const [selectedScanIds, setSelectedScanIds] = useState<Set<string>>(new Set());
@@ -468,7 +468,7 @@ const AdminDashboard: React.FC = () => {
    const liveTips = tips;
    const liveUsers = useMemo(() => {
       const now = new Date();
-      return users.filter(u => {
+      const filtered = users.filter(u => {
          if (u.presenceStatus === 'online') return true;
          if (u.lastSeen) {
             const lastSeen = new Date(u.lastSeen);
@@ -476,6 +476,15 @@ const AdminDashboard: React.FC = () => {
             return diff < 5; // Recently seen
          }
          return false;
+      });
+
+      // Deduplicate by email
+      const seenEmails = new Set();
+      return filtered.filter(u => {
+         if (!u.email) return true;
+         if (seenEmails.has(u.email)) return false;
+         seenEmails.add(u.email);
+         return true;
       });
    }, [users]);
 
@@ -2183,12 +2192,17 @@ const AdminDashboard: React.FC = () => {
                                     const sinceTime = new Date(scanSince).getTime();
 
                                     // Build de-duplication sets
-                                    const poolUrls = new Set(
-                                       (poolTracks || []).flatMap((t: any) =>
-                                          (t.versions || []).map((v: any) => v.downloadUrl).filter(Boolean)
-                                       )
-                                    );
+                                    const poolUrls = new Set();
+                                    (poolTracks || []).forEach((t: any) => {
+                                       if (t.audioUrl) poolUrls.add(t.audioUrl);
+                                       if (t.downloadUrl) poolUrls.add(t.downloadUrl);
+                                       (t.versions || []).forEach((v: any) => {
+                                          if (v.downloadUrl) poolUrls.add(v.downloadUrl);
+                                          if (v.url) poolUrls.add(v.url);
+                                       });
+                                    });
                                     const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
+                                    const stagedUrls = new Set((scannedTracks || []).map((t: any) => t.downloadUrl));
 
                                     const toSave: any[] = [];
                                     let skippedOld = 0;
@@ -2205,10 +2219,14 @@ const AdminDashboard: React.FC = () => {
                                        const downloadUrl = t.url || t.downloadUrl || `/mashups/${key}`;
 
                                        // Skip if already in pool (by URL) or already staged
-                                       if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId)) {
+                                       if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId) || (downloadUrl && stagedUrls.has(downloadUrl))) {
                                           skippedDupe++;
                                           continue;
                                        }
+
+                                       // Prevent duplicates WITHIN the same scan
+                                       stagedIds.add(scannedId);
+                                       if (downloadUrl) stagedUrls.add(downloadUrl);
 
                                        let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
                                        title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
@@ -4062,13 +4080,13 @@ const AdminDashboard: React.FC = () => {
                               <table className="w-full text-left whitespace-nowrap">
                                  <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
                                     <tr>
-                                       <th className="px-8 py-6">Fiscal Type</th>
-                                       <th className="px-8 py-6">Ref Hash</th>
-                                       <th className="px-8 py-6">Temporal Stamp</th>
-                                       <th className="px-8 py-6">Counterparty</th>
-                                       <th className="px-8 py-6">Asset Payload</th>
-                                       <th className="px-8 py-6">Equity Value</th>
-                                       <th className="px-8 py-6 text-right">State</th>
+                                       <th className="px-8 py-6">Type</th>
+                                       <th className="px-8 py-6">Reference</th>
+                                       <th className="px-8 py-6">Date & Time</th>
+                                       <th className="px-8 py-6">Customer</th>
+                                       <th className="px-8 py-6">Details</th>
+                                       <th className="px-8 py-6">Amount</th>
+                                       <th className="px-8 py-6 text-right">Status</th>
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">

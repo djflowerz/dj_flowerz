@@ -132,3 +132,38 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
         return null;
     }
 }
+
+export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
+    const authHeader = await getAuthHeader();
+    const response = await fetch('/api/admin/r2-sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+        },
+        body: JSON.stringify({ collection, action: 'addBatch', items }),
+    });
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`R2 AddBatch Error: ${err}`);
+    }
+    return true;
+}
+
+export async function removeBatchR2Items(collection: string, ids: string[]): Promise<boolean> {
+    const authHeader = await getAuthHeader();
+    const response = await fetch('/api/admin/r2-sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+        },
+        body: JSON.stringify({ collection, action: 'deleteBatch', ids }),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`R2 Sync Error: ${resStatus(response.status)} - ${err}`);
+    }
+    return true;
+}

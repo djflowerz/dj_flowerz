@@ -7,7 +7,7 @@ import { supabase } from '../utils/supabase';
 import { withRetry } from '../utils/supabaseRetry';
 import { useSupabaseCollection } from '../hooks/useSupabaseCollection';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items } from '../utils/r2';
 
 
 
@@ -909,7 +909,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const docId = `prod_${Date.now()}`;
       const newProduct = { ...product, id: docId, createdAt: new Date().toISOString() };
       const newProducts = [newProduct, ...products];
-      await saveToR2('products', newProducts);
+      setProducts(newProducts);
+      await addR2Item('products', newProduct);
       refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
@@ -919,7 +920,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateProduct = async (id: string, data: Partial<Product>) => {
     try {
       const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
-      await saveToR2('products', newProducts);
+      setProducts(newProducts);
+      await updateR2Item('products', id, data);
       refreshProducts();
     } catch (err: any) {
       console.error("Update product failed:", err.message);
@@ -929,7 +931,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteProduct = async (id: string) => {
     try {
       const newProducts = products.filter(p => p.id !== id);
-      await saveToR2('products', newProducts);
+      setProducts(newProducts);
+      await removeR2Item('products', id);
       refreshProducts();
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
@@ -999,22 +1002,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Bulk-add many tracks in a SINGLE R2 write (instead of N sequential writes)
   const bulkAddPoolTracks = async (newTracks: Track[], idsToRemoveFromScanned: string[]) => {
     try {
-      // 1. Fetch the current pool once
-      const existing = await fetchFromR2<Track>('pool_tracks');
-      // 2. Merge — newest tracks at the front
-      const merged = [...newTracks, ...existing];
-      // 3. One write for pool_tracks
-      await saveToR2('pool_tracks', merged);
-      // 4. Update local state immediately
-      setPoolTracks(merged);
-      // 5. Remove promoted tracks from scannedTracks in one pass
-      const remainingScanned = (scannedTracks || []).filter((t: any) => !idsToRemoveFromScanned.includes(t.id));
-      setScannedTracks(remainingScanned);
-      // 6. One write for scanned_tracks
-      await saveToR2('scanned_tracks', remainingScanned);
+      // 1. Send the new tracks in an addBatch request
+      await addBatchR2Items('pool_tracks', newTracks);
+
+      // 2. Update local poolTracks state by prepending the new items (same as R2 logic)
+      setPoolTracks(prev => [...newTracks, ...(prev || [])]);
+
+      // 3. Remove promoted tracks from scanned_tracks via batch delete in R2
+      if (idsToRemoveFromScanned.length > 0) {
+        await removeBatchR2Items('scanned_tracks', idsToRemoveFromScanned);
+      }
+
+      // 4. Update local scannedTracks state
+      setScannedTracks(prev => (prev || []).filter(t => !idsToRemoveFromScanned.includes(t.id)));
+
     } catch (error: any) {
       console.error("Bulk add pool tracks failed:", error.message);
-      // Refresh from R2 on failure
+      // Refresh from R2 on failure to ensure UI consistency
       refreshPoolTracks();
       refreshScannedTracks();
       throw error;
