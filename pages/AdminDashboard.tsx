@@ -14,8 +14,7 @@ import {
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+
 import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage } from '../types';
 import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
 import { supabase } from '../utils/supabase';
@@ -24,6 +23,15 @@ import { manualSync } from '../utils/autoSyncTracks';
 import { MailerLiteService } from '../services/MailerLiteService';
 import { uploadFileToR2, saveToR2 } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
+
+const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
+   <textarea
+      value={value}
+      onChange={(e) => typeof onChange === 'function' ? onChange(e.target.value) : null}
+      placeholder={placeholder}
+      className="w-full bg-[#050507] border-none text-gray-300 p-6 min-h-[250px] outline-none resize-none font-sans text-sm leading-relaxed"
+   />
+);
 
 
 const StatCard: React.FC<{
@@ -316,7 +324,7 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Audio Equipment', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
+   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Accessories', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -2799,7 +2807,7 @@ const AdminDashboard: React.FC = () => {
                                  </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {products
+                                 {(Array.isArray(products) ? [...products] : [])
                                     .sort((a, b) => {
                                        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                                        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -2828,9 +2836,9 @@ const AdminDashboard: React.FC = () => {
                                              <div className="flex flex-col">
                                                 <span className="text-white font-black text-base">
                                                    {p.type === 'digital' ? <Infinity size={18} className="text-gray-600" /> : (
-                                                      p.variantGroups && p.variantGroups.length > 0 ? (
-                                                         p.variantGroups.reduce((acc, g) => acc + g.variants.reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
-                                                      ) : p.stock
+                                                      (p.variantGroups && p.variantGroups.length > 0) ? (
+                                                         p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                                      ) : (p.stock || 0)
                                                    )}
                                                 </span>
                                                 {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-orange-500 font-black uppercase tracking-[0.2em] mt-1">Low Buffer</span>}
@@ -2839,11 +2847,11 @@ const AdminDashboard: React.FC = () => {
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">
                                                 <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-600 line-through text-[10px] font-bold' : 'text-white font-black text-base'}>
-                                                   KES {p.price.toLocaleString()}
+                                                   KES {(p.price || 0).toLocaleString()}
                                                 </span>
                                                 {p.discountPrice && p.discountPrice > 0 && (
                                                    <span className="text-brand-cyan font-black text-base">
-                                                      KES {p.discountPrice.toLocaleString()}
+                                                      KES {(p.discountPrice || 0).toLocaleString()}
                                                    </span>
                                                 )}
                                              </div>
@@ -2880,7 +2888,7 @@ const AdminDashboard: React.FC = () => {
                         </button>
                      </div>
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {mixtapes
+                        {(Array.isArray(mixtapes) ? [...mixtapes] : [])
                            .sort((a, b) => {
                               const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                               const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -2981,9 +2989,9 @@ const AdminDashboard: React.FC = () => {
                                           <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6 flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black text-xs uppercase">
-                                                   {r.userName.substring(0, 2)}
+                                                   {(r.userName || '??').substring(0, 2)}
                                                 </div>
-                                                <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{r.userName}</span>
+                                                <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{r.userName || 'Unknown User'}</span>
                                              </td>
                                              <td className="px-8 py-6">
                                                 <span className="font-mono text-brand-purple bg-brand-purple/5 px-4 py-1.5 rounded-full border border-brand-purple/10 text-[11px] font-black uppercase tracking-[0.1em]">{r.referralCode}</span>
@@ -2991,8 +2999,8 @@ const AdminDashboard: React.FC = () => {
                                              <td className="px-8 py-6">
                                                 <span className="text-white font-black text-base">{r.totalReferrals}</span>
                                              </td>
-                                             <td className="px-8 py-6 text-green-500 font-black text-base">KES {r.totalEarned.toLocaleString()}</td>
-                                             <td className="px-8 py-6 text-yellow-500 font-black text-base">KES {r.pendingPayout.toLocaleString()}</td>
+                                             <td className="px-8 py-6 text-green-500 font-black text-base">KES {(r.totalEarned || 0).toLocaleString()}</td>
+                                             <td className="px-8 py-6 text-yellow-500 font-black text-base">KES {(r.pendingPayout || 0).toLocaleString()}</td>
                                           </tr>
                                        ))}
                                     </tbody>
