@@ -1,30 +1,40 @@
 #!/bin/bash
+# update_vercel_env.sh
+# Final script to push core environment variables to Vercel production.
+# Removes legacy Brevo/MailerLite and points to Gmail SMTP & Cloudflare R2.
+
+# 1. Core Secrets (Use Vercel dashboard for security if possible, but providing here for migration)
+# Replace with actual values if needed.
 vars=(
-"REACT_APP_PAYSTACK_PUBLIC_KEY=pk_live_2ed6a5c46ebab203998efd1f5d9c22d2dcc05f71"
-"REACT_APP_PAYSTACK_SECRET_KEY=sk_live_ec66162f517e07fb5e2322ec5e5281e2fe3ab74b"
-"PAYSTACK_SECRET_KEY=sk_live_ec66162f517e07fb5e2322ec5e5281e2fe3ab74b"
-"REACT_APP_ADMIN_EMAIL=ianmuriithiflowerz@gmail.com"
-"REACT_APP_PLAN_12_MONTHS=https://paystack.shop/pay/po2leez4hy"
-"REACT_APP_PLAN_6_MONTHS=https://paystack.shop/pay/5p4gjiehpv"
-"REACT_APP_PLAN_3_MONTHS=https://paystack.shop/pay/ayljjgzxzp"
-"REACT_APP_PLAN_1_MONTH=https://paystack.shop/pay/u0qw529xyk"
-"REACT_APP_PLAN_1_WEEK=https://paystack.shop/pay/7u8-7dn081"
-"BREVO_API_KEY=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"
-"BREVO_SENDER_EMAIL=noreply@djflowerz.co.ke"
-"BREVO_SENDER_NAME=DJ Flowerz"
-"REACT_APP_RAPIDAPI_KEY=e02419edd9msh3b5138aeff67f8cp1e85e3jsne6054522ba4f"
-"REACT_APP_RAPIDAPI_HOST=hearthis-at.p.rapidapi.com"
-"VITE_SUPABASE_URL=https://ogdxnqzhqvvhrrvrqoup.supabase.co"
-"VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nZHhucXpocXZ2aHJydnJxb3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMzM0MjEsImV4cCI6MjA4NTkwOTQyMX0.pFxUc7Dv5o63_5dFQpakGZFeaBVDqywsJ7RNXDMAl6c"
-"SUPABASE_SERVICE_ROLE_KEY=sb_secret_VKQ_Wk2_t3nY9CJsCC_7Qw_-9-OD0BY"
-"SUPABASE_DB_URL=postgresql://postgres.ogdxnqzhqvvhrrvrqoup:%40Ravin303%23Wanjo@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-"VITE_MAILERLITE_API_KEY=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI0IiwianRpIjoiYWUyZDUwOTU2NWM5YmJjMmEyYmRjOTEzZjRiMTNlMmMzOGVjYTUzYzg1ODBjOTBmNDQ2YmM1Y2Q2NjkzN2I3Yzg0NTI4N2NiZGEyM2Q3YzkiLCJpYXQiOjE3NzEyODg5NzMuMDY5MDg0LCJuYmYiOjE3NzEyODg5NzMuMDY5MDg3LCJleHAiOjQ5MjY5NjI1NzMuMDYxNjg2LCJzdWIiOiIyMTM4MDIzIiwic2NvcGVzIjpbXX0.rft9x8tAkmdhb82enQEiuscvQ21sVc-APQEqphZ59QIHkcGsOzbVXD4llEDD5tF6YbdA7nS6fzt0AcrvNGC-giImL7qGpnLqbvIBAVBLl_CyU2Ywdisp0gRObd5EvV166cc0dWu2e_79ixTFg0aRaau_re450cogL3x9WFeU01tcBgLXyRNpO3S6y0QsDWybgQYU3QvOaMebvqGHoT8I8ZgqQLBrQPVpihSl2va2W2ZFBQf0AEOa4OsXnG44MAqPkmGtzmf08Uqx5TX1FJoOHoxVxlLYyWq8QDhOzNFXHBo2I0HjJ4jkH_C4jyukkNg7dNCOcEpPC6uMFvAKoxh9PIltHkOMezniE173EMlAO_obCVKyxfMg5loEOF9MuZl_wxGTSHc1qxVQtcdc2QVXfz6TIiPK3ATHl-QNQxN8CbBmpscYNqv3AuSRFlZ7r3jQUHv9ERpk1y0w2V3DGgqXGm6q12zGd9E91-zabtHhbzY5AtC6a1hzCW2W3VzYGCzCNmkh9cV3G9Aqb_JrM5aV48qMO9un4HzTPGQBIcClsElyNmnvOXtVFlw2gvrmYj6EaH3x0gNYH7mNNG5P2LPPX4m2gFFDM0f4xvLmI3E2ashWk5AIY0n1JhbTwoqnEkypIWyHu6UNx0f_YxwBRUV2MTkW9LT0TITITl8_DJTdN-g"
-"VITE_APP_URL=https://djflowerz.co.ke"
+    "GMAIL_USER=djflowerz254@gmail.com"
+    "GMAIL_APP_PASSWORD=xnqinwdsbbfjpick"
+    "VITE_R2_URL=https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev"
+    "R2_ACCOUNT_ID=ca961f0eb41ca2bf77291b1769ca1c1d"
+    "R2_ACCESS_KEY_ID=4edededb28b4666323bf7a763ab391d1"
+    "R2_SECRET_ACCESS_KEY=5d2ce9467a45d362df943ea8e0c5afd0857c2be36524c97d4026f1bd570f3a22"
+    "R2_BUCKET_NAME=djflowerz-images"
+    "VITE_ADMIN_EMAIL=ianmuriithiflowerz@gmail.com"
+    "VITE_APP_URL=https://djflowerz.co.ke"
+    "EMAIL_NOREPLY=noreply@djflowerz.co.ke"
+    "EMAIL_BOOKINGS=bookings@djflowerz.co.ke"
+    "EMAIL_ADMIN=admin@djflowerz.co.ke"
+    "EMAIL_PROMO=promo@djflowerz.co.ke"
+    "EMAIL_RECEIPTS=receipts@djflowerz.co.ke"
+    "VITE_STORAGE_WORKER_URL=https://www.djflowerz.co.ke"
 )
 
+# 2. Add vars to Vercel
 for item in "${vars[@]}"; do
     key=$(echo $item | cut -d'=' -f1)
     value=$(echo $item | cut -d'=' -f2-)
-    echo "Adding $key..."
-    echo "$value" | vercel env add $key production
+    echo "Updating $key in Vercel production..."
+    
+    # Try removing old key first to avoid duplicates
+    # Ignore errors if it doesn't exist
+    vercel env rm $key production -y 2>/dev/null
+    
+    # Add new key
+    echo -n "$value" | vercel env add $key production
 done
+
+echo "✅ Vercel environment updated. Trigger a redeploy to apply changes."

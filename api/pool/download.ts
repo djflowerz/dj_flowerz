@@ -14,14 +14,14 @@ export const config = {
     runtime: 'edge',
 };
 
-// Trusted domains for proxying
+// Trusted domains for proxying (Strictly Cloudflare R2 / Custom Domains)
 const TRUSTED_DOMAINS = [
-    'cdn.vicknickvideopool.com',
     'vicknickvideopool.com',
-    'firebasestorage.googleapis.com',
     'pub-59a613f808794c48972e0d794770331f.r2.dev',
+    'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev',
     'hearthis.at',
-    'r2.vicknickvideopool.com'
+    'r2.vicknickvideopool.com',
+    'djflowerz.co.ke'
 ];
 
 function parseHearthisUrl(url: string) {
