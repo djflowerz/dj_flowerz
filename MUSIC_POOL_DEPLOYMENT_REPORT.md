@@ -42,12 +42,12 @@
   - **Branding Update**: Automatically renamed "DJ VICKNICK VIDEO POOL" and similar variants to "**DJ FLOWERZ VIDEOPOOL**" in track titles for consistency.
 
 ### 5. Deployment
-- **Status**: **Backend Updated (Database Seeded)**. Frontend changes (Month filter fix, new categories in `constants.ts`) deployed to `dj-flowerz.vercel.app`.
+- **Status**: **Backend Updated (Database Seeded)**. Frontend changes (Month filter fix, new categories in `constants.ts`) deployed to `www.djflowerz.co.ke`.
 - **Verification**: Checked database population logs (Success). Verified `constants.ts` updates locally.
 
 ## 🟢 Deployment Verification
 
-- **Status**: **Deployed to Production** (https://dj-flowerz.vercel.app/)
+- **Status**: **Deployed to Production** (https://www.djflowerz.co.ke/)
 - **Verification Checks**:
   - `curl` check on production assets confirmed the presence of `selectedMonth` and `January` strings in the JavaScript bundle, indicating the new month filtering code is active.
   - `curl` check confirmed "3 Step Amapiano" is present in the production bundle, verifying new categories are live.
@@ -61,7 +61,7 @@
 
 ## ⏭️ Next Steps
 
-1.  **Manual Verification**: Visit [https://dj-flowerz.vercel.app/#/music-pool](https://dj-flowerz.vercel.app/#/music-pool) to visually confirm:
+1.  **Manual Verification**: Visit [https://www.djflowerz.co.ke/#/music-pool](https://www.djflowerz.co.ke/#/music-pool) to visually confirm:
     - All new categories (e.g., "3 Step Amapiano") appear in filters.
     - Month filtering works (try "January" for "Jan 2022" tracks).
     - Tracks play correctly.

@@ -17,7 +17,6 @@ const ProductDetails: React.FC = () => {
    const [reviewRating, setReviewRating] = useState(5);
    const [reviewComment, setReviewComment] = useState('');
    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-   const [activeTab, setActiveTab] = useState('description');
 
    const product = useMemo(() => products.find(p => p.id === id), [products, id]);
 
@@ -310,172 +309,167 @@ const ProductDetails: React.FC = () => {
                </div>
             </div>
 
-            {/* Content Tabs */}
-            <div className="mt-32">
-               <div className="flex gap-12 border-b border-white/10 mb-12">
-                  <button
-                     onClick={() => setActiveTab('description')}
-                     className={`pb-4 text-[11px] font-black uppercase tracking-[0.3em] transition-all relative ${activeTab === 'description' ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
-                  >
-                     Specs & Description
-                     {activeTab === 'description' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand-purple rounded-t-full shadow-[0_-4px_10px_rgba(168,85,247,0.4)]" />}
-                  </button>
-                  <button
-                     onClick={() => setActiveTab('reviews')}
-                     className={`pb-4 text-[11px] font-black uppercase tracking-[0.3em] transition-all relative ${activeTab === 'reviews' ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
-                  >
-                     Transmission Feed ({productReviews.length})
-                     {activeTab === 'reviews' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand-purple rounded-t-full shadow-[0_-4px_10px_rgba(168,85,247,0.4)]" />}
-                  </button>
+            {/* Content Sections */}
+            <div className="mt-40 space-y-40">
+               {/* Specs & Description Section */}
+               <div>
+                  <div className="flex items-center gap-4 mb-16">
+                     <div className="w-12 h-1px bg-brand-purple/50" />
+                     <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white">Specs & Description</h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-20">
+                     <div className="lg:col-span-2 space-y-8">
+                        <div className="prose prose-invert max-w-none">
+                           <h3 className="text-2xl font-display font-bold text-white mb-6">Technical Overview</h3>
+                           <div
+                              className="text-gray-400 leading-relaxed text-lg ql-viewer"
+                              dangerouslySetInnerHTML={{ __html: product.description || "High quality transmission asset from the DJ Flowerz collection. Built for performance and longevity." }}
+                           />
+                        </div>
+
+                        {product.tags && product.tags.length > 0 && (
+                           <div className="pt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {product.tags.map(tag => (
+                                 <div key={tag} className="flex items-center gap-3 p-4 bg-[#15151A] rounded-2xl border border-white/5">
+                                    <div className="w-2 h-2 rounded-full bg-brand-purple shadow-sm shadow-brand-purple" />
+                                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{tag}</span>
+                                 </div>
+                              ))}
+                           </div>
+                        )}
+                     </div>
+
+                     <div className="lg:col-span-1">
+                        <div className="bg-[#15151A]/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                           <div className="flex items-center gap-3">
+                              <Info size={18} className="text-brand-purple" />
+                              <h4 className="font-bold text-white">Security & Guarantee</h4>
+                           </div>
+                           <ul className="space-y-4 text-xs font-medium text-gray-500">
+                              <li className="flex items-start gap-3">
+                                 <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
+                                 <span>24-month manufacturer warranty on all physical units.</span>
+                              </li>
+                              <li className="flex items-start gap-3">
+                                 <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
+                                 <span>Instant digital delivery for all nexus-connected assets.</span>
+                              </li>
+                              <li className="flex items-start gap-3">
+                                 <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
+                                 <span>Verified original hardware sourced through global network.</span>
+                              </li>
+                           </ul>
+                        </div>
+                     </div>
+                  </div>
                </div>
 
-               <div className="min-h-[400px]">
-                  {activeTab === 'description' ? (
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-20">
-                        <div className="lg:col-span-2 space-y-8">
-                           <div className="prose prose-invert max-w-none">
-                              <h3 className="text-2xl font-display font-bold text-white mb-6">Technical Overview</h3>
-                              <div
-                                 className="text-gray-400 leading-relaxed text-lg ql-viewer"
-                                 dangerouslySetInnerHTML={{ __html: product.description || "High quality transmission asset from the DJ Flowerz collection. Built for performance and longevity." }}
-                              />
-                           </div>
+               {/* Transmission Feed Section */}
+               <div>
+                  <div className="flex items-center gap-4 mb-16">
+                     <div className="w-12 h-1px bg-brand-cyan/50" />
+                     <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white">Transmission Feed ({productReviews.length})</h2>
+                  </div>
 
-                           {product.tags && product.tags.length > 0 && (
-                              <div className="pt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                 {product.tags.map(tag => (
-                                    <div key={tag} className="flex items-center gap-3 p-4 bg-[#15151A] rounded-2xl border border-white/5">
-                                       <div className="w-2 h-2 rounded-full bg-brand-purple shadow-sm shadow-brand-purple" />
-                                       <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{tag}</span>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-20">
+                     <div className="lg:col-span-1 space-y-8">
+                        <div className="bg-[#15151A] p-10 rounded-[2.5rem] border border-white/5 text-center">
+                           <h3 className="text-4xl font-black text-white mb-2 leading-none">{averageRating.toFixed(1)}</h3>
+                           <div className="flex justify-center text-yellow-500 mb-4">
+                              {[1, 2, 3, 4, 5].map(s => <Star key={s} size={20} className={s <= Math.round(averageRating) ? 'fill-current' : 'text-gray-700'} />)}
+                           </div>
+                           <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Base Rating from {productReviews.length} Clients</p>
+
+                           <div className="mt-10 space-y-3">
+                              {[5, 4, 3, 2, 1].map(stars => {
+                                 const count = productReviews.filter(r => r.rating === stars).length;
+                                 const perc = productReviews.length > 0 ? (count / productReviews.length) * 100 : 0;
+                                 return (
+                                    <div key={stars} className="flex items-center gap-4 group">
+                                       <span className="text-[10px] font-bold text-gray-500 w-3">{stars}</span>
+                                       <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                                          <div className="h-full bg-brand-purple shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-1000" style={{ width: `${perc}%` }} />
+                                       </div>
+                                       <span className="text-[10px] font-bold text-gray-600 w-8">{Math.round(perc)}%</span>
                                     </div>
+                                 );
+                              })}
+                           </div>
+                        </div>
+
+                        {isAuthenticated ? (
+                           <div className="bg-[#15151A] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                              <h4 className="font-bold text-white flex items-center gap-2 pt-2">
+                                 <MessageSquare size={18} className="text-brand-purple" /> Initialize Report
+                              </h4>
+                              <div className="flex gap-2 mb-4">
+                                 {[1, 2, 3, 4, 5].map(star => (
+                                    <button key={star} onClick={() => setReviewRating(star)} className="focus:outline-none transition-transform hover:scale-125">
+                                       <Star size={24} className={star <= reviewRating ? "text-yellow-500 fill-yellow-500" : "text-gray-700"} />
+                                    </button>
                                  ))}
                               </div>
-                           )}
-                        </div>
-
-                        <div className="lg:col-span-1">
-                           <div className="bg-[#15151A]/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                              <div className="flex items-center gap-3">
-                                 <Info size={18} className="text-brand-purple" />
-                                 <h4 className="font-bold text-white">Security & Guarantee</h4>
-                              </div>
-                              <ul className="space-y-4 text-xs font-medium text-gray-500">
-                                 <li className="flex items-start gap-3">
-                                    <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
-                                    <span>24-month manufacturer warranty on all physical units.</span>
-                                 </li>
-                                 <li className="flex items-start gap-3">
-                                    <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
-                                    <span>Instant digital delivery for all nexus-connected assets.</span>
-                                 </li>
-                                 <li className="flex items-start gap-3">
-                                    <div className="mt-1 w-1 h-1 rounded-full bg-emerald-500" />
-                                    <span>Verified original hardware sourced through global network.</span>
-                                 </li>
-                              </ul>
+                              <textarea
+                                 value={reviewComment}
+                                 onChange={(e) => setReviewComment(e.target.value)}
+                                 placeholder="Input transmission feedback..."
+                                 className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs font-bold placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-purple/50 min-h-[120px] resize-none"
+                              />
+                              <button
+                                 onClick={handleReviewSubmit}
+                                 disabled={isSubmittingReview || !reviewComment.trim()}
+                                 className="w-full py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-purple-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                 {isSubmittingReview ? <RefreshCw className="animate-spin" size={14} /> : <Send size={14} />}
+                                 {isSubmittingReview ? 'Processing...' : 'Deploy Report'}
+                              </button>
                            </div>
-                        </div>
-                     </div>
-                  ) : (
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-20">
-                        <div className="lg:col-span-1 space-y-8 lg:sticky lg:top-24 h-fit">
+                        ) : (
                            <div className="bg-[#15151A] p-10 rounded-[2.5rem] border border-white/5 text-center">
-                              <h3 className="text-4xl font-black text-white mb-2 leading-none">{averageRating.toFixed(1)}</h3>
-                              <div className="flex justify-center text-yellow-500 mb-4">
-                                 {[1, 2, 3, 4, 5].map(s => <Star key={s} size={20} className={s <= Math.round(averageRating) ? 'fill-current' : 'text-gray-700'} />)}
-                              </div>
-                              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Base Rating from {productReviews.length} Clients</p>
-
-                              <div className="mt-10 space-y-3">
-                                 {[5, 4, 3, 2, 1].map(stars => {
-                                    const count = productReviews.filter(r => r.rating === stars).length;
-                                    const perc = productReviews.length > 0 ? (count / productReviews.length) * 100 : 0;
-                                    return (
-                                       <div key={stars} className="flex items-center gap-4 group">
-                                          <span className="text-[10px] font-bold text-gray-500 w-3">{stars}</span>
-                                          <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                                             <div className="h-full bg-brand-purple shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-1000" style={{ width: `${perc}%` }} />
-                                          </div>
-                                          <span className="text-[10px] font-bold text-gray-600 w-8">{Math.round(perc)}%</span>
-                                       </div>
-                                    );
-                                 })}
-                              </div>
+                              <User size={32} className="mx-auto text-gray-800 mb-4" />
+                              <p className="text-sm font-bold text-gray-600 mb-6">Unauthorized access to reporting system.</p>
+                              <Link to="/login" className="inline-block px-10 py-4 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition">Identify</Link>
                            </div>
-
-                           {isAuthenticated ? (
-                              <div className="bg-[#15151A] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                                 <h4 className="font-bold text-white flex items-center gap-2 pt-2">
-                                    <MessageSquare size={18} className="text-brand-purple" /> Initialize Report
-                                 </h4>
-                                 <div className="flex gap-2 mb-4">
-                                    {[1, 2, 3, 4, 5].map(star => (
-                                       <button key={star} onClick={() => setReviewRating(star)} className="focus:outline-none transition-transform hover:scale-125">
-                                          <Star size={24} className={star <= reviewRating ? "text-yellow-500 fill-yellow-500" : "text-gray-700"} />
-                                       </button>
-                                    ))}
-                                 </div>
-                                 <textarea
-                                    value={reviewComment}
-                                    onChange={(e) => setReviewComment(e.target.value)}
-                                    placeholder="Input transmission feedback..."
-                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs font-bold placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-purple/50 min-h-[120px] resize-none"
-                                 />
-                                 <button
-                                    onClick={handleReviewSubmit}
-                                    disabled={isSubmittingReview || !reviewComment.trim()}
-                                    className="w-full py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-purple-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                 >
-                                    {isSubmittingReview ? <RefreshCw className="animate-spin" size={14} /> : <Send size={14} />}
-                                    {isSubmittingReview ? 'Processing...' : 'Deploy Report'}
-                                 </button>
-                              </div>
-                           ) : (
-                              <div className="bg-[#15151A] p-10 rounded-[2.5rem] border border-white/5 text-center">
-                                 <User size={32} className="mx-auto text-gray-800 mb-4" />
-                                 <p className="text-sm font-bold text-gray-600 mb-6">Unauthorized access to reporting system.</p>
-                                 <Link to="/login" className="inline-block px-10 py-4 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition">Identify</Link>
-                              </div>
-                           )}
-                        </div>
-
-                        <div className="lg:col-span-2 space-y-6">
-                           <div className="flex items-center justify-between mb-8">
-                              <h3 className="text-2xl font-display font-bold text-white">Global Feed</h3>
-                              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600">
-                                 Sorted by <span className="text-brand-purple">Recency</span>
-                              </div>
-                           </div>
-
-                           {productReviews.length > 0 ? (
-                              productReviews.map((r, i) => (
-                                 <div key={r.id || i} className="bg-[#15151A] rounded-[2.5rem] p-8 border border-white/5 relative group hover:border-brand-purple/20 transition-all duration-500">
-                                    <div className="flex justify-between items-start mb-6">
-                                       <div className="flex items-center gap-4">
-                                          <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black">
-                                             {r.userName?.substring(0, 1).toUpperCase() || 'U'}
-                                          </div>
-                                          <div>
-                                             <h4 className="text-white font-black text-sm uppercase tracking-tight">{r.userName}</h4>
-                                             <div className="flex text-yellow-500 mt-1">
-                                                {[1, 2, 3, 4, 5].map(star => <Star key={star} size={10} className={star <= r.rating ? "fill-current" : "text-gray-800"} />)}
-                                             </div>
-                                          </div>
-                                       </div>
-                                       <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{new Date(r.date).toLocaleDateString()}</span>
-                                    </div>
-                                    <p className="text-gray-400 text-sm leading-relaxed font-medium pl-2 border-l border-brand-purple/10">{r.comment}</p>
-                                 </div>
-                              ))
-                           ) : (
-                              <div className="bg-[#15151A] rounded-[2.5rem] p-24 border-2 border-dashed border-white/5 text-center">
-                                 <MessageSquare size={48} className="mx-auto text-gray-800 mb-6" />
-                                 <p className="text-gray-600 font-bold uppercase tracking-widest text-xs">No active transmissions in the feed.</p>
-                              </div>
-                           )}
-                        </div>
+                        )}
                      </div>
-                  )}
+
+                     <div className="lg:col-span-2 space-y-6">
+                        <div className="flex items-center justify-between mb-8">
+                           <h3 className="text-2xl font-display font-bold text-white">Global Feed</h3>
+                           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600">
+                              Sorted by <span className="text-brand-purple">Recency</span>
+                           </div>
+                        </div>
+
+                        {productReviews.length > 0 ? (
+                           productReviews.map((r, i) => (
+                              <div key={r.id || i} className="bg-[#15151A] rounded-[2.5rem] p-8 border border-white/5 relative group hover:border-brand-purple/20 transition-all duration-500">
+                                 <div className="flex justify-between items-start mb-6">
+                                    <div className="flex items-center gap-4">
+                                       <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black">
+                                          {r.userName?.substring(0, 1).toUpperCase() || 'U'}
+                                       </div>
+                                       <div>
+                                          <h4 className="text-white font-black text-sm uppercase tracking-tight">{r.userName}</h4>
+                                          <div className="flex text-yellow-500 mt-1">
+                                             {[1, 2, 3, 4, 5].map(star => <Star key={star} size={10} className={star <= r.rating ? "fill-current" : "text-gray-800"} />)}
+                                          </div>
+                                       </div>
+                                    </div>
+                                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{new Date(r.date).toLocaleDateString()}</span>
+                                 </div>
+                                 <p className="text-gray-400 text-sm leading-relaxed font-medium pl-2 border-l border-brand-purple/10">{r.comment}</p>
+                              </div>
+                           ))
+                        ) : (
+                           <div className="bg-[#15151A] rounded-[2.5rem] p-24 border-2 border-dashed border-white/5 text-center">
+                              <MessageSquare size={48} className="mx-auto text-gray-800 mb-6" />
+                              <p className="text-gray-600 font-bold uppercase tracking-widest text-xs">No active transmissions in the feed.</p>
+                           </div>
+                        )}
+                     </div>
+                  </div>
                </div>
             </div>
 

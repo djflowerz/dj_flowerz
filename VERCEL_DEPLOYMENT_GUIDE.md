@@ -9,8 +9,8 @@ The reason your Admin Portal wasn't receiving payment details is likely due to t
 
 **Update your Paystack Dashboard:**
 1. Go to [Paystack Settings > Developer](https://dashboard.paystack.com/#/settings/developer)
-2. **Live Webhook URL**: `https://dj-flowerz.vercel.app/api/paystack/webhook`
-3. **Live Callback URL**: `https://dj-flowerz.vercel.app/#/success`
+2. **Live Webhook URL**: `https://www.djflowerz.co.ke/api/paystack/webhook`
+3. **Live Callback URL**: `https://www.djflowerz.co.ke/#/success`
 4. Click **Save Changes**.
 
 ## 2. Vercel Environment Variables

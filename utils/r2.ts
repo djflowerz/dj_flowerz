@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
 
 /**
- * Utility for fetching data from Cloudflare R2 (Object Storage)
+ * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
-// We hard-code the proxy route to bypass browser CORS locally and on Edge
-const R2_URL = '/r2';
+const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://remix-and-mashups-worker.dennismacharia20.workers.dev';
+const R2_URL = STORAGE_WORKER_URL; // Using worker for both read and write
 
 async function getAuthHeader() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -13,37 +13,21 @@ async function getAuthHeader() {
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
-        // We add a timestamp to bypass browser cache during development/admin updates
         const url = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
         const response = await fetch(url);
-
-        if (!response.ok) {
-            if (response.status === 404) {
-                console.warn(`Collection ${collection} not found on R2. Falling back to empty array.`);
-                return [];
-            }
-            throw new Error(`R2 Fetch Error: ${response.statusText}`);
-        }
-
+        if (!response.ok) return [];
         return await response.json();
     } catch (error) {
-        console.error(`Failed to fetch ${collection} from R2:`, error);
+        console.error(`Failed to fetch ${collection} from Worker:`, error);
         return [];
     }
 }
 
-/**
- * For writing to R2, we use a Vercel API proxy since the frontend cannot 
- * write directly to R2 without exposing AWS keys.
- */
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch('/api/admin/r2-sync', {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...authHeader
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, data }),
     });
 
@@ -58,12 +42,9 @@ function resStatus(status: number) { return status; }
 
 export async function addR2Item(collection: string, item: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch('/api/admin/r2-sync', {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...authHeader
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'add', item }),
     });
     if (!response.ok) {
@@ -76,12 +57,9 @@ export async function addR2Item(collection: string, item: any): Promise<boolean>
 export async function updateR2Item(collection: string, id: string, item: any): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch('/api/admin/r2-sync', {
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...authHeader
-            },
+            headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'update', id, item }),
         });
         return response.ok;
@@ -91,12 +69,9 @@ export async function updateR2Item(collection: string, id: string, item: any): P
 export async function removeR2Item(collection: string, id: string): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch('/api/admin/r2-sync', {
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...authHeader
-            },
+            headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'delete', id }),
         });
         return response.ok;
@@ -110,7 +85,7 @@ export async function removeR2Item(collection: string, id: string): Promise<bool
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch('/api/admin/r2-upload', {
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
             method: 'POST',
             headers: {
                 'x-file-name': file.name,
@@ -135,12 +110,9 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
 
 export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch('/api/admin/r2-sync', {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...authHeader
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'addBatch', items }),
     });
     if (!response.ok) {
@@ -152,12 +124,9 @@ export async function addBatchR2Items(collection: string, items: any[]): Promise
 
 export async function removeBatchR2Items(collection: string, ids: string[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch('/api/admin/r2-sync', {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...authHeader
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'deleteBatch', ids }),
     });
 

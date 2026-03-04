@@ -145,6 +145,16 @@ export const SUBSCRIPTION_PLANS = [
     period: 'wk',
     features: ['7 Days Access'],
     active: true
+  },
+  {
+    id: 'trial',
+    name: '1 Week Free Trial',
+    price: 0,
+    period: 'trial',
+    features: ['10 Downloads / Day', 'Limited Access', 'One-time Use Only'],
+    active: true,
+    isTrial: true,
+    promoExpiry: '2026-04-04'
   }
 ];
 

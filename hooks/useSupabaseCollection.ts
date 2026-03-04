@@ -46,6 +46,31 @@ export const useSupabaseCollection = <T extends { id: string }>(
         setIsLoading(false);
     };
 
+    const loadMore = async (count: number = 20) => {
+        if (!enabled || isLoading) return;
+
+        setIsLoading(true);
+        const from = data.length;
+        const to = from + count - 1;
+
+        let query = supabase.from(tableName).select('*').range(from, to);
+
+        if (orderByField) {
+            query = query.order(orderByField, { ascending: orderDirection === 'asc' });
+        }
+
+        const { data: results, error: sbError } = await query;
+
+        if (sbError) {
+            console.error(`Supabase loadMore error (${tableName}):`, sbError.message);
+            setError(sbError.message);
+        } else if (results && results.length > 0) {
+            const transformed = results.map(item => transform ? transform(item) : (item as unknown as T));
+            setData(prev => [...prev, ...transformed]);
+        }
+        setIsLoading(false);
+    };
+
     useEffect(() => {
         if (!enabled) {
             setData(initialData);
@@ -70,5 +95,5 @@ export const useSupabaseCollection = <T extends { id: string }>(
         }
     }, [tableName, enabled, orderByField, orderDirection, isRealtime]);
 
-    return [data, setData, isLoading, error, fetchData] as const;
+    return [data, setData, isLoading, loadMore, error, fetchData] as const;
 };

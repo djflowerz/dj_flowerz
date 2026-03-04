@@ -163,6 +163,7 @@ export interface User {
   phoneNumber?: string;
   downloadsToday?: number;
   lastDownloadDate?: string; // ISO date string YYYY-MM-DD
+  hasUsedTrial?: boolean;
   balance?: number;
   auraPoints?: number;
   auraLevel?: number;
@@ -192,6 +193,8 @@ export interface SubscriptionPlan {
   features: string[];
   active: boolean;
   isBestValue?: boolean;
+  isTrial?: boolean;
+  promoExpiry?: string;
   link?: string;
 }
 

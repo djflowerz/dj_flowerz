@@ -319,19 +319,10 @@ const Home: React.FC = () => {
                      }
 
                      try {
-                        // 1. Sync with MailerLite (External)
-                        const { MailerLiteService } = await import('../services/MailerLiteService');
-                        const result = await MailerLiteService.subscribe({ email });
-
-                        // 2. Clear to local DB (Admin Dashboard Visibility)
+                        // Save subscriber to local DB (visible in Admin Dashboard)
                         await addSubscriber(email, 'Homepage Newsletter');
-
-                        if (result.success) {
-                           alert('Successfully joined the community!');
-                           (e.target as HTMLFormElement).reset();
-                        } else {
-                           alert('Error: ' + result.error);
-                        }
+                        alert('Successfully joined the community!');
+                        (e.target as HTMLFormElement).reset();
                      } catch (err) {
                         alert('Something went wrong. Please try again.');
                      } finally {

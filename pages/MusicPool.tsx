@@ -74,6 +74,7 @@ const MusicPool: React.FC = () => {
    const [selectedYear, setSelectedYear] = useState<number | 'All'>('All');
    const [selectedMonth, setSelectedMonth] = useState<string>('All');
    const [selectedGenre, setSelectedGenre] = useState('All');
+   const [selectedSubGenre, setSelectedSubGenre] = useState('All');
    const [searchQuery, setSearchQuery] = useState('');
    const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
 
@@ -96,6 +97,12 @@ const MusicPool: React.FC = () => {
 
    const changeGenre = (genre: string) => {
       setSelectedGenre(genre);
+      setSelectedSubGenre('All');
+      setSearchQuery('');
+   };
+
+   const changeSubGenre = (subGenre: string) => {
+      setSelectedSubGenre(subGenre);
       setSearchQuery('');
    };
 
@@ -163,14 +170,14 @@ const MusicPool: React.FC = () => {
          const matchesSearch = title.includes(query) || artist.includes(query);
 
          const matchesCategory = activeCategory === 'All' ||
-            (activeCategory === 'New' && categories.some(c => c.toLowerCase() === 'new')) ||
+            (activeCategory === 'New' && (categories.some(c => c.toLowerCase() === 'new') || (track as any).isNew)) ||
             categories.some(c => c !== '' && (c.includes(activeCategory.toLowerCase()) || activeCategory.toLowerCase().includes(c)));
 
          const matchesYear = selectedYear === 'All' || Number(track.year) === Number(selectedYear);
 
-         const matchesGenre = selectedGenre === 'All' ||
-            (genre !== '' && (genre.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(genre))) ||
-            categories.some(c => c !== '' && (c.includes(selectedGenre.toLowerCase()) || selectedGenre.toLowerCase().includes(c)));
+         const matchesSubGenre = selectedSubGenre === 'All' || (track as any).subGenre === selectedSubGenre;
+
+         const matchesGenre = selectedGenre === 'All' || genre === selectedGenre.toLowerCase();
 
          // Month filtering for year-based categories
          // Month filtering for year-based categories
@@ -188,7 +195,7 @@ const MusicPool: React.FC = () => {
                return catLower.includes(abbr);
             });
 
-         return matchesSearch && matchesCategory && matchesYear && matchesGenre && matchesMonth;
+         return matchesSearch && matchesCategory && matchesYear && matchesGenre && matchesSubGenre && matchesMonth;
       }).sort((a, b) => {
          // Sort newest first — use dateAdded, then createdAt, then updatedAt as fallbacks
          const aTime = new Date(a.dateAdded || a.createdAt || a.updatedAt || 0).getTime();
@@ -352,6 +359,44 @@ const MusicPool: React.FC = () => {
                         </div>
                      </div>
 
+                     {/* Sub-Genre / Folder Filter (Internal Folders) */}
+                     {selectedGenre !== 'All' && (
+                        <div className="mb-6">
+                           {(() => {
+                              const currentGenreObj = (genres as any[]).find(g => g.name === selectedGenre);
+                              const subGenres = currentGenreObj?.subGenres || [];
+                              if (subGenres.length === 0) return null;
+
+                              return (
+                                 <div className="bg-[#15151A]/40 border border-white/10 rounded-3xl p-6 mb-8">
+                                    <div className="flex items-center gap-3 mb-4">
+                                       <Folder size={18} className="text-brand-cyan" />
+                                       <span className="text-white font-bold text-sm">Browse Folders:</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                       <button
+                                          onClick={() => changeSubGenre('All')}
+                                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedSubGenre === 'All' ? 'bg-brand-cyan text-black shadow-lg shadow-brand-cyan/20' : 'bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:border-white/10'}`}
+                                       >
+                                          All Folders
+                                       </button>
+                                       {subGenres.map((sg: string) => (
+                                          <button
+                                             key={sg}
+                                             onClick={() => changeSubGenre(sg)}
+                                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all max-w-[200px] truncate ${selectedSubGenre === sg ? 'bg-brand-cyan text-black shadow-lg shadow-brand-cyan/20' : 'bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:border-white/10'}`}
+                                             title={sg}
+                                          >
+                                             {sg}
+                                          </button>
+                                       ))}
+                                    </div>
+                                 </div>
+                              );
+                           })()}
+                        </div>
+                     )}
+
                      {/* Month Filter (shows when year is selected) */}
                      {selectedYear !== 'All' && (
                         <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
@@ -424,8 +469,13 @@ const MusicPool: React.FC = () => {
 
                                                    {/* Details: Title & Artist */}
                                                    <div className="min-w-0 flex-1">
-                                                      <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words">
+                                                      <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words flex items-center gap-2 flex-wrap">
                                                          {track.title}
+                                                         {((track.category || []).map(c => c.toLowerCase()).includes('new') || (track as any).isNew) && (
+                                                            <span className="bg-green-600 text-white px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-widest inline-flex h-fit">
+                                                               NEW
+                                                            </span>
+                                                         )}
                                                       </h4>
                                                       <p className="text-brand-purple text-sm font-medium opacity-90 truncate italic">{track.artist}</p>
                                                    </div>
@@ -437,13 +487,6 @@ const MusicPool: React.FC = () => {
                                                    <span className="bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-lg border border-brand-purple/30 text-[10px] font-black uppercase tracking-widest whitespace-normal max-w-full">
                                                       {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
                                                    </span>
-
-                                                   {/* NEW Badge */}
-                                                   {((track.category || []).map(c => c.toLowerCase()).includes('new') || (track as any).isNew) && (
-                                                      <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-lg border border-green-500/30 text-[10px] font-black uppercase tracking-widest">
-                                                         NEW
-                                                      </span>
-                                                   )}
 
                                                    {/* Version/Type Tag */}
                                                    <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
@@ -666,74 +709,98 @@ const MusicPool: React.FC = () => {
 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
-               {subscriptionPlans.map((plan) => {
-                  // 1. Check if this specific plan is allowed to have discounts
-                  // Per User Request: The One Week plan NEVER has a discount
-                  const isOneWeek = plan.id === 'KHpgU9C3B5Vnmr1iZsOa' || plan.name.toLowerCase().includes('1 week');
+               {subscriptionPlans
+                  .filter(plan => {
+                     // Filter out trial plan if it's expired
+                     if (plan.isTrial && plan.promoExpiry) {
+                        const expiry = new Date(plan.promoExpiry);
+                        if (new Date() > expiry) return false;
+                     }
+                     // Filter out trial plan if user has already used it
+                     if (plan.isTrial && user?.hasUsedTrial) {
+                        return false;
+                     }
+                     return true;
+                  })
+                  .map((plan) => {
+                     // 1. Check if this specific plan is allowed to have discounts
+                     // Per User Request: The One Week plan NEVER has a discount
+                     const isOneWeek = plan.id === 'KHpgU9C3B5Vnmr1iZsOa' || plan.name.toLowerCase().includes('1 week') || plan.isTrial;
 
-                  // 2. Check if the applied coupon/referral is restricted to specific plans
-                  const isPlanApplicable = appliedReferral?.applicablePlans
-                     ? appliedReferral.applicablePlans.includes(plan.id)
-                     : true;
+                     // 2. Check if the applied coupon/referral is restricted to specific plans
+                     const isPlanApplicable = appliedReferral?.applicablePlans
+                        ? appliedReferral.applicablePlans.includes(plan.id)
+                        : true;
 
-                  const canApplyDiscount = !isOneWeek && isPlanApplicable;
-                  const currentReferral = canApplyDiscount ? appliedReferral : null;
+                     const canApplyDiscount = !isOneWeek && isPlanApplicable;
+                     const currentReferral = canApplyDiscount ? appliedReferral : null;
 
-                  return (
-                     <div
-                        key={plan.id}
-                        className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
-                     >
-                        {currentReferral && (
-                           <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
-                              {currentReferral.discountType === 'percentage' ? `${currentReferral.discount}%` : `KES ${currentReferral.discount}`} APPLIED
-                           </div>
-                        )}
-                        {plan.isBestValue && (
-                           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
-                              Best Value
-                           </div>
-                        )}
-                        <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                        <div className="mb-6 flex items-baseline gap-2">
-                           <div className="flex items-baseline">
-                              <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
-                              <span className={`text-4xl font-bold tracking-tight ${currentReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
-                                 {plan.price.toLocaleString()}
-                              </span>
-                           </div>
-                           {currentReferral && (
-                              <div className="flex items-baseline">
-                                 <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
-                                 <span className="text-4xl font-bold text-white tracking-tight">
-                                    {currentReferral.discountType === 'percentage'
-                                       ? Math.round(plan.price * (1 - currentReferral.discount / 100)).toLocaleString()
-                                       : Math.max(0, plan.price - currentReferral.discount).toLocaleString()
-                                    }
-                                 </span>
+                     return (
+                        <div
+                           key={plan.id}
+                           className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
+                        >
+                           {plan.isTrial && (
+                              <div className="absolute -top-3 left-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-pulse">
+                                 Limited Time Promotion
                               </div>
                            )}
-                        </div>
+                           {currentReferral && (
+                              <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
+                                 {currentReferral.discountType === 'percentage' ? `${currentReferral.discount}%` : `KES ${currentReferral.discount}`} APPLIED
+                              </div>
+                           )}
+                           {plan.isBestValue && (
+                              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                                 Best Value
+                              </div>
+                           )}
+                           <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                           <div className="mb-6 flex items-baseline gap-2">
+                              <div className="flex items-baseline">
+                                 {plan.price > 0 ? (
+                                    <>
+                                       <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
+                                       <span className={`text-4xl font-bold tracking-tight ${currentReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
+                                          {plan.price.toLocaleString()}
+                                       </span>
+                                    </>
+                                 ) : (
+                                    <span className="text-4xl font-bold text-brand-cyan tracking-tight uppercase">Free</span>
+                                 )}
+                              </div>
+                              {currentReferral && plan.price > 0 && (
+                                 <div className="flex items-baseline">
+                                    <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
+                                    <span className="text-4xl font-bold text-white tracking-tight">
+                                       {currentReferral.discountType === 'percentage'
+                                          ? Math.round(plan.price * (1 - currentReferral.discount / 100)).toLocaleString()
+                                          : Math.max(0, plan.price - currentReferral.discount).toLocaleString()
+                                       }
+                                    </span>
+                                 </div>
+                              )}
+                           </div>
 
-                        <div className="flex-1">
-                           <ul className="space-y-4 mb-8">
-                              {(plan.features || []).map((feature, idx) => (
-                                 <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
-                                    <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
-                                    {feature}
-                                 </li>
-                              ))}
-                           </ul>
-                        </div>
+                           <div className="flex-1">
+                              <ul className="space-y-4 mb-8">
+                                 {(plan.features || []).map((feature, idx) => (
+                                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
+                                       <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
+                                       {feature}
+                                    </li>
+                                 ))}
+                              </ul>
+                           </div>
 
-                        <SubscribeButton
-                           plan={plan}
-                           referralInfo={currentReferral || undefined}
-                           className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                        />
-                     </div>
-                  )
-               })}
+                           <SubscribeButton
+                              plan={plan}
+                              referralInfo={currentReferral || undefined}
+                              className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                           />
+                        </div>
+                     )
+                  })}
             </div>
 
             {/* Referral Code Input */}

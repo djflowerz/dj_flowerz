@@ -4,6 +4,7 @@
  * Schedule: Run this via Vercel Cron every hour (vercel.json cron config).
  */
 
+import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -11,17 +12,29 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
+
+const mailer = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+});
+
 async function sendNotification(email: string, fields: Record<string, any>) {
-    const apiKey = process.env.MAILERLITE_API_KEY || process.env.VITE_MAILERLITE_API_KEY;
-    if (!apiKey || !email) return;
+    if (!email || !GMAIL_APP_PASSWORD) return;
     try {
-        await fetch('https://connect.mailerlite.com/api/subscribers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ email, fields: { ...fields, last_interaction: new Date().toISOString() } })
+        const message = fields.notification || `Your DJ Flowerz subscription has expired. Renew now to keep your access!`;
+        await mailer.sendMail({
+            from: `"DJ Flowerz" <${GMAIL_USER}>`,
+            replyTo: 'admin@djflowerz.co.ke',
+            to: email,
+            subject: `DJ Flowerz — Subscription Update`,
+            html: `<p>Hi ${fields.name || 'Subscriber'},</p><p>${message}</p><p><a href="https://djflowerz.co.ke/subscriptions">Renew your subscription</a></p><br/><p>— DJ Flowerz Team</p>`,
         });
     } catch (err) {
-        console.error('[CRON] Notification failed:', err);
+        console.error('[CRON] Email notification failed:', err);
     }
 }
 

@@ -201,12 +201,23 @@ export default async function handler(req: Request) {
         hasDownloadedThisTrack = uniqueTrackIds.has(trackId);
 
         const planId = (profile.subscription_plan || '').toLowerCase();
+        const isTrial = planId.includes('trial');
         const isWeekly = planId.includes('week') || planId.includes('7');
-        const limit = isWeekly ? 30 : 200;
+
+        let limit = 200;
+        if (isTrial) {
+            limit = 10;
+        } else if (isWeekly) {
+            limit = 30;
+        }
 
         // If this is a new unique track and we're at the limit, block it
         if (!hasDownloadedThisTrack && uniqueDownloadsCount >= limit && profile.role !== 'admin') {
-            return new Response(`Daily unique limit reached (${limit}/day).`, {
+            const message = isTrial
+                ? `Daily trial limit reached (10/day). Please upgrade to a paid plan for more access.`
+                : `Daily unique limit reached (${limit}/day).`;
+
+            return new Response(message, {
                 status: 429,
                 headers: { 'X-Downloads-Remaining': '0' }
             });

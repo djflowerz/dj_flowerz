@@ -121,22 +121,27 @@ function transformToR2Track(
     let downloadUrl = '';
 
     if ('key' in externalTrack && externalTrack.key) {
-        // Remix & Mashups format
+        // Remix & Mashups format: always needs prepending cdnBase as it only gives keys
         const encodedPath = externalTrack.key.split('/').map(encodeURIComponent).join('/');
         previewUrl = `${cdnBase}/${encodedPath}`;
         downloadUrl = previewUrl;
     } else if (externalTrack.url) {
-        // VickNick R2 format
-        // Ensure URL is encoded properly if it's a direct link with spaces/special chars
+        // VickNick R2 format: sometimes gives relative paths, sometimes full URLs
         const urlParts = externalTrack.url.split('/');
         const filename = urlParts.pop() || '';
         const encodedFilename = encodeURIComponent(filename).replace(/%20/g, '+');
         const encodedUrl = [...urlParts, encodedFilename].join('/');
 
-        previewUrl = encodedUrl;
-        downloadUrl = (externalTrack.downloadUrl ?
-            [...externalTrack.downloadUrl.split('/').slice(0, -1), encodeURIComponent(externalTrack.downloadUrl.split('/').pop() || '')].join('/') :
-            encodedUrl);
+        // Ensure absolute URL
+        previewUrl = encodedUrl.startsWith('http') ? encodedUrl : `${cdnBase}/${encodedUrl.replace(/^\//, '')}`;
+
+        const rawDl = externalTrack.downloadUrl || externalTrack.url;
+        const dlParts = rawDl.split('/');
+        const dlFilename = dlParts.pop() || '';
+        const encDlFilename = encodeURIComponent(dlFilename).replace(/%20/g, '+');
+        const encDlUrl = [...dlParts, encDlFilename].join('/');
+
+        downloadUrl = encDlUrl.startsWith('http') ? encDlUrl : `${cdnBase}/${encDlUrl.replace(/^\//, '')}`;
     }
 
     let title = externalTrack.baseTitle || externalTrack.title || 'Unknown Title';
@@ -262,39 +267,92 @@ async function ensureGenreExists(genreName: string): Promise<void> {
 }
 
 /**
+ * Deduplicate the entire pool_tracks collection in R2
+ * Returns the number of duplicates removed
+ */
+export async function deduplicatePool(): Promise<number> {
+    try {
+        console.log("🧹 Starting full pool deduplication...");
+        const existingTracks = await fetchFromR2<R2Track>('pool_tracks');
+        if (existingTracks.length === 0) return 0;
+
+        const unique = new Map<string, R2Track>();
+        let duplicatesCount = 0;
+
+        // Dedup by downloadUrl (most reliable) and then by id
+        existingTracks.forEach(t => {
+            const url = t.versions?.[0]?.downloadUrl || (t as any).download_url || t.previewUrl;
+            const key = url || t.id;
+
+            if (!unique.has(key)) {
+                unique.set(key, t);
+            } else {
+                duplicatesCount++;
+            }
+        });
+
+        if (duplicatesCount > 0) {
+            console.log(`🧹 Removing ${duplicatesCount} duplicates from pool_tracks. Total unique: ${unique.size}`);
+            await saveToR2('pool_tracks', Array.from(unique.values()));
+        } else {
+            console.log("✨ No duplicates found in pool_tracks.");
+        }
+
+        return duplicatesCount;
+    } catch (err) {
+        console.error("❌ Failed to deduplicate pool:", err);
+        return 0;
+    }
+}
+
+/**
  * Add new tracks to Firestore in batches
  */
 async function addTracksToFirestore(tracks: R2Track[], updateExisting: boolean = false): Promise<number> {
     if (tracks.length === 0) return 0;
 
-    console.log(`🔍 Checking ${tracks.length} tracks for duplicates in R2 bucket...`);
+    // 1. Deduplicate incoming tracks first (within the batch)
+    const uniqueIncoming = new Map<string, R2Track>();
+    tracks.forEach(t => {
+        const url = t.versions[0]?.downloadUrl;
+        if (url) {
+            // Keep the one that might have more info
+            if (!uniqueIncoming.has(url)) {
+                uniqueIncoming.set(url, t);
+            }
+        }
+    });
+
+    console.log(`🔍 Checking ${uniqueIncoming.size} unique incoming tracks for duplicates against R2...`);
 
     let existingTracks: R2Track[] = [];
     let existingUrls = new Set<string>();
     try {
         existingTracks = await fetchFromR2<R2Track>('pool_tracks');
         existingTracks.forEach(item => {
-            if (item.versions?.[0]?.downloadUrl) existingUrls.add(item.versions[0].downloadUrl);
-            else if ((item as any).download_url) existingUrls.add((item as any).download_url);
+            const url = item.versions?.[0]?.downloadUrl || (item as any).download_url;
+            if (url) existingUrls.add(url);
         });
         console.log(`✅ Loaded ${existingUrls.size} existing tracks from R2 for deduplication.`);
     } catch (err) {
-        console.error('❌ Failed to load existing tracks from R2. Starting fresh or aborting if this is unexpected.', err);
+        console.error('❌ Failed to load existing tracks from R2.', err);
     }
 
-    // Filter out existing tracks
-    const newTracks = tracks.filter(t => {
+    // 2. Filter out tracks that already exist in R2
+    const filteredTracks = Array.from(uniqueIncoming.values()).filter(t => {
         const url = t.versions[0]?.downloadUrl;
         return url && !existingUrls.has(url);
     });
 
-    if (newTracks.length === 0) {
+    if (filteredTracks.length === 0) {
         console.log('✨ All fetched tracks are already in the pool. No new tracks to add.');
+        // Still run a quick dedup on existing just in case
+        await deduplicatePool();
         return 0;
     }
 
     // Map results for storage
-    const records = newTracks.map(t => {
+    const records = filteredTracks.map(t => {
         return {
             ...t,
             id: t.id.startsWith('temp_') ? t.id.replace('temp_', '') : t.id,
@@ -307,9 +365,17 @@ async function addTracksToFirestore(tracks: R2Track[], updateExisting: boolean =
 
     try {
         console.log(`📤 Saving ${records.length} new tracks to R2 pool_tracks.json...`);
-        const updatedTracks = [...records, ...existingTracks];
-        await saveToR2('pool_tracks', updatedTracks);
-        console.log(`✅ Successfully updated R2 with ${records.length} new tracks. Total: ${updatedTracks.length}`);
+        // We also deduplicate the final combined array here to be absolutely sure
+        const combined = [...records, ...existingTracks];
+        const finalUnique = new Map();
+        combined.forEach((t: any) => {
+            const url = t.versions?.[0]?.downloadUrl || t.download_url || t.previewUrl || t.preview_url || t.id;
+            if (!finalUnique.has(url)) finalUnique.set(url, t);
+        });
+
+        const finalData = Array.from(finalUnique.values());
+        await saveToR2('pool_tracks', finalData);
+        console.log(`✅ Successfully updated R2 with ${records.length} new tracks. Total: ${finalData.length}`);
         return records.length;
     } catch (err) {
         console.error('❌ Error saving to R2:', err);

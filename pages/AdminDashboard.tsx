@@ -20,7 +20,7 @@ import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
 import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
-import { MailerLiteService } from '../services/MailerLiteService';
+
 import { uploadFileToR2, saveToR2 } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
@@ -1417,14 +1417,27 @@ const AdminDashboard: React.FC = () => {
          const { data: { session } } = await supabase.auth.getSession();
          const token = session?.access_token || '';
 
-         // Email sending via MailerLite (Now calling secure local API)
-         const result = await MailerLiteService.createCampaign(emailSubject, emailBody, token);
+         // Email campaign via secure local API (Cloudflare Email Routing)
+         const response = await fetch('/api/newsletter/send', {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+               subject: emailSubject,
+               html: emailBody,
+               subscribers: (subscribers || []).map((s: any) => s.email || s)
+            })
+         });
 
-         if (!result.success) {
-            throw new Error(result.error);
+         const result = await response.json();
+
+         if (!response.ok) {
+            throw new Error(result.error || 'Failed to send campaign');
          }
 
-         alert(`Campaign sent successfully via MailerLite!`);
+         alert(`Campaign sent successfully to ${(subscribers || []).length} subscribers!`);
 
          // Also record the campaign
          await addCampaign({
@@ -2232,13 +2245,28 @@ const AdminDashboard: React.FC = () => {
                                           Database Fully Synchronized ({poolTracks.length.toLocaleString()} tracks)
                                        </p>
                                     </div>
-                                    <button
-                                       onClick={() => loadMorePoolTracks(1000000)}
-                                       className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2"
-                                    >
-                                       <Database size={16} />
-                                       Refresh Connection
-                                    </button>
+                                    <div className="flex gap-3">
+                                       <button
+                                          onClick={async () => {
+                                             const { deduplicatePool } = await import('../utils/autoSyncTracks');
+                                             if (window.confirm('Deduplicate Music Pool? This will scan ~50k tracks and remove duplicates. It may take a moment.')) {
+                                                const removed = await deduplicatePool();
+                                                alert(`Successfully removed ${removed} duplicates from the Music Pool.`);
+                                                if (refreshPoolTracks) refreshPoolTracks();
+                                             }
+                                          }}
+                                          className="px-6 py-3 bg-brand-cyan/10 hover:bg-brand-cyan border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-brand-cyan hover:text-black transition-all flex items-center gap-2"
+                                       >
+                                          <RefreshCw size={16} /> Cleanup Pool
+                                       </button>
+                                       <button
+                                          onClick={() => loadMorePoolTracks(1000000)}
+                                          className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2"
+                                       >
+                                          <Database size={16} />
+                                          Refresh Connection
+                                       </button>
+                                    </div>
                                  </div>
                               )}
                            </div>
@@ -2302,7 +2330,7 @@ const AdminDashboard: React.FC = () => {
                                        const resp = await fetch(REMIX_HUB_URL);
                                        if (resp.ok) {
                                           const tracks = await resp.json();
-                                          allIncoming = [...allIncoming, ...tracks];
+                                          allIncoming = [...allIncoming, ...tracks.map((t: any) => ({ ...t, _origin: 'remixHub' }))];
                                        }
                                     } catch (e) {
                                        console.error('Remix Hub fetch failed:', e);
@@ -2316,7 +2344,7 @@ const AdminDashboard: React.FC = () => {
                                           const match = html.match(/ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/);
                                           if (match && match[1]) {
                                              const tracks = JSON.parse(match[1]);
-                                             allIncoming = [...allIncoming, ...tracks];
+                                             allIncoming = [...allIncoming, ...tracks.map((t: any) => ({ ...t, _origin: 'vidPool' }))];
                                           }
                                        }
                                     } catch (e) {
@@ -2326,17 +2354,19 @@ const AdminDashboard: React.FC = () => {
                                     const sinceTime = new Date(scanSince).getTime();
 
                                     // Build de-duplication sets
+                                    const norm = (u: string) => (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
                                     const poolUrls = new Set();
                                     (poolTracks || []).forEach((t: any) => {
-                                       if (t.audioUrl) poolUrls.add(t.audioUrl);
-                                       if (t.downloadUrl) poolUrls.add(t.downloadUrl);
+                                       if (t.audioUrl) poolUrls.add(norm(t.audioUrl));
+                                       if (t.downloadUrl) poolUrls.add(norm(t.downloadUrl));
+                                       if (t.previewUrl) poolUrls.add(norm(t.previewUrl));
                                        (t.versions || []).forEach((v: any) => {
-                                          if (v.downloadUrl) poolUrls.add(v.downloadUrl);
-                                          if (v.url) poolUrls.add(v.url);
+                                          if (v.downloadUrl) poolUrls.add(norm(v.downloadUrl));
+                                          if (v.url) poolUrls.add(norm(v.url));
                                        });
                                     });
                                     const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
-                                    const stagedUrls = new Set((scannedTracks || []).map((t: any) => t.downloadUrl));
+                                    const stagedUrls = new Set((scannedTracks || []).map((t: any) => norm(t.downloadUrl)));
 
                                     const toSave: any[] = [];
                                     let skippedOld = 0;
@@ -2350,10 +2380,22 @@ const AdminDashboard: React.FC = () => {
                                        if (!key) continue;
 
                                        const scannedId = `scanned_${key.replace(/\//g, '_')}`;
-                                       const downloadUrl = t.url || t.downloadUrl || `/mashups/${key}`;
+
+                                       // Construct absolute URL
+                                       let downloadUrl = t.url || t.downloadUrl || '';
+                                       if (!downloadUrl && t._origin === 'remixHub' && t.key) {
+                                          const encodedPath = t.key.split('/').map(encodeURIComponent).join('/');
+                                          downloadUrl = `https://cdn.vicknickvideopool.com/${encodedPath}`;
+                                       } else if (downloadUrl && !downloadUrl.startsWith('http')) {
+                                          const base = t._origin === 'vidPool' ? 'https://r2.vicknickvideopool.com' : 'https://cdn.vicknickvideopool.com';
+                                          downloadUrl = `${base}/${downloadUrl.replace(/^\//, '')}`;
+                                       } else if (!downloadUrl) {
+                                          downloadUrl = `/mashups/${key}`;
+                                       }
+                                       const normalizedDl = norm(downloadUrl);
 
                                        // Skip if already in pool (by URL) or already staged
-                                       if (poolUrls.has(downloadUrl) || stagedIds.has(scannedId) || (downloadUrl && stagedUrls.has(downloadUrl))) {
+                                       if (poolUrls.has(normalizedDl) || stagedIds.has(scannedId) || (downloadUrl && stagedUrls.has(normalizedDl))) {
                                           skippedDupe++;
                                           continue;
                                        }
@@ -2522,11 +2564,42 @@ const AdminDashboard: React.FC = () => {
                                                    onClick={async () => {
                                                       if (window.confirm('Clear all pending tracks? This will remove everything from the staging list.')) {
                                                          await clearAllScannedTracks();
+                                                         alert('Staging queue cleared!');
                                                       }
                                                    }}
                                                    className="px-6 py-3 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
                                                 >
                                                    Clear All
+                                                </button>
+                                                <button
+                                                   onClick={async () => {
+                                                      if (window.confirm('Run deduplication on the staging list? This will remove duplicate entries from this queue.')) {
+                                                         const unique = new Map();
+                                                         const norm = (u: string) => (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+                                                         let dupeCount = 0;
+                                                         (scannedTracks || []).forEach((t: any) => {
+                                                            const key = norm(t.downloadUrl || t.url || t.id);
+                                                            if (!unique.has(key)) {
+                                                               unique.set(key, t);
+                                                            } else {
+                                                               dupeCount++;
+                                                            }
+                                                         });
+
+                                                         if (dupeCount > 0) {
+                                                            const uniqueList = Array.from(unique.values());
+                                                            // Replacement logic: clear and re-add unique items
+                                                            await clearAllScannedTracks();
+                                                            await addScannedTracks(uniqueList);
+                                                            alert(`Staging list deduplicated! ${dupeCount} duplicates removed.`);
+                                                         } else {
+                                                            alert('Staging list is already clean! No duplicates found.');
+                                                         }
+                                                      }
+                                                   }}
+                                                   className="px-6 py-3 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2"
+                                                >
+                                                   <Trash2 size={13} /> Filter Duplicates
                                                 </button>
                                                 {selectedScanIds.size > 0 && (
                                                    <button

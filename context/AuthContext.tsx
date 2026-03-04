@@ -17,6 +17,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   subscribe: () => Promise<void>;
+  activateTrial: () => Promise<void>;
   updateUserProfile: (data: Partial<User>) => Promise<void>;
   updateUserPassword: (password: string) => Promise<void>;
   updateUserEmail: (email: string) => Promise<void>;
@@ -88,6 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             auraPoints: profile.aura_points || profile.auraPoints || 0,
             auraLevel: profile.aura_level || profile.auraLevel || 1,
             phoneNumber: profile.phone_number || profile.phoneNumber || '',
+            hasUsedTrial: profile.has_used_trial || profile.hasUsedTrial || false,
             createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
             updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString()
           };
@@ -176,6 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             balance: 0,
             auraPoints: 0,
             auraLevel: 1,
+            hasUsedTrial: false,
             createdAt: newProfile.created_at,
             updatedAt: newProfile.updated_at
           };
@@ -359,6 +362,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.auraPoints !== undefined) updates.aura_points = data.auraPoints;
       if (data.auraLevel !== undefined) updates.aura_level = data.auraLevel;
       if (data.phoneNumber) updates.phone_number = data.phoneNumber;
+      if (data.hasUsedTrial !== undefined) updates.has_used_trial = data.hasUsedTrial;
 
       await updateR2Item('profiles', user.id, updates);
 
@@ -436,6 +440,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (e) {
         console.error("Failed to update subscription in R2:", e);
         alert("Failed to update subscription. Check console.");
+      }
+    }
+  };
+
+  const activateTrial = async () => {
+    if (user) {
+      if (user.hasUsedTrial) {
+        throw new Error("You have already used your free trial.");
+      }
+
+      const updates = {
+        is_subscriber: true,
+        subscription_plan: 'trial',
+        subscription_expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        has_used_trial: true,
+        updated_at: new Date().toISOString()
+      };
+
+      try {
+        await updateR2Item('profiles', user.id, updates);
+
+        setUser(prev => prev ? ({
+          ...prev,
+          isSubscriber: true,
+          subscriptionPlan: 'trial',
+          subscriptionExpiry: updates.subscription_expiry,
+          hasUsedTrial: true
+        }) : null);
+
+      } catch (e) {
+        console.error("Failed to activate trial in R2:", e);
+        throw e;
       }
     }
   };
@@ -527,6 +563,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       logout,
       subscribe,
       updateUserProfile,
+      activateTrial,
       updateUserPassword,
       updateUserEmail,
       reauthenticate,

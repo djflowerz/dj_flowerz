@@ -9,6 +9,7 @@ interface SubscribeButtonProps {
         id: string;
         name: string;
         price: number;
+        isTrial?: boolean;
     };
     referralInfo?: {
         code: string;
@@ -20,10 +21,11 @@ interface SubscribeButtonProps {
 }
 
 const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, className }) => {
-    const { user } = useAuth();
+    const { user, activateTrial } = useAuth();
     const { isFirstTimeSubscriber, referralSettings } = useData();
     const navigate = useNavigate();
     const [isFirstTimer, setIsFirstTimer] = React.useState(false);
+    const [loading, setLoading] = React.useState(false);
 
     React.useEffect(() => {
         if (user?.id) {
@@ -59,7 +61,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
 
     const config = {
         reference: `sub_${plan.id}_${new Date().getTime()}`,
-        email: user?.email || 'guest@djflowerz.com',
+        email: user?.email || 'guest@djflowerz.co.ke',
         amount: finalAmount, // KES cents
         publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || '',
         currency: 'KES',
@@ -110,8 +112,44 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
         console.log('Payment closed');
     };
 
+    const handleTrialActivation = async () => {
+        if (!user) {
+            navigate('/login', { state: { from: '/music-pool' } });
+            return;
+        }
+
+        if (user.hasUsedTrial) {
+            alert("You have already used your free trial.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await activateTrial();
+            navigate('/success', {
+                state: {
+                    type: 'subscription',
+                    reference: `trial_${user.id}_${Date.now()}`,
+                    amount: 0,
+                    plan: plan.name,
+                    email: user?.email,
+                    date: new Date().toLocaleDateString()
+                }
+            });
+        } catch (error: any) {
+            alert(error.message || "Failed to activate trial");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
+
+        if (plan.isTrial) {
+            handleTrialActivation();
+            return;
+        }
 
         if (!config.publicKey) {
             alert("Payment configuration error: Missing Public Key");
@@ -131,8 +169,9 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
         <button
             onClick={handleClick}
             className={className}
+            disabled={loading}
         >
-            Subscribe Now
+            {loading ? 'Activating...' : plan.isTrial ? 'Start Free Trial' : 'Subscribe Now'}
         </button>
     );
 };

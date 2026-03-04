@@ -51,31 +51,12 @@ const Bookings: React.FC = () => {
                            }
 
                            try {
-                              // 1. Record as Subscriber Locally
+                              // 1. Record inquiry locally (Admin Dashboard Visibility)
                               await addSubscriber(email, 'Booking Inquiry');
 
-                              // 2. Sync with MailerLite (External)
-                              const { MailerLiteService } = await import('../services/MailerLiteService');
-                              const result = await MailerLiteService.subscribe({
-                                 email,
-                                 fields: {
-                                    name,
-                                    phone,
-                                    event_type: eventType,
-                                    event_date: eventDate,
-                                    duration,
-                                    location,
-                                    details,
-                                    budget
-                                 },
-                              });
-
-                              if (result.success) {
-                                 alert('Booking inquiry sent! DJ FLOWERZ will contact you soon.');
-                                 (e.target as HTMLFormElement).reset();
-                              } else {
-                                 alert('Error: ' + result.error);
-                              }
+                              // 2. Alert success
+                              alert('Booking inquiry sent! DJ FLOWERZ will contact you soon.');
+                              (e.target as HTMLFormElement).reset();
                            } catch (err) {
                               alert('Something went wrong. Please try again.');
                            } finally {
@@ -193,7 +174,7 @@ const Bookings: React.FC = () => {
                      <p className="text-sm text-gray-400 mb-6">For last-minute requests, please reach out via WhatsApp.</p>
                      <div className="space-y-4">
                         <div className="flex items-center gap-3 text-white font-medium">
-                           <Mail size={18} className="text-brand-purple" /> djflowerz254@gmail.com
+                           <Mail size={18} className="text-brand-purple" /> bookings@djflowerz.co.ke
                         </div>
                         <div className="flex items-center gap-3 text-white font-medium">
                            <Phone size={18} className="text-brand-purple" /> +254 789 783 258

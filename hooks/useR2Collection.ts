@@ -63,5 +63,7 @@ export const useR2Collection = <T extends { id: string }>(
         return () => clearInterval(interval);
     }, [collectionName, enabled, orderByField, orderDirection]);
 
-    return [data, setData, isLoading, error, fetchData] as const;
+    const loadMore = () => { console.warn("loadMore not implemented for static R2 source"); };
+
+    return [data, setData, isLoading, loadMore, error, fetchData] as const;
 };

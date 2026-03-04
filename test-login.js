@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
     console.log("Launching browser using local Chrome...");
     const browser = await chromium.launch({ channel: 'chrome' });
     const page = await browser.newPage();
-    await page.goto('https://dj-flowerz.vercel.app/#/login');
+    await page.goto('https://www.djflowerz.co.ke/#/login');
     console.log("Navigated to login page.");
 
     try {

@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AudioPlayer from './components/AudioPlayer';
@@ -30,6 +30,21 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
+
+const NavigationRefresh = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handlePopState = () => {
+      // Small timeout to ensure the URL has changed before reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 50);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+  return null;
+};
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -64,6 +79,7 @@ const App: React.FC = () => {
           <PlayerProvider>
             <Router>
               <ScrollToTop />
+              <NavigationRefresh />
               <Layout>
                 <Routes>
                   <Route path="/" element={<Home />} />

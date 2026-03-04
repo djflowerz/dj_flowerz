@@ -4,7 +4,7 @@
 
 Your application has been successfully configured, fixed, and is **running locally**!
 
-**URL**: https://dj-flowerz.vercel.app
+**URL**: https://www.djflowerz.co.ke
 **Admin User**: `ianmuriithiflowerz@gmail.com`
 
 ---
@@ -21,7 +21,7 @@ We resolved several issues to get your app running:
 ## 🚀 How to Use
 
 ### 1. Open the App
-Go to [https://dj-flowerz.vercel.app](https://dj-flowerz.vercel.app)
+Go to [https://www.djflowerz.co.ke](https://www.djflowerz.co.ke)
 
 ### 2. Sign In as Admin
 - Click **Login** / **Sign In**

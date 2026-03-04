@@ -18,7 +18,7 @@ async function insertMissed() {
             status: 'success',
             payment_ref: 'tip_1771827405142',
             payment_type: 'tip',
-            user_email: 'guest_tipper@djflowerz.com',
+            user_email: 'guest_tipper@djflowerz.co.ke',
             metadata: { type: 'tip' },
             created_at: '2026-02-23T06:17:24.000Z'
         }

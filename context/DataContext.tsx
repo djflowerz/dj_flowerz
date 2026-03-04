@@ -242,13 +242,23 @@ const cleanLabel = (label: string) => {
 
 // Supabase Mapping Helper
 const mapSupabaseTrack = (t: any): Track => {
+  // Common CDN bases for relative URLs
+  const DEFAULT_CDN_BASE = 'https://r2.vicknickvideopool.com';
+
+  const ensureAbsolute = (u: string) => {
+    if (!u) return u;
+    if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return u;
+    return `${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`;
+  };
+
   const versions = (t.versions || []).map((v: any) => ({
     ...v,
-    downloadUrl: v.downloadUrl || v.download_url
+    downloadUrl: ensureAbsolute(v.downloadUrl || v.download_url)
   }));
 
   // Robustly handle URLs - prioritizing streamable content
-  const previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
+  let previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
+  previewUrl = ensureAbsolute(previewUrl);
 
   return {
     ...t,
@@ -607,7 +617,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapSupabaseMixtape, 200, 'createdAt', 'desc', false);
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapSupabaseSessionType, undefined, 'createdAt', 'desc', false);
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
-  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', false);
+  const [rawSubscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', false);
+  const subscriptionPlans = React.useMemo(() => {
+    // Combine fetched plans with static plans to ensure the trial is always present
+    const combined = [...rawSubscriptionPlans];
+
+    SUBSCRIPTION_PLANS.forEach(staticPlan => {
+      if (!combined.find(p => p.id === staticPlan.id)) {
+        combined.push(staticPlan);
+      }
+    });
+
+    // Re-sort by price
+    return combined.sort((a, b) => a.price - b.price);
+  }, [rawSubscriptionPlans]);
   const [shippingZones, setShippingZones, zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
   const [genres, setGenres, genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapSupabaseGenre, undefined, 'createdAt', 'desc', false);
   const [youtubeVideos, setYoutubeVideos, videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
@@ -621,20 +644,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshPoolTracks = async () => {
     try {
       setPoolLoading(true);
-      // Increased limit from 100k to 1M to ensure all tracks are loaded as requested
-      const res = await fetch("https://music-worker.ianmuriithiflowerz.workers.dev?limit=1000000");
-      if (!res.ok) throw new Error("Failed to load music pool");
+      // Fetch pool tracks directly from R2 to avoid worker latency and Supabase dependency
+      const r2Url = import.meta.env.VITE_R2_URL || "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev";
+      const res = await fetch(`${r2Url}/data/pool_tracks.json`);
+      if (!res.ok) throw new Error("Failed to load music pool from R2");
       const data = await res.json();
       setPoolTracks(data.map(mapSupabaseTrack));
+      setPoolError(null);
     } catch (err: any) {
-      console.warn("Worker fetch failed, falling back to R2 directly...", err);
-      // Fallback to our existing R2 logic
-      try {
-        const fallbackData = await fetchFromR2<any>('pool_tracks');
-        setPoolTracks(fallbackData.map(mapSupabaseTrack));
-      } catch (fallbackErr: any) {
-        setPoolError(fallbackErr);
-      }
+      console.error("Pool fetch error:", err);
+      setPoolError(err);
+      if (POOL_TRACKS) setPoolTracks(POOL_TRACKS);
     } finally {
       setPoolLoading(false);
     }
@@ -649,6 +669,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Scanned Tracks (R2) - Only for admins
   const [scannedTracks, setScannedTracks, scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, undefined, 'created_at', 'desc', false);
+
+  // Auto-deduplicate scanned tracks on load and periodically for admins
+  useEffect(() => {
+    if (isAdmin && scannedTracks.length > 0) {
+      const unique = new Map();
+      let hasDuplicates = false;
+
+      scannedTracks.forEach((t: any) => {
+        const key = t.downloadUrl || t.url || t.id;
+        if (!unique.has(key)) {
+          unique.set(key, t);
+        } else {
+          hasDuplicates = true;
+        }
+      });
+
+      if (hasDuplicates) {
+        console.log(`🧹 Found and removing ${scannedTracks.length - unique.size} duplicates from scanned tracks.`);
+        const cleaned = Array.from(unique.values());
+        setScannedTracks(cleaned);
+        saveToR2('scanned_tracks', cleaned).catch(err => console.error("Failed to persist cleaned scanned tracks:", err));
+      }
+    }
+  }, [isAdmin, scannedTracks.length]);
 
   // Admin Only Collections (R2 - enabled for all to allow local filtering)
   const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
@@ -1036,22 +1080,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addScannedTracks = async (tracks: any[]) => {
     try {
-      // Deduplicate: filter out any incoming tracks whose ID already exists in staging
-      const newUnique = tracks.filter(nt => !scannedTracks.some((st: any) => st.id === nt.id));
+      // Robust Deduplication: Use a Map to ensure unique downloadUrls/IDs locally first
+      const uniqueIncoming = new Map();
+      tracks.forEach(t => {
+        const key = t.downloadUrl || t.url || t.id;
+        if (key && !uniqueIncoming.has(key)) {
+          uniqueIncoming.set(key, t);
+        }
+      });
 
-      if (newUnique.length === 0) return;
+      setScannedTracks(prev => {
+        // Filter out those that already exist in our LATEST scannedTracks state
+        const existingKeys = new Set((prev || []).map((st: any) => st.downloadUrl || st.url || st.id));
+        const newUniqueItems = Array.from(uniqueIncoming.values()).filter((ni: any) => {
+          const key = ni.downloadUrl || ni.url || ni.id;
+          return !existingKeys.has(key);
+        });
 
-      // Merge newest first (new tracks at the front)
-      const merged = [...newUnique, ...(scannedTracks || [])].slice(0, 50000);
+        if (newUniqueItems.length === 0) return prev || [];
 
-      // Optimistically update local state immediately so the table shows tracks right away
-      setScannedTracks(merged);
+        // Merge newest first (new tracks at the front)
+        const merged = [...newUniqueItems, ...(prev || [])].slice(0, 50000);
 
-      // Persist to R2 in background
-      await saveToR2('scanned_tracks', merged);
+        // Persist to R2 in background
+        saveToR2('scanned_tracks', merged).catch(err => {
+          console.error("Delayed R2 save error for scanned_tracks add:", err);
+        });
+
+        return merged;
+      });
     } catch (err: any) {
       console.error("Add scanned tracks failed:", err.message);
-      // Revert on failure by refreshing from R2
       refreshScannedTracks();
     }
   };
@@ -1798,16 +1857,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addScannedTracks,
     clearAllScannedTracks,
     deleteScannedTrack: async (id: string) => {
-      const updatedTracks = (scannedTracks || []).filter((t: any) => t.id !== id);
-      // Optimistically update local state immediately
-      setScannedTracks(updatedTracks);
-      // Persist to R2 in background
-      try {
-        await saveToR2('scanned_tracks', updatedTracks);
-      } catch (err: any) {
-        console.error("Delete scanned track failed:", err.message);
-        refreshScannedTracks();
-      }
+      setScannedTracks(prev => {
+        const next = (prev || []).filter((t: any) => t.id !== id);
+        // Persist to R2
+        saveToR2('scanned_tracks', next).catch(err => {
+          console.error("Delayed R2 save error for scanned_tracks delete:", err);
+        });
+        return next;
+      });
     },
 
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,

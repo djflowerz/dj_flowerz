@@ -435,40 +435,10 @@ async function handleSubscriptionDisable(data: any) {
 }
 
 /**
- * Helper to sync subscriber data and trigger receipts/automations in MailerLite
+ * Stub: Previously synced to MailerLite. Now all subscriber data is tracked
+ * in Supabase. Transactional emails go through Gmail SMTP via /api/newsletter/send.
  */
 async function syncToMailerLite(email: string, fields: Record<string, any>, groups: string[] = []) {
-    const apiKey = process.env.MAILERLITE_API_KEY;
-    if (!apiKey) {
-        console.warn('MailerLite API Key is not configured in webhook environment.');
-        return;
-    }
-
-    try {
-        const response = await fetch('https://connect.mailerlite.com/api/subscribers', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                email,
-                fields: {
-                    ...fields,
-                    last_interaction: new Date().toISOString(),
-                },
-                groups,
-            }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('MailerLite Sync Error:', error);
-        } else {
-            console.log(`Successfully synced ${email} to MailerLite`);
-        }
-    } catch (err) {
-        console.error('Failed to connect to MailerLite:', err);
-    }
+    console.log(`[Email stub] Would notify ${email} with fields:`, fields, 'groups:', groups);
+    // TODO: If you want automated transactional emails, call /api/newsletter/send here
 }

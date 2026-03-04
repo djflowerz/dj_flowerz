@@ -173,6 +173,7 @@ def seed_tracks():
             "year": year if year else 0,
             "genre": genre,
             "category": categories,
+            "isNew": year == 2026, # Mark 2026 tracks as new
             "versions": [{
                 "id": str(uuid.uuid5(namespace, full_path + "_v1")),
                 "type": v_type,

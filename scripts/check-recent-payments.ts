@@ -21,7 +21,7 @@ async function check() {
     
     // Check webhook URL is configured
     console.log('\n--- WEBHOOK URL CHECK ---');
-    const webhookUrl = 'https://dj-flowerz.vercel.app/api/paystack/webhook';
+    const webhookUrl = 'https://www.djflowerz.co.ke/api/paystack/webhook';
     const testRes = await fetch(webhookUrl, { method: 'GET' });
     console.log(`Webhook GET response: ${testRes.status}`);
 }

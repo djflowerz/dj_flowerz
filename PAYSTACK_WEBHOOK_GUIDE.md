@@ -3,7 +3,7 @@
 ## Webhook URL
 Your webhook URL is configured as:
 ```
-https://dj-flowerz.vercel.app/api/paystack/webhook
+https://www.djflowerz.co.ke/api/paystack/webhook
 ```
 *(Note: Use this URL in your Paystack Dashboard settings)*
 ```
@@ -111,7 +111,7 @@ REACT_APP_PAYSTACK_SECRET_KEY=sk_live_REDACTED
 
 ## Callback URL
 ```
-https://dj-flowerz.vercel.app/#/success
+https://www.djflowerz.co.ke/#/success
 ```
 
 This page should:
