@@ -1,0 +1,45 @@
+
+name = "djflowerz-worker"
+main = "worker/r2-storage-worker.js"
+compatibility_date = "2024-03-04"
+
+# 1. KV (Config & Sessions)
+[[kv_namespaces]]
+binding = "KV"
+id = "b668b18e61c347acb939e80cf89c173b"
+
+# 2. D1 (SQL Database)
+[[d1_databases]]
+binding = "DB"
+database_name = "djflowerz-db"
+database_id = "8deb2741-9dc3-4ab3-b720-c3c04e64487e"
+
+# 3. R2 (Assets)
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "djflowerz-images"
+
+# 4. Vectorize (AI Search)
+[[vectorize]]
+binding = "VECTOR_INDEX"
+index_name = "djflowerz-search-index"
+
+# 5. Workers AI (Embeddings)
+[ai]
+binding = "AI"
+
+[triggers]
+crons = []
+
+[[routes]]
+pattern = "djflowerz.co.ke"
+custom_domain = true
+
+[[routes]]
+pattern = "www.djflowerz.co.ke"
+custom_domain = true
+
+[vars]
+PUBLIC_R2_DOMAIN = "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev"
+VITE_ADMIN_EMAIL = "ianmuriithiflowerz@gmail.com"
+VITE_APP_URL = "https://www.djflowerz.co.ke"
