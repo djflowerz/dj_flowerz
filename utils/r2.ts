@@ -3,8 +3,8 @@ import { supabase } from './supabase';
 /**
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
-const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-const VITE_R2_URL = import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL;
+const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev').trim();
+const VITE_R2_URL = (import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL).trim();
 
 async function getAuthHeader() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -13,15 +13,22 @@ async function getAuthHeader() {
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
-        const url = `${VITE_R2_URL}/data/${collection}.json?t=${Date.now()}`;
+        // Unified approach: fetch through worker as requested
+        const url = `${STORAGE_WORKER_URL}/api/data/${collection}.json?t=${Date.now()}`;
         const response = await fetch(url);
         if (!response.ok) {
-            console.warn(`R2 fetch not ok for ${collection}:`, response.status);
+            console.warn(`Worker fetch not ok for ${collection}:`, response.status);
+            // Fallback for extreme cases where worker is down but R2 is up
+            if (VITE_R2_URL) {
+                const fallbackUrl = `${VITE_R2_URL}/data/${collection}.json?t=${Date.now()}`;
+                const fallbackRes = await fetch(fallbackUrl);
+                if (fallbackRes.ok) return await fallbackRes.json();
+            }
             return [];
         }
         return await response.json();
     } catch (error) {
-        console.error(`Failed to fetch ${collection} from R2:`, error);
+        console.error(`Failed to fetch ${collection} via Worker:`, error);
         return [];
     }
 }
@@ -89,7 +96,7 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
     const authHeader = await getAuthHeader();
     const uploadUrl = `${STORAGE_WORKER_URL}/api/admin/r2-upload`;
     console.log(`[R2] Attempting upload to: ${uploadUrl}`, { folder, fileName: file.name, type: file.type });
-    
+
     const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {

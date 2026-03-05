@@ -603,10 +603,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshPoolTracks = async () => {
     try {
       setPoolLoading(true);
-      // Fetch pool tracks directly from R2 to avoid worker latency and Supabase dependency
-      const r2Url = import.meta.env.VITE_R2_URL || "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev";
-      const res = await fetch(`${r2Url}/data/pool_tracks.json`);
-      if (!res.ok) throw new Error("Failed to load music pool from R2");
+      // Unified approach: fetch through worker proxy
+      const workerUrl = (import.meta.env.VITE_STORAGE_WORKER_URL || "https://djflowerz-worker.ianmuriithiflowerz.workers.dev").trim();
+      const res = await fetch(`${workerUrl}/api/data/pool_tracks.json?t=${Date.now()}`);
+      if (!res.ok) throw new Error("Failed to load music pool from Worker");
       const data = await res.json();
       setPoolTracks(data.map(mapSupabaseTrack));
       setPoolError(null);

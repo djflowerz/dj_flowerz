@@ -5,7 +5,7 @@ import { supabase } from './supabase';
  * Cloudflare Worker Service (BFF)
  * Unified interface for D1, R2, and KV
  */
-const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://remix-and-mashups-worker.dennismacharia20.workers.dev';
+const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev').trim();
 
 async function getAuthHeader() {
     const { data: { session } } = await supabase.auth.getSession();

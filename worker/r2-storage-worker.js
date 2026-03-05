@@ -28,10 +28,30 @@ export default {
         }
 
         try {
-            // --- 2. CONFIGURATION (KV) ---
+            // --- 2. CONFIGURATION & DATA (KV/R2) ---
             if (path === "/api/config") {
                 const config = await env.KV.get("SITE_CONFIG");
                 return new Response(config || "{}", { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            // Public Data Fetch: GET /api/data/:collection.json
+            if (method === "GET" && path.startsWith("/api/data/")) {
+                const collection = path.replace("/api/data/", "");
+                const key = `data/${collection}`;
+                const obj = await env.R2_BUCKET.get(key);
+
+                if (!obj) {
+                    return new Response(JSON.stringify([]), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                }
+
+                const body = await obj.arrayBuffer();
+                return new Response(body, {
+                    headers: {
+                        ...corsHeaders,
+                        "Content-Type": "application/json",
+                        "Cache-Control": "public, max-age=60" // Cache for 60s
+                    }
+                });
             }
 
             // --- 3. PRODUCTS & MIXTAPES (D1) ---
