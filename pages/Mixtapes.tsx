@@ -104,16 +104,7 @@ const Mixtapes: React.FC = () => {
                </div>
             </div>
 
-            {/* Error Message */}
-            {mixtapesError && (
-               <div className="mb-12 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
-                  <p className="font-bold flex items-center gap-2 mb-1">
-                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                     Catalog Error
-                  </p>
-                  <p className="text-sm opacity-80">Unable to load the mixtapes catalog. Please try again later.</p>
-               </div>
-            )}
+            {/* Error Message removed by request */}
 
             {/* Grid */}
             {filteredMixtapes.length > 0 ? (

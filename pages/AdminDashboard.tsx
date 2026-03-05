@@ -1514,12 +1514,7 @@ const AdminDashboard: React.FC = () => {
                   </h2>
                </div>
                <div className="flex items-center gap-6">
-                  {(poolError || productsError || mixtapesError) && (
-                     <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Quota Limited</span>
-                     </div>
-                  )}
+                  {/* Error block removed */}
                   <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full">
                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                      <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">Live Syncing</span>
@@ -1600,12 +1595,7 @@ const AdminDashboard: React.FC = () => {
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-               {(poolError || productsError || mixtapesError) && (
-                  <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-3">
-                     <div className="w-2 h-2 bg-red-500 rounded-full" />
-                     <p><strong>Warning:</strong> The database is currently experiencing high traffic. Some data matches may not display correctly until traffic subsides.</p>
-                  </div>
-               )}
+               {/* Error block removed */}
 
                {activeTab === 'dashboard' && (
                   <div className="space-y-8 animate-fade-in-up">
