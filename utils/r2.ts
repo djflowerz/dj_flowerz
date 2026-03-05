@@ -87,7 +87,10 @@ export async function removeR2Item(collection: string, id: string): Promise<bool
  */
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
+    const uploadUrl = `${STORAGE_WORKER_URL}/api/admin/r2-upload`;
+    console.log(`[R2] Attempting upload to: ${uploadUrl}`, { folder, fileName: file.name, type: file.type });
+    
+    const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
             'x-file-name': encodeURIComponent(file.name),
@@ -100,10 +103,12 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
 
     if (!response.ok) {
         const errText = await response.text().catch(() => response.statusText);
+        console.error(`[R2] Upload failed:`, { status: response.status, error: errText });
         throw new Error(`Upload failed (${response.status}): ${errText}`);
     }
 
     const result = await response.json();
+    console.log(`[R2] Upload successful:`, result);
     return { url: result.url, key: result.key };
 }
 
