@@ -3,9 +3,6 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useMe
 import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, MOCK_SUBSCRIBERS, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
-import { supabase } from '../utils/supabase';
-import { withRetry } from '../utils/supabaseRetry';
-import { useSupabaseCollection } from '../hooks/useSupabaseCollection';
 import { useR2Collection } from '../hooks/useR2Collection';
 import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items } from '../utils/r2';
 
@@ -71,9 +68,9 @@ const INITIAL_CONFIG: SiteConfig = {
   },
   notice: {
     enabled: false,
-    title: "Service Interruption",
-    message: "Our database is currently experiencing high traffic. Some products may not be visible. Please try again later.",
-    type: "error"
+    title: "Welcome",
+    message: "Welcome to DJ Flowerz. Experience the best mixtapes and music pool.",
+    type: "info"
   }
 };
 
@@ -136,7 +133,6 @@ interface DataContextType {
   studioRoomsLoading: boolean;
   maintenanceLogsLoading: boolean;
   sessionTypesLoading: boolean;
-  hasQuotaExceeded: boolean;
 
   // Actions
   seedDatabase: () => Promise<void>;
@@ -558,7 +554,6 @@ const useCollection = <T extends { id: string }>(
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, updateUserProfile } = useAuth();
-  const [hasQuotaExceeded, setHasQuotaExceeded] = useState(false);
 
   // Determine roles for conditional fetching
   const isAdmin = user?.role === 'admin';
@@ -1766,7 +1761,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     commentsLoading,
     mixtapesError: mixtapesError || null,
     poolError: poolError || null,
-    hasQuotaExceeded,
 
     seedDatabase,
     updateSiteConfig,
@@ -1855,7 +1849,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,
-    poolError, mixtapesError, hasQuotaExceeded, referralSettings
+    poolError, mixtapesError, referralSettings
   ]);
 
   return (

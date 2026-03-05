@@ -10,7 +10,7 @@ const Store: React.FC = () => {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
-  const { products, siteConfig, productsError, hasQuotaExceeded } = useData();
+  const { products, siteConfig, productsError } = useData();
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -386,13 +386,13 @@ const Store: React.FC = () => {
 
         {/* Product Grid */}
         < div className="flex-1 w-full" >
-          {(productsError || hasQuotaExceeded) && (
+          {productsError && (
             <div className="mb-8 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
               <p className="font-bold flex items-center gap-2 mb-1">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                Service Interruption
+                Store Error
               </p>
-              <p className="text-sm opacity-80">Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later or contact us if you need help with an order!</p>
+              <p className="text-sm opacity-80">Unable to load the store products. Please try again later or contact us if the issue persists.</p>
             </div>
           )}
           {

@@ -9,7 +9,7 @@ const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { itemCount } = useCart();
   const { user, isAuthenticated } = useAuth();
-  const { hasQuotaExceeded, siteConfig, notifications, markNotificationAsRead } = useData();
+  const { siteConfig, notifications, markNotificationAsRead } = useData();
   const location = useLocation();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -37,12 +37,10 @@ const Navbar: React.FC = () => {
 
   if (isAdminPage) return null;
 
-  const showNotice = hasQuotaExceeded || siteConfig.notice?.enabled;
-  const noticeTitle = hasQuotaExceeded ? "Service Interruption" : siteConfig.notice?.title;
-  const noticeMessage = hasQuotaExceeded
-    ? "Our database is currently experiencing high traffic and has hit its daily usage quota. Some products may not be visible. Please try again later or contact us if you need help!"
-    : siteConfig.notice?.message;
-  const noticeType = hasQuotaExceeded ? 'error' : siteConfig.notice?.type;
+  const showNotice = siteConfig.notice?.enabled;
+  const noticeTitle = siteConfig.notice?.title;
+  const noticeMessage = siteConfig.notice?.message;
+  const noticeType = siteConfig.notice?.type;
 
   const getBannerBg = () => {
     switch (noticeType) {
@@ -126,8 +124,8 @@ const Navbar: React.FC = () => {
                           >
                             <div className="flex justify-between items-start mb-1">
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${n.type === 'mixtape' ? 'bg-brand-purple/20 text-brand-purple' :
-                                  n.type === 'product' ? 'bg-brand-cyan/20 text-brand-cyan' :
-                                    'bg-white/10 text-gray-400'
+                                n.type === 'product' ? 'bg-brand-cyan/20 text-brand-cyan' :
+                                  'bg-white/10 text-gray-400'
                                 }`}>
                                 {n.type}
                               </span>

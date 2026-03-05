@@ -1,12 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { updateR2Item, addR2Item, getR2Collection } from '../../utils/server-r2';
 
-// Supabase remains for Auth verification/lookups if strictly needed, 
-// but we prioritize Cloudflare R2 for data.
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(SUPABASE_URL || '', SUPABASE_SERVICE_ROLE_KEY || '');
+// Cloudflare R2 is now our source of truth for all data.
+// Supabase is used strictly for Auth (via hooks/middleware), not database queries.
+
 
 export const config = {
     api: {

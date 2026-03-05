@@ -13,7 +13,7 @@ import Hero from '../components/Hero';
 const Mixtapes: React.FC = () => {
    const { playTrack, pauseTrack, resumeTrack, currentTrack, isPlaying } = usePlayer();
    const { user } = useAuth();
-   const { mixtapes, mixtapesError, hasQuotaExceeded, siteConfig } = useData();
+   const { mixtapes, mixtapesError, siteConfig } = useData();
    const [searchQuery, setSearchQuery] = useState('');
    const [selectedFormat, setSelectedFormat] = useState<'All' | 'Audio' | 'Video'>('All');
    const [selectedGenre, setSelectedGenre] = useState('All');
@@ -105,13 +105,13 @@ const Mixtapes: React.FC = () => {
             </div>
 
             {/* Error Message */}
-            {(mixtapesError || hasQuotaExceeded) && (
+            {mixtapesError && (
                <div className="mb-12 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
                   <p className="font-bold flex items-center gap-2 mb-1">
                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                     Service Interruption
+                     Catalog Error
                   </p>
-                  <p className="text-sm opacity-80">Our database is currently experiencing high traffic. Some mixtapes may not be visible. Please try again later or contact us if you need help!</p>
+                  <p className="text-sm opacity-80">Unable to load the mixtapes catalog. Please try again later.</p>
                </div>
             )}
 

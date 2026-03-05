@@ -6,6 +6,7 @@
  */
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
+import { getR2Collection } from '../../utils/server-r2';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -45,12 +46,14 @@ export default async function handler(req: any, res: any) {
             return res.status(401).json({ error: 'Unauthorized: Invalid token' });
         }
 
-        const isAdmin =
-            user.user_metadata?.role === 'admin' ||
+        // Verify Admin Role using R2 profiles.json
+        const profiles = await getR2Collection<any>('profiles');
+        const profile = profiles.find(p => p.id === user.id);
+        const isAdminEmail =
             user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') ||
             user.email === 'djflowerz254@gmail.com';
 
-        if (!isAdmin) {
+        if (profile?.role !== 'admin' && !isAdminEmail) {
             return res.status(403).json({ error: 'Forbidden: Admin access required' });
         }
     } catch {

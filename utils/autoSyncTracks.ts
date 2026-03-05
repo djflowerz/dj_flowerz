@@ -6,7 +6,6 @@
  * 2. VickNick Video Pool: https://r2.vicknickvideopool.com
  */
 
-import { supabase } from './supabase';
 import { fetchFromR2, saveToR2 } from './r2';
 
 // Track sources configuration
