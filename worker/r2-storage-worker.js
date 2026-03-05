@@ -101,19 +101,23 @@ export default {
                     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
                 }
 
-                const fileName = request.headers.get("x-file-name") || `upload_${Date.now()}`;
+                const rawFileName = request.headers.get("x-file-name") || `upload_${Date.now()}`;
+                // Decode any URL-encoded characters, then sanitize for R2 key safety
+                const decodedName = decodeURIComponent(rawFileName);
+                const safeFileName = decodedName.replace(/[^a-zA-Z0-9._\-]/g, '_');
                 const folder = request.headers.get("x-folder") || 'uploads';
                 const contentType = request.headers.get("content-type") || "application/octet-stream";
-                const key = `${folder}/${fileName}`;
+                const key = `${folder}/${safeFileName}`;
 
                 // Stream the request body directly to R2 for better memory efficiency with large files
                 await env.R2_BUCKET.put(key, request.body, {
                     httpMetadata: { contentType }
                 });
 
+                const publicDomain = env.PUBLIC_R2_DOMAIN || 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
                 return new Response(JSON.stringify({
                     success: true,
-                    url: `https://${env.PUBLIC_R2_DOMAIN || 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev'}/${key}`,
+                    url: `https://${publicDomain}/${key}`,
                     key: key
                 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
