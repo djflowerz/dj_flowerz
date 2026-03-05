@@ -36,12 +36,22 @@ export default {
 
             // Public Data Fetch: GET /api/data/:collection.json
             if (method === "GET" && path.startsWith("/api/data/")) {
-                const collection = path.replace("/api/data/", "");
-                const key = `data/${collection}`;
-                const obj = await env.R2_BUCKET.get(key);
+                let collection = path.replace("/api/data/", "");
+                // Ensure we handle both "products" and "products.json" reliably
+                if (collection.endsWith(".json")) {
+                    collection = collection.replace(".json", "");
+                }
 
+                const key = `data/${collection}.json`;
+                console.log(`[Worker] Fetching from R2: ${key}`);
+
+                const obj = await env.R2_BUCKET.get(key);
                 if (!obj) {
-                    return new Response(JSON.stringify([]), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                    console.warn(`[Worker] Not found in R2: ${key}`);
+                    return new Response(JSON.stringify([]), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                        status: 200 // Return empty array instead of 404 for frontend stability
+                    });
                 }
 
                 const body = await obj.arrayBuffer();
@@ -49,7 +59,7 @@ export default {
                     headers: {
                         ...corsHeaders,
                         "Content-Type": "application/json",
-                        "Cache-Control": "public, max-age=60" // Cache for 60s
+                        "Cache-Control": "public, max-age=10" // Reduced cache for easier debugging
                     }
                 });
             }

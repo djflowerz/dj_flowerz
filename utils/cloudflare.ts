@@ -39,7 +39,7 @@ export async function saveToD1(collection: string, data: any): Promise<boolean> 
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
-        const url = `${STORAGE_WORKER_URL}/data/${collection}.json?t=${Date.now()}`;
+        const url = `${STORAGE_WORKER_URL}/api/data/${collection}.json?t=${Date.now()}`;
         const response = await fetch(url);
         if (!response.ok) return [];
         return await response.json();
@@ -51,9 +51,14 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
 
 export async function uploadToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`${STORAGE_WORKER_URL}/api/upload/${folder}/${file.name}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type, ...authHeader },
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
+        method: 'POST',
+        headers: {
+            'x-file-name': encodeURIComponent(file.name),
+            'x-folder': folder,
+            'content-type': file.type,
+            ...authHeader
+        },
         body: file,
     });
     if (!response.ok) return null;
