@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 
 async function findUser() {
-    const email = 'bidalielvis@gmail.com';
+    const email = 'ianmuriithiflowerz@gmail.com';
     console.log(`Searching for ${email} in profiles table...`);
     const { data: profile, error: pError } = await supabase.from('profiles').select('*').eq('email', email).maybeSingle();
 

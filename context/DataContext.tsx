@@ -1486,7 +1486,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addCoupon = async (coupon: Coupon) => {
+    const addCoupon = async (coupon: Coupon) => {
     try {
       const docId = coupon.id || `cpn_${Date.now()}`;
       const newCoupons = [{ ...coupon, id: docId, updatedAt: new Date().toISOString() }, ...coupons];
@@ -1497,7 +1497,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateCoupon = async (id: string, data: Partial<Coupon>) => {
+    const updateCoupon = async (id: string, data: Partial<Coupon>) => {
     try {
       const newCoupons = coupons.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
       await saveToR2('coupons', newCoupons);
@@ -1621,7 +1621,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
+    const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
       const docId = `msg_${Date.now()}`;
       const newMessage: ContactMessage = {
@@ -1630,7 +1630,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         status: 'new',
         createdAt: new Date().toISOString(),
       };
-      const newMessages = [newMessage, ...(contactMessages || [])];
+      const newMessages = [newMessage, ...contactMessages];
       await saveToR2('contact_messages', newMessages);
       refreshContactMessages();
     } catch (err: any) {
@@ -1638,9 +1638,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
+    const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
     try {
-      const newMessages = (contactMessages || []).map(m => m.id === id ? { ...m, ...updates } : m);
+      const newMessages = contactMessages.map(m => m.id === id ? { ...m, ...updates } : m);
       await saveToR2('contact_messages', newMessages);
       refreshContactMessages();
     } catch (err: any) {
