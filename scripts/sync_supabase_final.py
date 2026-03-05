@@ -7,7 +7,7 @@ import urllib.parse
 import uuid
 
 # Supabase Configuration
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", "https://ogdxnqzhqvvhrrvrqoup.supabase.co")
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", "https://yevqnoynsqidtplxggzs.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 if not SUPABASE_KEY:

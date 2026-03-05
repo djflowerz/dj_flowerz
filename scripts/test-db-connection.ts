@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const password = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const host = 'db.ogdxnqzhqvvhrrvrqoup.supabase.co';
+const host = 'db.yevqnoynsqidtplxggzs.supabase.co';
 const user = 'postgres';
 const database = 'postgres';
 

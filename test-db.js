@@ -2,7 +2,7 @@
 import pkg from 'pg';
 const { Client } = pkg;
 
-const connectionString = 'postgresql://postgres.ogdxnqzhqvvhrrvrqoup:%40Ravin303%23Wanjo@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+const connectionString = 'postgresql://postgres.yevqnoynsqidtplxggzs:%40Ravin303%23Wanjo@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
 
 async function testConnection() {
     const client = new Client({

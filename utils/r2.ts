@@ -4,7 +4,7 @@ import { supabase } from './supabase';
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
 const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://www.djflowerz.co.ke';
-const R2_URL = STORAGE_WORKER_URL; // Using worker for both read and write
+const VITE_R2_URL = import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL;
 
 async function getAuthHeader() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -13,12 +13,15 @@ async function getAuthHeader() {
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     try {
-        const url = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
+        const url = `${VITE_R2_URL}/data/${collection}.json?t=${Date.now()}`;
         const response = await fetch(url);
-        if (!response.ok) return [];
+        if (!response.ok) {
+            console.warn(`R2 fetch not ok for ${collection}:`, response.status);
+            return [];
+        }
         return await response.json();
     } catch (error) {
-        console.error(`Failed to fetch ${collection} from Worker:`, error);
+        console.error(`Failed to fetch ${collection} from R2:`, error);
         return [];
     }
 }

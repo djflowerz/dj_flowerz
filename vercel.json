@@ -1,5 +1,18 @@
 {
     "framework": "vite",
+    "redirects": [
+        {
+            "source": "/(.*)",
+            "has": [
+                {
+                    "type": "host",
+                    "value": "dj-flowerz.vercel.app"
+                }
+            ],
+            "destination": "https://djflowerz.co.ke/$1",
+            "permanent": true
+        }
+    ],
     "headers": [
         {
             "source": "/api/v1/products",
