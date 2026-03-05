@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 /**
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
-const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://www.djflowerz.co.ke';
+const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 const VITE_R2_URL = import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL;
 
 async function getAuthHeader() {

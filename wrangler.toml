@@ -31,13 +31,8 @@ binding = "AI"
 [triggers]
 crons = []
 
-[[routes]]
-pattern = "djflowerz.co.ke"
-custom_domain = true
-
-[[routes]]
-pattern = "www.djflowerz.co.ke"
-custom_domain = true
+# Deploy to workers.dev instead to avoid breaking the Vercel site.
+# workers_dev = true
 
 [vars]
 PUBLIC_R2_DOMAIN = "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev"
