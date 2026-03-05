@@ -21,8 +21,15 @@ export const useSupabaseCollection = <T extends { id: string }>(
         setIsLoading(true);
         let query = supabase.from(tableName).select('*');
 
-        if (orderByField) {
-            query = query.order(orderByField, { ascending: orderDirection === 'asc' });
+        const sbOrderBy = orderByField === 'createdAt' ? 'created_at' :
+            orderByField === 'updatedAt' ? 'updated_at' :
+                orderByField === 'dateSubscribed' ? 'date_subscribed' :
+                    orderByField === 'startDate' ? 'start_date' :
+                        orderByField === 'dateAdded' ? 'date_added' :
+                            orderByField;
+
+        if (sbOrderBy) {
+            query = query.order(sbOrderBy, { ascending: orderDirection === 'asc' });
         }
 
         if (limit) {
@@ -55,8 +62,15 @@ export const useSupabaseCollection = <T extends { id: string }>(
 
         let query = supabase.from(tableName).select('*').range(from, to);
 
-        if (orderByField) {
-            query = query.order(orderByField, { ascending: orderDirection === 'asc' });
+        const sbOrderBy = orderByField === 'createdAt' ? 'created_at' :
+            orderByField === 'updatedAt' ? 'updated_at' :
+                orderByField === 'dateSubscribed' ? 'date_subscribed' :
+                    orderByField === 'startDate' ? 'start_date' :
+                        orderByField === 'dateAdded' ? 'date_added' :
+                            orderByField;
+
+        if (sbOrderBy) {
+            query = query.order(sbOrderBy, { ascending: orderDirection === 'asc' });
         }
 
         const { data: results, error: sbError } = await query;

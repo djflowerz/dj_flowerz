@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { createClient } from '@supabase/supabase-js';
 
 // R2 Credentials
@@ -55,14 +55,22 @@ export default async function handler(req: any, res: any) {
         const isAdminEmail = user.user_metadata?.role === 'admin' || user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || user.email === 'testadmin@example.com' || user.email === 'djflowerz254@gmail.com';
 
         if (!isAdminEmail) {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-
-            if (!profile || profile.role !== 'admin') {
-                return res.status(403).json({ error: 'Forbidden: Admin access required' });
+            const profilesKey = `data/profiles.json`;
+            try {
+                const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: profilesKey });
+                const response = await s3.send(getCmd);
+                const str = await response.Body?.transformToString();
+                if (str) {
+                    const profiles = JSON.parse(str);
+                    const profile = profiles.find((p: any) => p.id === user.id);
+                    if (!profile || profile.role !== 'admin') {
+                        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+                    }
+                } else {
+                    return res.status(403).json({ error: 'Forbidden: Admin access required' });
+                }
+            } catch (err) {
+                return res.status(403).json({ error: 'Forbidden: Admin access verification failed' });
             }
         }
     } catch (err) {

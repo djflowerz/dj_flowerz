@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
+import { getR2Collection, updateR2Item, addR2Item } from '../../utils/server-r2';
 
 // Initialize Supabase Admin Client
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -116,14 +117,10 @@ export default async function handler(req: Request) {
 
     // 1. Verification Strategy: Auth Token OR Order ID OR Public Mixtape
     if (orderId) {
-        // ... (existing order logic)
-        const { data: order, error: orderError } = await supabaseAdmin
-            .from('orders')
-            .select('*')
-            .eq('id', orderId)
-            .maybeSingle();
+        const orders = await getR2Collection<any>('orders');
+        const order = orders.find(o => o.id === orderId);
 
-        if (orderError || !order) {
+        if (!order) {
             return new Response('Order not found or invalid', { status: 404 });
         }
 
@@ -136,30 +133,25 @@ export default async function handler(req: Request) {
         }
 
         user = { id: order.user_id || 'guest', email: order.customer_email };
+        profile = { id: user.id, email: user.email, role: 'user' }; // Order exists = temporary privilege
     } else {
         const authHeader = req.headers.get('Authorization');
         const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
         if (token) {
+            // Still need Supabase for AUTH (token verification)
             const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
             if (!authError && authUser) {
                 user = authUser;
-                const { data: p } = await supabaseAdmin
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .maybeSingle();
-                profile = p;
+                const profiles = await getR2Collection<any>('profiles');
+                profile = profiles.find(p => p.id === user.id);
             }
         }
 
         // If no user/profile, check if this is a free mixtape public download
         if (!profile && (type === 'mixtape_audio' || type === 'mixtape_video')) {
-            const { data: mixtape, error: mError } = await supabaseAdmin
-                .from('mixtapes')
-                .select('id, download_type, allow_download')
-                .eq('id', trackId)
-                .maybeSingle();
+            const mixtapes = await getR2Collection<any>('mixtapes');
+            const mixtape = mixtapes.find(m => m.id === trackId);
 
             if (mixtape && mixtape.allow_download && mixtape.download_type === 'free') {
                 // Allow public download
@@ -173,91 +165,60 @@ export default async function handler(req: Request) {
     }
 
     // 2. Privilege Check
-    // If it's a store purchase (orderId provided), we already verified the link.
-    // If it's a Pool track download via Auth, check subscription.
     if (!orderId && type === 'track' && !profile?.is_subscriber && profile?.role !== 'admin') {
         return new Response('Subscription required', { status: 403 });
     }
 
-    // 3. Deduplicated Daily Limits (Rolling 24-hour window)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    let uniqueDownloadsCount = 0;
-    let hasDownloadedThisTrack = false;
+    // 3. Daily Limits (Simplified for R2 - checking last_download_date and downloads_today)
+    const nowISO = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    let downloadsToday = profile?.downloads_today || 0;
+    const lastDownloadDate = profile?.last_download_date?.split('T')[0];
 
-    if (profile) {
-        // Fetch unique tracks downloaded in the last 24 hours
-        const { data: recentDownloads, error: logsError } = await supabaseAdmin
-            .from('download_logs')
-            .select('track_id')
-            .eq('user_id', user.id)
-            .gt('created_at', twentyFourHoursAgo);
+    if (lastDownloadDate !== nowISO) {
+        downloadsToday = 0;
+    }
 
-        if (logsError) {
-            console.error('[Download] Error fetching logs for limit check:', logsError);
-        }
-
-        const uniqueTrackIds = new Set(recentDownloads?.map(l => l.track_id) || []);
-        uniqueDownloadsCount = uniqueTrackIds.size;
-        hasDownloadedThisTrack = uniqueTrackIds.has(trackId);
-
+    if (profile && profile.role !== 'admin') {
         const planId = (profile.subscription_plan || '').toLowerCase();
         const isTrial = planId.includes('trial');
         const isWeekly = planId.includes('week') || planId.includes('7');
 
         let limit = 200;
-        if (isTrial) {
-            limit = 10;
-        } else if (isWeekly) {
-            limit = 30;
+        if (isTrial) limit = 10;
+        else if (isWeekly) limit = 30;
+
+        if (downloadsToday >= limit) {
+            return new Response(`Daily limit reached (${limit}/day).`, { status: 429 });
         }
 
-        // If this is a new unique track and we're at the limit, block it
-        if (!hasDownloadedThisTrack && uniqueDownloadsCount >= limit && profile.role !== 'admin') {
-            const message = isTrial
-                ? `Daily trial limit reached (10/day). Please upgrade to a paid plan for more access.`
-                : `Daily unique limit reached (${limit}/day).`;
-
-            return new Response(message, {
-                status: 429,
-                headers: { 'X-Downloads-Remaining': '0' }
-            });
-        }
-
-        // Calculate remaining (if this is a new track, it will take up one slot)
-        const effectiveRemaining = Math.max(0, limit - (hasDownloadedThisTrack ? uniqueDownloadsCount : uniqueDownloadsCount + 1));
-
-        // Update profile with the latest unique count (for real-time sync)
-        // Note: We use the *new* count if this is a new unique download
-        const finalUniqueCount = hasDownloadedThisTrack ? uniqueDownloadsCount : uniqueDownloadsCount + 1;
-
-        // Use background promise for profile update to avoid blocking
-        const updatePromise = supabaseAdmin.from('profiles').update({
-            downloads_today: finalUniqueCount, // Using this column for the unique count now
+        // Increment count in R2
+        await updateR2Item<any>('profiles', profile.id, {
+            downloads_today: downloadsToday + 1,
             last_download_date: new Date().toISOString()
-        }).eq('id', user.id);
-
-        // Attach the update promise to be awaited later
-        body._updatePromise = updatePromise;
-        body._remaining = hasDownloadedThisTrack ? limit - uniqueDownloadsCount : limit - (uniqueDownloadsCount + 1);
+        });
     }
 
-    // 4. Log Download & Increment Global Count
-    const logPromise = supabaseAdmin.from('download_logs').insert({
-        user_id: user.id === 'guest' ? null : user.id,
-        order_id: orderId || null,
-        type: type,
-        track_id: trackId,
-        details: { artist: body.artist, title: body.title },
-        ip_address: req.headers.get('x-forwarded-for') || 'unknown',
-        user_agent: req.headers.get('user-agent') || 'unknown'
-    });
-
-    const statsPromise = type === 'track' ? supabaseAdmin.rpc('increment_download_count', { t_id: trackId }) : Promise.resolve();
+    // 4. Log Download (Optional: append to daily log file instead of central DB)
+    // For now, we contribute to the global download log collection
+    try {
+        await addR2Item<any>('download_logs', {
+            id: `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            user_id: user?.id || 'guest',
+            order_id: orderId || null,
+            type: type,
+            track_id: trackId,
+            details: { artist: body.artist, title: body.title },
+            ip_address: req.headers.get('x-forwarded-for') || 'unknown',
+            created_at: new Date().toISOString()
+        });
+    } catch (e) {
+        console.error('[Download] Failed to log download to R2:', e);
+    }
 
     // 5. Fetch and Proxy OR Redirect
     try {
-        // EXECUTE DB updates
-        await Promise.all([body._updatePromise || Promise.resolve(), logPromise, statsPromise]);
+        // Increment Track stats (optional, could be done via separate collection)
+        // await updateR2Item<any>('pool_tracks', trackId, { download_count: (track.download_count || 0) + 1 });
 
         // OPTIMIZATION: Always use Direct Redirect for Mixtapes (and Large files)
         if (type === 'mixtape_audio' || type === 'mixtape_video') {

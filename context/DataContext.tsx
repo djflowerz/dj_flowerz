@@ -526,6 +526,8 @@ const getTableName = (colName: string): string => {
   return mapping[colName] || colName;
 };
 
+// 1. Transactional & Auth Data: Always fetch from Supabase
+// 2. Public Content (High Traffic): Fetch from R2 CDN to avoid DB load/latency
 const SUPABASE_COLLECTIONS: string[] = [];
 
 const useCollection = <T extends { id: string }>(
@@ -539,44 +541,19 @@ const useCollection = <T extends { id: string }>(
   isRealtime: boolean = false
 ) => {
   const tableName = getTableName(colName);
-  const isSupabase = SUPABASE_COLLECTIONS.includes(tableName);
 
-  if (isSupabase) {
-    const sbOrderBy = orderByField === 'createdAt' ? 'created_at' :
-      orderByField === 'updatedAt' ? 'updated_at' :
-        orderByField === 'dateSubscribed' ? 'date_subscribed' :
-          orderByField === 'startDate' ? 'start_date' :
-            orderByField === 'dateAdded' ? 'date_added' :
-              orderByField;
+  // Use R2 for ALL data (mixtapes, products, pool tracks, profiles, orders, etc.)
+  const [data, setData, isLoading, error, refresh] = useR2Collection<T>(
+    tableName,
+    initialData,
+    enabled,
+    transform,
+    orderByField,
+    orderDirection
+  );
 
-    console.log(`Mapping ${colName} field ${orderByField} to ${sbOrderBy} for Supabase ${tableName}`);
-    const [data, setData, isLoading, error, refresh] = useSupabaseCollection<T>(
-      tableName,
-      initialData,
-      enabled,
-      transform,
-      sbOrderBy,
-      orderDirection,
-      isRealtime,
-      limit
-    );
-
-    const loadMore = () => { console.warn("loadMore not implemented for Supabase yet"); };
-    return [data, setData, isLoading, loadMore, error, refresh] as const;
-  } else {
-    // Use R2 for content data
-    const [data, setData, isLoading, error, refresh] = useR2Collection<T>(
-      tableName,
-      initialData,
-      enabled,
-      transform,
-      orderByField,
-      orderDirection
-    );
-
-    const loadMore = () => { console.warn("loadMore not implemented for R2 yet"); };
-    return [data, setData, isLoading, loadMore, error, refresh] as const;
-  }
+  const loadMore = () => { console.warn("loadMore not implemented for static R2 source"); };
+  return [data, setData, isLoading, loadMore, error, refresh] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -1486,7 +1463,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-    const addCoupon = async (coupon: Coupon) => {
+  const addCoupon = async (coupon: Coupon) => {
     try {
       const docId = coupon.id || `cpn_${Date.now()}`;
       const newCoupons = [{ ...coupon, id: docId, updatedAt: new Date().toISOString() }, ...coupons];
@@ -1497,7 +1474,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-    const updateCoupon = async (id: string, data: Partial<Coupon>) => {
+  const updateCoupon = async (id: string, data: Partial<Coupon>) => {
     try {
       const newCoupons = coupons.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
       await saveToR2('coupons', newCoupons);
@@ -1621,7 +1598,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-    const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
+  const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
       const docId = `msg_${Date.now()}`;
       const newMessage: ContactMessage = {
@@ -1638,7 +1615,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-    const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
+  const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
     try {
       const newMessages = contactMessages.map(m => m.id === id ? { ...m, ...updates } : m);
       await saveToR2('contact_messages', newMessages);

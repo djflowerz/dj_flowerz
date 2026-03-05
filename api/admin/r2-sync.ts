@@ -45,6 +45,20 @@ export default async function handler(req: any, res: any) {
         let r2Role = isAdminEmail ? 'admin' : 'user';
 
         if (r2Role !== 'admin') {
+            const profilesKey = `data/profiles.json`;
+            try {
+                const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: profilesKey });
+                const response = await s3.send(getCmd);
+                const str = await response.Body?.transformToString();
+                if (str) {
+                    const profiles = JSON.parse(str);
+                    const profile = profiles.find((p: any) => p.id === user.id);
+                    if (profile?.role === 'admin') r2Role = 'admin';
+                }
+            } catch (err) { }
+        }
+
+        if (r2Role !== 'admin') {
             // Note: For some collections like 'user_profiles' or 'referral_logs', 
             // we might allow regular users to update their OWN data.
             // But for general r2-sync, we default to admin check.
@@ -56,7 +70,6 @@ export default async function handler(req: any, res: any) {
             }
 
             // If it's a allowed collection, ensure they are only affecting their OWN ID
-            // This would require checking the 'id' in the body against user.id
             if (req.body.id && req.body.id !== user.id && collection === 'profiles') {
                 return res.status(403).json({ error: 'Forbidden: Can only update your own profile' });
             }

@@ -1,15 +1,11 @@
-
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { updateR2Item, addR2Item, getR2Collection } from '../../utils/server-r2';
 
-// Initialize Supabase Admin Client
+// Supabase remains for Auth verification/lookups if strictly needed, 
+// but we prioritize Cloudflare R2 for data.
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.warn("Supabase credentials missing in webhook environment variables.");
-}
-
 const supabase = createClient(SUPABASE_URL || '', SUPABASE_SERVICE_ROLE_KEY || '');
 
 export const config = {
@@ -158,15 +154,12 @@ async function handleChargeSuccess(data: any, metadata: any) {
     // 1. Get User ID from metadata or fallback to finding by email
     let userId = metadata.userId;
     if (!userId && data.customer?.email) {
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('email', data.customer.email)
-            .maybeSingle();
+        const profiles = await getR2Collection<any>('profiles');
+        const profile = profiles.find(p => p.email === data.customer.email);
         userId = profile?.id;
     }
 
-    // Prepare Supabase payload with snake_case
+    const { items: _, ...orderMetadata } = metadata; // Exclude raw items from top-level
     const orderData = {
         id: orderId,
         user_id: userId || null,
@@ -174,9 +167,6 @@ async function handleChargeSuccess(data: any, metadata: any) {
         customer_email: data.customer?.email,
         total: data.amount / 100,
         subtotal: metadata.subtotal || (data.amount / 100),
-        discount_amount: metadata.discountAmount || 0,
-        shipping_cost: metadata.shippingCost || 0,
-        coupon_code: metadata.couponCode || null,
         status: 'completed',
         payment_status: 'paid',
         date: new Date().toISOString().split('T')[0],
@@ -193,64 +183,47 @@ async function handleChargeSuccess(data: any, metadata: any) {
                 type: 'digital'
             }
         ],
-        shipping_address: metadata.shippingAddress || null,
-        delivery_method: metadata.deliveryType || null,
-        type: metadata.type || 'store', // Important for Success.tsx logic
+        type: metadata.type || 'store',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('orders').upsert(orderData);
+    // Save Order to R2
+    await updateR2Item('orders', orderId, orderData);
+    console.log(`Order ${orderId} saved to R2`);
 
-    if (error) {
-        console.error(`Error saving order ${orderId}:`, error);
-    } else {
-        console.log(`Order ${orderId} saved to Supabase`);
+    // 4. Sync to MailerLite (Receipt & Customer Update)
+    const receiptSummary = orderData.items.map((item: any) => `${item.productName} (x${item.quantity})`).join(', ');
+    await syncToMailerLite(orderData.customer_email, {
+        name: orderData.customer_name,
+        last_order_id: orderId,
+        last_order_total: orderData.total,
+        last_purchase_receipt: receiptSummary,
+        customer_type: 'buyer'
+    });
 
-        // 4. Sync to MailerLite (Receipt & Customer Update)
-        const receiptSummary = orderData.items.map((item: any) => `${item.productName} (x${item.quantity})`).join(', ');
-        await syncToMailerLite(orderData.customer_email, {
-            name: orderData.customer_name,
-            last_order_id: orderId,
-            last_order_total: orderData.total,
-            last_purchase_receipt: receiptSummary,
-            customer_type: 'buyer'
+    // 5. Update Coupon Usage if applied (Move to R2)
+    if (metadata.couponCode) {
+        await updateR2Item('coupons', metadata.couponCode.toUpperCase(), {
+            usage_increment: 1
         });
-
-        // 5. Update Coupon Usage if applied
-        if (metadata.couponCode) {
-            const { data: coupon, error: couponFetchError } = await supabase
-                .from('coupons')
-                .select('id, usage_count')
-                .eq('code', metadata.couponCode.toUpperCase())
-                .single();
-
-            if (!couponFetchError && coupon) {
-                await supabase
-                    .from('coupons')
-                    .update({ usage_count: (coupon.usage_count || 0) + 1 })
-                    .eq('id', coupon.id);
-                console.log(`Updated usage count for coupon: ${metadata.couponCode}`);
-            }
-        }
     }
 
-    // Add to local newsletter subscribers automatically
+    // Add to newsletter subscribers in R2
     if (data.customer?.email) {
         const now = new Date().toISOString();
-        const dateSub = now.split('T')[0];
-        await supabase.from('newsletter_subscribers').upsert({
+        await updateR2Item('newsletter_subscribers', data.customer.email, {
             email: data.customer.email,
-            date_subscribed: dateSub,
+            date_subscribed: now.split('T')[0],
             status: 'active',
             source: `Customer (${orderData.type})`,
             updated_at: now
-        }, { onConflict: 'email' });
-        console.log(`Subscribed ${data.customer.email} to internal newsletter list`);
+        });
     }
 
-    // Record in global payments table
+    // Record in global payments table in R2
     const paymentRecord = {
+        id: `pay_${data.reference}`,
         user_id: userId || null,
         amount: data.amount / 100,
         currency: data.currency || 'KES',
@@ -258,24 +231,23 @@ async function handleChargeSuccess(data: any, metadata: any) {
         payment_ref: data.reference,
         payment_type: metadata.type || 'store',
         user_email: data.customer?.email,
-        metadata: metadata
+        created_at: new Date().toISOString()
     };
+    await addR2Item('payments', paymentRecord);
 
-    const { error: payError } = await supabase.from('payments').insert(paymentRecord);
-    if (payError) console.error("Error saving payment record:", payError.message);
-
-    // If it's a tip, also record in tips table
+    // If it's a tip, also record in tips table in R2
     if (isTip) {
         const tipRecord = {
+            id: `tip_${data.reference}`,
             user_id: userId || null,
             user_name: metadata.customerName || null,
             email: data.customer?.email,
             amount: data.amount / 100,
             message: metadata.message || 'Tip from DJ Flowerz Fan',
-            status: 'completed'
+            status: 'completed',
+            created_at: new Date().toISOString()
         };
-        const { error: tipError } = await supabase.from('tips').insert(tipRecord);
-        if (tipError) console.error("Error saving tip record:", tipError.message);
+        await addR2Item('tips', tipRecord);
     }
 
     // If it's a subscription payment, activate the subscription immediately.
@@ -293,21 +265,16 @@ async function handleChargeSuccess(data: any, metadata: any) {
             expiryDate.setMonth(now.getMonth() + 1);
         }
 
-        const { error: profileError } = await supabase.from('profiles').update({
+        // Update Profile in R2
+        await updateR2Item<any>('profiles', userId, {
             is_subscriber: true,
             subscription_plan: planName,
             subscription_expiry: expiryDate.toISOString(),
             updated_at: new Date().toISOString()
-        }).eq('id', userId);
-
-        if (profileError) {
-            console.error("Error activating subscription in profile:", profileError.message);
-        } else {
-            console.log(`Subscription activated for user ${userId} (plan: ${planName})`);
-        }
+        });
 
         const subId = `sub_charge_${data.reference}`;
-        const { error: subError } = await supabase.from('subscriptions').upsert({
+        await updateR2Item<any>('subscriptions', subId, {
             id: subId,
             user_id: userId,
             user_name: metadata.customerName || data.customer?.email,
@@ -320,8 +287,6 @@ async function handleChargeSuccess(data: any, metadata: any) {
             payment_method: 'Paystack',
             updated_at: now.toISOString()
         });
-
-        if (subError) console.error("Error creating subscription record:", subError.message);
 
         await syncToMailerLite(data.customer?.email, {
             name: metadata.customerName || data.customer?.email,
@@ -341,35 +306,29 @@ async function handleSubscriptionCreate(data: any) {
     let userName = data.metadata?.customerName;
 
     if (!userId) {
-        const { data: profiles, error: findError } = await supabase
-            .from('profiles')
-            .select('id, name')
-            .eq('email', email)
-            .limit(1);
-
-        if (findError || !profiles || profiles.length === 0) {
+        const profiles = await getR2Collection<any>('profiles');
+        const profile = profiles.find(p => p.email === email);
+        if (!profile) {
             console.warn(`No user found with email ${email} for sub ${data.subscription_code}`);
             return;
         }
-        userId = profiles[0].id;
-        userName = profiles[0].name;
+        userId = profile.id;
+        userName = profile.name;
     }
 
     const planName = data.metadata?.planId || data.metadata?.plan || 'monthly';
 
-    // 2. Update Profile
-    const { error: updateError } = await supabase.from('profiles').update({
+    // 2. Update Profile in R2
+    await updateR2Item('profiles', userId, {
         is_subscriber: true,
         subscription_plan: planName,
         subscription_expiry: new Date(data.next_payment_date).toISOString(),
         updated_at: new Date().toISOString()
-    }).eq('id', userId);
+    });
 
-    if (updateError) console.error("Error updating profile sub:", updateError);
-
-    // 3. Create Subscription Record
+    // 3. Create Subscription Record in R2
     const subId = `sub_${data.subscription_code}`;
-    const { error: subError } = await supabase.from('subscriptions').upsert({
+    await updateR2Item('subscriptions', subId, {
         id: subId,
         user_id: userId,
         user_name: userName || email,
@@ -383,49 +342,42 @@ async function handleSubscriptionCreate(data: any) {
         updated_at: new Date().toISOString()
     });
 
-    if (subError) console.error("Error creating subscription record:", subError);
-    else {
-        console.log(`Subscription ${subId} activated for user ${userId}`);
+    console.log(`Subscription ${subId} activated for user ${userId} in R2`);
 
-        // 3. Sync to MailerLite (Subscription Confirmation)
-        await syncToMailerLite(email, {
-            name: userName || email,
-            subscription_plan: planName,
-            subscription_status: 'active',
-            subscription_expiry: new Date(data.next_payment_date).toISOString(),
-            customer_type: 'subscriber'
-        });
-    }
+    // 3. Sync to MailerLite (Subscription Confirmation)
+    await syncToMailerLite(email, {
+        name: userName || email,
+        subscription_plan: planName,
+        subscription_status: 'active',
+        subscription_expiry: new Date(data.next_payment_date).toISOString(),
+        customer_type: 'subscriber'
+    });
 }
 
 async function handleSubscriptionDisable(data: any) {
     const email = data.customer.email;
 
-    // 1. Disable in Profile
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .limit(1);
+    const profiles = await getR2Collection<any>('profiles');
+    const profile = profiles.find(p => p.email === email);
 
-    if (profiles && profiles.length > 0) {
-        const userId = profiles[0].id;
-        await supabase.from('profiles').update({
+    if (profile) {
+        const userId = profile.id;
+        await updateR2Item<any>('profiles', userId, {
             is_subscriber: false,
             subscription_plan: null,
             subscription_expiry: null,
             updated_at: new Date().toISOString()
-        }).eq('id', userId);
+        });
     }
 
-    // 2. Mark Subscription as Cancelled
+    // 2. Mark Subscription as Cancelled in R2
     const subId = `sub_${data.subscription_code}`;
-    await supabase.from('subscriptions').update({
+    await updateR2Item<any>('subscriptions', subId, {
         status: 'cancelled',
         updated_at: new Date().toISOString()
-    }).eq('id', subId);
+    });
 
-    console.log(`Subscription ${subId} disabled`);
+    console.log(`Subscription ${subId} disabled in R2`);
 
     // Sync to MailerLite (Subscription Status Update)
     await syncToMailerLite(email, {

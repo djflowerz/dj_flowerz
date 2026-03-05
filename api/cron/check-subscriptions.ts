@@ -5,12 +5,7 @@
  */
 
 import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.VITE_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+import { getR2Collection, updateR2Item } from '../../utils/server-r2';
 
 const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
@@ -52,29 +47,30 @@ export default async function handler(req: any, res: any) {
     const results = { expired: 0, errors: [] as string[] };
     const now = new Date().toISOString();
 
-    // ── 1. Find and terminate expired subscriptions ─────────────────────────
+    // ── 1. Find and terminate expired subscriptions in R2 ─────────────────────────
     try {
-        const { data: expiredProfiles } = await supabase
-            .from('profiles')
-            .select('id, email, name, subscription_plan, subscription_expiry')
-            .eq('is_subscriber', true)
-            .lt('subscription_expiry', now);
+        const profiles = await getR2Collection<any>('profiles');
+        const expiredProfiles = profiles.filter(p => p.is_subscriber === true && p.subscription_expiry < now);
 
-        for (const profile of expiredProfiles || []) {
+        for (const profile of expiredProfiles) {
             try {
-                // Terminate access in Supabase
-                await supabase.from('profiles').update({
+                // Terminate access in R2 Profiles
+                await updateR2Item<any>('profiles', profile.id, {
                     is_subscriber: false,
                     subscription_plan: null,
                     subscription_expiry: null,
                     updated_at: now
-                }).eq('id', profile.id);
+                });
 
-                // Update subscription record
-                await supabase.from('subscriptions')
-                    .update({ status: 'expired', updated_at: now })
-                    .eq('user_id', profile.id)
-                    .eq('status', 'active');
+                // Update subscription record in R2 (Requires looking up active sub)
+                const subscriptions = await getR2Collection<any>('subscriptions');
+                const activeSub = subscriptions.find(s => s.user_id === profile.id && s.status === 'active');
+                if (activeSub) {
+                    await updateR2Item<any>('subscriptions', activeSub.id, {
+                        status: 'expired',
+                        updated_at: now
+                    });
+                }
 
                 // Send expiry notification
                 await sendNotification(profile.email, {
