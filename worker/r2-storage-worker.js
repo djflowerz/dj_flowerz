@@ -106,9 +106,8 @@ export default {
                 const contentType = request.headers.get("content-type") || "application/octet-stream";
                 const key = `${folder}/${fileName}`;
 
-                const body = await request.arrayBuffer();
-
-                await env.R2_BUCKET.put(key, body, {
+                // Stream the request body directly to R2 for better memory efficiency with large files
+                await env.R2_BUCKET.put(key, request.body, {
                     httpMetadata: { contentType }
                 });
 

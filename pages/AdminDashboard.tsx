@@ -244,6 +244,142 @@ const MultiImageUpload: React.FC<{
    );
 };
 
+const AudioUpload: React.FC<{
+   label: string;
+   value: string;
+   onChange: (v: string) => void;
+   required?: boolean;
+   helperText?: string;
+}> = ({ label, value, onChange, required, helperText }) => {
+   const [isUploading, setIsUploading] = useState(false);
+
+   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+         setIsUploading(true);
+         try {
+            const result = await uploadFileToR2(file, 'audio');
+            if (result?.url) {
+               onChange(result.url);
+            }
+         } catch (err: any) {
+            alert("Upload error: " + (err.message || "Unknown error"));
+         } finally {
+            setIsUploading(false);
+         }
+      }
+   };
+
+   return (
+      <div className="mb-6">
+         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 pl-1">
+            {label} {required && <span className="text-brand-purple inline-block animate-pulse">*</span>}
+         </label>
+         <div className="bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 hover:border-brand-purple/20 transition-all">
+            {isUploading ? (
+               <div className="flex items-center gap-4 py-2">
+                  <RefreshCw className="animate-spin text-brand-purple" size={20} />
+                  <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Uploading to R2...</span>
+               </div>
+            ) : (
+               <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                     <div className="flex-1 bg-black/40 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-gray-400 truncate">
+                        {value || "No file selected"}
+                     </div>
+                     <label className="bg-white/5 hover:bg-white/10 text-white px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest cursor-pointer transition-all border border-white/5">
+                        Choose MP3
+                        <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
+                     </label>
+                  </div>
+                  {helperText && <p className="text-[9px] text-gray-600 font-medium px-1 uppercase tracking-wider">{helperText}</p>}
+               </div>
+            )}
+         </div>
+      </div>
+   );
+};
+
+const FileUpload: React.FC<{
+   label: string;
+   value: string;
+   onChange: (v: string) => void;
+   required?: boolean;
+   accept?: string;
+}> = ({ label, value, onChange, required, accept = "*" }) => {
+   const [isUploading, setIsUploading] = useState(false);
+
+   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+         setIsUploading(true);
+         try {
+            const result = await uploadFileToR2(file, 'digital-products');
+            if (result?.url) {
+               onChange(result.url);
+            }
+         } catch (err: any) {
+            alert("Upload error: " + (err.message || "Unknown error"));
+         } finally {
+            setIsUploading(false);
+         }
+      }
+   };
+
+   return (
+      <div className="mb-4">
+         <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2 pl-1">
+            {label} {required && <span className="text-brand-purple">*</span>}
+         </label>
+         <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-xl p-2">
+            <input
+               type="text"
+               value={value}
+               onChange={(e) => onChange(e.target.value)}
+               className="flex-1 bg-transparent px-2 text-xs text-white outline-none"
+               placeholder="URL or Uploaded Link"
+            />
+            <label className="bg-brand-purple hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-2">
+               {isUploading ? <RefreshCw className="animate-spin" size={12} /> : <Upload size={12} />}
+               {isUploading ? "..." : "Upload"}
+               <input type="file" className="hidden" accept={accept} onChange={handleFileChange} />
+            </label>
+         </div>
+      </div>
+   );
+};
+
+const VersionAudioUpload: React.FC<{
+   onUpload: (url: string) => void;
+}> = ({ onUpload }) => {
+   const [isUploading, setIsUploading] = useState(false);
+
+   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+         setIsUploading(true);
+         try {
+            const result = await uploadFileToR2(file, 'audio');
+            if (result?.url) {
+               onUpload(result.url);
+            }
+         } catch (err: any) {
+            alert("Upload error: " + (err.message || "Unknown error"));
+         } finally {
+            setIsUploading(false);
+         }
+      }
+   };
+
+   return (
+      <label className="bg-brand-purple hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold uppercase cursor-pointer transition-all flex items-center gap-1">
+         {isUploading ? <RefreshCw className="animate-spin" size={14} /> : <Upload size={14} />}
+         {isUploading ? "..." : "Upload"}
+         <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
+      </label>
+   );
+};
+
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl' }> = ({ isOpen, onClose, title, children, size = 'md' }) => {
    if (!isOpen) return null;
    const sizeClasses = { md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
@@ -4895,7 +5031,10 @@ const AdminDashboard: React.FC = () => {
                   <div className="flex-1 grid grid-cols-2 gap-2">
                      <select value={version.type} onChange={(e) => updateVersion(version.id, 'type', e.target.value)} className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none">{TRACK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                      <input type="text" value={version.label || ''} onChange={(e) => updateVersion(version.id, 'label', e.target.value)} placeholder="Label (e.g. Clean)" className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" />
-                     <input type="text" value={version.downloadUrl} onChange={(e) => updateVersion(version.id, 'downloadUrl', e.target.value)} placeholder="Download URL" className="col-span-2 bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" />
+                     <div className="col-span-2 flex gap-2">
+                        <input type="text" value={version.downloadUrl} onChange={(e) => updateVersion(version.id, 'downloadUrl', e.target.value)} placeholder="Download URL" className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" />
+                        <VersionAudioUpload onUpload={(url) => updateVersion(version.id, 'downloadUrl', url)} />
+                     </div>
                   </div>
                   <button onClick={() => removeVersion(version.id)} className="text-red-500 hover:text-white"><X size={16} /></button>
                </div>))}</div></div>
@@ -5309,7 +5448,12 @@ const AdminDashboard: React.FC = () => {
                               </div>
                               <h4 className="font-bold text-white tracking-tight">Delivery Configuration</h4>
                            </div>
-                           <InputGroup label="File Download URL" value={newProduct.digitalFileUrl} onChange={v => updateProductField('digitalFileUrl', v)} placeholder="S3/R2 direct link or external URL" />
+                           <FileUpload
+                              label="File Download URL"
+                              value={newProduct.digitalFileUrl}
+                              onChange={v => updateProductField('digitalFileUrl', v)}
+                              placeholder="S3/R2 direct link or external URL"
+                           />
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <InputGroup label="Access Password" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} placeholder="Optional" />
                               <InputGroup label="Visibility" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
@@ -5386,15 +5530,24 @@ const AdminDashboard: React.FC = () => {
 
                         <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 mb-2">Media Sources</h4>
-                           <InputGroup
+                           <AudioUpload
                               label="Stream URL (Audio Player)"
                               value={newMixtape.audioUrl}
                               onChange={v => updateMixtapeField('audioUrl', v)}
-                              placeholder="Direct MP3 link or Hearthis/SC/Mixcloud"
-                              helperText="Supports most major streaming platforms."
+                              helperText="Upload MP3 to R2 or paste direct link."
                            />
-                           <InputGroup label="Download Link (MP3)" value={newMixtape.downloadUrl} onChange={v => updateMixtapeField('downloadUrl', v)} placeholder="Direct file link" />
-                           <InputGroup label="Video URL (Optional)" value={newMixtape.videoDownloadUrl} onChange={v => updateMixtapeField('videoDownloadUrl', v)} placeholder="MP4 or YouTube link" />
+                           <FileUpload
+                              label="Download Link (MP3)"
+                              value={newMixtape.downloadUrl}
+                              onChange={v => updateMixtapeField('downloadUrl', v)}
+                              accept="audio/*"
+                           />
+                           <FileUpload
+                              label="Video URL (Optional)"
+                              value={newMixtape.videoDownloadUrl}
+                              onChange={v => updateMixtapeField('videoDownloadUrl', v)}
+                              accept="video/*"
+                           />
                         </div>
                      </div>
 
