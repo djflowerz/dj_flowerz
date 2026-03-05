@@ -86,30 +86,27 @@ export async function removeR2Item(collection: string, id: string): Promise<bool
  * Upload a file to R2 via the API proxy
  */
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
-    try {
-        const authHeader = await getAuthHeader();
-        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
-            method: 'POST',
-            headers: {
-                'x-file-name': file.name,
-                'x-folder': folder,
-                'content-type': file.type,
-                ...authHeader
-            },
-            body: file,
-        });
+    const authHeader = await getAuthHeader();
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
+        method: 'POST',
+        headers: {
+            'x-file-name': file.name,
+            'x-folder': folder,
+            'content-type': file.type,
+            ...authHeader
+        },
+        body: file,
+    });
 
-        if (!response.ok) {
-            throw new Error(`Upload failed: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        return { url: result.url, key: result.key };
-    } catch (error) {
-        console.error('Failed to upload file to R2:', error);
-        return null;
+    if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText);
+        throw new Error(`Upload failed (${response.status}): ${errText}`);
     }
+
+    const result = await response.json();
+    return { url: result.url, key: result.key };
 }
+
 
 export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
     const authHeader = await getAuthHeader();

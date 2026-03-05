@@ -589,20 +589,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapSupabaseMixtape, 200, 'createdAt', 'desc', false);
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapSupabaseSessionType, undefined, 'createdAt', 'desc', false);
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
-  const [rawSubscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', false);
-  const subscriptionPlans = React.useMemo(() => {
-    // Combine fetched plans with static plans to ensure the trial is always present
-    const combined = [...rawSubscriptionPlans];
+  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapSupabasePlan, undefined, 'price', 'asc', false);
 
-    SUBSCRIPTION_PLANS.forEach(staticPlan => {
-      if (!combined.find(p => p.id === staticPlan.id)) {
-        combined.push(staticPlan);
-      }
-    });
-
-    // Re-sort by price
-    return combined.sort((a, b) => a.price - b.price);
-  }, [rawSubscriptionPlans]);
   const [shippingZones, setShippingZones, zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
   const [genres, setGenres, genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapSupabaseGenre, undefined, 'createdAt', 'desc', false);
   const [youtubeVideos, setYoutubeVideos, videosLoading, , , refreshVideos] = useCollection<Video>('youtubeVideos', [], true, mapSupabaseGeneric, undefined, 'createdAt', 'desc', false);
@@ -923,11 +911,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setSiteConfig(config);
       await updateR2Item('settings', 'siteConfig', { data: config, updated_at: new Date().toISOString() });
-      console.log("Site config saved to R2");
+      alert("Site Configuration saved successfully!");
+      if (typeof fetchConfig === 'function') fetchConfig();
     } catch (err: any) {
       console.error("Update site config failed:", err.message);
+      alert("Failed to save configuration: " + err.message);
     }
   };
+
 
   const addProduct = async (product: Omit<Product, 'id'>) => {
     try {
@@ -936,10 +927,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = [newProduct, ...products];
       setProducts(newProducts);
       await addR2Item('products', newProduct);
-      refreshProducts();
+      alert("Product added successfully!");
+      if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
-      throw err;
+      alert("Failed to add product: " + err.message);
     }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
@@ -947,10 +939,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
       setProducts(newProducts);
       await updateR2Item('products', id, data);
-      refreshProducts();
+      alert("Product updated successfully!");
+      if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
       console.error("Update product failed:", err.message);
-      throw err;
+      alert("Failed to update product: " + err.message);
     }
   };
   const deleteProduct = async (id: string) => {
@@ -958,12 +951,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
       await removeR2Item('products', id);
-      refreshProducts();
+      alert("Product deleted successfully!");
+      if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
-      throw err;
+      alert("Failed to delete product: " + err.message);
     }
   };
+
 
   const addMixtape = async (mixtape: Mixtape) => {
     try {
@@ -976,44 +971,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
       setMixtapes(updatedMixtapes);
-
-      // Sync with R2
       await saveToR2('mixtapes', updatedMixtapes);
-      console.log("Mixtape saved to R2");
-      refreshMixtapes();
+      alert("Mixtape added successfully!");
+      if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
       console.error("Add mixtape failed:", err.message);
-      refreshMixtapes();
+      alert("Failed to add mixtape: " + err.message);
     }
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
     try {
       const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
       setMixtapes(updatedMixtapes);
-
-      // Sync with R2
       await saveToR2('mixtapes', updatedMixtapes);
-      console.log("Mixtape updated on R2");
-      refreshMixtapes();
+      alert("Mixtape updated successfully!");
+      if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
       console.error("Update mixtape failed:", err.message);
-      refreshMixtapes();
+      alert("Failed to update mixtape: " + err.message);
     }
   };
   const deleteMixtape = async (id: string) => {
     try {
       const updatedMixtapes = mixtapes.filter(m => m.id !== id);
       setMixtapes(updatedMixtapes);
-
-      // Sync with R2
       await saveToR2('mixtapes', updatedMixtapes);
-      console.log("Mixtape deleted from R2");
-      refreshMixtapes();
+      alert("Mixtape deleted successfully!");
+      if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
       console.error("Delete mixtape failed:", err.message);
-      refreshMixtapes();
+      alert("Failed to delete mixtape: " + err.message);
     }
   };
+
 
   const addPoolTrack = async (track: Track) => {
     try {
@@ -1327,24 +1317,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newPlans = subscriptionPlans.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
       setSubscriptionPlans(newPlans);
       await saveToR2('subscription_plans', newPlans);
-      alert("Plan updated on R2");
+      alert("Plan updated successfully!");
       if (typeof refreshPlans === 'function') refreshPlans();
     } catch (error: any) {
       console.error("Update plan failed:", error);
+      alert("Failed to update plan: " + error.message);
     }
   };
+
 
   const deleteSubscriptionPlan = async (id: string) => {
     try {
       const newPlans = subscriptionPlans.filter(p => p.id !== id);
       setSubscriptionPlans(newPlans);
       await saveToR2('subscription_plans', newPlans);
-      alert("Plan removed from R2");
+      alert("Plan deleted successfully!");
       if (typeof refreshPlans === 'function') refreshPlans();
     } catch (error: any) {
       console.error("Delete plan failed:", error);
+      alert("Failed to delete plan: " + error.message);
     }
   };
+
 
   const addStudioRoom = async (room: StudioRoom) => {
     try {

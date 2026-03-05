@@ -118,16 +118,17 @@ const ImageUpload: React.FC<{
             if (result?.url) {
                onChange(result.url);
             } else {
-               alert("Failed to upload image. Please try again.");
+               alert("Failed to upload image. Server did not return a URL.");
             }
          } catch (err: any) {
             console.error("Upload error:", err);
-            alert("Upload error: " + err.message);
+            alert("Upload error: " + (err.message || "Unknown error"));
          } finally {
             setIsUploading(false);
          }
       }
    };
+
 
    return (
       <div className="mb-6">
@@ -182,21 +183,31 @@ const MultiImageUpload: React.FC<{
    const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
          const files = Array.from(e.target.files);
+         let failedCount = 0;
          const uploadPromises = files.map(async (file: File) => {
             try {
                const result = await uploadFileToR2(file, 'images');
                return result?.url || '';
             } catch (err) {
                console.error("Multi upload error:", err);
+               failedCount++;
                return '';
             }
          });
 
          const urls = await Promise.all(uploadPromises);
          const validUrls = urls.filter(url => url !== '');
+
+         if (failedCount > 0) {
+            alert(`Uploaded ${validUrls.length} images. ${failedCount} files failed to upload.`);
+         } else if (validUrls.length > 0) {
+            // Success alert usually not needed for multi-upload as the images appear
+         }
+
          onChange([...values, ...validUrls]);
       }
    };
+
 
    return (
       <div className="mb-4">

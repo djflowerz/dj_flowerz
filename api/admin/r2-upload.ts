@@ -1,23 +1,8 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin, s3 } from "../../utils/server-r2";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 // R2 Credentials
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'dj-flowerz';
-
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const s3 = new S3Client({
-    region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID || '',
-        secretAccessKey: R2_SECRET_ACCESS_KEY || '',
-    },
-});
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'djflowerz-images';
 
 export const config = {
     api: {
@@ -38,44 +23,13 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    // --- SECURITY LAYER ---
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Unauthorized: Missing token' });
-    }
-    const token = authHeader.split(' ')[1];
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
+    let user;
     try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (authError || !user) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
-        }
-
-        const isAdminEmail = user.user_metadata?.role === 'admin' || user.email === (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || user.email === 'testadmin@example.com' || user.email === 'djflowerz254@gmail.com';
-
-        if (!isAdminEmail) {
-            const profilesKey = `data/profiles.json`;
-            try {
-                const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: profilesKey });
-                const response = await s3.send(getCmd);
-                const str = await response.Body?.transformToString();
-                if (str) {
-                    const profiles = JSON.parse(str);
-                    const profile = profiles.find((p: any) => p.id === user.id);
-                    if (!profile || profile.role !== 'admin') {
-                        return res.status(403).json({ error: 'Forbidden: Admin access required' });
-                    }
-                } else {
-                    return res.status(403).json({ error: 'Forbidden: Admin access required' });
-                }
-            } catch (err) {
-                return res.status(403).json({ error: 'Forbidden: Admin access verification failed' });
-            }
-        }
-    } catch (err) {
-        return res.status(500).json({ error: 'Auth verification failed' });
+        user = await verifyAdmin(req);
+    } catch (err: any) {
+        return res.status(err.message.includes('Forbidden') ? 403 : 401).json({ error: err.message });
     }
+
     // --- END SECURITY LAYER ---
 
     try {
