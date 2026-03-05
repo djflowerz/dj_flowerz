@@ -98,23 +98,16 @@ interface DataContextType {
   referralStats: ReferralStats[];
   referralLogs: ReferralLog[];
   users: User[];
-  contactMessages: ContactMessage[];
+  telegramChannels: TelegramChannel[];
   payments: any[];
   tips: any[];
   scannedTracks: any[];
-  scannedLoading: boolean;
-
-  telegramConfig: TelegramConfig;
-  telegramChannels: TelegramChannel[];
-  telegramMappings: TelegramMapping[];
-  telegramUsers: TelegramUser[];
-  telegramLogs: TelegramLog[];
-  referralSettings: ReferralSettings;
+  notifications: AppNotification[];
+  contactMessages: ContactMessage[];
   reviews: Review[];
   comments: any[];
   reviewsLoading: boolean;
   commentsLoading: boolean;
-  notifications: AppNotification[];
   notificationsLoading: boolean;
   mixtapesError: string | null;
   mixtapesLoading: boolean;
@@ -204,13 +197,14 @@ interface DataContextType {
   deleteTelegramChannel: (id: string) => void;
 
   updateShippingZone: (id: string, data: Partial<ShippingZone>) => void;
-  addSubscriber: (email: string) => void;
+  addSubscriber: (email: string, source?: string) => Promise<void>;
 
-  updateUser: (id: string, data: Partial<User>) => void;
-  removeUser: (id: string) => void;
-  addContactMessage: (msg: Partial<ContactMessage>) => Promise<void>;
-  updateContactMessage: (id: string, data: Partial<ContactMessage>) => Promise<void>;
-  addComment: (comment: any) => Promise<void>;
+  updateUser: (id: string, data: Partial<User>) => Promise<void>;
+  removeUser: (id: string) => Promise<void>;
+  addContactMessage: (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => Promise<void>;
+  updateContactMessage: (id: string, updates: Partial<ContactMessage>) => Promise<void>;
+  addReview: (productId: string, rating: number, comment: string) => Promise<void>;
+  addComment: (mixtapeId: string, text: string) => Promise<void>;
   incrementMixtapeDownload: (mixtapeId: string) => Promise<void>;
   isFirstTimeSubscriber: (userId: string) => Promise<boolean>;
   addScannedTracks: (tracks: any[]) => Promise<void>;
@@ -218,6 +212,11 @@ interface DataContextType {
   refreshPoolTracks: () => Promise<void>;
   refreshScannedTracks: () => Promise<void>;
   markNotificationAsRead: (id: string) => Promise<void>;
+
+  sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
+  sendNewsletterConfirmation: (email: string) => Promise<void>;
+  uploadTrackList: (file: File) => Promise<{ success: boolean; message: string; count?: number }>;
+  downloadTrackList: () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -654,9 +653,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, scannedTracks.length]);
 
-  // Admin Only Collections (R2 - enabled for all to allow local filtering)
   const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapSupabaseOrder, 1000, 'createdAt', 'desc', true);
-  const [users, , usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapSupabaseUser, 1000, 'createdAt', 'desc', true);
+  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapSupabaseUser, 1000, 'createdAt', 'desc', true);
+
+  // Auto-deduplicate users by email
+  useEffect(() => {
+    if (isAdmin && users.length > 0) {
+      const emailMap = new Map();
+      let hasDuplicates = false;
+
+      users.forEach((u: any) => {
+        if (!u.email) return;
+        const email = u.email.toLowerCase().trim();
+        if (!emailMap.has(email)) {
+          emailMap.set(email, u);
+        } else {
+          hasDuplicates = true;
+          // Keep the newer one or the one with subscription? 
+          // For now, if we find a duplicate, we just log it.
+        }
+      });
+
+      if (hasDuplicates) {
+        const uniqueUsers = Array.from(emailMap.values());
+        console.log(`👤 Found and removing ${users.length - uniqueUsers.length} duplicate user profiles.`);
+        setUsers(uniqueUsers);
+        // We don't auto-save to R2 profiles as it's sensitive, but it clears from UI
+      }
+    }
+  }, [isAdmin, users.length]);
+
   const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapSupabaseSubscription, 1000, 'startDate', 'desc', true);
   const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapSupabaseBooking, 500, 'createdAt', 'desc', true);
 
@@ -1079,8 +1105,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearAllScannedTracks = async () => {
     try {
+      const allIds = scannedTracks.map((t: any) => t.id).filter(Boolean);
       setScannedTracks([]);
-      await saveToR2('scanned_tracks', []);
+      if (allIds.length > 0) {
+        await removeBatchR2Items('scanned_tracks', allIds);
+      } else {
+        await saveToR2('scanned_tracks', []);
+      }
     } catch (err: any) {
       console.error("Clear scanned tracks failed:", err.message);
       refreshScannedTracks();
@@ -1330,7 +1361,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const newPlans = subscriptionPlans.filter(p => p.id !== id);
       setSubscriptionPlans(newPlans);
-      await saveToR2('subscription_plans', newPlans);
+      await removeR2Item('subscription_plans', id);
       alert("Plan deleted successfully!");
       if (typeof refreshPlans === 'function') refreshPlans();
     } catch (error: any) {
@@ -1560,6 +1591,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addSubscriber = async (email: string, source: string = 'Manual') => {
     try {
+      // Check if already subscribed
+      if (subscribers.some(s => s.email.toLowerCase() === email.toLowerCase())) {
+        return;
+      }
+
       const now = new Date().toISOString();
       const newSubscriber = {
         id: `sub_${Date.now()}`,
@@ -1572,8 +1608,116 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newSubscribers = [newSubscriber, ...subscribers];
       await saveToR2('newsletter_subscribers', newSubscribers);
       refreshSubscribers();
+
+      // Send confirmation email
+      sendNewsletterConfirmation(email).catch(err => console.error("Failed to send welcome email:", err));
     } catch (err: any) {
       console.error("Add subscriber failed:", err.message);
+    }
+  };
+
+  const sendEmail = async (data: { to: string | string[]; subject: string; html: string; text?: string }) => {
+    try {
+      const response = await fetch('/api/newsletter/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.id}` // Simple auth check if needed
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error: any) {
+      console.error("Email send error:", error);
+      return { success: false, message: error.message };
+    }
+  };
+
+  const sendNewsletterConfirmation = async (email: string) => {
+    await sendEmail({
+      to: email,
+      subject: `Welcome to the DJ FLOWERZ Community! 🎧`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+          <h1 style="color: #a855f7; margin-bottom: 10px;">Welcome Aboard!</h1>
+          <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Thanks for joining the DJ FLOWERZ newsletter. You're now on the list for exclusive mixtapes, store drops, and music pool updates.</p>
+          <div style="background: #15151a; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #ffffff10;">
+            <p style="margin: 0; color: #ffffff;"><strong>Enjoying the vibes?</strong> Stay tuned for our next drop coming soon!</p>
+          </div>
+          <a href="https://djflowerz.co.ke" style="display: inline-block; background: #a855f7; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px;">Visit Website</a>
+          <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
+          <p style="font-size: 10px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 0.1em;">© 2024 DJ FLOWERZ. All rights reserved.</p>
+        </div>
+      `,
+      text: `Welcome to the DJ FLOWERZ Community! Thanks for joining our newsletter. Visit djflowerz.co.ke for the latest mixtapes.`
+    });
+  };
+
+  const uploadTrackList = async (file: File): Promise<{ success: boolean; message: string; count?: number }> => {
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      // Simple parser: Artist - Title [Genre]
+      // Or search for specific patterns
+      const parsedTracks: Partial<Track>[] = lines.map(line => {
+        let artist = 'Unknown Artist';
+        let title = line.trim();
+        let genre = 'General';
+
+        // Check for artist - title
+        if (line.includes(' - ')) {
+          [artist, title] = line.split(' - ').map(s => s.trim());
+        }
+
+        // Check for genre in brackets [Genre]
+        const genreMatch = title.match(/\[(.*?)\]/);
+        if (genreMatch) {
+          genre = genreMatch[1];
+          title = title.replace(`[${genre}]`, '').trim();
+        }
+
+        return {
+          id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          artist,
+          title,
+          genre,
+          dateAdded: new Date().toISOString(),
+          versions: []
+        };
+      });
+
+      // Update poolTracks state
+      const updatedPool = [...(parsedTracks as Track[]), ...poolTracks];
+      setPoolTracks(updatedPool);
+      await saveToR2('pool_tracks', updatedPool);
+
+      return { success: true, message: `Successfully parsed and added ${parsedTracks.length} track references.`, count: parsedTracks.length };
+    } catch (err: any) {
+      console.error("List upload failed:", err);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const downloadTrackList = () => {
+    try {
+      const content = poolTracks
+        .map(t => `${t.artist} - ${t.title} [${t.genre}]`)
+        .join('\n');
+
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `music_pool_tracklist_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Tracklist download failed:", err);
     }
   };
 

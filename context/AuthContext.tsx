@@ -542,7 +542,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     updatePresence();
-    const presenceInterval = setInterval(updatePresence, 120000);
+    const presenceInterval = setInterval(updatePresence, 30000);
     return () => clearInterval(presenceInterval);
   }, [user?.id, loading]);
 

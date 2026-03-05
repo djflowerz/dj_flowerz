@@ -9,7 +9,7 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -354,7 +354,7 @@ const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, descript
 
 
 const AdminDashboard: React.FC = () => {
-   const { user, loading } = useAuth();
+   const { user, loading, logout } = useAuth();
    const [activeTab, setActiveTab] = useState('dashboard');
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
@@ -374,6 +374,7 @@ const AdminDashboard: React.FC = () => {
 
    // Seeding State
    const [salesRange, setSalesRange] = useState<'this-month' | 'last-month' | 'last-3-months' | 'all'>('this-month');
+   const [chartRange, setChartRange] = useState<number>(7);
 
    const [isSeeding, setIsSeeding] = useState(false);
    const [seedMessage, setSeedMessage] = useState('');
@@ -476,7 +477,8 @@ const AdminDashboard: React.FC = () => {
       refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
       refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
       refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
-      refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
+      refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
+      uploadTrackList, downloadTrackList
    } = dataContext;
 
    const ordersLoading = odLoading;
@@ -492,25 +494,28 @@ const AdminDashboard: React.FC = () => {
    const liveTips = tips;
    const liveUsers = useMemo(() => {
       const now = new Date();
-      const filtered = users.filter(u => {
+      const filtered = users.filter((u: any) => {
          if (u.presenceStatus === 'online') return true;
          if (u.lastSeen) {
             const lastSeen = new Date(u.lastSeen);
             const diff = (now.getTime() - lastSeen.getTime()) / 1000 / 60; // minutes
-            return diff < 5; // Recently seen
+            return diff < 5; // Recently seen within 5 mins
          }
          return false;
       });
 
       // Deduplicate by email
       const seenEmails = new Set();
-      return filtered.filter(u => {
+      return filtered.filter((u: any) => {
          if (!u.email) return true;
-         if (seenEmails.has(u.email)) return false;
-         seenEmails.add(u.email);
+         const email = u.email.toLowerCase().trim();
+         if (seenEmails.has(email)) return false;
+         seenEmails.add(email);
          return true;
       });
    }, [users]);
+
+   const liveUsersCount = liveUsers.length || 1; // Default to 1 (Admin/Current User)
 
    const combinedTransactions = useMemo(() => {
       const all: any[] = [];
@@ -687,9 +692,9 @@ const AdminDashboard: React.FC = () => {
    }), [referralLogs, referralSettings]);
 
    const chartData = useMemo(() => {
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const days = Array.from({ length: chartRange }, (_, i) => {
          const d = new Date();
-         d.setDate(d.getDate() - (6 - i));
+         d.setDate(d.getDate() - ((chartRange - 1) - i));
          return d.toISOString().split('T')[0];
       });
 
@@ -697,7 +702,7 @@ const AdminDashboard: React.FC = () => {
          tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active'
       );
 
-      return last7Days.map(date => {
+      return days.map(date => {
          const dailyRevenue = successfulTx
             .filter(tx => tx.date === date)
             .reduce((acc, tx) => acc + (tx.amount || 0), 0);
@@ -707,7 +712,7 @@ const AdminDashboard: React.FC = () => {
             sales: dailyRevenue
          };
       });
-   }, [combinedTransactions]);
+   }, [combinedTransactions, chartRange]);
 
    const [editingConfig, setEditingConfig] = useState<SiteConfig>(siteConfig);
 
@@ -1657,9 +1662,19 @@ const AdminDashboard: React.FC = () => {
                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                               <div>
                                  <h3 className="text-xl font-black text-white tracking-tight">Revenue Analytics</h3>
-                                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">7-Day Financial Performance</p>
+                                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">{chartRange}-Day Financial Performance</p>
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 items-center">
+                                 <select
+                                    value={chartRange}
+                                    onChange={(e) => setChartRange(Number(e.target.value))}
+                                    className="bg-[#0B0B0F] border border-white/10 rounded-xl px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-brand-purple"
+                                 >
+                                    <option value={7}>7 Days</option>
+                                    <option value={14}>14 Days</option>
+                                    <option value={30}>30 Days</option>
+                                    <option value={90}>90 Days</option>
+                                 </select>
                                  <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400"><RefreshCw size={18} /></button>
                                  <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-gray-400"><ExternalLink size={18} /></button>
                               </div>
@@ -2562,10 +2577,7 @@ const AdminDashboard: React.FC = () => {
                                                       onChange={e => setScanSince(e.target.value)}
                                                       className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] font-bold text-white outline-none focus:border-brand-purple transition-all"
                                                    />
-                                                   <div className="px-5 py-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
-                                                      <p className="text-[10px] text-brand-cyan font-black uppercase tracking-widest">Pending</p>
-                                                      <p className="text-xl font-black text-white">{scannedTracks?.length || 0}</p>
-                                                   </div>
+
                                                 </div>
                                              </div>
 
@@ -2584,13 +2596,25 @@ const AdminDashboard: React.FC = () => {
                                                 </button>
                                                 <button
                                                    onClick={async () => {
-                                                      if (window.confirm('Run deduplication on the staging list? This will remove duplicate entries from this queue.')) {
+                                                      if (window.confirm('Run deduplication on the staging list? This will remove duplicate entries from this queue, including those already in the Music Pool.')) {
                                                          const unique = new Map();
                                                          const norm = (u: string) => (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
                                                          let dupeCount = 0;
+
+                                                         const poolUrls = new Set<string>();
+                                                         (poolTracks || []).forEach(p => {
+                                                            if (p.downloadUrl) poolUrls.add(norm(p.downloadUrl));
+                                                            if (p.audioUrl) poolUrls.add(norm(p.audioUrl));
+                                                            if (p.previewUrl) poolUrls.add(norm(p.previewUrl));
+                                                            (p.versions || []).forEach((v: any) => {
+                                                               if (v.downloadUrl) poolUrls.add(norm(v.downloadUrl));
+                                                               if (v.url) poolUrls.add(norm(v.url));
+                                                            });
+                                                         });
+
                                                          (scannedTracks || []).forEach((t: any) => {
                                                             const key = norm(t.downloadUrl || t.url || t.id);
-                                                            if (!unique.has(key)) {
+                                                            if (!unique.has(key) && !poolUrls.has(key)) {
                                                                unique.set(key, t);
                                                             } else {
                                                                dupeCount++;

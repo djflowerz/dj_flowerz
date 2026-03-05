@@ -90,7 +90,7 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
     const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-upload`, {
         method: 'POST',
         headers: {
-            'x-file-name': file.name,
+            'x-file-name': encodeURIComponent(file.name),
             'x-folder': folder,
             'content-type': file.type,
             ...authHeader
