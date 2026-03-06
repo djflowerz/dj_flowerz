@@ -10,27 +10,46 @@ const fetchURL = (url) => new Promise((resolve, reject) => {
 });
 
 async function main() {
-    console.log("Fetching remix worker...");
-    const remixBody = await fetchURL('https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks');
-    let remixes = [];
+    const remixFile = 'remix_hub_raw.json';
+    const vicknickFile = 'vicknick_raw.html';
+
+    // 1. Fetch Remix Hub
+    console.log("Fetching remix worker data...");
     try {
-        remixes = JSON.parse(remixBody);
-        console.log("Remixes count:", remixes.length);
+        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 10 --max-time 120 https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks -o ${remixFile}`);
     } catch (e) {
-        console.error("Error parsing remixes JSON");
+        console.error("Error fetching remix hub:", e.message);
     }
 
-    console.log("Fetching vicknick pool (HTML page with embedded JSON)...");
-    const vicknickBody = await fetchURL('https://r2.vicknickvideopool.com/');
-    let vicknick = [];
-
-    const match = vicknickBody.match(/const\s+ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/m);
-    if (match && match[1]) {
+    let remixes = [];
+    if (fs.existsSync(remixFile)) {
         try {
-            vicknick = eval(match[1]);
-            console.log("Vicknick count:", vicknick.length);
+            remixes = JSON.parse(fs.readFileSync(remixFile, 'utf8'));
+            console.log("Remixes count:", remixes.length);
         } catch (e) {
-            console.error("Error parsing vicknick embedded data:", e.message);
+            console.error("Error parsing remix_hub_raw.json");
+        }
+    }
+
+    // 2. Fetch Vicknick Pool
+    console.log("Fetching vicknick pool data...");
+    try {
+        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 10 --max-time 120 https://r2.vicknickvideopool.com/ -o ${vicknickFile}`);
+    } catch (e) {
+        console.error("Error fetching vicknick pool:", e.message);
+    }
+
+    let vicknick = [];
+    if (fs.existsSync(vicknickFile)) {
+        const vicknickBody = fs.readFileSync(vicknickFile, 'utf8');
+        const match = vicknickBody.match(/const\s+ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/m);
+        if (match && match[1]) {
+            try {
+                vicknick = eval(match[1]);
+                console.log("Vicknick count:", vicknick.length);
+            } catch (e) {
+                console.error("Error parsing vicknick embedded data:", e.message);
+            }
         }
     }
 
@@ -49,6 +68,7 @@ async function main() {
         "Afrobeat (Oldies)",
         "Redrums Video Remixes",
         "Riddimz F'",
+        "Riddim Videos",
         "Afrohouse",
         "Reggae Fussion",
         "Amapiano",
@@ -111,21 +131,46 @@ async function main() {
         let finalGenre = "REMIXAH";
         let subGenre = "ROOT";
 
-        if (key.toLowerCase().includes('riddim') || rawGenre.toLowerCase().includes('riddim')) {
-            finalGenre = "Riddimz F'";
-            if (rawGenre && !rawGenre.toLowerCase().includes('riddim')) {
-                subGenre = rawGenre;
-            } else if (key.includes('/')) {
-                const parts = key.split('/');
-                const riddimPart = parts.find(p => p.toLowerCase().includes('riddim'));
-                if (riddimPart) subGenre = riddimPart;
-                else subGenre = parts[parts.length - 2] || "General";
-            }
-        } else {
-            const matched = allowedGenres.find(g => rawGenre.toLowerCase().includes(g.toLowerCase()) || (g.toLowerCase().includes(rawGenre.toLowerCase()) && rawGenre.length > 5));
+        // 1. Alias Mapping Overrides
+        const lowerRaw = rawGenre.toLowerCase();
+
+        if (lowerRaw.includes('afro house')) finalGenre = "Afrohouse";
+        else if (lowerRaw.includes('r&b') || lowerRaw.includes('rnb')) finalGenre = "RnB Remixes";
+        else if (lowerRaw.includes('kenya love songs') || lowerRaw.includes('kenyan love songs')) {
+            if (lowerRaw.includes('low hype')) finalGenre = "Kenyan Love Songs (Low Hype)";
+            else if (lowerRaw.includes('hype')) finalGenre = "Kenyan Love Songs Hype";
+            else finalGenre = "Kenyan Love Songs (Low Hype)";
+        }
+        else if (lowerRaw.includes('bongo tbt') || lowerRaw.includes('bongo flava (tbt)')) {
+            if (lowerRaw.includes('low hype')) finalGenre = "Bongo TBT Low Hype";
+            else finalGenre = "Bongo Flava (TBT) Hype";
+        }
+        else if (lowerRaw.includes('afrobeat (oldies)') || lowerRaw.includes('afrobeat oldies')) {
+            finalGenre = "Afrobeat (Oldies)";
+        }
+        else if (lowerRaw.includes('kikuyu gospel') || lowerRaw.includes('kigocco')) finalGenre = "Kikuyu Gospel (Kigocco)";
+        else if (lowerRaw.includes('3 step') || lowerRaw.includes('3-step')) finalGenre = "3 Step Amapiano";
+        else if (lowerRaw.includes('south africa') && lowerRaw.includes('amapiano')) finalGenre = "South Africa Amapiano";
+        else {
+            // 2. Strict Match from allowed list
+            const matched = allowedGenres.find(g => lowerRaw.includes(g.toLowerCase()) || (g.toLowerCase().includes(lowerRaw) && rawGenre.length > 5));
             if (matched) {
                 finalGenre = matched;
-            } else {
+            }
+            // 3. Riddim Catch-all (Special Priority)
+            else if (key.toLowerCase().includes('riddim') || lowerRaw.includes('riddim')) {
+                finalGenre = "Riddimz F'";
+                if (rawGenre && !lowerRaw.includes('riddim')) {
+                    subGenre = rawGenre;
+                } else if (key.includes('/')) {
+                    const parts = key.split('/');
+                    const riddimPart = parts.find(p => p.toLowerCase().includes('riddim'));
+                    if (riddimPart) subGenre = riddimPart;
+                    else subGenre = parts[parts.length - 2] || "General";
+                }
+            }
+            // 4. Folder/Keyword Path Matching
+            else {
                 if (key.includes('Redrums Video')) finalGenre = "Redrums Video Remixes";
                 else if (key.includes('Amapiano')) finalGenre = "Amapiano";
                 else if (key.includes('Reggae')) finalGenre = "Reggae Fussion";
@@ -133,8 +178,8 @@ async function main() {
                 else if (key.includes('Dancehall')) finalGenre = "Dancehall Edits";
                 else if (key.includes('Remix & Mashups')) finalGenre = "REMIXAH";
                 else if (rawGenre) {
-                    if (rawGenre.toLowerCase().includes('edit')) finalGenre = "Club Edits";
-                    else if (rawGenre.toLowerCase().includes('hype')) finalGenre = "HYPE EDITS";
+                    if (lowerRaw.includes('edit')) finalGenre = "Club Edits";
+                    else if (lowerRaw.includes('hype')) finalGenre = "HYPE EDITS";
                     else finalGenre = "REMIXAH";
                 }
             }
