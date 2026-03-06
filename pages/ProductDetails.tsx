@@ -117,7 +117,8 @@ const ProductDetails: React.FC = () => {
                   <div className="flex gap-2 bg-white/5 border border-white/10 rounded-xl p-1">
                      <button
                         onClick={() => {
-                           const url = window.location.href;
+                           const baseUrl = siteConfig.baseUrl || window.location.origin;
+                           const url = `${baseUrl}/store/${product.id}`;
                            const text = `Check out ${product.name} on DJ Flowerz!`;
                            window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
                         }}
@@ -129,7 +130,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const url = window.location.href;
+                           const baseUrl = siteConfig.baseUrl || window.location.origin;
+                           const url = `${baseUrl}/store/${product.id}`;
                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
                         }}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1877F2] hover:bg-white/5 transition-all"
@@ -140,7 +142,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const url = window.location.href;
+                           const baseUrl = siteConfig.baseUrl || window.location.origin;
+                           const url = `${baseUrl}/store/${product.id}`;
                            window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
                         }}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1DA1F2] hover:bg-white/5 transition-all"

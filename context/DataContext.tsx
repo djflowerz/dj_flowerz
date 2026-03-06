@@ -10,6 +10,7 @@ import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR
 
 // Initial Site Config Data (Fallback only if DB is empty)
 const INITIAL_CONFIG: SiteConfig = {
+  baseUrl: "https://djflowerz.co.ke",
   hero: {
     title: "DJ FLOWERZ",
     subtitle: "Nairobi's Premier DJ. Mixtapes, Music Pool & Merch.",

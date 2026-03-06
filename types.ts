@@ -496,6 +496,7 @@ export interface SEOConfig {
 }
 
 export interface SiteConfig {
+  baseUrl: string;
   hero: HeroContent;
   contact: ContactInfo;
   socials: SocialLinks;

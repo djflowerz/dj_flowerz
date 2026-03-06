@@ -480,7 +480,8 @@ const Store: React.FC = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => {
-                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
+                                  const url = `${baseUrl}/store/${product.id}`;
                                   const text = `Check out ${product.name} on DJ Flowerz!`;
                                   window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
                                 }}
@@ -492,7 +493,8 @@ const Store: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
+                                  const url = `${baseUrl}/store/${product.id}`;
                                   window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
                                 }}
                                 className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1877F2] hover:bg-white/10 transition"
@@ -503,7 +505,8 @@ const Store: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
+                                  const url = `${baseUrl}/store/${product.id}`;
                                   window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
                                 }}
                                 className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1DA1F2] hover:bg-white/10 transition"
