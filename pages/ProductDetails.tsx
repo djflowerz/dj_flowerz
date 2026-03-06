@@ -9,7 +9,7 @@ const ProductDetails: React.FC = () => {
    const { user, isAuthenticated } = useAuth();
    const { slug } = useParams<{ slug: string }>();
    const { addToCart } = useCart();
-   const { products, siteConfig, reviews, addReview } = useData();
+   const { products, productsLoading, siteConfig, reviews, addReview } = useData();
 
    const [quantity, setQuantity] = useState(1);
    const [selectedVariant, setSelectedVariant] = useState<string>('');
@@ -65,6 +65,14 @@ const ProductDetails: React.FC = () => {
          }
       }
    }, [product, selectedVariant]);
+
+   if (productsLoading) {
+      return (
+         <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
+            <div className="w-16 h-16 border-4 border-brand-purple border-t-transparent rounded-full animate-spin"></div>
+         </div>
+      );
+   }
 
    if (!product || !isVisible) {
       return (
