@@ -1613,30 +1613,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addSubscriber = async (email: string, source: string = 'Manual') => {
+  const addSubscriber = async (email: string, source: string = 'Website') => {
     try {
-      // Check if already subscribed
+      // Optimistic check
       if (subscribers.some(s => s.email.toLowerCase() === email.toLowerCase())) {
         return;
       }
 
-      const now = new Date().toISOString();
-      const newSubscriber = {
-        id: `sub_${Date.now()}`,
-        email,
-        date_subscribed: now,
-        status: 'active',
-        source,
-        updatedAt: now
-      };
-      const newSubscribers = [newSubscriber, ...subscribers];
-      await saveToR2('newsletter_subscribers', newSubscribers);
-      refreshSubscribers();
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source })
+      });
 
-      // Send confirmation email
-      sendNewsletterConfirmation(email).catch(err => console.error("Failed to send welcome email:", err));
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to subscribe');
+      }
+
+      // Refresh the subscribers list from R2
+      refreshSubscribers();
     } catch (err: any) {
       console.error("Add subscriber failed:", err.message);
+      throw err; // Propagate to UI
     }
   };
 
