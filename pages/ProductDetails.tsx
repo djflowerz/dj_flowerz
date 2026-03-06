@@ -47,10 +47,10 @@ const ProductDetails: React.FC = () => {
 
          const ogUrl = document.querySelector('meta[property="og:url"]') || document.createElement('meta');
          ogUrl.setAttribute('property', 'og:url');
-         ogUrl.setAttribute('content', `${siteConfig.baseUrl || window.location.origin}/store/${product.slug || product.id}`);
+         ogUrl.setAttribute('content', `${siteConfig?.baseUrl || window.location.origin}/store/${product.slug || product.id}`);
          if (!ogUrl.parentNode) document.head.appendChild(ogUrl);
       }
-   }, [product, siteConfig.baseUrl]);
+   }, [product, siteConfig?.baseUrl]);
 
    // Allow Admin to see draft/hidden products for preview
    const isVisible = product && (user?.isAdmin || (product.status !== 'hidden' && product.status !== 'draft'));
@@ -121,7 +121,7 @@ const ProductDetails: React.FC = () => {
    };
 
    const whatsappMessage = `Hi DJ Flowerz, I'm interested in viewing: ${product.name} (${selectedVariant || 'Standard'}).\n\nIs this available in stock?`;
-   const whatsappNumber = (siteConfig.contact.whatsapp || '').replace(/\D/g, '');
+   const whatsappNumber = (siteConfig?.contact?.whatsapp || siteConfig?.contact?.phone || '').replace(/\D/g, '');
    const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
 
    // Specs Helper
@@ -130,7 +130,7 @@ const ProductDetails: React.FC = () => {
       { label: 'Category', value: product.category },
       { label: 'Status', value: product.stock > 0 ? 'In Stock' : 'Out of Stock' },
       { label: 'SKU', value: product.sku || `PROD-${product.id.substring(0, 8).toUpperCase()}` },
-      { label: 'Rating', value: `${averageRating.toFixed(1)} / 5.0` },
+      { label: 'Rating', value: `${Number(averageRating).toFixed(1)} / 5.0` },
       { label: 'Release Date', value: product.releaseDate ? new Date(product.releaseDate).toLocaleDateString() : new Date(product.createdAt || Date.now()).toLocaleDateString() },
    ];
 
