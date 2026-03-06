@@ -239,25 +239,29 @@ const cleanLabel = (label: string) => {
 // R2 Mapping Helpers
 const mapR2Track = (t: any): Track => {
   // Common CDN bases for relative URLs
-  const DEFAULT_CDN_BASE = 'https://r2.vicknickvideopool.com';
+  const WORKER_BASE = 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+  const DEFAULT_CDN_BASE = `${WORKER_BASE}/files`;
 
   /**
-   * Encode path segments in a URL so that spaces, &, (, ) etc. are safe.
-   * Preserves the scheme + hostname, encodes each path segment individually.
-   * Leaves already-percent-encoded characters untouched.
+   * Rewrite vicknickvideopool CDN URLs → djflowerz worker /files/…
+   * Then encode path segments so spaces, &, (, ) etc. are URL-safe.
    */
   const encodeR2Url = (u: string): string => {
     if (!u) return u;
     try {
       const urlObj = new URL(u);
+      // Rewrite third-party CDN domains to go through the djflowerz worker
+      if (urlObj.hostname === 'r2.vicknickvideopool.com' || urlObj.hostname === 'cdn.vicknickvideopool.com') {
+        urlObj.hostname = 'djflowerz-worker.ianmuriithiflowerz.workers.dev';
+        urlObj.pathname = '/files' + urlObj.pathname;
+      }
       // Encode each path segment individually (handles spaces, &, parens, etc.)
       urlObj.pathname = urlObj.pathname
         .split('/')
-        .map(seg => encodeURIComponent(decodeURIComponent(seg))) // decode first to avoid double-encoding
+        .map(seg => encodeURIComponent(decodeURIComponent(seg)))
         .join('/');
       return urlObj.toString();
     } catch {
-      // Fallback: just percent-encode common problem characters
       return u.replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
     }
   };

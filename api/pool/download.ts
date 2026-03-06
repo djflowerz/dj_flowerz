@@ -22,7 +22,8 @@ const TRUSTED_DOMAINS = [
     'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev',
     'hearthis.at',
     'r2.vicknickvideopool.com',
-    'djflowerz.co.ke'
+    'djflowerz.co.ke',
+    'djflowerz-worker.ianmuriithiflowerz.workers.dev'
 ];
 
 function parseHearthisUrl(url: string) {

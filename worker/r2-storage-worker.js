@@ -34,6 +34,37 @@ export default {
                 return new Response(config || "{}", { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
 
+            // --- PUBLIC FILE PROXY: GET /files/* ---
+            // Serves track media (mp3, mp4, etc.) from r2.vicknickvideopool.com
+            // via the djflowerz worker so all media uses the djflowerz domain.
+            if (method === "GET" && path.startsWith("/files/")) {
+                const filePath = path.replace("/files/", "");
+                const originUrl = `https://r2.vicknickvideopool.com/${filePath}${url.search}`;
+
+                const originRes = await fetch(originUrl, {
+                    headers: {
+                        "User-Agent": "DJFlowerz-Worker/1.0",
+                        "Referer": "https://djflowerz.co.ke"
+                    }
+                });
+
+                const headers = new Headers(corsHeaders);
+                headers.set("Content-Type", originRes.headers.get("Content-Type") || "application/octet-stream");
+                headers.set("Cache-Control", "public, max-age=86400"); // 1 day cache
+                headers.set("Accept-Ranges", "bytes");
+
+                // Pass through Content-Length and Content-Range for proper video seeking
+                const contentLength = originRes.headers.get("Content-Length");
+                const contentRange = originRes.headers.get("Content-Range");
+                if (contentLength) headers.set("Content-Length", contentLength);
+                if (contentRange) headers.set("Content-Range", contentRange);
+
+                return new Response(originRes.body, {
+                    status: originRes.status,
+                    headers
+                });
+            }
+
             // Public Data Fetch: GET /api/data/:collection.json
             if (method === "GET" && path.startsWith("/api/data/")) {
                 let collection = path.replace("/api/data/", "");
