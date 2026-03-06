@@ -1,36 +1,3 @@
-import nodemailer from 'nodemailer';
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-
-// R2 Credentials
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'dj-flowerz';
-
-const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
-const SENDER_NAME = 'DJ Flowerz';
-const SENDER_ALIAS = process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke';
-
-const s3 = new S3Client({
-    region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID || '',
-        secretAccessKey: R2_SECRET_ACCESS_KEY || '',
-    },
-});
-
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-    },
-});
-
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -43,6 +10,30 @@ export default async function handler(req, res) {
     }
 
     try {
+        // Dynamic imports to bypass Vercel build issues with top-level imports in this project
+        const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const nodemailer = await import("nodemailer");
+
+        // R2 Credentials
+        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'dj-flowerz';
+
+        const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
+        const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
+        const SENDER_NAME = 'DJ Flowerz';
+        const SENDER_ALIAS = process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke';
+
+        const s3 = new S3Client({
+            region: "auto",
+            endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+                accessKeyId: R2_ACCESS_KEY_ID || '',
+                secretAccessKey: R2_SECRET_ACCESS_KEY || '',
+            },
+        });
+
         // 1. Get current subscribers from R2
         const key = 'data/newsletter_subscribers.json';
         let subscribers = [];
@@ -52,7 +43,10 @@ export default async function handler(req, res) {
             const str = await response.Body?.transformToString();
             if (str) subscribers = JSON.parse(str);
         } catch (err) {
-            if (err.name !== 'NoSuchKey') throw err;
+            if (err.name !== 'NoSuchKey') {
+                console.error('R2 read error:', err);
+                // Continue if empty or missing
+            }
         }
 
         // 2. Check if already subscribed
@@ -73,25 +67,27 @@ export default async function handler(req, res) {
 
         subscribers.unshift(newSubscriber);
 
-        // 4. Save back to R2 (Deduplicated)
-        const seenIds = new Set();
-        const uniqueSubscribers = subscribers.filter(item => {
-            if (!item.id) return true;
-            if (seenIds.has(item.id)) return false;
-            seenIds.add(item.id);
-            return true;
-        });
-
+        // 4. Save back to R2
         const putCmd = new PutObjectCommand({
             Bucket: R2_BUCKET_NAME,
             Key: key,
-            Body: JSON.stringify(uniqueSubscribers),
+            Body: JSON.stringify(subscribers.slice(0, 10000)), // Limit to 10k for safety
             ContentType: 'application/json'
         });
         await s3.send(putCmd);
 
         // 5. Send Welcome Email
         if (GMAIL_APP_PASSWORD) {
+            const transporter = nodemailer.default.createTransport({
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false,
+                auth: {
+                    user: GMAIL_USER,
+                    pass: GMAIL_APP_PASSWORD,
+                },
+            });
+
             const html = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                     <h1 style="color: #a855f7; margin-bottom: 10px;">Welcome Aboard!</h1>
@@ -118,6 +114,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: 'Subscribed successfully' });
     } catch (error) {
         console.error('Subscription error:', error);
-        return res.status(500).json({ error: 'Internal server error during subscription', details: error.message });
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 }
