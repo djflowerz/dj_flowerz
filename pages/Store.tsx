@@ -406,8 +406,8 @@ const Store: React.FC = () => {
                   itemContent={(index, product) => (
                     <div className="bg-[#15151A] rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-purple/50 transition duration-300 group flex flex-col shadow-xl hover:shadow-2xl hover:-translate-y-1 relative h-full">
 
-                      <Link to={`/store/${product.slug || product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
-                        <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover/img:scale-110 transition duration-500" />
+                      <Link to={`/store/${product.slug || product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-[#0F0F13] border-b border-white/5 flex items-center justify-center group/img p-4 overflow-hidden">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover/img:scale-110 transition duration-500 relative z-10" />
 
                         {/* Tags */}
                         <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">

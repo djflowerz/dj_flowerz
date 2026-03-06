@@ -14,10 +14,10 @@ export const useR2Collection = <T extends { id: string }>(
     const [isLoading, setIsLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = async (isBackground: boolean = false) => {
         if (!enabled) return;
 
-        setIsLoading(true);
+        if (!isBackground) setIsLoading(true);
         try {
             const results = await fetchFromR2<any>(collectionName);
 
@@ -35,17 +35,22 @@ export const useR2Collection = <T extends { id: string }>(
             }
 
             // Fallback to initialData if empty
-            if (transformed.length === 0 && initialData.length > 0) {
-                setData(initialData);
-            } else {
-                setData(transformed);
-            }
+            const newData = transformed.length === 0 && initialData.length > 0 ? initialData : transformed;
+
+            // Only update state if data has actually changed to prevent VirtualGrid re-renders
+            setData(prevData => {
+                if (JSON.stringify(prevData) === JSON.stringify(newData)) {
+                    return prevData;
+                }
+                return newData;
+            });
+
             setError(null);
         } catch (err: any) {
             console.error(`R2 fetch error (${collectionName}):`, err.message);
             setError(err.message);
         } finally {
-            setIsLoading(false);
+            if (!isBackground) setIsLoading(false);
         }
     };
 
@@ -59,7 +64,7 @@ export const useR2Collection = <T extends { id: string }>(
         fetchData();
 
         // Auto-polling for freshness
-        const interval = setInterval(fetchData, 60000); // Poll every 1 min
+        const interval = setInterval(() => fetchData(true), 300000); // Poll every 5 mins
         return () => clearInterval(interval);
     }, [collectionName, enabled, orderByField, orderDirection]);
 

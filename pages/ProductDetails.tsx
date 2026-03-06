@@ -525,8 +525,8 @@ const ProductDetails: React.FC = () => {
                         ) : (
                            <div className="bg-[#15151A] p-10 rounded-[2.5rem] border border-white/5 text-center">
                               <User size={32} className="mx-auto text-gray-800 mb-4" />
-                              <p className="text-sm font-bold text-gray-600 mb-6">Unauthorized access to reporting system.</p>
-                              <Link to="/login" className="inline-block px-10 py-4 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition">Identify</Link>
+                              <p className="text-sm font-bold text-gray-600 mb-6">Please sign in to comment on this product.</p>
+                              <Link to="/login" className="inline-block px-10 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 transition shadow-lg shadow-brand-purple/20">Sign In</Link>
                            </div>
                         )}
                      </div>
