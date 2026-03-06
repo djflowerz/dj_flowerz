@@ -241,10 +241,31 @@ const mapR2Track = (t: any): Track => {
   // Common CDN bases for relative URLs
   const DEFAULT_CDN_BASE = 'https://r2.vicknickvideopool.com';
 
+  /**
+   * Encode path segments in a URL so that spaces, &, (, ) etc. are safe.
+   * Preserves the scheme + hostname, encodes each path segment individually.
+   * Leaves already-percent-encoded characters untouched.
+   */
+  const encodeR2Url = (u: string): string => {
+    if (!u) return u;
+    try {
+      const urlObj = new URL(u);
+      // Encode each path segment individually (handles spaces, &, parens, etc.)
+      urlObj.pathname = urlObj.pathname
+        .split('/')
+        .map(seg => encodeURIComponent(decodeURIComponent(seg))) // decode first to avoid double-encoding
+        .join('/');
+      return urlObj.toString();
+    } catch {
+      // Fallback: just percent-encode common problem characters
+      return u.replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
+    }
+  };
+
   const ensureAbsolute = (u: string) => {
     if (!u) return u;
-    if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return u;
-    return `${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`;
+    if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return encodeR2Url(u);
+    return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
   };
 
   const versions = (t.versions || []).map((v: any) => ({
