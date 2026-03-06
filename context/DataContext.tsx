@@ -604,15 +604,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshPoolTracks = async () => {
     try {
       setPoolLoading(true);
-      // Unified approach: fetch through worker proxy
-      const workerUrl = (import.meta.env.VITE_STORAGE_WORKER_URL || "https://djflowerz-worker.ianmuriithiflowerz.workers.dev").trim();
-      const res = await fetch(`${workerUrl}/api/data/pool_tracks.json?t=${Date.now()}`);
-      if (!res.ok) throw new Error("Failed to load music pool from Worker");
-      const data = await res.json();
-      setPoolTracks(data.map(mapSupabaseTrack));
-      setPoolError(null);
+      // Use optimized fetchFromR2 (Direct R2 first)
+      const data = await fetchFromR2<Track>('pool_tracks');
+      if (data && data.length > 0) {
+        setPoolTracks(data.map(mapSupabaseTrack));
+        setPoolError(null);
+      } else if (POOL_TRACKS && POOL_TRACKS.length > 0) {
+        // Internal fallback if direct/worker fail
+        setPoolTracks(POOL_TRACKS);
+      }
     } catch (err: any) {
-      console.error("Pool fetch error:", err);
+      console.error("Pool refresh error:", err);
       setPoolError(err);
       if (POOL_TRACKS) setPoolTracks(POOL_TRACKS);
     } finally {

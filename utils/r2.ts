@@ -12,23 +12,41 @@ async function getAuthHeader() {
 }
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
+    // 1. Primary Source: High-Reliability Public R2 CDN
+    const PUBLIC_R2_URL = 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
+    const R2_URL = (import.meta.env.VITE_R2_URL || PUBLIC_R2_URL).trim();
+    const directUrl = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
+
     try {
-        // Unified approach: fetch through worker as requested
+        const response = await fetch(directUrl);
+        if (response.ok) {
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+        }
+        console.warn(`[R2] Direct fetch failed for ${collection} (${response.status}), falling back to Worker...`);
+    } catch (error) {
+        console.warn(`[R2] Direct fetch error for ${collection}, falling back to Worker...`);
+    }
+
+    // 2. Fallback: Cloudflare Worker Proxy (May be rate-limited or 429'd)
+    try {
         const url = `${STORAGE_WORKER_URL}/api/data/${collection}.json?t=${Date.now()}`;
         const response = await fetch(url);
-        if (!response.ok) {
-            console.warn(`Worker fetch not ok for ${collection}:`, response.status);
-            // Fallback for extreme cases where worker is down but R2 is up
-            if (VITE_R2_URL) {
-                const fallbackUrl = `${VITE_R2_URL}/data/${collection}.json?t=${Date.now()}`;
-                const fallbackRes = await fetch(fallbackUrl);
-                if (fallbackRes.ok) return await fallbackRes.json();
-            }
+
+        if (response.status === 429) {
+            console.error(`[Worker] Rate limited (429) for ${collection}.`);
             return [];
         }
-        return await response.json();
+
+        if (!response.ok) {
+            console.error(`[Worker] Fetch failed for ${collection} (${response.status}).`);
+            return [];
+        }
+
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     } catch (error) {
-        console.error(`Failed to fetch ${collection} via Worker:`, error);
+        console.error(`[Worker] Fetch exception for ${collection}:`, error);
         return [];
     }
 }

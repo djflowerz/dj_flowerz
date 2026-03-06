@@ -58,8 +58,8 @@ export const useR2Collection = <T extends { id: string }>(
 
         fetchData();
 
-        // Auto-polling for "realtime" feel as requested by user
-        const interval = setInterval(fetchData, 30000); // Poll every 30s
+        // Auto-polling for freshness
+        const interval = setInterval(fetchData, 60000); // Poll every 1 min
         return () => clearInterval(interval);
     }, [collectionName, enabled, orderByField, orderDirection]);
 
