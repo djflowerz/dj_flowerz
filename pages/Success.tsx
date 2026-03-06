@@ -4,34 +4,11 @@ import { useLocation, Link, Navigate, useParams, useNavigate } from 'react-route
 import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, ShoppingBag, Copy, CreditCard, Calendar, Loader2, ExternalLink, MessageCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import { supabase } from '../utils/supabase'; // Updated import
+
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Order } from '../types';
 
-// Helper to map Supabase snake_case to CamelCase for Order
-const mapSupabaseOrder = (data: any): any => ({
-   ...data,
-   customerName: data.customer_name || data.customerName,
-   customerEmail: data.customer_email || data.customerEmail,
-   paymentStatus: data.payment_status || data.paymentStatus,
-   referenceCode: data.reference_code || data.referenceCode,
-   shippingAddress: data.shipping_address || data.shippingAddress,
-   trackingNumber: data.tracking_number || data.trackingNumber,
-   courierName: data.courier_name || data.courierName,
-   estimatedArrival: data.estimated_arrival || data.estimatedArrival,
-   pickupLocation: data.pickup_location || data.pickupLocation,
-   receiptUrl: data.receipt_url || data.receiptUrl,
-   adminMessage: data.admin_message || data.adminMessage,
-   shippedAt: data.shipped_at || data.shippedAt,
-   deliveryMethod: data.delivery_method || data.deliveryMethod,
-   couponCode: data.coupon_code || data.couponCode,
-   discountAmount: data.discount_amount || data.discountAmount,
-   shippingCost: data.shipping_cost || data.shippingCost,
-   subtotal: data.subtotal || data.subtotal,
-   createdAt: data.created_at || data.createdAt,
-   updatedAt: data.updated_at || data.updatedAt,
-   orderId: data.id // Ensure ID is mapped if needed by component logic
-});
+
 
 const Success: React.FC = () => {
    const { clearCart } = useCart();

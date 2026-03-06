@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { supabase } from '../utils/supabase';
 import { isUserSubscriber, getSubscriptionTimeLeft } from '../utils/authHelpers';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import MFAEnrollment from '../components/MFAEnrollment';
