@@ -1574,7 +1574,7 @@ const AdminDashboard: React.FC = () => {
          const token = session?.access_token || '';
 
          // Email campaign via secure local API (Cloudflare Email Routing)
-         const response = await fetch('/api/newsletter/send', {
+         const response = await fetch('/api/send-email', {
             method: 'POST',
             headers: {
                'Content-Type': 'application/json',

@@ -388,6 +388,36 @@ async function handleSubscriptionDisable(data: any) {
  * in Supabase. Transactional emails go through Gmail SMTP via /api/newsletter/send.
  */
 async function syncToMailerLite(email: string, fields: Record<string, any>, groups: string[] = []) {
-    console.log(`[Email stub] Would notify ${email} with fields:`, fields, 'groups:', groups);
-    // TODO: If you want automated transactional emails, call /api/newsletter/send here
+    console.log(`[Email] Notifying ${email} with fields:`, fields);
+
+    try {
+        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+        const host = process.env.VERCEL_URL || 'localhost:3000';
+        const baseUrl = `${protocol}://${host}`;
+
+        let subject = "DJ FLOWERZ — Update";
+        let html = "";
+
+        if (fields.customer_type === 'buyer') {
+            subject = "Your DJ FLOWERZ Receipt 🧾";
+            html = `<h1>Thanks for your purchase!</h1><p>Order ID: ${fields.last_order_id}</p><p>Total: $${fields.last_order_total}</p><p>Items: ${fields.last_purchase_receipt}</p><br/><p>Visit <a href="https://djflowerz.co.ke">DJ FLOWERZ</a> to download your items.</p>`;
+        } else if (fields.subscription_status === 'active') {
+            subject = "Your DJ FLOWERZ Subscription is Active! 🎧";
+            html = `<h1>Welcome back!</h1><p>Your ${fields.subscription_plan} plan is now active.</p><p>Expiry: ${new Date(fields.subscription_expiry).toLocaleDateString()}</p>`;
+        }
+
+        if (html) {
+            await fetch(`${baseUrl}/api/send-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: email,
+                    subject: subject,
+                    html: html
+                })
+            });
+        }
+    } catch (err) {
+        console.error('[Email] Failed to send transactional email from webhook:', err);
+    }
 }

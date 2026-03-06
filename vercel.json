@@ -61,5 +61,15 @@
             "source": "/(.*)",
             "destination": "/index.html"
         }
+    ],
+    "crons": [
+        {
+            "path": "/api/check-subscriptions",
+            "schedule": "0 * * * *"
+        },
+        {
+            "path": "/api/sync-tracks",
+            "schedule": "0 0 * * *"
+        }
     ]
 }

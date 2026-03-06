@@ -1641,7 +1641,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const sendEmail = async (data: { to: string | string[]; subject: string; html: string; text?: string }) => {
     try {
-      const response = await fetch('/api/newsletter/send', {
+      const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
