@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail } from 'lucide-react';
+import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail, Facebook, Instagram, Twitter } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -467,15 +467,51 @@ const Store: React.FC = () => {
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-white/5">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-2">
                             <button
                               onClick={() => {
                                 addToCart(product);
                               }}
-                              className="sm:col-span-2 flex items-center justify-center gap-2 py-3 bg-brand-purple text-white rounded-xl font-bold text-xs md:text-sm hover:bg-purple-600 transition shadow-lg hover:shadow-purple-500/25 active:scale-[0.98]"
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-brand-purple text-white rounded-xl font-bold text-xs md:text-sm hover:bg-purple-600 transition shadow-lg hover:shadow-purple-500/25 active:scale-[0.98]"
                             >
                               <ShoppingCart size={16} /> {product.price === 0 ? 'Download' : 'Add to Cart'}
                             </button>
+
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  const text = `Check out ${product.name} on DJ Flowerz!`;
+                                  window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/5 border border-white/10 text-gray-400 rounded-xl font-bold text-[10px] hover:text-[#25D366] hover:bg-white/10 transition"
+                                title="Share on WhatsApp"
+                              >
+                                <MessageCircle size={14} /> WhatsApp
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                                }}
+                                className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1877F2] hover:bg-white/10 transition"
+                                title="Share on Facebook"
+                              >
+                                <Facebook size={14} />
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  const url = `${window.location.origin}/store/${product.id}`;
+                                  window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
+                                }}
+                                className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1DA1F2] hover:bg-white/10 transition"
+                                title="Share on X (Twitter)"
+                              >
+                                <Twitter size={14} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>

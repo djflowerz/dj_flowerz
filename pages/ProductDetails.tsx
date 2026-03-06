@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2, Star, Package, Tag, Calendar, ShieldCheck, Truck, RefreshCw, Layers, HardDrive, Info, MessageSquare, User, Send, Check } from 'lucide-react';
+import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2, Star, Package, Tag, Calendar, ShieldCheck, Truck, RefreshCw, Layers, HardDrive, Info, MessageSquare, User, Send, Check, Facebook, Twitter, Instagram } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -112,19 +112,58 @@ const ProductDetails: React.FC = () => {
                   <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all">
                      <ChevronLeft size={20} />
                   </button>
-                  <button
-                     onClick={() => {
-                        if (navigator.share) {
-                           navigator.share({ title: product.name, text: `Explore ${product.name} on DJ Flowerz!`, url: window.location.href });
-                        } else {
-                           navigator.clipboard.writeText(window.location.href);
-                           alert('Signal Encrypted & Copied to Clipboard');
-                        }
-                     }}
-                     className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all"
-                  >
-                     <Share2 size={18} />
-                  </button>
+
+                  {/* Social Share Group */}
+                  <div className="flex gap-2 bg-white/5 border border-white/10 rounded-xl p-1">
+                     <button
+                        onClick={() => {
+                           const url = window.location.href;
+                           const text = `Check out ${product.name} on DJ Flowerz!`;
+                           window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
+                        }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#25D366] hover:bg-white/5 transition-all"
+                        title="Share on WhatsApp"
+                     >
+                        <MessageCircle size={16} />
+                     </button>
+
+                     <button
+                        onClick={() => {
+                           const url = window.location.href;
+                           window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                        }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1877F2] hover:bg-white/5 transition-all"
+                        title="Share on Facebook"
+                     >
+                        <Facebook size={16} />
+                     </button>
+
+                     <button
+                        onClick={() => {
+                           const url = window.location.href;
+                           window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
+                        }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1DA1F2] hover:bg-white/5 transition-all"
+                        title="Share on X (Twitter)"
+                     >
+                        <Twitter size={16} />
+                     </button>
+
+                     <button
+                        onClick={() => {
+                           if (navigator.share) {
+                              navigator.share({ title: product.name, text: `Explore ${product.name} on DJ Flowerz!`, url: window.location.href });
+                           } else {
+                              navigator.clipboard.writeText(window.location.href);
+                              alert('Link Copied to Clipboard');
+                           }
+                        }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-brand-purple hover:bg-white/5 transition-all"
+                        title="More Options"
+                     >
+                        <Share2 size={16} />
+                     </button>
+                  </div>
                </div>
             </div>
 
@@ -294,7 +333,7 @@ const ProductDetails: React.FC = () => {
                            className="flex-1 h-16 bg-brand-purple text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-purple-600 transition flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale shadow-lg shadow-brand-purple/20"
                         >
                            <ShoppingCart size={20} />
-                           {product.stock > 0 ? 'Deploy to Loadout' : 'Signal Lost'}
+                           {product.stock > 0 ? 'Checkout Now' : 'Signal Lost'}
                         </button>
                         <a
                            href={whatsappLink}
@@ -478,7 +517,7 @@ const ProductDetails: React.FC = () => {
                <div className="flex justify-between items-end mb-12">
                   <div>
                      <h2 className="text-3xl font-display font-bold text-white mb-2">Simulated Matches</h2>
-                     <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Recommended additions to your current loadout</p>
+                     <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Recommended additions to your current order</p>
                   </div>
                   <Link to="/store" className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-purple hover:text-white transition flex items-center gap-2">Explore Store <ChevronRight size={12} /></Link>
                </div>
