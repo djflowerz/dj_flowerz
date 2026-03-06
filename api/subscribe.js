@@ -14,11 +14,11 @@ export default async function handler(req, res) {
         const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
         const nodemailer = await import("nodemailer");
 
-        // R2 Credentials
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'dj-flowerz';
+        // R2 Credentials (fallback to VITE_ names)
+        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID;
+        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY;
+        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY;
+        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz';
 
         const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
         const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
