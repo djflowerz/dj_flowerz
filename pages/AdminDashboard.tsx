@@ -283,11 +283,15 @@ const AudioUpload: React.FC<{
                </div>
             ) : (
                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                     <div className="flex-1 bg-black/40 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-gray-400 truncate">
-                        {value || "No file selected"}
-                     </div>
-                     <label className="bg-white/5 hover:bg-white/10 text-white px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest cursor-pointer transition-all border border-white/5">
+                  <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl px-1 py-1">
+                     <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className="flex-1 bg-transparent px-3 py-2 text-xs text-white outline-none placeholder:text-gray-700"
+                        placeholder="Paste URL or upload MP3..."
+                     />
+                     <label className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-widest cursor-pointer transition-all border border-white/5 whitespace-nowrap">
                         Choose MP3
                         <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
                      </label>
