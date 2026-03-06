@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail, Facebook, Instagram, Twitter } from 'lucide-react';
+import { ShoppingCart, MessageCircle, Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Share2, Star, Grid, Headphones, Disc, Laptop, Smartphone, Battery, Database, Music, Shirt, Mail, Facebook, Instagram, Twitter, Copy, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ const Store: React.FC = () => {
   const [sortBy, setSortBy] = useState('Newest');
 
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Constants
   const categories = ['All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Mobile Phones', 'Mobile Accessories', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'];
@@ -478,6 +479,20 @@ const Store: React.FC = () => {
                             </button>
 
                             <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
+                                  const url = `${baseUrl}/store/${product.id}`;
+                                  navigator.clipboard.writeText(url);
+                                  setCopiedId(product.id);
+                                  setTimeout(() => setCopiedId(null), 2000);
+                                }}
+                                className={`w-10 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl transition ${copiedId === product.id ? 'text-green-500 bg-green-500/10' : 'text-gray-400 hover:text-brand-purple hover:bg-white/10'}`}
+                                title="Copy Link to Clipboard"
+                              >
+                                {copiedId === product.id ? <Check size={14} /> : <Copy size={14} />}
+                              </button>
+
                               <button
                                 onClick={() => {
                                   const baseUrl = siteConfig.baseUrl || window.location.origin;

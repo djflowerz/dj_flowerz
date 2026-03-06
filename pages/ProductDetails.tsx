@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2, Star, Package, Tag, Calendar, ShieldCheck, Truck, RefreshCw, Layers, HardDrive, Info, MessageSquare, User, Send, Check, Facebook, Twitter, Instagram } from 'lucide-react';
+import { ShoppingCart, MessageCircle, ChevronRight, ChevronLeft, Minus, Plus, Share2, Star, Package, Tag, Calendar, ShieldCheck, Truck, RefreshCw, Layers, HardDrive, Info, MessageSquare, User, Send, Check, Facebook, Twitter, Instagram, Copy } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ const ProductDetails: React.FC = () => {
    const [reviewRating, setReviewRating] = useState(5);
    const [reviewComment, setReviewComment] = useState('');
    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+   const [copied, setCopied] = useState(false);
 
    const product = useMemo(() => products.find(p => p.id === id), [products, id]);
 
@@ -154,15 +155,28 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
+                           const baseUrl = siteConfig.baseUrl || window.location.origin;
+                           const url = `${baseUrl}/store/${product.id}`;
+                           navigator.clipboard.writeText(url);
+                           setCopied(true);
+                           setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${copied ? 'text-green-500 bg-green-500/10' : 'text-gray-400 hover:text-brand-purple hover:bg-white/5'}`}
+                        title="Copy Link to Clipboard"
+                     >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                     </button>
+
+                     <button
+                        onClick={() => {
+                           const baseUrl = siteConfig.baseUrl || window.location.origin;
+                           const url = `${baseUrl}/store/${product.id}`;
                            if (navigator.share) {
-                              navigator.share({ title: product.name, text: `Explore ${product.name} on DJ Flowerz!`, url: window.location.href });
-                           } else {
-                              navigator.clipboard.writeText(window.location.href);
-                              alert('Link Copied to Clipboard');
+                              navigator.share({ title: product.name, text: `Explore ${product.name} on DJ Flowerz!`, url: url });
                            }
                         }}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-brand-purple hover:bg-white/5 transition-all"
-                        title="More Options"
+                        title="Native Share"
                      >
                         <Share2 size={16} />
                      </button>
