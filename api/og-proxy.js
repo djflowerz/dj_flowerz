@@ -1,27 +1,26 @@
 export default async function handler(req, res) {
-    const { slug } = req.query;
+  const { slug } = req.query;
 
-    try {
-        // Fetch products from the R2 bucket public URL
-        const response = await fetch('https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products.json');
-        if (!response.ok) {
-            throw new Error('Failed to fetch products');
-        }
-        const data = await response.json();
-        const products = data.items || [];
+  try {
+    // Fetch products from the CF Worker
+    const response = await fetch('https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/data/products.json');
+    if (!response.ok) {
+      throw new Error('Failed to fetch products');
+    }
 
-        const product = products.find(p => p.slug === slug || p.id === slug);
+    const products = await response.json();
+    const product = Array.isArray(products) ? products.find(p => p.slug === slug || p.id === slug) : null;
 
-        if (!product) {
-            return res.status(404).send('Product not found');
-        }
+    if (!product) {
+      return res.status(404).send('Product not found');
+    }
 
-        const title = `${product.name} | DJ FLOWERZ`;
-        const description = product.shortDescription || (product.description && product.description.substring(0, 160)) || 'Check out this product on DJ FLOWERZ';
-        const image = product.image || 'https://djflowerz.co.ke/og-image.jpg';
-        const url = `https://djflowerz.co.ke/store/${slug}`;
+    const title = `${product.name} | DJ FLOWERZ`;
+    const description = product.shortDescription || (product.description && product.description.substring(0, 160)) || 'Check out this product on DJ FLOWERZ';
+    const image = product.image || 'https://djflowerz.co.ke/og-image.jpg';
+    const url = `https://djflowerz.co.ke/store/${slug}`;
 
-        const html = `
+    const html = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -54,13 +53,13 @@ export default async function handler(req, res) {
       </html>
     `;
 
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
-        return res.status(200).send(html);
-    } catch (error) {
-        console.error('OG Proxy Error:', error);
-        // Fallback to basic HTML if R2 fails
-        const html = `
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    return res.status(200).send(html);
+  } catch (error) {
+    console.error('OG Proxy Error:', error);
+    // Fallback to basic HTML if R2 fails
+    const html = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -73,7 +72,7 @@ export default async function handler(req, res) {
       </body>
       </html>
     `;
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(html);
-    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(html);
+  }
 }
