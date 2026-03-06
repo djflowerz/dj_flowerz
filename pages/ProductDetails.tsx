@@ -21,6 +21,15 @@ const ProductDetails: React.FC = () => {
 
    const product = useMemo(() => products.find(p => p.slug === slug || p.id === slug), [products, slug]);
 
+   const navigate = useNavigate();
+
+   const relatedProducts = useMemo(() => {
+      if (!product) return [];
+      return products
+         .filter(p => p.category === product.category && p.id !== product.id && p.status === 'published')
+         .slice(0, 4);
+   }, [products, product?.category, product?.id]);
+
    // Update SEO tags dynamically for crawlers (best effort on client-side)
    React.useEffect(() => {
       if (product) {
@@ -86,7 +95,6 @@ const ProductDetails: React.FC = () => {
 
    const allImages = Array.from(new Set([product.image, ...(product.images || [])].filter(Boolean)));
 
-   const navigate = useNavigate();
    const handleAddToCart = () => {
       addToCart(product, quantity, selectedVariant);
       navigate('/cart');
@@ -96,12 +104,6 @@ const ProductDetails: React.FC = () => {
    const averageRating = productReviews.length > 0
       ? productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length
       : product.rating || 5;
-
-   const relatedProducts = useMemo(() => {
-      return products
-         .filter(p => p.category === product.category && p.id !== product.id && p.status === 'published')
-         .slice(0, 4);
-   }, [products, product.category, product.id]);
 
    const handleReviewSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
