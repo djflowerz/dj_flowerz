@@ -53,7 +53,7 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
 
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`/api/admin/r2-sync`, {
+    const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, data }),
@@ -70,7 +70,7 @@ function resStatus(status: number) { return status; }
 
 export async function addR2Item(collection: string, item: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`/api/admin/r2-sync`, {
+    const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'add', item }),
@@ -85,7 +85,7 @@ export async function addR2Item(collection: string, item: any): Promise<boolean>
 export async function updateR2Item(collection: string, id: string, item: any): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch(`/api/admin/r2-sync`, {
+        const response = await fetch(`/api/r2-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'update', id, item }),
@@ -97,7 +97,7 @@ export async function updateR2Item(collection: string, id: string, item: any): P
 export async function removeR2Item(collection: string, id: string): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch(`/api/admin/r2-sync`, {
+        const response = await fetch(`/api/r2-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'delete', id }),
@@ -112,7 +112,7 @@ export async function removeR2Item(collection: string, id: string): Promise<bool
  */
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     const authHeader = await getAuthHeader();
-    const uploadUrl = `/api/admin/r2-upload`;
+    const uploadUrl = `/api/r2-upload`;
     console.log(`[R2] Attempting upload to: ${uploadUrl}`, { folder, fileName: file.name, type: file.type });
 
     const response = await fetch(uploadUrl, {
@@ -140,7 +140,7 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
 
 export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`/api/admin/r2-sync`, {
+    const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'addBatch', items }),
@@ -154,7 +154,7 @@ export async function addBatchR2Items(collection: string, items: any[]): Promise
 
 export async function removeBatchR2Items(collection: string, ids: string[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`/api/admin/r2-sync`, {
+    const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'deleteBatch', ids }),
