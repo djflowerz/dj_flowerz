@@ -69,26 +69,46 @@ async function main() {
     const yearRegex = /(202[0-6]) VIDEO POOL EDITS?/i;
 
     allTracks = allTracks.map(track => {
-        // Title Replacement
+        // Title Replacement for VICKNICK
         if (track.baseTitle) track.baseTitle = track.baseTitle.replace(/DJ\s*VICKNICK/gi, 'DJ FLOWERZ');
         if (track.fileName) track.fileName = track.fileName.replace(/DJ\s*VICKNICK/gi, 'DJ FLOWERZ');
         if (track.normalizedTitle) track.normalizedTitle = track.normalizedTitle.replace(/dj\s*vicknick/gi, 'dj flowerz');
         if (track.key) track.key = track.key.replace(/DJ\s*VICKNICK/gi, 'DJ FLOWERZ');
 
+        // Robust Artist & Title Parsing from baseTitle
+        let artist = "DJ FLOWERZ";
+        let title = track.baseTitle || track.fileName || "Untitled Mix";
+
+        if (track.baseTitle && track.baseTitle.includes(" - ")) {
+            const parts = track.baseTitle.split(" - ");
+            artist = parts[0].trim();
+            title = parts.slice(1).join(" - ").trim();
+        } else if (track.fileName && track.fileName.includes(" - ")) {
+            const cleanFileName = track.fileName.replace(/\.[^/.]+$/, "").replace(/\(HD\)|\(SD\)/gi, "").trim();
+            const parts = cleanFileName.split(" - ");
+            artist = parts[0].trim();
+            title = parts.slice(1).join(" - ").trim();
+        }
+
+        // Specific Year & Month handling
         let rawGenre = (track.genre || track.month || "").trim();
-        let rawYear = (track.year || "").trim();
+        let rawYearStr = (track.year || "").trim();
         let key = track.key || "";
 
         rawGenre = rawGenre.replace(/R2 Pool/gi, '').replace(/Remix & Mashups new uploads/gi, '').trim();
-        rawYear = rawYear.replace(/R2 Pool/gi, '').replace(/Remix & Mashups new uploads/gi, '').trim();
+        rawYearStr = rawYearStr.replace(/R2 Pool/gi, '').replace(/Remix & Mashups new uploads/gi, '').trim();
 
-        let yearMatch = rawGenre.match(yearRegex) || rawYear.match(yearRegex) || key.match(yearRegex);
+        let yearMatch = rawGenre.match(yearRegex) || rawYearStr.match(yearRegex) || key.match(yearRegex);
+        let finalYear = rawYearStr;
         if (yearMatch) {
-            track.year = yearMatch[1];
+            finalYear = yearMatch[1];
             rawGenre = rawGenre.replace(yearRegex, '').trim();
+        } else if (key.includes("2026 VIDEO POOL EDITS")) {
+            finalYear = "2026";
         }
 
-        let finalGenre = "REMIXAH"; // Default for hub
+        // Genre Classification
+        let finalGenre = "REMIXAH";
         let subGenre = "ROOT";
 
         if (key.toLowerCase().includes('riddim') || rawGenre.toLowerCase().includes('riddim')) {
@@ -106,7 +126,6 @@ async function main() {
             if (matched) {
                 finalGenre = matched;
             } else {
-                // Folder based classification
                 if (key.includes('Redrums Video')) finalGenre = "Redrums Video Remixes";
                 else if (key.includes('Amapiano')) finalGenre = "Amapiano";
                 else if (key.includes('Reggae')) finalGenre = "Reggae Fussion";
@@ -114,7 +133,6 @@ async function main() {
                 else if (key.includes('Dancehall')) finalGenre = "Dancehall Edits";
                 else if (key.includes('Remix & Mashups')) finalGenre = "REMIXAH";
                 else if (rawGenre) {
-                    // One last check on rawGenre contents
                     if (rawGenre.toLowerCase().includes('edit')) finalGenre = "Club Edits";
                     else if (rawGenre.toLowerCase().includes('hype')) finalGenre = "HYPE EDITS";
                     else finalGenre = "REMIXAH";
@@ -122,11 +140,28 @@ async function main() {
             }
         }
 
-        track.genre = finalGenre;
-        track.subGenre = subGenre;
-        track.artist = track.artist || "DJ FLOWERZ";
+        // Frontend Compatibility (DataContext.tsx mapping)
+        const downloadUrl = (track.id && track.id.startsWith("http")) ? track.id : `https://r2.vicknickvideopool.com/${track.key || track.fileName}`;
 
-        return track;
+        return {
+            ...track,
+            id: track.key || track.fileName || Math.random().toString(36).substr(2, 9),
+            title: title,
+            artist: artist,
+            genre: finalGenre,
+            subGenre: subGenre,
+            year: finalYear,
+            category: [rawGenre, finalGenre, `${finalYear} VIDEO POOL EDITS`].filter(Boolean),
+            versions: [
+                {
+                    id: "v1",
+                    type: track.version || (track.type === "video" ? "Video" : "Audio"),
+                    downloadUrl: downloadUrl
+                }
+            ],
+            previewUrl: downloadUrl,
+            dateAdded: track.uploaded || new Date().toISOString()
+        };
     });
 
     // Grouping for report
