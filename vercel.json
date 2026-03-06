@@ -35,6 +35,17 @@
     ],
     "rewrites": [
         {
+            "source": "/store/(.*)",
+            "has": [
+                {
+                    "type": "header",
+                    "key": "user-agent",
+                    "value": "(?i).*(bot|facebookexternalhit|whatsapp|telegram|discord|slack|twitter).*"
+                }
+            ],
+            "destination": "/api/og-proxy?slug=$1"
+        },
+        {
             "source": "/r2/(.*)",
             "destination": "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/$1"
         },

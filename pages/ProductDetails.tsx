@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 const ProductDetails: React.FC = () => {
    const { user, isAuthenticated } = useAuth();
-   const { id } = useParams<{ id: string }>();
+   const { slug } = useParams<{ slug: string }>();
    const { addToCart } = useCart();
    const { products, siteConfig, reviews, addReview } = useData();
 
@@ -19,7 +19,38 @@ const ProductDetails: React.FC = () => {
    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
    const [copied, setCopied] = useState(false);
 
-   const product = useMemo(() => products.find(p => p.id === id), [products, id]);
+   const product = useMemo(() => products.find(p => p.slug === slug || p.id === slug), [products, slug]);
+
+   // Update SEO tags dynamically for crawlers (best effort on client-side)
+   React.useEffect(() => {
+      if (product) {
+         document.title = `${product.name} | DJ FLOWERZ`;
+         // Description
+         let metaDesc = document.querySelector('meta[name="description"]');
+         if (!metaDesc) {
+            metaDesc = document.createElement('meta');
+            metaDesc.setAttribute('name', 'description');
+            document.head.appendChild(metaDesc);
+         }
+         metaDesc.setAttribute('content', product.shortDescription || product.description?.substring(0, 160) || '');
+
+         // Open Graph / Twitter for social previews
+         const ogTitle = document.querySelector('meta[property="og:title"]') || document.createElement('meta');
+         ogTitle.setAttribute('property', 'og:title');
+         ogTitle.setAttribute('content', product.name);
+         if (!ogTitle.parentNode) document.head.appendChild(ogTitle);
+
+         const ogImage = document.querySelector('meta[property="og:image"]') || document.createElement('meta');
+         ogImage.setAttribute('property', 'og:image');
+         ogImage.setAttribute('content', product.image);
+         if (!ogImage.parentNode) document.head.appendChild(ogImage);
+
+         const ogUrl = document.querySelector('meta[property="og:url"]') || document.createElement('meta');
+         ogUrl.setAttribute('property', 'og:url');
+         ogUrl.setAttribute('content', `${siteConfig.baseUrl || window.location.origin}/store/${product.slug || product.id}`);
+         if (!ogUrl.parentNode) document.head.appendChild(ogUrl);
+      }
+   }, [product, siteConfig.baseUrl]);
 
    // Allow Admin to see draft/hidden products for preview
    const isVisible = product && (user?.isAdmin || (product.status !== 'hidden' && product.status !== 'draft'));
@@ -118,8 +149,8 @@ const ProductDetails: React.FC = () => {
                   <div className="flex gap-2 bg-white/5 border border-white/10 rounded-xl p-1">
                      <button
                         onClick={() => {
-                           const baseUrl = siteConfig.baseUrl || window.location.origin;
-                           const url = `${baseUrl}/store/${product.id}`;
+                           const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                           const url = `${baseUrl}/store/${product.slug || product.id}`;
                            const text = `Check out ${product.name} on DJ Flowerz!`;
                            window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
                         }}
@@ -131,8 +162,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const baseUrl = siteConfig.baseUrl || window.location.origin;
-                           const url = `${baseUrl}/store/${product.id}`;
+                           const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                           const url = `${baseUrl}/store/${product.slug || product.id}`;
                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
                         }}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1877F2] hover:bg-white/5 transition-all"
@@ -143,8 +174,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const baseUrl = siteConfig.baseUrl || window.location.origin;
-                           const url = `${baseUrl}/store/${product.id}`;
+                           const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                           const url = `${baseUrl}/store/${product.slug || product.id}`;
                            window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
                         }}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1DA1F2] hover:bg-white/5 transition-all"
@@ -155,8 +186,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const baseUrl = siteConfig.baseUrl || window.location.origin;
-                           const url = `${baseUrl}/store/${product.id}`;
+                           const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                           const url = `${baseUrl}/store/${product.slug || product.id}`;
                            navigator.clipboard.writeText(url);
                            setCopied(true);
                            setTimeout(() => setCopied(false), 2000);
@@ -169,8 +200,8 @@ const ProductDetails: React.FC = () => {
 
                      <button
                         onClick={() => {
-                           const baseUrl = siteConfig.baseUrl || window.location.origin;
-                           const url = `${baseUrl}/store/${product.id}`;
+                           const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                           const url = `${baseUrl}/store/${product.slug || product.id}`;
                            if (navigator.share) {
                               navigator.share({ title: product.name, text: `Explore ${product.name} on DJ Flowerz!`, url: url });
                            }
@@ -541,7 +572,7 @@ const ProductDetails: React.FC = () => {
 
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                   {relatedProducts.map(similar => (
-                     <Link key={similar.id} to={`/store/${similar.id}`} className="group relative bg-[#15151A] rounded-[2rem] overflow-hidden border border-white/5 hover:border-brand-purple/40 transition-all duration-700">
+                     <Link key={similar.id} to={`/store/${similar.slug || similar.id}`} className="group relative bg-[#15151A] rounded-[2rem] overflow-hidden border border-white/5 hover:border-brand-purple/40 transition-all duration-700">
                         <div className="aspect-[4/5] overflow-hidden relative p-4">
                            <div className="w-full h-full rounded-2xl overflow-hidden relative">
                               <img src={similar.image} alt={similar.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />

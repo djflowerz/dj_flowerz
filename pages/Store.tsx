@@ -406,7 +406,7 @@ const Store: React.FC = () => {
                   itemContent={(index, product) => (
                     <div className="bg-[#15151A] rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-purple/50 transition duration-300 group flex flex-col shadow-xl hover:shadow-2xl hover:-translate-y-1 relative h-full">
 
-                      <Link to={`/store/${product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
+                      <Link to={`/store/${product.slug || product.id}`} className="relative h-[200px] md:h-[240px] flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center group/img">
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover/img:scale-110 transition duration-500" />
 
                         {/* Tags */}
@@ -435,7 +435,7 @@ const Store: React.FC = () => {
 
                       <div className="p-4 md:p-5 flex-1 flex flex-col bg-[#15151A]">
                         <div className="flex justify-between items-start mb-2 gap-2">
-                          <Link to={`/store/${product.id}`} className="block flex-1">
+                          <Link to={`/store/${product.slug || product.id}`} className="block flex-1">
                             <h3 className="text-white font-bold text-[14px] md:text-[16px] line-clamp-2 leading-tight hover:text-brand-purple transition">{product.name}</h3>
                           </Link>
                           <p className="text-gray-400 text-[10px] md:text-xs capitalize flex-shrink-0 border border-white/10 px-2 py-0.5 rounded-full">{getDisplayCategory(product.category)}</p>
@@ -481,8 +481,8 @@ const Store: React.FC = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => {
-                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
-                                  const url = `${baseUrl}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                                  const url = `${baseUrl}/store/${product.slug || product.id}`;
                                   navigator.clipboard.writeText(url);
                                   setCopiedId(product.id);
                                   setTimeout(() => setCopiedId(null), 2000);
@@ -495,8 +495,8 @@ const Store: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
-                                  const url = `${baseUrl}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                                  const url = `${baseUrl}/store/${product.slug || product.id}`;
                                   const text = `Check out ${product.name} on DJ Flowerz!`;
                                   window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
                                 }}
@@ -508,8 +508,8 @@ const Store: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
-                                  const url = `${baseUrl}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                                  const url = `${baseUrl}/store/${product.slug || product.id}`;
                                   window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
                                 }}
                                 className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1877F2] hover:bg-white/10 transition"
@@ -520,8 +520,8 @@ const Store: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const baseUrl = siteConfig.baseUrl || window.location.origin;
-                                  const url = `${baseUrl}/store/${product.id}`;
+                                  const baseUrl = siteConfig.baseUrl || 'https://djflowerz.co.ke';
+                                  const url = `${baseUrl}/store/${product.slug || product.id}`;
                                   window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Check out ${product.name} on DJ Flowerz!`)}`, '_blank');
                                 }}
                                 className="w-10 flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-[#1DA1F2] hover:bg-white/10 transition"
