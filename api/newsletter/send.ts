@@ -61,13 +61,14 @@ export default async function handler(req: any, res: any) {
     }
     // --- END AUTH GUARD ---
 
-    const { subject, html, subscribers } = req.body;
+    const { subject, html, subscribers, to } = req.body;
+    const targetSubscribers = subscribers || (to ? (Array.isArray(to) ? to : [to]) : []);
 
     if (!subject || !html) {
         return res.status(400).json({ error: 'Missing subject or html body' });
     }
 
-    if (!Array.isArray(subscribers) || subscribers.length === 0) {
+    if (!Array.isArray(targetSubscribers) || targetSubscribers.length === 0) {
         return res.status(400).json({ error: 'No subscribers provided' });
     }
 
@@ -78,7 +79,7 @@ export default async function handler(req: any, res: any) {
     let sent = 0;
     const errors: string[] = [];
 
-    for (const email of subscribers) {
+    for (const email of targetSubscribers) {
         if (!email || typeof email !== 'string') continue;
         try {
             await transporter.sendMail({
@@ -97,7 +98,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({
         success: true,
-        message: `Sent to ${sent}/${subscribers.length} subscribers`,
+        message: `Sent to ${sent}/${targetSubscribers.length} subscribers`,
         errors: errors.length > 0 ? errors : undefined,
     });
 }
