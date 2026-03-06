@@ -10,27 +10,27 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Dynamic imports to bypass Vercel build issues with top-level imports in this project
+        // Dynamic imports to bypass Vercel build issues
         const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
         const nodemailer = await import("nodemailer");
 
-        // R2 Credentials (fallback to VITE_ names)
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID;
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY;
-        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz';
+        // R2 Credentials (fallback to VITE_ names) - Trimmed to prevent header errors
+        const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID || '').trim();
+        const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY || '').trim();
+        const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY || '').trim();
+        const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz').trim();
 
-        const GMAIL_USER = process.env.GMAIL_USER || 'djflowerz254@gmail.com';
-        const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
+        const GMAIL_USER = (process.env.GMAIL_USER || 'djflowerz254@gmail.com').trim();
+        const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').trim();
         const SENDER_NAME = 'DJ Flowerz';
-        const SENDER_ALIAS = process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke';
+        const SENDER_ALIAS = (process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke').trim();
 
         const s3 = new S3Client({
             region: "auto",
             endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
             credentials: {
-                accessKeyId: R2_ACCESS_KEY_ID || '',
-                secretAccessKey: R2_SECRET_ACCESS_KEY || '',
+                accessKeyId: R2_ACCESS_KEY_ID,
+                secretAccessKey: R2_SECRET_ACCESS_KEY,
             },
         });
 
@@ -43,10 +43,7 @@ export default async function handler(req, res) {
             const str = await response.Body?.transformToString();
             if (str) subscribers = JSON.parse(str);
         } catch (err) {
-            if (err.name !== 'NoSuchKey') {
-                console.error('R2 read error:', err);
-                // Continue if empty or missing
-            }
+            if (err.name !== 'NoSuchKey') console.error('R2 read error:', err);
         }
 
         // 2. Check if already subscribed
@@ -71,7 +68,7 @@ export default async function handler(req, res) {
         const putCmd = new PutObjectCommand({
             Bucket: R2_BUCKET_NAME,
             Key: key,
-            Body: JSON.stringify(subscribers.slice(0, 10000)), // Limit to 10k for safety
+            Body: JSON.stringify(subscribers.slice(0, 10000)),
             ContentType: 'application/json'
         });
         await s3.send(putCmd);

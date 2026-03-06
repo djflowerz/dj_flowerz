@@ -11,18 +11,18 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Missing action or key' });
         }
 
-        // R2 Credentials (fallback to VITE_ names)
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID;
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY;
-        const R2_BUCKET_NAME = bucket || process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz';
+        // R2 Credentials (fallback to VITE_ names) - Trimmed to prevent header errors
+        const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID || '').trim();
+        const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY || '').trim();
+        const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY || '').trim();
+        const R2_BUCKET_NAME = (bucket || process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz').trim();
 
         const s3 = new S3Client({
             region: "auto",
             endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
             credentials: {
-                accessKeyId: R2_ACCESS_KEY_ID || '',
-                secretAccessKey: R2_SECRET_ACCESS_KEY || '',
+                accessKeyId: R2_ACCESS_KEY_ID,
+                secretAccessKey: R2_SECRET_ACCESS_KEY,
             },
         });
 
