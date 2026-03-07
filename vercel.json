@@ -11,6 +11,17 @@
             ],
             "destination": "https://djflowerz.co.ke/$1",
             "permanent": true
+        },
+        {
+            "source": "/(.*)",
+            "has": [
+                {
+                    "type": "host",
+                    "value": "www.dj-flowerz.vercel.app"
+                }
+            ],
+            "destination": "https://djflowerz.co.ke/$1",
+            "permanent": true
         }
     ],
     "headers": [
@@ -65,7 +76,7 @@
     "crons": [
         {
             "path": "/api/check-subscriptions",
-            "schedule": "0 * * * *"
+            "schedule": "0 1 * * *"
         },
         {
             "path": "/api/sync-tracks",

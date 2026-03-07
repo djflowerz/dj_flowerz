@@ -40,6 +40,46 @@ export default async function handler(req, res) {
             const response = await s3.send(getCmd);
             const str = await response.Body?.transformToString();
             return res.status(200).json({ success: true, data: str ? JSON.parse(str) : null });
+        } else if (['add', 'update', 'delete'].includes(action)) {
+            // Read existing data first to perform partial updates on R2 JSON files
+            let existingData = [];
+            try {
+                const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key });
+                const response = await s3.send(getCmd);
+                const str = await response.Body?.transformToString();
+                if (str) existingData = JSON.parse(str);
+            } catch (e) {
+                console.warn(`[R2 Sync] Could not read existing data for ${key}, starting fresh.`);
+            }
+
+            const { item, id } = req.body;
+            if (action === 'add' && item) {
+                existingData.unshift(item);
+            } else if (action === 'update' && item && id) {
+                const idx = existingData.findIndex(i => i.id === id);
+                if (idx !== -1) existingData[idx] = { ...existingData[idx], ...item };
+                else existingData.unshift({ ...item, id });
+            } else if (action === 'delete' && id) {
+                existingData = existingData.filter(i => i.id !== id);
+            }
+
+            // Deduplicate
+            const seenIds = new Set();
+            existingData = existingData.filter(i => {
+                if (!i.id) return true;
+                if (seenIds.has(i.id)) return false;
+                seenIds.add(i.id);
+                return true;
+            });
+
+            const putCmd = new PutObjectCommand({
+                Bucket: R2_BUCKET_NAME,
+                Key: key,
+                Body: JSON.stringify(existingData),
+                ContentType: 'application/json'
+            });
+            await s3.send(putCmd);
+            return res.status(200).json({ success: true, message: `Synced ${action} to R2` });
         }
 
         return res.status(400).json({ error: 'Invalid action' });
