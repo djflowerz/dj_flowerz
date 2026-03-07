@@ -1756,18 +1756,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
-      const docId = `msg_${Date.now()}`;
-      const newMessage: ContactMessage = {
-        ...message,
-        id: docId,
-        status: 'new',
-        createdAt: new Date().toISOString(),
-      };
-      const newMessages = [newMessage, ...contactMessages];
-      await saveToR2('contact_messages', newMessages);
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send message');
+      }
+
       refreshContactMessages();
     } catch (err: any) {
       console.error("Add contact message failed:", err.message);
+      throw err;
     }
   };
 

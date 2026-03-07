@@ -239,12 +239,20 @@ async function handleChargeSuccess(data: any, metadata: any) {
             user_id: userId || null,
             user_name: metadata.customerName || null,
             email: data.customer?.email,
+            user_email: data.customer?.email, // Fix for admin dashboard loading
             amount: data.amount / 100,
             message: metadata.message || 'Tip from DJ Flowerz Fan',
             status: 'completed',
             created_at: new Date().toISOString()
         };
         await addR2Item('tips', tipRecord);
+
+        // Notify of tip
+        await syncToMailerLite(data.customer?.email, {
+            name: metadata.customerName || 'Fan',
+            tip_amount: data.amount / 100,
+            tip_message: metadata.message
+        });
     }
 
     // If it's a subscription payment, activate the subscription immediately.
@@ -390,32 +398,81 @@ async function handleSubscriptionDisable(data: any) {
 async function syncToMailerLite(email: string, fields: Record<string, any>, groups: string[] = []) {
     console.log(`[Email] Notifying ${email} with fields:`, fields);
 
+    const GMAIL_USER = (process.env.GMAIL_USER || 'djflowerz254@gmail.com').trim();
+
     try {
-        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-        const host = process.env.VERCEL_URL || 'localhost:3000';
-        const baseUrl = `${protocol}://${host}`;
+        // Direct import of mailer logic to avoid loopback network calls
+        const { sendEmail } = await import('../_mailer.js');
 
         let subject = "DJ FLOWERZ — Update";
         let html = "";
+        let adminSubject = "";
+        let adminHtml = "";
 
         if (fields.customer_type === 'buyer') {
             subject = "Your DJ FLOWERZ Receipt 🧾";
-            html = `<h1>Thanks for your purchase!</h1><p>Order ID: ${fields.last_order_id}</p><p>Total: $${fields.last_order_total}</p><p>Items: ${fields.last_purchase_receipt}</p><br/><p>Visit <a href="https://djflowerz.co.ke">DJ FLOWERZ</a> to download your items.</p>`;
+            html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                    <h1 style="color: #a855f7;">Thanks for your purchase!</h1>
+                    <p style="color: #9ca3af;">Your support keeps the wheels turning.</p>
+                    <div style="background: #15151a; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #ffffff10;">
+                        <p style="margin: 5px 0;"><strong>Order ID:</strong> ${fields.last_order_id}</p>
+                        <p style="margin: 5px 0;"><strong>Total:</strong> $${fields.last_order_total}</p>
+                        <p style="margin: 5px 0;"><strong>Items:</strong> ${fields.last_purchase_receipt}</p>
+                    </div>
+                    <p>Visit <a href="https://djflowerz.co.ke" style="color: #a855f7;">DJ FLOWERZ</a> to download your items.</p>
+                </div>`;
+
+            adminSubject = `New Order: $${fields.last_order_total} from ${fields.name || email}`;
+            adminHtml = `<h1>New Order Received</h1><p><strong>Customer:</strong> ${fields.name} (${email})</p><p><strong>Total:</strong> $${fields.last_order_total}</p><p><strong>Items:</strong> ${fields.last_purchase_receipt}</p><p><strong>Order ID:</strong> ${fields.last_order_id}</p>`;
         } else if (fields.subscription_status === 'active') {
             subject = "Your DJ FLOWERZ Subscription is Active! 🎧";
-            html = `<h1>Welcome back!</h1><p>Your ${fields.subscription_plan} plan is now active.</p><p>Expiry: ${new Date(fields.subscription_expiry).toLocaleDateString()}</p>`;
+            html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                    <h1 style="color: #a855f7;">Subscription Activated!</h1>
+                    <p>Welcome back to the inner circle.</p>
+                    <div style="background: #15151a; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #ffffff10;">
+                        <p>Your <strong>${fields.subscription_plan}</strong> plan is now active.</p>
+                        <p>Expiry: ${new Date(fields.subscription_expiry).toLocaleDateString()}</p>
+                    </div>
+                </div>`;
+
+            adminSubject = `New Subscription: ${fields.subscription_plan} from ${fields.name || email}`;
+            adminHtml = `<h1>New Subscription Activated</h1><p><strong>Subscriber:</strong> ${fields.name} (${email})</p><p><strong>Plan:</strong> ${fields.subscription_plan}</p><p><strong>Expiry:</strong> ${new Date(fields.subscription_expiry).toLocaleDateString()}</p>`;
+        } else if (fields.tip_amount) {
+            // "Thank You" email for the Tipping Customer
+            subject = "A Special Thanks from DJ FLOWERZ! ❤️";
+            html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                    <h1 style="color: #a855f7;">Thank You for the Tip!</h1>
+                    <p>I truly appreciate your generosity and support. It means the world to me!</p>
+                    <div style="background: #15151a; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #ffffff10;">
+                        <p><strong>Amount:</strong> $${fields.tip_amount}</p>
+                        <p><strong>Message:</strong> ${fields.tip_message || 'N/A'}</p>
+                    </div>
+                    <p>Keep vibing, and see you on the next drop!</p>
+                </div>`;
+
+            adminSubject = `New Tip: $${fields.tip_amount} from ${fields.name || email}`;
+            adminHtml = `<h1>Special Tip Received!</h1><p><strong>From:</strong> ${fields.name} (${email})</p><p><strong>Amount:</strong> $${fields.tip_amount}</p><p><strong>Message:</strong> ${fields.tip_message || 'N/A'}</p>`;
         }
 
+        // Send to Customer
         if (html) {
-            await fetch(`${baseUrl}/api/send-email`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: email,
-                    subject: subject,
-                    html: html
-                })
-            });
+            await sendEmail({
+                to: email,
+                subject: subject,
+                html: html
+            } as any);
+        }
+
+        // Send to Admin
+        if (adminHtml) {
+            await sendEmail({
+                to: GMAIL_USER,
+                subject: adminSubject,
+                html: adminHtml
+            } as any);
         }
     } catch (err) {
         console.error('[Email] Failed to send transactional email from webhook:', err);

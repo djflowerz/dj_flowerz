@@ -73,19 +73,12 @@ export default async function handler(req, res) {
         });
         await s3.send(putCmd);
 
-        // 5. Send Welcome Email
-        if (GMAIL_APP_PASSWORD) {
-            const transporter = nodemailer.default.createTransport({
-                host: 'smtp.gmail.com',
-                port: 587,
-                secure: false,
-                auth: {
-                    user: GMAIL_USER,
-                    pass: GMAIL_APP_PASSWORD,
-                },
-            });
+        // 5. Send Welcome Email & Notify Admin
+        try {
+            const { sendEmail } = await import("./_mailer.js");
 
-            const html = `
+            // User Welcome Email
+            const userHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                     <h1 style="color: #a855f7; margin-bottom: 10px;">Welcome Aboard!</h1>
                     <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Thanks for joining the DJ FLOWERZ newsletter. You're now on the list for exclusive mixtapes, store drops, and music pool updates.</p>
@@ -97,15 +90,34 @@ export default async function handler(req, res) {
                     <p style="font-size: 10px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 0.1em;">© ${new Date().getFullYear()} DJ FLOWERZ. All rights reserved.</p>
                 </div>
             `;
-            const subject = "Welcome to the DJ FLOWERZ Community! 🎧";
 
-            await transporter.sendMail({
-                from: `"${SENDER_NAME}" <${GMAIL_USER}>`,
-                replyTo: SENDER_ALIAS,
+            await sendEmail({
                 to: email,
-                subject,
-                html,
+                subject: "Welcome to the DJ FLOWERZ Community! 🎧",
+                html: userHtml,
+                fromName: 'DJ Flowerz'
             });
+
+            // Admin Notify
+            const adminHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                    <h1 style="color: #a855f7; margin-bottom: 20px;">New Newsletter Subscriber</h1>
+                    <div style="background: #15151a; padding: 20px; border-radius: 12px; border: 1px solid #ffffff10;">
+                        <p style="margin: 0; color: #ffffff;"><strong>Email:</strong> ${email}</p>
+                        <p style="margin: 5px 0; color: #9ca3af;"><strong>Source:</strong> ${source}</p>
+                        <p style="margin: 5px 0; color: #9ca3af;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                    </div>
+                </div>
+            `;
+            await sendEmail({
+                to: GMAIL_USER,
+                subject: `New Subscriber: ${email}`,
+                html: adminHtml,
+                fromName: 'DJ Flowerz'
+            });
+
+        } catch (mailerErr) {
+            console.error('Subscription mailer failed:', mailerErr);
         }
 
         return res.status(200).json({ success: true, message: 'Subscribed successfully' });

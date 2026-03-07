@@ -678,8 +678,9 @@ const AdminDashboard: React.FC = () => {
 
          // If it's a tip, also track it to avoid duplicates from liveTips
          if (displayType === 'Tip') {
+            const email = o.customerEmail || o.user_email || o.email || 'Guest';
             const dateStr = o.date || (o.createdAt || '').split('T')[0];
-            const tipSig = `${o.customerEmail}-${o.total}-${dateStr}`;
+            const tipSig = `${email.toLowerCase()}-${o.total}-${dateStr}`;
             seenTips.add(tipSig);
          }
 
@@ -710,8 +711,9 @@ const AdminDashboard: React.FC = () => {
 
          // If it's a tip payment, track it
          if (p.payment_type === 'tip') {
+            const email = p.user_email || p.email || p.customerEmail || 'Guest';
             const dateStr = p.createdAt ? p.createdAt.split('T')[0] : '';
-            const tipSig = `${p.user_email}-${p.amount}-${dateStr}`;
+            const tipSig = `${email.toLowerCase()}-${p.amount}-${dateStr}`;
             seenTips.add(tipSig);
          }
 
@@ -731,9 +733,10 @@ const AdminDashboard: React.FC = () => {
 
       // Add tips (avoiding duplicates already in orders or payments)
       (liveTips || []).forEach(t => {
-         const createdAtStr = t.createdAt?.toDate ? t.createdAt.toDate().toISOString() : (t.createdAt || '');
+         const createdAtStr = t.createdAt || '';
          const dateStr = createdAtStr.split('T')[0];
-         const tipSig = `${t.email}-${t.amount}-${dateStr}`;
+         const emailLabel = t.email || t.user_email || t.customerEmail || 'Guest';
+         const tipSig = `${emailLabel.toLowerCase()}-${t.amount}-${dateStr}`;
 
          if (!seenTips.has(tipSig)) {
             all.push({
@@ -741,13 +744,15 @@ const AdminDashboard: React.FC = () => {
                ref: t.id,
                date: dateStr,
                time: createdAtStr ? new Date(createdAtStr).toLocaleTimeString() : '',
-               name: t.email || 'Guest',
+               name: t.user_name || t.name || emailLabel,
+               email: emailLabel,
                items: 'Tip Jar',
                amount: t.amount,
                status: t.status || 'completed',
                type: 'Tip',
                rawDate: createdAtStr
             });
+            seenTips.add(tipSig); // Prevent self-duplicates if any
          }
       });
 
