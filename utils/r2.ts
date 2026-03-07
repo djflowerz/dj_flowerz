@@ -53,10 +53,11 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
 
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
+    const key = `data/${collection}.json`;
     const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ collection, data }),
+        body: JSON.stringify({ collection, key, data }),
     });
 
     if (!response.ok) {
@@ -70,10 +71,11 @@ function resStatus(status: number) { return status; }
 
 export async function addR2Item(collection: string, item: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
+    const key = `data/${collection}.json`;
     const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ collection, action: 'add', item }),
+        body: JSON.stringify({ collection, key, action: 'add', item }),
     });
     if (!response.ok) {
         const err = await response.text();
@@ -152,10 +154,11 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
 
 export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
+    const key = `data/${collection}.json`;
     const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ collection, action: 'addBatch', items }),
+        body: JSON.stringify({ collection, key, action: 'addBatch', items }),
     });
     if (!response.ok) {
         const err = await response.text();

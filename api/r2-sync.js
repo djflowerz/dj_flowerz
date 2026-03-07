@@ -5,10 +5,11 @@ export default async function handler(req, res) {
 
     try {
         const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
-        const { action, key, data, bucket } = req.body;
+        const { action, key: providedKey, collection, data, bucket } = req.body;
+        const key = providedKey || (collection ? `data/${collection}.json` : null);
 
         if (!action || !key) {
-            return res.status(400).json({ error: 'Missing action or key' });
+            return res.status(400).json({ error: 'Missing action, key, or collection' });
         }
 
         // R2 Credentials (fallback to VITE_ names) - Trimmed to prevent header errors
@@ -52,15 +53,20 @@ export default async function handler(req, res) {
                 console.warn(`[R2 Sync] Could not read existing data for ${key}, starting fresh.`);
             }
 
-            const { item, id } = req.body;
+            const { item, id, items, ids } = req.body;
             if (action === 'add' && item) {
                 existingData.unshift(item);
+            } else if (action === 'addBatch' && Array.isArray(items)) {
+                existingData = [...items, ...existingData];
             } else if (action === 'update' && item && id) {
                 const idx = existingData.findIndex(i => i.id === id);
                 if (idx !== -1) existingData[idx] = { ...existingData[idx], ...item };
                 else existingData.unshift({ ...item, id });
             } else if (action === 'delete' && id) {
                 existingData = existingData.filter(i => i.id !== id);
+            } else if (action === 'deleteBatch' && Array.isArray(ids)) {
+                const idSet = new Set(ids);
+                existingData = existingData.filter(i => !idSet.has(i.id));
             }
 
             // Deduplicate

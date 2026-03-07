@@ -1,3 +1,17 @@
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
+
+async function getRawBody(req) {
+    const chunks = [];
+    for await (const chunk of req) {
+        chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -7,14 +21,10 @@ export default async function handler(req, res) {
         const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
 
         // Get metadata from headers (matches utils/r2.ts)
-        const fileName = req.headers['x-file-name'] ? decodeURIComponent(req.headers['x-file-name']) : (req.body?.fileName);
-        const fileType = req.headers['content-type'] || (req.body?.fileType);
+        const fileName = req.headers['x-file-name'] ? decodeURIComponent(req.headers['x-file-name']) : 'unnamed-file';
+        const fileType = req.headers['content-type'] || 'application/octet-stream';
         const folder = req.headers['x-folder'] || 'uploads';
-        const bucket = req.body?.bucket;
-
-        if (!fileName) {
-            return res.status(400).json({ error: 'Missing fileName' });
-        }
+        const bucket = req.headers['x-bucket']; // Use header for consistency if needed
 
         // R2 Credentials (fallback to VITE_ names) - Trimmed to prevent header errors
         const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID || '').trim();
@@ -34,13 +44,8 @@ export default async function handler(req, res) {
         // Determine the key (path in R2)
         const key = fileName.startsWith(folder) ? fileName : `${folder}/${fileName}`;
 
-        // Handle body
-        let body;
-        if (req.body && req.body.data) {
-            body = Buffer.from(req.body.data.replace(/^data:.*;base64,/, ""), 'base64');
-        } else {
-            body = req.body;
-        }
+        // Get raw body since bodyParser is disabled
+        const body = await getRawBody(req);
 
         const putCmd = new PutObjectCommand({
             Bucket: R2_BUCKET_NAME,
