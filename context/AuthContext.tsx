@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
 import { supabase } from '../utils/supabase';
-import { fetchFromR2, updateR2Item, addR2Item } from '../utils/r2';
+import { fetchFromR2, updateR2Item, addR2Item, addAdminNotification } from '../utils/r2';
 
 interface AuthContextType {
   user: User | null;
@@ -164,6 +164,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error creating profile in R2:", err);
           });
 
+          // Notify Admin
+          addAdminNotification(
+            "New User Signed Up!",
+            `${newProfile.name} (${newProfile.email}) has just registered.`,
+            'success'
+          ).catch(err => console.error("Admin notification failed:", err));
+
           userData = {
             id: newProfile.id,
             name: newProfile.name,
@@ -226,44 +233,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('referralCode', refCode.toUpperCase());
     }
 
+    // 60-second polling to keep profile in sync with R2 updates (referral rewards, subscriptions)
+    const interval = setInterval(() => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (mounted && session) fetchProfileAndSetUser(session);
+      });
+    }, 60000);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, []);
 
-  // Realtime listener: update user state when their profile changes in Supabase
-  // This ensures subscription status updates immediately after webhook fires
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel(`profile:${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-        (payload) => {
-          const updated = payload.new as any;
-          setUser(prev => prev ? {
-            ...prev,
-            isSubscriber: updated.is_subscriber || false,
-            subscriptionPlan: updated.subscription_plan,
-            subscriptionExpiry: updated.subscription_expiry,
-            name: updated.name || prev.name,
-            avatarUrl: updated.avatar_url || prev.avatarUrl,
-            balance: updated.balance || 0,
-            auraPoints: updated.aura_points || updated.auraPoints || 0,
-            auraLevel: updated.aura_level || updated.auraLevel || 1,
-            phoneNumber: updated.phone_number || updated.phoneNumber || prev.phoneNumber,
-          } : prev);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
 
   // --- Auth Methods ---
 

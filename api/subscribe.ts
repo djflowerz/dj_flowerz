@@ -1,4 +1,7 @@
-export default async function handler(req, res) {
+import { addR2Item, getR2Collection, addAdminNotification, saveR2Collection } from '../utils/server-r2';
+import { sendEmail } from './_mailer';
+
+export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -10,41 +13,8 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Dynamic imports to bypass Vercel build issues
-        const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
-        const nodemailer = await import("nodemailer");
-
-        // R2 Credentials (fallback to VITE_ names) - Trimmed to prevent header errors
-        const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || process.env.VITE_STORAGE_ACCOUNT_ID || '').trim();
-        const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || process.env.VITE_STORAGE_ACCESS_KEY || '').trim();
-        const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || process.env.VITE_STORAGE_SECRET_KEY || '').trim();
-        const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || process.env.VITE_STORAGE_BUCKET || 'dj-flowerz').trim();
-
-        const GMAIL_USER = (process.env.GMAIL_USER || 'djflowerz254@gmail.com').trim();
-        const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').trim();
-        const SENDER_NAME = 'DJ Flowerz';
-        const SENDER_ALIAS = (process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke').trim();
-
-        const s3 = new S3Client({
-            region: "auto",
-            endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-            credentials: {
-                accessKeyId: R2_ACCESS_KEY_ID,
-                secretAccessKey: R2_SECRET_ACCESS_KEY,
-            },
-        });
-
         // 1. Get current subscribers from R2
-        const key = 'data/newsletter_subscribers.json';
-        let subscribers = [];
-        try {
-            const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key });
-            const response = await s3.send(getCmd);
-            const str = await response.Body?.transformToString();
-            if (str) subscribers = JSON.parse(str);
-        } catch (err) {
-            if (err.name !== 'NoSuchKey') console.error('R2 read error:', err);
-        }
+        let subscribers = await getR2Collection<any>('newsletter_subscribers');
 
         // 2. Check if already subscribed
         if (subscribers.some(s => s.email?.toLowerCase() === email.toLowerCase())) {
@@ -63,20 +33,10 @@ export default async function handler(req, res) {
         };
 
         subscribers.unshift(newSubscriber);
+        await saveR2Collection('newsletter_subscribers', subscribers.slice(0, 10000));
 
-        // 4. Save back to R2
-        const putCmd = new PutObjectCommand({
-            Bucket: R2_BUCKET_NAME,
-            Key: key,
-            Body: JSON.stringify(subscribers.slice(0, 10000)),
-            ContentType: 'application/json'
-        });
-        await s3.send(putCmd);
-
-        // 5. Send Welcome Email & Notify Admin
+        // 4. Send Welcome Email & Notify Admin
         try {
-            const { sendEmail } = await import("./_mailer.js");
-
             // User Welcome Email
             const userHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
@@ -98,7 +58,7 @@ export default async function handler(req, res) {
                 fromName: 'DJ Flowerz'
             });
 
-            // Admin Notify
+            // Admin Notify Email
             const adminHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                     <h1 style="color: #a855f7; margin-bottom: 20px;">New Newsletter Subscriber</h1>
@@ -110,7 +70,7 @@ export default async function handler(req, res) {
                 </div>
             `;
             await sendEmail({
-                to: GMAIL_USER,
+                to: process.env.GMAIL_USER || 'djflowerz254@gmail.com',
                 subject: `New Subscriber: ${email}`,
                 html: adminHtml,
                 fromName: 'DJ Flowerz'
@@ -120,8 +80,15 @@ export default async function handler(req, res) {
             console.error('Subscription mailer failed:', mailerErr);
         }
 
+        // 5. Add App Notification (Admin Dashboard)
+        await addAdminNotification(
+            `New Newsletter Subscriber`,
+            `${email} subscribed via ${source}`,
+            'promotion'
+        );
+
         return res.status(200).json({ success: true, message: 'Subscribed successfully' });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Subscription error:', error);
         return res.status(500).json({ error: 'Internal server error', details: error.message });
     }

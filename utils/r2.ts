@@ -106,6 +106,18 @@ export async function removeR2Item(collection: string, id: string): Promise<bool
     } catch (e) { return false; }
 }
 
+export async function addAdminNotification(title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', link?: string): Promise<boolean> {
+    return addR2Item('notifications', {
+        id: `admin_notif_${Date.now()}`,
+        title,
+        message,
+        type,
+        link,
+        read: false,
+        createdAt: new Date().toISOString()
+    });
+}
+
 
 /**
  * Upload a file to R2 via the API proxy

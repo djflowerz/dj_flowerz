@@ -185,6 +185,7 @@ interface DataContextType {
   addTip: (tip: any) => Promise<void>;
 
   addCampaign: (camp: NewsletterCampaign) => void;
+  refreshNotifications: () => void;
   updateCampaign: (id: string, data: Partial<NewsletterCampaign>) => void;
 
   addCoupon: (coupon: Coupon) => void;
@@ -213,6 +214,7 @@ interface DataContextType {
   refreshPoolTracks: () => Promise<void>;
   refreshScannedTracks: () => Promise<void>;
   markNotificationAsRead: (id: string) => Promise<void>;
+  clearNotifications: () => Promise<void>;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -510,6 +512,20 @@ const mapR2Genre = (g: any): Genre => ({
   updatedAt: g.updated_at || g.updatedAt
 });
 
+const mapR2Notification = (n: any): AppNotification => ({
+  ...n,
+  userId: n.user_id || n.userId,
+  createdAt: n.created_at || n.createdAt
+});
+
+const mapR2Tip = (t: any): any => ({
+  ...t,
+  customerName: t.customer_name || t.customerName,
+  customerEmail: t.customer_email || t.customerEmail,
+  userEmail: t.user_email || t.userEmail,
+  createdAt: t.created_at || t.createdAt
+});
+
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
 // Added 'limit' parameter for pagination to improve performance
@@ -718,8 +734,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc');
   const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc');
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc');
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, (p) => ({ ...p, createdAt: p.created_at }), 'created_at', 'desc');
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, (t) => ({ ...t, createdAt: t.created_at }), 'created_at', 'desc');
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc');
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc');
   const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc');
   const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc');
   const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc');
@@ -727,7 +743,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc');
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc');
-  const [notifications, , notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, (n) => ({ ...n, createdAt: n.createdAt || n.created_at }), 'createdAt', 'desc');
+  const [notifications, , notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc');
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -835,6 +851,122 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, [isAdmin, refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments]);
 
+  const checkSubscriptionExpiry = async (profiles: any[], userSubscriptions: any[]) => {
+    if (!user) return;
+
+    const userProfile = profiles.find(p => p.id === user.id);
+    if (!userProfile) return;
+
+    const expiryStr = userProfile.subscription_expiry || userProfile.subscriptionExpiry;
+    if (!expiryStr) return;
+
+    const expiryDate = new Date(expiryStr);
+    const now = new Date();
+    const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    // 1. Check for Expired
+    if (diffDays <= 0) {
+      // Create a notification for expired
+      const notifId = `exp_${user.id}_${expiryDate.getTime()}`;
+      // Only add if not already notified for this expiry
+      const existing = (await fetchFromR2<any[]>('notifications')) || [];
+      const alreadyNotified = existing.some((n: any) => n.userId === user.id && n.id === notifId);
+
+      if (!alreadyNotified) {
+        await addR2Item('notifications', {
+          id: notifId,
+          userId: user.id,
+          title: 'Subscription Expired',
+          message: `Your ${userProfile.subscription_plan || 'Music Pool'} access has expired. Please renew to continue downloading.`,
+          type: 'subscription',
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+    // 2. Check for Expiring soon (3 days or less)
+    else if (diffDays <= 3) {
+      const notifId = `soon_${user.id}_${expiryDate.getTime()}`;
+      const existing = (await fetchFromR2<any[]>('notifications')) || [];
+      const alreadyNotified = existing.some((n: any) => n.userId === user.id && n.id === notifId);
+
+      if (!alreadyNotified) {
+        await addR2Item('notifications', {
+          id: notifId,
+          userId: user.id,
+          title: 'Subscription Expiring Soon',
+          message: `Your ${userProfile.subscription_plan} access will expire in ${diffDays} days. Renew now to avoid interruption.`,
+          type: 'subscription',
+          read: false,
+          createdAt: new Date().toISOString(),
+          link: '/pricing'
+        });
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (user && users.length > 0) {
+      checkSubscriptionExpiry(users, subscriptions);
+    }
+  }, [user?.id, users.length, subscriptions.length]);
+
+  const startFreeTrial = async () => {
+    if (!user) return { success: false, message: 'Please login first.' };
+
+    try {
+      const allProfiles = await fetchFromR2<any>('profiles');
+      const profile = allProfiles.find((p: any) => p.id === user.id);
+
+      if (profile?.has_used_trial || profile?.hasUsedTrial) {
+        return { success: false, message: 'You have already used your free trial.' };
+      }
+
+      // Promo expiry check
+      const promoExpiry = new Date('2026-04-04T23:59:59Z');
+      if (Date.now() > promoExpiry.getTime()) {
+        return { success: false, message: 'This promotion has ended (Expired April 4th).' };
+      }
+
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7);
+
+      const updates = {
+        is_subscriber: true,
+        subscription_plan: 'trial',
+        subscription_expiry: expiryDate.toISOString(),
+        has_used_trial: true,
+        updated_at: new Date().toISOString()
+      };
+
+      await updateR2Item('profiles', user.id, updates);
+
+      // Also record as a "free" subscription for admin tracking
+      const subId = `sub_trial_${user.id}_${Date.now()}`;
+      await addR2Item('subscriptions', {
+        id: subId,
+        user_id: user.id,
+        user_name: user.name || user.email,
+        user_email: user.email,
+        plan_id: 'trial',
+        amount: 0,
+        start_date: new Date().toISOString(),
+        expiry_date: expiryDate.toISOString(),
+        status: 'active',
+        payment_method: 'Trial'
+      });
+
+      if (typeof refreshUsers === 'function') refreshUsers();
+      if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
+
+      return { success: true, message: 'Free trial activated! Enjoy 10 downloads per day for 7 days.' };
+    } catch (err: any) {
+      console.error("Trial activation error:", err);
+      return { success: false, message: 'Failed to activate trial: ' + err.message };
+    }
+  };
+
   const applyReferralCode = async (code: string) => {
     if (!referralSettings.enabled) return { success: false, message: 'Referral system is currently disabled.' };
 
@@ -844,8 +976,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const activeCoupon = coupons.find(c => c.active && c.code.toUpperCase() === normalizedCode);
     if (activeCoupon) {
       // Basic check for expiry
-      if (new Date(activeCoupon.expiryDate).getTime() < Date.now()) {
+      if (activeCoupon.expiryDate && new Date(activeCoupon.expiryDate).getTime() < Date.now()) {
         return { success: false, message: 'This promo code has expired.' };
+      }
+
+      // Check for usage limit
+      if (activeCoupon.usageLimit > 0 && activeCoupon.usageCount >= activeCoupon.usageLimit) {
+        return { success: false, message: 'This promo code has reached its maximum usage limit.' };
+      }
+
+      // NEW: Check for Target User Assignment
+      if (activeCoupon.assignedUserId && activeCoupon.assignedUserId !== user?.id) {
+        return { success: false, message: 'This promo code is not valid for your account.' };
+      }
+
+      // NEW: Check for Single Use status (if already used by THIS user)
+      // Since we don't have a reliable usage log per user for every coupon yet,
+      // we'll assume if it's single-use and usageCount > 0 OR if we can verify in user's profile
+      // But for a true "One-time" globally, usageCount check is enough.
+      // If it's single use PER USER, we'd need a different check. 
+      // Given the requirement "coupons that can ONLY be used once", globally OR per user?
+      // Usually "single-use" in this context means globally unique or once per user.
+      // Let's assume once per user or globally unique depending on intent.
+      // If usageLimit is 1, it's globally unique.
+      if (activeCoupon.isSingleUse && activeCoupon.usageCount > 0) {
+        return { success: false, message: 'This promo code has already been used.' };
       }
 
       const discountLabel = activeCoupon.discountType === 'percentage'
@@ -858,7 +1013,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         discountType: activeCoupon.discountType,
         message: `Promo code applied! You'll get ${discountLabel} your subscription.`,
         referrerId: 'system',
-        applicablePlans: activeCoupon.applicablePlans
+        applicablePlans: activeCoupon.applicablePlans,
+        couponId: activeCoupon.id
       };
     }
 
@@ -902,28 +1058,58 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const issueReferralReward = async (log: ReferralLog) => {
-    const rewardAmount = referralSettings.referrerRewardAmount;
-
+  const issueReferralReward = async (referrerId: string, refereeId: string, refereeName: string) => {
     try {
+      const settings = await fetchFromR2<any>('settings');
+      const refSettings = settings.find(s => s.id === 'referralSettings')?.data;
+      const rewardAmount = refSettings?.referrerRewardAmount || 50;
+
+      // 1. Log the referral
       const logEntry = {
-        ...log,
         id: `reflog_${Date.now()}`,
+        referrerId,
+        refereeId,
+        referrerName: 'Admin',
+        refereeName,
+        planPurchased: 'Trial Activated',
         rewardIssued: true,
         createdAt: new Date().toISOString(),
         status: 'completed'
       };
       await addR2Item('referral_logs', logEntry);
 
-      const allProfiles = await fetchFromR2<any>('profiles');
-      const referrer = allProfiles.find((p: any) => p.id === log.referrerId);
+      // 2. Update referral stats
+      const stats = await fetchFromR2<ReferralStats>('referral_stats');
+      const statIdx = stats.findIndex(s => s.userId === referrerId);
+      if (statIdx !== -1) {
+        stats[statIdx].totalReferrals = (stats[statIdx].totalReferrals || 0) + 1;
+        stats[statIdx].totalEarned = (stats[statIdx].totalEarned || 0) + rewardAmount;
+      } else {
+        const profiles = await fetchFromR2<any>('profiles');
+        const referrerProfile = profiles.find(p => p.id === referrerId);
+        stats.push({
+          id: `stats_${referrerId}`,
+          userId: referrerId,
+          userName: referrerProfile?.name || 'User',
+          referralCode: referrerProfile?.referralCode || referrerProfile?.referral_code || 'N/A',
+          totalReferrals: 1,
+          totalEarned: rewardAmount,
+          pendingPayout: 0,
+          createdAt: new Date().toISOString()
+        });
+      }
+      await saveToR2('referral_stats', stats);
+
+      // 3. Update referrer balance
+      const profiles = await fetchFromR2<any>('profiles');
+      const referrer = profiles.find(p => p.id === referrerId);
       if (referrer) {
-        const currentBalance = referrer.balance || 0;
-        await updateR2Item('profiles', log.referrerId, { balance: currentBalance + rewardAmount });
+        await updateR2Item('profiles', referrerId, { balance: (referrer.balance || 0) + rewardAmount });
       }
 
+      refreshReferrals();
       refreshUsers();
-      fetchReferralLogs();
+      console.log(`[Referral] Issued KES ${rewardAmount} reward to ${referrerId}`);
     } catch (err) {
       console.error('Failed to issue referral reward to R2:', err);
       throw err;
@@ -1850,10 +2036,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const markNotificationAsRead = async (id: string) => {
     try {
       const newNotifications = (notifications || []).map(n => n.id === id ? { ...n, read: true } : n);
+      setNotifications(newNotifications);
       await saveToR2('notifications', newNotifications);
-      refreshNotifications();
     } catch (err: any) {
-      console.error("Mark notification as read failed:", err.message);
+      console.error("Mark notification read failed:", err.message);
+    }
+  };
+
+  const clearNotifications = async () => {
+    try {
+      setNotifications([]);
+      await saveToR2('notifications', []);
+    } catch (err: any) {
+      console.error("Clear notifications failed:", err.message);
     }
   };
 
@@ -1969,6 +2164,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addTip,
     addCampaign,
     updateCampaign,
+    refreshNotifications,
     addCoupon,
     updateCoupon,
     deleteCoupon,
@@ -1986,6 +2182,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addReview,
     addComment,
     markNotificationAsRead,
+    clearNotifications,
     addNotification,
     incrementMixtapeDownload,
     isFirstTimeSubscriber,

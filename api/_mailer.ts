@@ -3,7 +3,16 @@
  * This file is prefixed with _ so Vercel does not treat it as a public API route.
  */
 
-export async function sendEmail({ to, subject, html, text, fromName, replyTo }) {
+export interface EmailOptions {
+    to: string | string[];
+    subject: string;
+    html: string;
+    text?: string;
+    fromName?: string;
+    replyTo?: string;
+}
+
+export async function sendEmail({ to, subject, html, text, fromName, replyTo }: EmailOptions) {
     try {
         const nodemailer = await import("nodemailer");
 
@@ -39,7 +48,7 @@ export async function sendEmail({ to, subject, html, text, fromName, replyTo }) 
         console.log(`[Mailer] Email sent to ${to}: ${result.messageId}`);
         return { success: true, messageId: result.messageId };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Mailer] Error:', error);
         throw error;
     }

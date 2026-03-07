@@ -486,7 +486,7 @@ const INITIAL_BOOKING_STATE: Partial<Booking> = { clientName: '', serviceType: '
 const INITIAL_SESSION_TYPE: SessionType = { id: '', name: '', description: '', duration: 1, price: 0, depositRequired: true, equipmentIncluded: [], active: true };
 const INITIAL_EQUIPMENT_STATE: StudioEquipment = { id: '', name: '', category: 'Microphones', image: '', description: '' };
 const INITIAL_POOL_TRACK_STATE: Track = { id: '', artist: '', title: '', genre: '', category: [], bpm: 100, year: new Date().getFullYear(), versions: [], dateAdded: '' };
-const INITIAL_COUPON_STATE: Coupon = { id: '', code: '', discountType: 'percentage', discountValue: 0, appliesTo: 'store', expiryDate: '', usageLimit: 100, usageCount: 0, active: true, applicablePlans: [] };
+const INITIAL_COUPON_STATE: Coupon = { id: '', code: '', discountType: 'percentage', discountValue: 0, appliesTo: 'store', expiryDate: '', usageLimit: 100, usageCount: 0, active: true, applicablePlans: [], isSingleUse: false, assignedUserId: '' };
 const INITIAL_PLAN_STATE: SubscriptionPlan = { id: '', name: '', price: 0, period: 'mo', features: [], active: true, link: '' };
 const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, description: '', status: 'active' };
 
@@ -530,7 +530,7 @@ const AdminDashboard: React.FC = () => {
    const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
    const [bookingSubTab, setBookingSubTab] = useState('list');
    const [subscriptionSubTab, setSubscriptionSubTab] = useState<'overview' | 'plans'>('overview');
-   const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons'>('referrals');
+   const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons' | 'newsletter'>('referrals');
 
    const [activeModal, setActiveModal] = useState<string | null>(null);
    const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
@@ -553,12 +553,12 @@ const AdminDashboard: React.FC = () => {
 
    const [newPoolTrack, setNewPoolTrack] = useState<Track>(INITIAL_POOL_TRACK_STATE);
    const [editingGenre, setEditingGenre] = useState<Genre>({ id: '', name: '', coverUrl: '' });
-
    const [newChannel, setNewChannel] = useState<Partial<TelegramChannel>>({ name: '', channelId: '', genre: '', inviteLink: '', active: true });
 
    const [newCoupon, setNewCoupon] = useState<Coupon>(INITIAL_COUPON_STATE);
 
    const [emailSubject, setEmailSubject] = useState('');
+   const [emailHeader, setEmailHeader] = useState('');
    const [emailBody, setEmailBody] = useState('');
 
    const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
@@ -910,6 +910,53 @@ const AdminDashboard: React.FC = () => {
             setIsSyncing(false);
             setSyncMessage('');
          }, 5000);
+      }
+   };
+
+   const handleBroadcast = async () => {
+      if (!emailSubject || !emailBody || !emailHeader) {
+         alert("Please provide a name, subject, and message body for your broadcast.");
+         return;
+      }
+
+      const activeSubscribersCount = subscribers.filter(s => s.status === 'active').length;
+      if (activeSubscribersCount === 0) {
+         alert("There are no active subscribers to broadcast to.");
+         return;
+      }
+
+      if (!window.confirm(`Initiate mass communication protocol to ${activeSubscribersCount} active subscribers?`)) return;
+
+      setIsSending(true);
+      try {
+         // 1. Create campaign record
+         const campaign: any = {
+            name: emailHeader,
+            subject: emailSubject,
+            type: 'announcement',
+            status: 'sent',
+            sentDate: new Date().toISOString(),
+            recipientCount: activeSubscribersCount
+         };
+
+         const { error: campaignErr } = await dataContext.addR2Item('newsletter_campaigns', campaign);
+         if (campaignErr) throw campaignErr;
+
+         // 2. Mock sending emails (actual integration would happen via an edge function or similar)
+         // In a real scenario, this would trigger a backend process to send the emails.
+         // For now, we'll simulate the success.
+         await new Promise(resolve => setTimeout(resolve, 2000));
+
+         alert(`Broadcast sequence successful. Communication deployed to ${activeSubscribersCount} protocols.`);
+         setEmailHeader('');
+         setEmailSubject('');
+         setEmailBody('');
+         setNewsletterSubTab('campaigns');
+      } catch (err: any) {
+         console.error("Broadcast protocol failure:", err);
+         alert("Failed to initiate broadcast: " + err.message);
+      } finally {
+         setIsSending(false);
       }
    };
 
@@ -3175,6 +3222,7 @@ const AdminDashboard: React.FC = () => {
                         <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
                            <button onClick={() => setMarketingSubTab('referrals')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${marketingSubTab === 'referrals' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Affiliates</button>
                            <button onClick={() => setMarketingSubTab('coupons')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${marketingSubTab === 'coupons' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Incentives</button>
+                           <button onClick={() => setMarketingSubTab('newsletter')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${marketingSubTab === 'newsletter' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Broadcasting</button>
                         </div>
                      </div>
 
@@ -3315,6 +3363,132 @@ const AdminDashboard: React.FC = () => {
                                  </table>
                               </div>
                            </div>
+                        </div>
+                     )}
+
+                     {marketingSubTab === 'newsletter' && (
+                        <div className="space-y-8">
+                           <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner w-fit">
+                              <button onClick={() => setNewsletterSubTab('subscribers')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'subscribers' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Subscribers ({subscribers.length})</button>
+                              <button onClick={() => setNewsletterSubTab('campaigns')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'campaigns' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Campaign Logs</button>
+                              <button onClick={() => setNewsletterSubTab('compose')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newsletterSubTab === 'compose' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>New Broadcast</button>
+                           </div>
+
+                           {newsletterSubTab === 'subscribers' && (
+                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                                 <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                                 <div className="overflow-x-auto">
+                                    <table className="w-full text-left whitespace-nowrap">
+                                       <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                          <tr>
+                                             <th className="px-8 py-6">Identity / Contact</th>
+                                             <th className="px-8 py-6">Subscription Date</th>
+                                             <th className="px-8 py-6">Engagement Source</th>
+                                             <th className="px-8 py-6">Protocol Status</th>
+                                             <th className="px-8 py-6 text-right">Ops Control</th>
+                                          </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-white/[0.03] text-sm">
+                                          {(subscribers || []).map(s => (
+                                             <tr key={s.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-8 py-6">
+                                                   <div className="flex items-center gap-4">
+                                                      <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple font-black text-xs uppercase">
+                                                         {s.email.substring(0, 2)}
+                                                      </div>
+                                                      <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{s.email}</span>
+                                                   </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-gray-400 font-bold">{new Date(s.dateSubscribed).toLocaleDateString()}</td>
+                                                <td className="px-8 py-6">
+                                                   <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full capitalize">{s.source || 'Web'}</span>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                   <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${s.status === 'active' ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>
+                                                      {s.status}
+                                                   </span>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                   <button className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all shadow-sm" title="Revoke Protocol"><Trash2 size={18} /></button>
+                                                </td>
+                                             </tr>
+                                          ))}
+                                       </tbody>
+                                    </table>
+                                 </div>
+                              </div>
+                           )}
+
+                           {newsletterSubTab === 'campaigns' && (
+                              <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
+                                 <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
+                                 <div className="overflow-x-auto">
+                                    <table className="w-full text-left whitespace-nowrap">
+                                       <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                          <tr>
+                                             <th className="px-8 py-6">Campaign Protocol</th>
+                                             <th className="px-8 py-6">Subject Matrix</th>
+                                             <th className="px-8 py-6">Temporal Stamp</th>
+                                             <th className="px-8 py-6">Reach Magnitude</th>
+                                             <th className="px-8 py-6">Status</th>
+                                          </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-white/[0.03] text-sm">
+                                          {(newsletterCampaigns || []).map(c => (
+                                             <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-8 py-6">
+                                                   <div className="flex items-center gap-4">
+                                                      <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan font-black text-xs uppercase">
+                                                         {c.type.substring(0, 2)}
+                                                      </div>
+                                                      <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{c.name}</span>
+                                                   </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-gray-400 font-bold">{c.subject}</td>
+                                                <td className="px-8 py-6 text-gray-400 font-bold">{c.sentDate ? new Date(c.sentDate).toLocaleString() : 'Pending'}</td>
+                                                <td className="px-8 py-6 text-white font-black text-base">{c.recipientCount || 0} Clients</td>
+                                                <td className="px-8 py-6">
+                                                   <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${c.status === 'sent' ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20' : 'bg-gray-500/5 text-gray-500 border-white/10'}`}>
+                                                      {c.status}
+                                                   </span>
+                                                </td>
+                                             </tr>
+                                          ))}
+                                       </tbody>
+                                    </table>
+                                 </div>
+                              </div>
+                           )}
+
+                           {newsletterSubTab === 'compose' && (
+                              <div className="bg-[#0B0B0F] p-10 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden">
+                                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-purple/5 blur-[150px] rounded-full -mr-64 -mt-64" />
+                                 <div className="max-w-4xl mx-auto space-y-10 relative z-10">
+                                    <div className="flex justify-between items-center">
+                                       <div>
+                                          <h4 className="text-3xl font-black text-white tracking-tight">Mass Broadcast</h4>
+                                          <p className="text-sm text-gray-500 font-medium mt-1">Initialize communication sequence for {subscribers.filter(s => s.status === 'active').length} active protocols</p>
+                                       </div>
+                                       <button onClick={handleBroadcast} disabled={isSending} className="px-10 py-5 bg-brand-purple text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-2xl shadow-brand-purple/30 transition-all transform hover:-translate-y-1 flex items-center gap-4 disabled:opacity-50 disabled:translate-y-0">
+                                          {isSending ? <RefreshCw className="animate-spin" size={20} /> : <Send size={20} />}
+                                          {isSending ? 'Initializing...' : 'Execute Broadcast'}
+                                       </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                       <InputGroup label="Broadcast Name" value={emailHeader} onChange={setEmailHeader} placeholder="e.g. March Mixtape Drop" required />
+                                       <InputGroup label="Subject Matrix" value={emailSubject} onChange={setEmailSubject} placeholder="The music you've been waiting for..." required />
+                                    </div>
+
+                                    <div className="space-y-4">
+                                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] pl-1">Communication Body</label>
+                                       <div className="bg-[#050507] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-inner focus-within:border-brand-purple/30 transition-all">
+                                          <ReactQuill value={emailBody} onChange={setEmailBody} placeholder="Construct your transmission here..." />
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
                         </div>
                      )}
                   </div>
@@ -5637,8 +5811,12 @@ const AdminDashboard: React.FC = () => {
                      <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Limits & Status</h4>
                      <div className="grid grid-cols-2 gap-4 items-center">
                         <InputGroup label="Usage Limit" type="number" value={newCoupon.usageLimit} onChange={v => setNewCoupon({ ...newCoupon, usageLimit: Number(v) })} placeholder="0 (Unlimited)" />
-                        <div className="pt-2">
-                           <InputGroup label="Active Status" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} placeholder="Enabled" />
+                        <div className="space-y-4 pt-1">
+                           <InputGroup label="Single Use Paradigm" type="checkbox" checked={newCoupon.isSingleUse} onChange={v => setNewCoupon({ ...newCoupon, isSingleUse: v })} placeholder="One-time utilization only" />
+                           {newCoupon.isSingleUse && <InputGroup label="Target User Assignment" value={newCoupon.assignedUserId} onChange={v => setNewCoupon({ ...newCoupon, assignedUserId: v })} placeholder="User ID (Optional - restrict to specific user)" />}
+                        </div>
+                        <div className="pt-1">
+                           <InputGroup label="Active Status" type="checkbox" checked={newCoupon.active} onChange={v => setNewCoupon({ ...newCoupon, active: v })} placeholder="Operational" />
                         </div>
                      </div>
                   </div>

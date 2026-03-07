@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { updateR2Item, addR2Item, getR2Collection } from '../../utils/server-r2';
+import { updateR2Item, addR2Item, getR2Collection, addAdminNotification } from '../../utils/server-r2';
 
 // Cloudflare R2 is now our source of truth for all data.
 // Supabase is used strictly for Auth (via hooks/middleware), not database queries.
@@ -189,6 +189,14 @@ async function handleChargeSuccess(data: any, metadata: any) {
     await updateR2Item('orders', orderId, orderData);
     console.log(`Order ${orderId} saved to R2`);
 
+    // Add Admin Notification
+    await addAdminNotification(
+        `New Order: ${orderData.id}`,
+        `${orderData.customer_name} placed an order for KES ${orderData.total}.`,
+        'success',
+        `/admin?tab=orders&id=${orderData.id}`
+    );
+
     // 4. Sync to MailerLite (Receipt & Customer Update)
     const receiptSummary = orderData.items.map((item: any) => `${item.productName} (x${item.quantity})`).join(', ');
     await syncToMailerLite(orderData.customer_email, {
@@ -253,6 +261,13 @@ async function handleChargeSuccess(data: any, metadata: any) {
             tip_amount: data.amount / 100,
             tip_message: metadata.message
         });
+
+        // Add Admin Notification
+        await addAdminNotification(
+            `New Tip Received!`,
+            `${metadata.customerName || 'A fan'} sent a tip of KES ${data.amount / 100}.`,
+            'promotion'
+        );
     }
 
     // If it's a subscription payment, activate the subscription immediately.
@@ -300,6 +315,85 @@ async function handleChargeSuccess(data: any, metadata: any) {
             subscription_expiry: expiryDate.toISOString(),
             customer_type: 'subscriber'
         });
+
+        // Add Admin Notification
+        await addAdminNotification(
+            `New Subscription: ${planName}`,
+            `${metadata.customerName || data.customer?.email} is now a subscriber.`,
+            'subscription'
+        );
+
+        // --- REFERRAL REWARD PROTOCOL ---
+        try {
+            const profiles = await getR2Collection<any>('profiles');
+            const refereeProfile = profiles.find(p => p.id === userId);
+
+            if (refereeProfile && refereeProfile.referred_by) {
+                const referrerId = refereeProfile.referred_by;
+
+                // Check if reward already issued for this referral
+                const referralLogs = await getR2Collection<any>('referral_logs');
+                const alreadyIssued = referralLogs.some(log => log.refereeId === userId && log.rewardIssued);
+
+                if (!alreadyIssued) {
+                    const referrerProfile = profiles.find(p => p.id === referrerId);
+                    if (referrerProfile) {
+                        const settingsData = await getR2Collection<any>('settings');
+                        const refSettings = settingsData.find((s: any) => s.id === 'referralSettings')?.data;
+                        const rewardAmount = refSettings?.referrerRewardAmount || 0;
+
+                        // 1. Update Referrer Balance
+                        const currentBalance = referrerProfile.balance || 0;
+                        await updateR2Item('profiles', referrerId, {
+                            balance: currentBalance + rewardAmount
+                        });
+
+                        // 2. Log the Referral
+                        const logEntry = {
+                            id: `reflog_${Date.now()}`,
+                            referrerId,
+                            refereeId: userId,
+                            referrerName: referrerProfile.name || 'Admin',
+                            refereeName: refereeProfile.name || 'User',
+                            planPurchased: planName,
+                            rewardIssued: true,
+                            createdAt: new Date().toISOString(),
+                            status: 'completed'
+                        };
+                        await addR2Item('referral_logs', logEntry);
+
+                        // 3. Update Referral Stats
+                        const stats = await getR2Collection<any>('referral_stats');
+                        const statIdx = stats.findIndex((s: any) => s.userId === referrerId);
+                        if (statIdx !== -1) {
+                            stats[statIdx].totalReferrals = (stats[statIdx].totalReferrals || 0) + 1;
+                            stats[statIdx].totalEarned = (stats[statIdx].totalEarned || 0) + rewardAmount;
+                        } else {
+                            stats.push({
+                                id: `stats_${referrerId}`,
+                                userId: referrerId,
+                                userName: referrerProfile.name || 'User',
+                                referralCode: referrerProfile.referral_code || referrerProfile.referralCode || 'N/A',
+                                totalReferrals: 1,
+                                totalEarned: rewardAmount,
+                                pendingPayout: 0
+                            });
+                        }
+                        const { saveR2Collection } = await import('../../utils/server-r2');
+                        await saveR2Collection('referral_stats', stats);
+
+                        // 4. Notify Admin
+                        await addAdminNotification(
+                            `Referral Reward Issued`,
+                            `${referrerProfile.name} earned KES ${rewardAmount} for referring ${refereeProfile.name}.`,
+                            'success'
+                        );
+                    }
+                }
+            }
+        } catch (refError) {
+            console.error('Referral Processing Error:', refError);
+        }
     }
 }
 

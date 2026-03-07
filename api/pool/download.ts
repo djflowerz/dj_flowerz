@@ -170,6 +170,21 @@ export default async function handler(req: Request) {
         return new Response('Subscription required', { status: 403 });
     }
 
+    // Check for trial expiry based on promoExpiry
+    if (profile?.subscription_plan === 'trial') {
+        const promoExpiry = new Date('2026-04-04T23:59:59Z');
+        if (Date.now() > promoExpiry.getTime()) {
+            // Expire trial if past April 4th
+            await updateR2Item<any>('profiles', profile.id, {
+                is_subscriber: false,
+                subscription_plan: null,
+                subscription_expiry: null,
+                updated_at: new Date().toISOString()
+            });
+            return new Response('Your free trial has expired (Promotion ended April 4th).', { status: 403 });
+        }
+    }
+
     // 3. Daily Limits (Simplified for R2 - checking last_download_date and downloads_today)
     const nowISO = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     let downloadsToday = profile?.downloads_today || 0;
@@ -181,21 +196,25 @@ export default async function handler(req: Request) {
 
     if (profile && profile.role !== 'admin') {
         const planId = (profile.subscription_plan || '').toLowerCase();
-        const isTrial = planId.includes('trial');
+        const isTrial = planId === 'trial' || planId.includes('trial');
         const isWeekly = planId.includes('week') || planId.includes('7');
 
-        let limit = 200;
-        if (isTrial) limit = 10;
-        else if (isWeekly) limit = 30;
+        let limit = 200; // Standard limit
+        if (isTrial) {
+            limit = 10;
+        } else if (isWeekly) {
+            limit = 30;
+        }
 
         if (downloadsToday >= limit) {
-            return new Response(`Daily limit reached (${limit}/day).`, { status: 429 });
+            return new Response(`Daily limit reached (${downloadsToday}/${limit}). Trial users are limited to 10 downloads per day.`, { status: 429 });
         }
 
         // Increment count in R2
         await updateR2Item<any>('profiles', profile.id, {
             downloads_today: downloadsToday + 1,
-            last_download_date: new Date().toISOString()
+            last_download_date: new Date().toISOString(),
+            has_used_trial: isTrial ? true : profile.has_used_trial
         });
     }
 

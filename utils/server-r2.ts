@@ -110,9 +110,24 @@ export async function addR2Item<T extends { id?: string | number } & Record<stri
     await saveR2Collection(collection, data);
 }
 
+
 export async function deleteR2Item(collection: string, id: string | number): Promise<void> {
     const data = await getR2Collection<any>(collection);
     const filtered = data.filter(i => i.id !== id);
     await saveR2Collection(collection, filtered);
+}
+
+export async function addAdminNotification(title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' | 'product' | 'mixtape' | 'promotion' | 'subscription' = 'info', link?: string) {
+    const notification = {
+        id: `ntf_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        userId: 'admin', // Marker for admin notifications
+        title,
+        message,
+        type,
+        link,
+        read: false,
+        created_at: new Date().toISOString()
+    };
+    await addR2Item('notifications', notification);
 }
 

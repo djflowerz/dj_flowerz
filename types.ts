@@ -247,6 +247,8 @@ export interface Coupon {
   usageLimit: number;
   usageCount: number;
   active: boolean;
+  isSingleUse?: boolean;
+  assignedUserId?: string; // If set, only this user can use it
 }
 
 export interface ReferralStats {
@@ -257,6 +259,7 @@ export interface ReferralStats {
   totalReferrals: number;
   totalEarned: number;
   pendingPayout: number;
+  createdAt?: string;
 }
 
 export interface NewsletterCampaign {
@@ -555,7 +558,7 @@ export interface AppNotification {
   userId: string | 'all';
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'product' | 'mixtape';
+  type: 'info' | 'success' | 'warning' | 'error' | 'product' | 'mixtape' | 'promotion' | 'subscription';
   link?: string;
   read: boolean;
   createdAt: string;
