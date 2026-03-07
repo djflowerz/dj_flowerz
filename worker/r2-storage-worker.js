@@ -10,6 +10,30 @@
  * - Workers AI: Generating embeddings for Vector search
  */
 
+async function syncProductsToR2(env) {
+    try {
+        const { results } = await env.DB.prepare("SELECT * FROM products").all();
+        // Parse JSON strings back to objects for the static file
+        const formattedResults = results.map(p => {
+            let images = p.images;
+            try {
+                if (typeof images === 'string') images = JSON.parse(images);
+            } catch (e) { }
+            return {
+                ...p,
+                images: Array.isArray(images) ? images : (p.image ? [p.image] : [])
+            };
+        });
+
+        await env.R2_BUCKET.put("data/products.json", JSON.stringify(formattedResults), {
+            httpMetadata: { contentType: "application/json" }
+        });
+        console.log(`[Worker] Synced ${formattedResults.length} products to R2 data/products.json`);
+    } catch (error) {
+        console.error("[Worker] Failed to sync products to R2:", error);
+    }
+}
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -104,21 +128,82 @@ export default {
 
             // Add Product: POST /api/products
             if (method === "POST" && path === "/api/products") {
-                const data = await request.json();
-                const { id, name, description, price, category, image } = data;
+                const product = await request.json();
+                const productId = product.id || `prod_${Date.now()}`;
 
-                // Save to D1
-                await env.DB.prepare(
-                    "INSERT INTO products (id, name, description, price, category, image) VALUES (?, ?, ?, ?, ?, ?)"
-                ).bind(id, name, description, price, category, image).run();
+                await env.DB.prepare(`
+                    INSERT INTO products (
+                        id,
+                        name,
+                        description,
+                        price,
+                        category,
+                        image,
+                        images,
+                        inventory,
+                        currency,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                `).bind(
+                    productId,
+                    product.name,
+                    product.description,
+                    product.price,
+                    product.category,
+                    product.image,
+                    JSON.stringify(product.images || [product.image]),
+                    product.inventory,
+                    product.currency || 'KES'
+                ).run();
 
                 // Vectorize: Generate embedding for semantic search
                 if (env.AI && env.VECTOR_INDEX) {
-                    const textToEmbed = `${name}: ${description || ''}`;
+                    const textToEmbed = `${product.name}: ${product.description || ''}`;
                     const embeddingResponse = await env.AI.run('@cf/baai/bge-small-en-v1.5', { text: [textToEmbed] });
                     const vector = embeddingResponse.data[0];
-                    await env.VECTOR_INDEX.upsert([{ id: id, values: vector, metadata: { name, type: 'product' } }]);
+                    await env.VECTOR_INDEX.upsert([{ id: productId, values: vector, metadata: { name: product.name, type: 'product' } }]);
                 }
+
+                // Sync D1 to static R2 file so frontend sees it
+                await syncProductsToR2(env);
+
+                return Response.json({ success: true, id: productId }, { headers: corsHeaders });
+            }
+
+            // Update Product: PUT /api/products/:id
+            if (method === "PUT" && path.startsWith("/api/products/")) {
+                const productId = path.replace("/api/products/", "");
+                const data = await request.json();
+                const { name, description, price, category, image, images, inventory, is_active, is_featured, currency } = data;
+
+                await env.DB.prepare(
+                    `UPDATE products SET 
+                        name = COALESCE(?, name),
+                        description = COALESCE(?, description),
+                        price = COALESCE(?, price),
+                        category = COALESCE(?, category),
+                        image = COALESCE(?, image),
+                        images = COALESCE(?, images),
+                        inventory = COALESCE(?, inventory),
+                        is_active = COALESCE(?, is_active),
+                        is_featured = COALESCE(?, is_featured),
+                        currency = COALESCE(?, currency),
+                        updated_at = datetime('now')
+                     WHERE id = ?`
+                ).bind(
+                    name, description, price, category, image,
+                    images ? JSON.stringify(images) : null,
+                    inventory,
+                    is_active !== undefined ? (is_active ? 1 : 0) : null,
+                    is_featured !== undefined ? (is_featured ? 1 : 0) : null,
+                    currency,
+                    productId
+                ).run();
+
+                // Sync D1 to static R2 file so frontend sees it
+                await syncProductsToR2(env);
 
                 return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
@@ -252,6 +337,66 @@ export default {
                 }
 
                 return new Response(JSON.stringify({ error: "Must provide data or action" }), { status: 400, headers: corsHeaders });
+            }
+
+            // --- 6. ADMIN RESTORATION ---
+            // Restore Products from R2 Images: POST /api/admin/restore-products
+            if (method === "POST" && path === "/api/admin/restore-products") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) {
+                    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+                }
+
+                const listResponse = await env.R2_BUCKET.list({ prefix: "images/" });
+                const objects = listResponse.objects;
+                const publicDomain = env.PUBLIC_R2_DOMAIN || 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
+
+                let restoredCount = 0;
+                let skippedCount = 0;
+
+                // Process in chunks of 20 to avoid CPU/Timeout limits
+                const chunkSize = 20;
+                for (let i = 0; i < objects.length; i += chunkSize) {
+                    const chunk = objects.slice(i, i + chunkSize);
+                    const results = await Promise.all(chunk.map(async (obj) => {
+                        const imageUrl = `https://${publicDomain}/${obj.key}`;
+                        const name = obj.key.replace("images/", "").replace(/\.[^/.]+$/, "").replace(/-/g, " ");
+                        const productId = `restored_${obj.key.replace(/\W/g, '_')}`;
+
+                        // Check if already exists by image URL
+                        const existing = await env.DB.prepare("SELECT id FROM products WHERE image = ? LIMIT 1")
+                            .bind(imageUrl)
+                            .all();
+
+                        if (existing.results.length === 0) {
+                            await env.DB.prepare(
+                                `INSERT INTO products (id, name, description, price, category, image, images, inventory, created_at, updated_at) 
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+                            ).bind(
+                                productId,
+                                name,
+                                `Recovered product from ${obj.key}`,
+                                99.99,
+                                "Recovered",
+                                imageUrl,
+                                JSON.stringify([imageUrl]),
+                                10
+                            ).run();
+                            return true;
+                        }
+                        return false;
+                    }));
+
+                    restoredCount += results.filter(r => r === true).length;
+                    skippedCount += results.filter(r => r === false).length;
+
+                    console.log(`[Restoration] Processed chunk ${i / chunkSize + 1}: ${restoredCount} restored, ${skippedCount} skipped.`);
+                }
+
+                // Sync D1 to static R2 file so frontend sees it
+                await syncProductsToR2(env);
+
+                return new Response(JSON.stringify({ success: true, message: `Restoration complete. ${restoredCount} products added, ${skippedCount} already existed.` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
 
             return new Response("DJ Flowerz API: Operation not found", { status: 404, headers: corsHeaders });
