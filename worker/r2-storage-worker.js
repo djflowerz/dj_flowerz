@@ -351,52 +351,94 @@ export default {
                 const objects = listResponse.objects;
                 const publicDomain = env.PUBLIC_R2_DOMAIN || 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
 
+                if (!objects.length) return new Response(JSON.stringify({ success: false, message: "No images found." }), { status: 200, headers: corsHeaders });
+
+                // Group images by product ID or product Name
+                const productsMap = {};
+                for (const obj of objects) {
+                    let keyPath = obj.key;
+                    if (keyPath.startsWith("images/")) keyPath = keyPath.replace("images/", "");
+
+                    const parts = keyPath.split("/");
+                    if (parts.length === 0 || !parts[0]) continue;
+
+                    let identifier;
+                    if (parts.length > 1 && parts[0] === 'products') {
+                        // Image is inside 'products' folder (e.g. products/p1771285147628_0.png)
+                        const filename = parts.pop();
+                        identifier = filename.split('_')[0]; // Extract p1771285147628
+                    } else if (parts.length > 1) {
+                        // Another folder name? Use folder name
+                        identifier = decodeURIComponent(parts[0]);
+                    } else {
+                        // Root file
+                        identifier = decodeURIComponent(parts[0].split(/[.\-]/)[0]);
+                    }
+
+                    const imageUrl = `https://${publicDomain}/${obj.key}`;
+
+                    if (!productsMap[identifier]) productsMap[identifier] = [];
+                    productsMap[identifier].push(imageUrl);
+                }
+
                 let restoredCount = 0;
-                let skippedCount = 0;
+                let updatedCount = 0;
 
-                // Process in chunks of 20 to avoid CPU/Timeout limits
-                const chunkSize = 20;
-                for (let i = 0; i < objects.length; i += chunkSize) {
-                    const chunk = objects.slice(i, i + chunkSize);
-                    const results = await Promise.all(chunk.map(async (obj) => {
-                        const imageUrl = `https://${publicDomain}/${obj.key}`;
-                        const name = obj.key.replace("images/", "").replace(/\.[^/.]+$/, "").replace(/-/g, " ");
-                        const productId = `restored_${obj.key.replace(/\W/g, '_')}`;
+                for (const [identifier, images] of Object.entries(productsMap)) {
+                    // Check if the product exists by ID or by Name
+                    const existing = await env.DB.prepare(
+                        `SELECT id, image, images FROM products WHERE id = ? OR name = ? LIMIT 1`
+                    ).bind(identifier, identifier).all();
 
-                        // Check if already exists by image URL
-                        const existing = await env.DB.prepare("SELECT id FROM products WHERE image = ? LIMIT 1")
-                            .bind(imageUrl)
-                            .all();
-
-                        if (existing.results.length === 0) {
-                            await env.DB.prepare(
-                                `INSERT INTO products (id, name, description, price, category, image, images, inventory, created_at, updated_at) 
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
-                            ).bind(
-                                productId,
-                                name,
-                                `Recovered product from ${obj.key}`,
-                                99.99,
-                                "Recovered",
-                                imageUrl,
-                                JSON.stringify([imageUrl]),
-                                10
-                            ).run();
-                            return true;
+                    if (existing.results.length === 0) {
+                        // Product doesn't exist, create it
+                        let newId = identifier;
+                        if (!newId.startsWith('p')) {
+                            newId = `rest_${identifier.replace(/\\W/g, '_').substring(0, 20)}_${Date.now()}`;
                         }
-                        return false;
-                    }));
+                        const mainImage = images[0];
+                        await env.DB.prepare(
+                            `INSERT INTO products (id, name, description, price, category, image, images, inventory, currency, created_at, updated_at) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+                        ).bind(
+                            newId,
+                            identifier,
+                            "Restored description",
+                            99.99,
+                            "Recovered",
+                            mainImage,
+                            JSON.stringify(images),
+                            10,
+                            "KES"
+                        ).run();
+                        restoredCount++;
+                    } else {
+                        // Update existing product with missing images
+                        const product = existing.results[0];
+                        let existingImages = [];
+                        try {
+                            existingImages = JSON.parse(product.images || "[]");
+                        } catch (e) { }
 
-                    restoredCount += results.filter(r => r === true).length;
-                    skippedCount += results.filter(r => r === false).length;
+                        if (!Array.isArray(existingImages)) existingImages = product.image ? [product.image] : [];
 
-                    console.log(`[Restoration] Processed chunk ${i / chunkSize + 1}: ${restoredCount} restored, ${skippedCount} skipped.`);
+                        let newImages = images.filter(img => !existingImages.includes(img));
+
+                        if (newImages.length > 0 || !product.image) {
+                            if (newImages.length > 0) existingImages.push(...newImages);
+                            const updatedMainImage = existingImages[0] || product.image;
+                            await env.DB.prepare(
+                                `UPDATE products SET image = ?, images = ?, updated_at = datetime('now') WHERE id = ?`
+                            ).bind(updatedMainImage, JSON.stringify(existingImages), product.id).run();
+                            updatedCount++;
+                        }
+                    }
                 }
 
                 // Sync D1 to static R2 file so frontend sees it
                 await syncProductsToR2(env);
 
-                return new Response(JSON.stringify({ success: true, message: `Restoration complete. ${restoredCount} products added, ${skippedCount} already existed.` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                return new Response(JSON.stringify({ success: true, message: `Restoration complete. New: ${restoredCount}, Updated: ${updatedCount}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
 
             return new Response("DJ Flowerz API: Operation not found", { status: 404, headers: corsHeaders });
