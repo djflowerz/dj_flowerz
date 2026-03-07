@@ -22,13 +22,17 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setItems(prev => {
       // Find the specific variant if variantId is provided
       let itemPrice = product.discountPrice && product.discountPrice > 0 ? product.discountPrice : product.price;
+      let itemCompareAtPrice = product.compareAtPrice;
+      let itemDiscountPrice = product.discountPrice;
       let variantName = '';
 
       if (variantId && product.variantGroups) {
         for (const group of product.variantGroups) {
           const v = group.variants.find(v => v.id === variantId || v.name === variantId);
           if (v) {
-            itemPrice = v.price;
+            itemPrice = v.discountPrice && v.discountPrice > 0 ? v.discountPrice : v.price;
+            itemCompareAtPrice = v.compareAtPrice || (v.discountPrice && v.discountPrice > 0 ? v.price : undefined);
+            itemDiscountPrice = v.discountPrice;
             variantName = v.name;
             break;
           }
@@ -39,11 +43,11 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (existing) {
         return prev.map(item =>
           (item.id === product.id && item.selectedVariant === (variantName || variantId))
-            ? { ...item, quantity: item.quantity + quantity, price: itemPrice }
+            ? { ...item, quantity: item.quantity + quantity, price: itemPrice, compareAtPrice: itemCompareAtPrice, discountPrice: itemDiscountPrice }
             : item
         );
       }
-      return [...prev, { ...product, price: itemPrice, quantity, selectedVariant: variantName || variantId }];
+      return [...prev, { ...product, price: itemPrice, compareAtPrice: itemCompareAtPrice, discountPrice: itemDiscountPrice, quantity, selectedVariant: variantName || variantId }];
     });
   };
 

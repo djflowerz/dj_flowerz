@@ -5534,7 +5534,14 @@ const AdminDashboard: React.FC = () => {
                                        type="button"
                                        onClick={() => {
                                           const next = [...(newProduct.variantGroups || [])];
-                                          next[gIdx].variants.push({ id: `v${Date.now()}`, name: '', price: newProduct.price, stock: newProduct.stock || 0 });
+                                          next[gIdx].variants.push({
+                                             id: `v${Date.now()}`,
+                                             name: '',
+                                             price: newProduct.price,
+                                             discountPrice: newProduct.discountPrice || 0,
+                                             compareAtPrice: newProduct.compareAtPrice || 0,
+                                             stock: newProduct.stock || 0
+                                          });
                                           updateProductField('variantGroups', next);
                                        }}
                                        className="text-brand-purple text-[10px] font-bold hover:underline"
@@ -5545,11 +5552,12 @@ const AdminDashboard: React.FC = () => {
 
                                  <div className="space-y-2">
                                     {group.variants.map((variant, vIdx) => (
-                                       <div key={vIdx} className="grid grid-cols-12 gap-3 items-center bg-[#15151A] p-3 rounded-2xl border border-white/5">
-                                          <div className="col-span-3">
+                                       <div key={vIdx} className="grid grid-cols-1 shadow-sm md:grid-cols-12 gap-3 items-center bg-[#15151A] p-4 rounded-2xl border border-white/5">
+                                          <div className="md:col-span-2">
+                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Name</label>
                                              <input
                                                 type="text"
-                                                placeholder="Name (e.g. Red, 128GB)"
+                                                placeholder="Name"
                                                 value={variant.name}
                                                 onChange={v => {
                                                    const next = [...(newProduct.variantGroups || [])];
@@ -5559,10 +5567,11 @@ const AdminDashboard: React.FC = () => {
                                                 className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
                                              />
                                           </div>
-                                          <div className="col-span-2">
+                                          <div className="md:col-span-2">
+                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Color/Hex</label>
                                              <input
                                                 type="text"
-                                                placeholder="Color/Hex"
+                                                placeholder="Hex"
                                                 value={variant.color || ''}
                                                 onChange={v => {
                                                    const next = [...(newProduct.variantGroups || [])];
@@ -5572,9 +5581,9 @@ const AdminDashboard: React.FC = () => {
                                                 className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
                                              />
                                           </div>
-                                          <div className="col-span-3">
+                                          <div className="md:col-span-2">
+                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Price</label>
                                              <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl px-2">
-                                                <span className="text-[10px] text-gray-600 font-bold">KES</span>
                                                 <input
                                                    type="number"
                                                    value={variant.price}
@@ -5587,7 +5596,40 @@ const AdminDashboard: React.FC = () => {
                                                 />
                                              </div>
                                           </div>
-                                          <div className="col-span-3">
+                                          <div className="md:col-span-2">
+                                             <label className="block text-[8px] font-bold text-cyan-500/80 uppercase mb-1">Disc. Price</label>
+                                             <div className="flex items-center gap-1 bg-black/40 border border-cyan-500/20 rounded-xl px-2">
+                                                <input
+                                                   type="number"
+                                                   placeholder="Discount"
+                                                   value={variant.discountPrice || 0}
+                                                   onChange={v => {
+                                                      const next = [...(newProduct.variantGroups || [])];
+                                                      next[gIdx].variants[vIdx].discountPrice = Number(v.target.value);
+                                                      updateProductField('variantGroups', next);
+                                                   }}
+                                                   className="w-full bg-transparent p-2 text-xs text-brand-cyan outline-none"
+                                                />
+                                             </div>
+                                          </div>
+                                          <div className="md:col-span-2">
+                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Compare At</label>
+                                             <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl px-2">
+                                                <input
+                                                   type="number"
+                                                   placeholder="Old Price"
+                                                   value={variant.compareAtPrice || 0}
+                                                   onChange={v => {
+                                                      const next = [...(newProduct.variantGroups || [])];
+                                                      next[gIdx].variants[vIdx].compareAtPrice = Number(v.target.value);
+                                                      updateProductField('variantGroups', next);
+                                                   }}
+                                                   className="w-full bg-transparent p-2 text-xs text-gray-500 outline-none"
+                                                />
+                                             </div>
+                                          </div>
+                                          <div className="md:col-span-1">
+                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Stock</label>
                                              <input
                                                 type="number"
                                                 placeholder="Stock"
@@ -5600,7 +5642,7 @@ const AdminDashboard: React.FC = () => {
                                                 className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
                                              />
                                           </div>
-                                          <div className="col-span-1 flex justify-center">
+                                          <div className="md:col-span-1 flex justify-center mt-4 md:mt-0">
                                              <button
                                                 type="button"
                                                 onClick={() => {
@@ -5608,7 +5650,7 @@ const AdminDashboard: React.FC = () => {
                                                    next[gIdx].variants = next[gIdx].variants.filter((_, i) => i !== vIdx);
                                                    updateProductField('variantGroups', next);
                                                 }}
-                                                className="text-gray-600 hover:text-red-500 transition-colors"
+                                                className="text-gray-600 hover:text-red-500 transition-colors p-2"
                                              >
                                                 <X size={16} />
                                              </button>

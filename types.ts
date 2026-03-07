@@ -55,6 +55,8 @@ export interface ProductVariant {
   id: string;
   name: string; // e.g. "1TB", "Gold", "Large"
   price: number;
+  discountPrice?: number;
+  compareAtPrice?: number;
   stock: number;
   sku?: string;
   image?: string;

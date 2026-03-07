@@ -285,9 +285,16 @@ const Cart: React.FC = () => {
                                        <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
                                        <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 text-gray-400 hover:text-white"><Plus size={14} /></button>
                                     </div>
-                                    <p className="font-bold text-brand-purple">
-                                       {item.price === 0 ? 'Free' : `KES ${(item.price * item.quantity).toLocaleString()}`}
-                                    </p>
+                                    <div className="text-right">
+                                       <p className="font-bold text-brand-purple">
+                                          {item.price === 0 ? 'Free' : `KES ${(item.price * item.quantity).toLocaleString()}`}
+                                       </p>
+                                       {item.compareAtPrice && item.compareAtPrice > item.price && (
+                                          <p className="text-[10px] text-gray-500 line-through italic">
+                                             KES {(item.compareAtPrice * item.quantity).toLocaleString()}
+                                          </p>
+                                       )}
+                                    </div>
                                  </div>
                               </div>
                            </div>

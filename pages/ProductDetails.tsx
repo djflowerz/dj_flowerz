@@ -21,6 +21,15 @@ const ProductDetails: React.FC = () => {
 
    const product = useMemo(() => products.find(p => p.slug === slug || p.id === slug), [products, slug]);
 
+   const selectedVariantObj = useMemo(() => {
+      if (!selectedVariant || !product?.variantGroups) return null;
+      for (const group of product.variantGroups) {
+         const v = group.variants.find(vg => vg.name === selectedVariant || vg.id === selectedVariant);
+         if (v) return v;
+      }
+      return null;
+   }, [selectedVariant, product?.variantGroups]);
+
    const navigate = useNavigate();
 
    const relatedProducts = useMemo(() => {
@@ -305,12 +314,22 @@ const ProductDetails: React.FC = () => {
 
                      <div className="flex items-baseline gap-4 mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/10 w-fit">
                         <span className="text-4xl md:text-5xl font-display font-black text-brand-cyan">
-                           KES {product.discountPrice && product.discountPrice > 0 ? product.discountPrice.toLocaleString() : product.price.toLocaleString()}
+                           KES {selectedVariantObj
+                              ? (selectedVariantObj.discountPrice && selectedVariantObj.discountPrice > 0 ? selectedVariantObj.discountPrice.toLocaleString() : selectedVariantObj.price.toLocaleString())
+                              : (product.discountPrice && product.discountPrice > 0 ? product.discountPrice.toLocaleString() : product.price.toLocaleString())}
                         </span>
-                        {product.discountPrice && product.discountPrice > 0 && (
-                           <span className="text-xl text-gray-500 line-through opacity-50 font-bold italic">
-                              KES {product.price.toLocaleString()}
-                           </span>
+                        {selectedVariantObj ? (
+                           (selectedVariantObj.discountPrice && selectedVariantObj.discountPrice > 0) && (
+                              <span className="text-xl text-gray-500 line-through opacity-50 font-bold italic">
+                                 KES {selectedVariantObj.price.toLocaleString()}
+                              </span>
+                           )
+                        ) : (
+                           (product.discountPrice && product.discountPrice > 0) && (
+                              <span className="text-xl text-gray-500 line-through opacity-50 font-bold italic">
+                                 KES {product.price.toLocaleString()}
+                              </span>
+                           )
                         )}
                      </div>
                   </div>
@@ -339,7 +358,18 @@ const ProductDetails: React.FC = () => {
                                        className={`px-6 py-3 rounded-2xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${selectedVariant === variant.name ? 'border-brand-purple bg-brand-purple/10 text-white' : 'border-white/5 bg-white/5 text-gray-500 hover:text-white hover:bg-white/10'}`}
                                     >
                                        {variant.name}
-                                       {variant.price && variant.price > 0 && <span className="ml-2 opacity-50">+ KES {variant.price.toLocaleString()}</span>}
+                                       {variant.price && variant.price > 0 && (
+                                          <span className="ml-2 opacity-50 text-[10px]">
+                                             {variant.discountPrice && variant.discountPrice > 0 ? (
+                                                <>
+                                                   <span className="line-through mr-1">KES {variant.price.toLocaleString()}</span>
+                                                   <span className="text-brand-cyan font-black">KES {variant.discountPrice.toLocaleString()}</span>
+                                                </>
+                                             ) : (
+                                                <span>KES {variant.price.toLocaleString()}</span>
+                                             )}
+                                          </span>
+                                       )}
                                     </button>
                                  ))}
                               </div>
