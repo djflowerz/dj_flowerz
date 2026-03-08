@@ -34,7 +34,10 @@ async function syncProductsToR2(env) {
                 requiresShipping: Boolean(p.requires_shipping),
                 whatsappEnabled: Boolean(p.whatsapp_enabled),
                 isFree: Boolean(p.is_free),
-                releaseDate: p.release_date
+                releaseDate: p.release_date,
+                isActive: Boolean(p.is_active),
+                isHot: Boolean(p.is_featured),
+                stock: p.inventory // Map inventory column to frontend 'stock' field
             };
         });
 
@@ -155,7 +158,32 @@ export default {
             // Add Product: POST /api/products
             if (method === "POST" && path === "/api/products") {
                 const product = await request.json();
-                const productId = product.id || `prod_${Date.now()}`;
+                const productId = product.id || `p${Date.now()}`;
+
+                // Extract and normalize fields
+                const name = product.name;
+                const description = product.description;
+                const price = product.price;
+                const category = product.category;
+                const image = product.image;
+                const images = product.images;
+                const inventory = product.stock !== undefined ? product.stock : product.inventory;
+                const is_active = product.isActive !== undefined ? product.isActive : product.is_active;
+                const is_featured = product.isHot !== undefined ? product.isHot : (product.isFeatured !== undefined ? product.isFeatured : product.is_featured);
+                const currency = product.currency || 'KES';
+                const discount_price = product.discountPrice !== undefined ? product.discountPrice : product.discount_price;
+                const compare_at_price = product.compareAtPrice !== undefined ? product.compareAtPrice : product.compare_at_price;
+                const type = product.type || 'physical';
+                const brand = product.brand;
+                const release_date = product.releaseDate !== undefined ? product.releaseDate : product.release_date;
+                const status = product.status || 'draft';
+                const requires_shipping = product.requiresShipping !== undefined ? product.requiresShipping : product.requires_shipping;
+                const weight = product.weight;
+                const dimensions = product.dimensions;
+                const sku = product.sku;
+                const variant_groups = product.variantGroups !== undefined ? product.variantGroups : product.variant_groups;
+                const whatsapp_enabled = product.whatsappEnabled !== undefined ? product.whatsappEnabled : product.whatsapp_enabled;
+                const is_free = product.isFree !== undefined ? product.isFree : product.is_free;
 
                 await env.DB.prepare(`
                     INSERT INTO products (
@@ -166,28 +194,28 @@ export default {
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 `).bind(
-                    productId ?? null,
-                    product.name ?? null,
-                    product.description ?? null,
-                    product.price ?? null,
-                    product.category ?? null,
-                    product.image ?? null,
-                    product.images ? JSON.stringify(product.images) : JSON.stringify([product.image ?? null]),
-                    product.inventory ?? null,
-                    product.currency || 'KES',
-                    product.discountPrice ?? null,
-                    product.compareAtPrice ?? null,
-                    product.type || 'physical',
-                    product.brand ?? null,
-                    product.releaseDate ?? null,
-                    product.status || 'draft',
-                    product.requiresShipping ? 1 : 0,
-                    product.weight ?? null,
-                    product.dimensions ?? null,
-                    product.sku ?? null,
-                    product.variantGroups ? JSON.stringify(product.variantGroups) : '[]',
-                    product.whatsappEnabled !== false ? 1 : 0,
-                    product.isFree ? 1 : 0
+                    productId,
+                    name ?? null,
+                    description ?? null,
+                    price ?? null,
+                    category ?? null,
+                    image ?? null,
+                    images ? JSON.stringify(images) : JSON.stringify([image ?? null]),
+                    inventory ?? null,
+                    currency,
+                    discount_price ?? null,
+                    compare_at_price ?? null,
+                    type,
+                    brand ?? null,
+                    release_date ?? null,
+                    status,
+                    requires_shipping ? 1 : 0,
+                    weight ?? null,
+                    dimensions ?? null,
+                    sku ?? null,
+                    variant_groups ? JSON.stringify(variant_groups) : '[]',
+                    whatsapp_enabled !== false ? 1 : 0,
+                    is_free ? 1 : 0
                 ).run();
 
                 // Vectorize: Generate embedding for semantic search
@@ -212,12 +240,31 @@ export default {
             if (method === "PUT" && path.startsWith("/api/products/")) {
                 const productId = path.split("/").pop();
                 const data = await request.json();
-                const {
-                    name, description, price, category, image, images, inventory,
-                    is_active, is_featured, currency, discountPrice, compareAtPrice,
-                    type, brand, releaseDate, status, requiresShipping, weight,
-                    dimensions, sku, variantGroups, whatsappEnabled, isFree
-                } = data;
+
+                // Extract and normalize fields (handle both camelCase from frontend and snake_case)
+                const name = data.name;
+                const description = data.description;
+                const price = data.price;
+                const category = data.category;
+                const image = data.image;
+                const images = data.images;
+                const inventory = data.stock !== undefined ? data.stock : data.inventory;
+                const is_active = data.isActive !== undefined ? data.isActive : data.is_active;
+                const is_featured = data.isHot !== undefined ? data.isHot : (data.isFeatured !== undefined ? data.isFeatured : data.is_featured);
+                const currency = data.currency;
+                const discount_price = data.discountPrice !== undefined ? data.discountPrice : data.discount_price;
+                const compare_at_price = data.compareAtPrice !== undefined ? data.compareAtPrice : data.compare_at_price;
+                const type = data.type;
+                const brand = data.brand;
+                const release_date = data.releaseDate !== undefined ? data.releaseDate : data.release_date;
+                const status = data.status;
+                const requires_shipping = data.requiresShipping !== undefined ? data.requiresShipping : data.requires_shipping;
+                const weight = data.weight;
+                const dimensions = data.dimensions;
+                const sku = data.sku;
+                const variant_groups = data.variantGroups !== undefined ? data.variantGroups : data.variant_groups;
+                const whatsapp_enabled = data.whatsappEnabled !== undefined ? data.whatsappEnabled : data.whatsapp_enabled;
+                const is_free = data.isFree !== undefined ? data.isFree : data.is_free;
 
                 await env.DB.prepare(
                     `UPDATE products SET 
@@ -257,19 +304,19 @@ export default {
                     is_active !== undefined ? (is_active ? 1 : 0) : null,
                     is_featured !== undefined ? (is_featured ? 1 : 0) : null,
                     currency,
-                    discountPrice,
-                    compareAtPrice,
+                    discount_price,
+                    compare_at_price,
                     type,
                     brand,
-                    releaseDate,
+                    release_date,
                     status,
-                    requiresShipping !== undefined ? (requiresShipping ? 1 : 0) : null,
+                    requires_shipping !== undefined ? (requires_shipping ? 1 : 0) : null,
                     weight,
                     dimensions,
                     sku,
-                    variantGroups ? JSON.stringify(variantGroups) : null,
-                    whatsappEnabled !== undefined ? (whatsappEnabled ? 1 : 0) : null,
-                    isFree !== undefined ? (isFree ? 1 : 0) : null,
+                    variant_groups ? JSON.stringify(variant_groups) : null,
+                    whatsapp_enabled !== undefined ? (whatsapp_enabled ? 1 : 0) : null,
+                    is_free !== undefined ? (is_free ? 1 : 0) : null,
                     productId
                 ).run();
 
