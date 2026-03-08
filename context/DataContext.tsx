@@ -636,6 +636,7 @@ const useCollection = <T extends { id: string }>(
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  console.log("DataProvider Render:", { hasChildren: !!children });
   const { user, updateUserProfile } = useAuth();
 
   // Determine roles for conditional fetching
