@@ -4,7 +4,7 @@ import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, Teleg
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, MOCK_SUBSCRIBERS, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1 } from '../utils/r2';
 
 
 
@@ -946,11 +946,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updated_at: new Date().toISOString()
       };
 
-      await updateR2Item('profiles', user.id, updates);
+      await saveToD1('profiles', 'PUT', updates, user.id);
 
       // Also record as a "free" subscription for admin tracking
       const subId = `sub_trial_${user.id}_${Date.now()}`;
-      await addR2Item('subscriptions', {
+      await saveToD1('subscriptions', 'POST', {
         id: subId,
         user_id: user.id,
         user_name: user.name || user.email,
@@ -1110,7 +1110,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const profiles = await fetchFromR2<any>('profiles');
       const referrer = profiles.find(p => p.id === referrerId);
       if (referrer) {
-        await updateR2Item('profiles', referrerId, { balance: (referrer.balance || 0) + rewardAmount });
+        await saveToD1('profiles', 'PUT', { balance: (referrer.balance || 0) + rewardAmount }, referrerId);
       }
 
       refreshReferrals();
@@ -1168,7 +1168,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProduct = { ...product, id: docId, createdAt: new Date().toISOString() };
       const newProducts = [newProduct, ...products];
       setProducts(newProducts);
-      await addR2Item('products', newProduct);
+      await saveToD1('products', 'POST', newProduct);
       alert("Product added successfully!");
       if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
@@ -1180,7 +1180,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
       setProducts(newProducts);
-      await updateR2Item('products', id, data);
+      await saveToD1('products', 'PUT', data, id);
       alert("Product updated successfully!");
       if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
@@ -1192,7 +1192,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
-      await removeR2Item('products', id);
+      await saveToD1('products', 'DELETE', undefined, id);
       alert("Product deleted successfully!");
       if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
@@ -1213,8 +1213,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
       setMixtapes(updatedMixtapes);
-      // await saveToR2('mixtapes', updatedMixtapes); // Old way (heavy overwrite)
-      await addR2Item('mixtapes', mapped); // Improved way (partial update)
+      await saveToD1('mixtapes', 'POST', mapped);
       alert("Mixtape added successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -1226,8 +1225,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
       setMixtapes(updatedMixtapes);
-      // await saveToR2('mixtapes', updatedMixtapes);
-      await updateR2Item('mixtapes', id, data);
+      await saveToD1('mixtapes', 'PUT', data, id);
       alert("Mixtape updated successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -1239,8 +1237,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const updatedMixtapes = mixtapes.filter(m => m.id !== id);
       setMixtapes(updatedMixtapes);
-      // await saveToR2('mixtapes', updatedMixtapes);
-      await removeR2Item('mixtapes', id);
+      await saveToD1('mixtapes', 'DELETE', undefined, id);
       alert("Mixtape deleted successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -1539,7 +1536,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (Object.keys(profileUpdate).length > 1) { // more than just updatedAt
-          await updateR2Item('profiles', sub.userId, profileUpdate);
+          await saveToD1('profiles', 'PUT', profileUpdate, sub.userId);
           refreshUsers();
         }
       }
@@ -1644,7 +1641,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addOrder = async (order: Order) => {
     try {
       const newOrders = [order, ...orders];
-      await saveToR2('orders', newOrders);
+      // Save directly to D1
+      await saveToD1('orders', 'POST', order);
       refreshOrders();
     } catch (err: any) {
       console.error("Add order failed:", err.message);
@@ -1654,7 +1652,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateOrder = async (id: string, data: Partial<Order>) => {
     try {
       const newOrders = orders.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o);
-      await saveToR2('orders', newOrders);
+      // Save directly to D1
+      await saveToD1('orders', 'PUT', data, id);
       refreshOrders();
     } catch (err: any) {
       console.error("Update order failed:", err.message);

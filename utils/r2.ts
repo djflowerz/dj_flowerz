@@ -128,6 +128,31 @@ export async function addAdminNotification(title: string, message: string, type:
     });
 }
 
+/**
+ * Execute D1 queries via the worker endpoints.
+ */
+export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DELETE', data?: any, id?: string): Promise<boolean> {
+    try {
+        const authHeader = await getAuthHeader();
+        const endpoint = id ? `${STORAGE_WORKER_URL}/api/${collection}/${id}` : `${STORAGE_WORKER_URL}/api/${collection}`;
+
+        const response = await fetch(endpoint, {
+            method,
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: data ? JSON.stringify(data) : undefined,
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error(`[D1] ${method} failed for ${collection}:`, err);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error(`[D1] Exception on ${method} ${collection}:`, e);
+        return false;
+    }
+}
 
 /**
  * Upload a file to R2 via the API proxy
