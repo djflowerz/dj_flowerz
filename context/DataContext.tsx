@@ -367,6 +367,9 @@ const mapR2Order = (o: any): Order => ({
   ...o,
   customerName: o.customer_name || o.customerName,
   customerEmail: o.customer_email || o.customerEmail,
+  customerPhone: o.customer_phone || o.customerPhone || o.phone,
+  city: o.city,
+  address: o.address,
   paymentStatus: o.payment_status || o.paymentStatus,
   referenceCode: o.reference_code || o.referenceCode,
   trackingNumber: o.tracking_number || o.trackingNumber,
@@ -743,7 +746,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc');
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc');
-  const [notifications, , notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc');
+  const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc');
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -1799,7 +1802,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addSubscriber = async (email: string, source: string = 'Website') => {
+  const addSubscriber = async (email: string, source: string = 'newsletter') => {
     try {
       // Optimistic check
       if (subscribers.some(s => s.email.toLowerCase() === email.toLowerCase())) {
@@ -1809,19 +1812,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, source })
+        body: JSON.stringify({ email, source }),
       });
 
-      const result = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response from /api/subscribe:", text);
+        throw new Error(response.status === 500 ? "Server Error (500)" : "Unexpected response format");
+      }
+
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to subscribe');
+        throw new Error(data.message || data.error || 'Failed to subscribe');
       }
 
       // Refresh the subscribers list from R2
       refreshSubscribers();
-    } catch (err: any) {
-      console.error("Add subscriber failed:", err.message);
-      throw err; // Propagate to UI
+      return data; // Return data if successful
+    } catch (error: any) {
+      console.error('Add subscriber failed:', error.message);
+      throw error; // Propagate to UI
     }
   };
 

@@ -585,6 +585,8 @@ const AdminDashboard: React.FC = () => {
    const [poolPage, setPoolPage] = useState(1);
    const tracksPerPage = 100;
    const [referralSubTab, setReferralSubTab] = useState<'settings' | 'logs'>('settings');
+   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+   const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | Order['status']>('all');
 
    const [variantsInput, setVariantsInput] = useState('');
    const dataContext = useData();
@@ -632,6 +634,22 @@ const AdminDashboard: React.FC = () => {
    const liveSubscriptions = subscriptions;
    const livePayments = payments;
    const liveTips = tips;
+
+   const filteredOrders = useMemo(() => {
+      if (!liveOrders) return [];
+      return liveOrders.filter(order => {
+         const searchLower = orderSearchQuery.toLowerCase().trim();
+         const matchesSearch = !searchLower ||
+            (order.customerName?.toLowerCase() || '').includes(searchLower) ||
+            (order.customerEmail?.toLowerCase() || '').includes(searchLower) ||
+            (order.customerPhone?.toLowerCase() || '').includes(searchLower) ||
+            (order.id?.toLowerCase() || '').includes(searchLower);
+
+         const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
+
+         return matchesSearch && matchesStatus;
+      }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+   }, [liveOrders, orderSearchQuery, orderStatusFilter]);
    const liveUsers = useMemo(() => {
       const now = new Date();
       const filtered = users.filter((u: any) => {
@@ -2017,9 +2035,10 @@ const AdminDashboard: React.FC = () => {
                         </div>
                      </div>
 
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
-                           <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shadow-inner">
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shadow-inner shrink-0">
                               <Package size={28} />
                            </div>
                            <div>
@@ -2028,8 +2047,9 @@ const AdminDashboard: React.FC = () => {
                               <p className="text-[10px] text-brand-cyan font-bold mt-1">Needs attention</p>
                            </div>
                         </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
-                           <div className="w-16 h-16 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shadow-inner">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-blue-500/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shadow-inner shrink-0">
                               <Truck size={28} />
                            </div>
                            <div>
@@ -2038,15 +2058,63 @@ const AdminDashboard: React.FC = () => {
                               <p className="text-[10px] text-blue-500 font-bold mt-1">Active logistics</p>
                            </div>
                         </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
-                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner shrink-0">
                               <CheckCircle size={28} />
                            </div>
                            <div>
                               <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Finalized</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'completed').length}</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'completed' || o.status === 'success').length}</p>
                               <p className="text-[10px] text-green-500 font-bold mt-1">Success cycles</p>
                            </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shadow-inner shrink-0">
+                              <DollarSign size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Gross Yield</p>
+                              <p className="text-2xl font-black text-white tracking-tighter">KES {liveOrders.reduce((acc, o) => acc + (o.total || 0), 0).toLocaleString()}</p>
+                              <p className="text-[10px] text-brand-purple font-bold mt-1">All time volume</p>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="flex flex-col md:flex-row gap-4 items-center p-6 bg-[#0B0B0F] rounded-[2rem] border border-white/5 shadow-xl">
+                        <div className="relative flex-1 group w-full">
+                           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={18} />
+                           <input
+                              type="text"
+                              placeholder="Scan manifest by name, email, phone or ID..."
+                              value={orderSearchQuery}
+                              onChange={(e) => setOrderSearchQuery(e.target.value)}
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-brand-cyan focus:bg-white/[0.07] transition-all font-medium placeholder:text-gray-600"
+                           />
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto">
+                           <select
+                              value={orderStatusFilter}
+                              onChange={(e) => setOrderStatusFilter(e.target.value as any)}
+                              className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:outline-none focus:border-brand-cyan transition-all font-black uppercase tracking-widest cursor-pointer hover:bg-white/[0.07]"
+                           >
+                              <option value="all">Global Status</option>
+                              <option value="pending">Pending</option>
+                              <option value="processing">Processing</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="completed">Completed</option>
+                              <option value="cancelled">Cancelled</option>
+                           </select>
+                           {(orderSearchQuery || orderStatusFilter !== 'all') && (
+                              <button
+                                 onClick={() => { setOrderSearchQuery(''); setOrderStatusFilter('all'); }}
+                                 className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-500/10"
+                                 title="Clear Filters"
+                              >
+                                 <X size={20} />
+                              </button>
+                           )}
                         </div>
                      </div>
 
@@ -2064,19 +2132,24 @@ const AdminDashboard: React.FC = () => {
                                  </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {(liveOrders || []).length === 0 ? (
+                                 {filteredOrders.length === 0 ? (
                                     <tr>
                                        <td colSpan={6} className="px-8 py-20 text-center">
-                                          <div className="flex flex-col items-center gap-4 opacity-50">
-                                             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
-                                                <Package size={40} className="text-gray-500" />
+                                          <div className="flex flex-col items-center gap-4 opacity-50 text-gray-500">
+                                             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center shadow-inner">
+                                                <Package size={40} />
                                              </div>
-                                             <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No active orders found</p>
+                                             <div className="text-center">
+                                                <p className="text-xs font-black uppercase tracking-[0.2em]">No target manifest identified</p>
+                                                {(orderSearchQuery || orderStatusFilter !== 'all') && (
+                                                   <p className="text-[10px] font-bold mt-1">Adjust scanning parameters for better results</p>
+                                                )}
+                                             </div>
                                           </div>
                                        </td>
                                     </tr>
                                  ) : (
-                                    (liveOrders || []).map(order => (
+                                    filteredOrders.map(order => (
                                        <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">
@@ -2086,14 +2159,22 @@ const AdminDashboard: React.FC = () => {
                                           </td>
                                           <td className="px-8 py-6">
                                              <div className="font-black text-white group-hover:text-brand-purple transition-colors">{order.customerName}</div>
-                                             <div className="text-[11px] text-gray-500 font-medium">{order.customerEmail}</div>
+                                             <div className="text-[11px] text-gray-500 font-medium flex flex-col gap-0.5">
+                                                <span>{order.customerEmail}</span>
+                                                {order.customerPhone && <span className="text-[10px] text-gray-600 font-bold">{order.customerPhone}</span>}
+                                             </div>
                                           </td>
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col gap-2 max-w-[240px]">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                   {order.city && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-brand-cyan/10 text-brand-cyan rounded-md border border-brand-cyan/20">{order.city}</span>}
+                                                   {order.deliveryMethod && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-brand-purple/10 text-brand-purple rounded-md border border-brand-purple/20">{order.deliveryMethod}</span>}
+                                                </div>
                                                 {Array.isArray(order.items) ? order.items.slice(0, 2).map((item, idx) => (
                                                    <div key={idx} className="flex items-center gap-2">
                                                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`}></div>
                                                       <span className="text-gray-400 font-bold truncate text-[11px] tracking-tight">{item.productName}</span>
+                                                      {item.variant && <span className="text-[10px] text-gray-600 font-medium italic">({item.variant})</span>}
                                                       {item.quantity > 1 && <span className="text-[10px] text-white bg-white/10 px-1.5 rounded-md font-black">x{item.quantity}</span>}
                                                    </div>
                                                 )) : <span className="text-gray-600 italic text-[10px]">No items found</span>}

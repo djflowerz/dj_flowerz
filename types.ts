@@ -213,6 +213,9 @@ export interface Order {
   id: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
+  city?: string;
+  address?: string;
   items: OrderItem[];
   total: number;
   status: 'pending' | 'processing' | 'shipped' | 'completed' | 'cancelled';

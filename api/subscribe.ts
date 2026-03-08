@@ -56,7 +56,7 @@ export default async function handler(req: any, res: any) {
                 subject: "Welcome to the DJ FLOWERZ Community! 🎧",
                 html: userHtml,
                 fromName: 'DJ Flowerz'
-            });
+            }).catch(e => console.error("Welcome email failed:", e.message));
 
             // Admin Notify Email
             const adminHtml = `
@@ -74,22 +74,30 @@ export default async function handler(req: any, res: any) {
                 subject: `New Subscriber: ${email}`,
                 html: adminHtml,
                 fromName: 'DJ Flowerz'
-            });
+            }).catch(e => console.error("Admin notification email failed:", e.message));
 
         } catch (mailerErr) {
             console.error('Subscription mailer failed:', mailerErr);
         }
 
         // 5. Add App Notification (Admin Dashboard)
-        await addAdminNotification(
-            `New Newsletter Subscriber`,
-            `${email} subscribed via ${source}`,
-            'promotion'
-        );
+        try {
+            await addAdminNotification(
+                `New Newsletter Subscriber`,
+                `${email} subscribed via ${source}`,
+                'promotion'
+            );
+        } catch (ntfErr) {
+            console.error('Failed to add admin notification:', ntfErr);
+        }
 
         return res.status(200).json({ success: true, message: 'Subscribed successfully' });
     } catch (error: any) {
         console.error('Subscription error:', error);
-        return res.status(500).json({ error: 'Internal server error', details: error.message });
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            message: error.message || 'An unexpected error occurred'
+        });
     }
 }

@@ -22,7 +22,8 @@ export async function sendEmail({ to, subject, html, text, fromName, replyTo }: 
         const DEFAULT_REPLY_TO = (process.env.EMAIL_NOREPLY || 'noreply@djflowerz.co.ke').trim();
 
         if (!GMAIL_APP_PASSWORD) {
-            throw new Error('GMAIL_APP_PASSWORD is not configured');
+            console.error('[Mailer] GMAIL_APP_PASSWORD is not configured. Email sending skipped.');
+            return { success: false, error: 'GMAIL_APP_PASSWORD not configured' };
         }
 
         const transporter = nodemailer.default.createTransport({
