@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
@@ -104,12 +104,15 @@ interface DataContextType {
   tips: any[];
   scannedTracks: any[];
   notifications: AppNotification[];
+  addNotification: (notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => Promise<void>;
   contactMessages: ContactMessage[];
   reviews: Review[];
   comments: any[];
   reviewsLoading: boolean;
   commentsLoading: boolean;
   notificationsLoading: boolean;
+  studioSessions: StudioSession[];
+  eventGigs: EventGig[];
   mixtapesError: string | null;
   mixtapesLoading: boolean;
   poolError: string | null;
@@ -127,6 +130,14 @@ interface DataContextType {
   studioRoomsLoading: boolean;
   maintenanceLogsLoading: boolean;
   sessionTypesLoading: boolean;
+  studioSessionsLoading: boolean;
+  eventGigsLoading: boolean;
+  productsError: string | null;
+  ordersError: string | null;
+  usersError: string | null;
+  subscriptionsError: string | null;
+  bookingsError: string | null;
+  hasQuotaExceeded: boolean;
 
   // Actions
   seedDatabase: () => Promise<void>;
@@ -215,6 +226,8 @@ interface DataContextType {
   refreshScannedTracks: () => Promise<void>;
   markNotificationAsRead: (id: string) => Promise<void>;
   clearNotifications: () => Promise<void>;
+  refreshStudioSessions: () => void;
+  refreshEventGigs: () => void;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -236,6 +249,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number = 30000): Promise<T> {
 const cleanLabel = (label: string) => {
   if (!label) return '';
   return label.replace(/\s\(\d+\s*tracks\)/i, '').trim();
+};
+
+const getYoutubeId = (url: string | undefined): string | null => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
 };
 
 // R2 Mapping Helpers
@@ -348,37 +368,43 @@ const mapR2Product = (p: any): Product => {
   };
 };
 
-const mapR2Mixtape = (m: any): Mixtape => ({
-  ...m,
-  coverUrl: m.cover_url || m.coverUrl || m.cover_image || '',
-  audioUrl: m.audio_url || m.audioUrl,
-  duration: m.duration,
-  releaseDate: m.release_date || m.releaseDate,
-  previewStartTime: m.preview_start_time || m.previewStartTime,
-  allowFullStream: m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream,
-  allowDownload: m.allow_download !== undefined ? m.allow_download : m.allowDownload,
-  downloadType: m.download_type || m.downloadType,
-  streamQuality: m.stream_quality || m.streamQuality,
-  isFeatured: m.is_featured !== undefined ? m.is_featured : m.isFeatured,
-  showInGallery: m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery,
-  showInMusicPool: m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool,
-  enableComments: m.enable_comments !== undefined ? m.enable_comments : m.enableComments,
-  requireLoginToComment: m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment,
-  moderateComments: m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments,
-  downloadUrl: m.download_url || m.downloadUrl,
-  videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
-  downloadLimit: m.download_limit !== undefined ? m.download_limit : m.downloadLimit,
-  downloadExpiryDays: m.download_expiry_days !== undefined ? m.download_expiry_days : m.downloadExpiryDays,
-  requiredTier: m.required_tier || m.requiredTier,
-  youtubeUrl: m.youtube_url || m.youtubeUrl,
-  soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
-  metaTitle: m.meta_title || m.metaTitle,
-  metaDescription: m.meta_description || m.metaDescription,
-  ogImage: m.og_image || m.ogImage,
-  isExclusive: m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive,
-  createdAt: m.created_at || m.createdAt,
-  updatedAt: m.updated_at || m.updatedAt
-});
+const mapR2Mixtape = (m: any): Mixtape => {
+  const ytUrl = m.youtube_url || m.youtubeUrl;
+  const ytId = getYoutubeId(ytUrl);
+  const ytFallback = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '';
+
+  return {
+    ...m,
+    coverUrl: m.cover_url || m.coverUrl || m.cover_image || ytFallback || '',
+    audioUrl: m.audio_url || m.audioUrl,
+    duration: m.duration,
+    releaseDate: m.release_date || m.releaseDate,
+    previewStartTime: m.preview_start_time || m.previewStartTime,
+    allowFullStream: m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream,
+    allowDownload: m.allow_download !== undefined ? m.allow_download : m.allowDownload,
+    downloadType: m.download_type || m.downloadType,
+    streamQuality: m.stream_quality || m.streamQuality,
+    isFeatured: m.is_featured !== undefined ? m.is_featured : m.isFeatured,
+    showInGallery: m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery,
+    showInMusicPool: m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool,
+    enableComments: m.enable_comments !== undefined ? m.enable_comments : m.enableComments,
+    requireLoginToComment: m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment,
+    moderateComments: m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments,
+    downloadUrl: m.download_url || m.downloadUrl,
+    videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
+    downloadLimit: m.download_limit !== undefined ? m.download_limit : m.downloadLimit,
+    downloadExpiryDays: m.download_expiry_days !== undefined ? m.download_expiry_days : m.downloadExpiryDays,
+    requiredTier: m.required_tier || m.requiredTier,
+    youtubeUrl: m.youtube_url || m.youtubeUrl,
+    soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
+    metaTitle: m.meta_title || m.metaTitle,
+    metaDescription: m.meta_description || m.metaDescription,
+    ogImage: m.og_image || m.ogImage,
+    isExclusive: m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive,
+    createdAt: m.created_at || m.createdAt,
+    updatedAt: m.updated_at || m.updatedAt
+  };
+};
 
 const mapR2Order = (o: any): Order => ({
   ...o,
@@ -759,6 +785,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc');
   const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc');
   const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc');
+
+  // NEW collections for Admin Dashboard
+  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc');
+  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc');
+
   const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc');
   const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc');
   const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc');
@@ -2147,6 +2178,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     campaignsLoading: campaignsLoading || false,
     paymentsLoading: paymentsLoading || false,
     tipsLoading: tipsLoading || false,
+    notifications,
+    notificationsLoading: notificationsLoading || false,
+    addNotification,
     studioEquipmentLoading: equipmentLoading || false,
     studioRoomsLoading: studioRoomsLoading || false,
     maintenanceLogsLoading: maintenanceLogsLoading || false,
@@ -2155,6 +2189,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     commentsLoading,
     mixtapesError: mixtapesError || null,
     poolError: poolError || null,
+    productsError: productsError || null,
+    ordersError: ordersError || null,
+    usersError: usersError || null,
+    subscriptionsError: subscriptionsError || null,
+    bookingsError: bookingsError || null,
+    studioSessions,
+    eventGigs,
+    studioSessionsLoading: studioSessionsLoading || false,
+    eventGigsLoading: eventGigsLoading || false,
+    hasQuotaExceeded: false,
+    uploadTrackList,
+    downloadTrackList,
 
     seedDatabase,
     updateSiteConfig,
@@ -2218,9 +2264,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addComment,
     markNotificationAsRead,
     clearNotifications,
-    addNotification,
     incrementMixtapeDownload,
     isFirstTimeSubscriber,
+    sendEmail,
+    sendNewsletterConfirmation,
     addScannedTracks,
     clearAllScannedTracks,
     deleteScannedTrack: async (id: string) => {
@@ -2237,15 +2284,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
+    refreshStudioSessions, refreshEventGigs,
     refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,
+    notifications,
+    notificationsLoading,
     payments, tips, reviews, comments,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,
-    poolError, mixtapesError, referralSettings
+    poolError, mixtapesError, productsError, ordersError, usersError, subscriptionsError, bookingsError,
+    studioSessions, eventGigs, studioSessionsLoading, eventGigsLoading,
+    referralSettings
   ]);
 
   return (

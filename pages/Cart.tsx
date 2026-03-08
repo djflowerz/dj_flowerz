@@ -1,7 +1,7 @@
 import React from 'react';
 import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
-import { Trash2, ArrowRight, ShoppingBag, ChevronRight } from 'lucide-react';
+import { Trash2, ArrowRight, ShoppingBag, Minus, Plus } from 'lucide-react';
 
 export default function Cart() {
   const { items, removeFromCart, cartTotal, updateQuantity } = useCart();
@@ -41,13 +41,22 @@ export default function Cart() {
             <ul role="list" className="space-y-6">
               {items.map((product) => (
                 <li key={product.id} className="flex p-6 bg-[#15151A] rounded-[2rem] border border-white/5 shadow-xl group">
+                  {/* Product Image */}
                   <div className="flex-shrink-0 relative overflow-hidden rounded-2xl border border-white/10 w-24 h-24 sm:w-32 sm:h-32 bg-[#0B0B0F]">
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-full h-full object-center object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
+                    {product.image || product.image_url ? (
+                      <img
+                        src={product.image || product.image_url}
+                        alt={product.name}
+                        className="w-full h-full object-center object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-600">
+                        <ShoppingBag size={28} />
+                      </div>
+                    )}
                   </div>
+
                   <div className="ml-6 flex-1 flex flex-col justify-between">
                     <div className="flex justify-between items-start">
                       <div className="pr-10">
@@ -68,22 +77,26 @@ export default function Cart() {
                     </div>
 
                     <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center bg-[#0B0B0F] rounded-xl border border-white/10 p-1">
-                        <label htmlFor={`quantity-${product.id}`} className="sr-only">Quantity</label>
-                        <select
-                          id={`quantity-${product.id}`}
-                          value={product.quantity}
-                          onChange={(e) => updateQuantity(product.id, parseInt(e.target.value))}
-                          className="bg-transparent text-white py-1 px-3 text-sm font-black focus:outline-none appearance-none cursor-pointer"
+                      {/* +/- Quantity Control */}
+                      <div className="flex items-center bg-[#0B0B0F] rounded-xl border border-white/10 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(product.id, Math.max(1, product.quantity - 1))}
+                          className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
+                          disabled={product.quantity <= 1}
                         >
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
-                            <option key={num} value={num} className="bg-[#15151A]">{num}</option>
-                          ))}
-                        </select>
-                        <div className="pr-2 pointer-events-none text-gray-500">
-                          <ChevronRight size={14} className="rotate-90" />
-                        </div>
+                          <Minus size={14} />
+                        </button>
+                        <span className="w-10 text-center text-sm font-black text-white">{product.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(product.id, product.quantity + 1)}
+                          className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
+
                       <div className="text-right">
                         <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">Total</p>
                         <p className="font-black text-white">KES {(product.price * product.quantity).toLocaleString()}</p>
