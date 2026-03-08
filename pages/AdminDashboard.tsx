@@ -911,24 +911,6 @@ const AdminDashboard: React.FC = () => {
       }
    }, [poolTracks, poolLoading, loadMorePoolTracks]);
 
-   if (loading) {
-      return (
-         <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-               <div className="w-12 h-12 border-4 border-brand-purple border-t-transparent rounded-full animate-spin" />
-               <p className="text-gray-400 animate-pulse">Verifying Admin Access...</p>
-            </div>
-         </div>
-      );
-   }
-
-   if (!user) {
-      return <Navigate to="/login" replace />;
-   }
-
-   if (!user.isAdmin) {
-      return <Navigate to="/" replace />;
-   }
 
    const handleSyncTracks = async () => {
       setIsSyncing(true);
