@@ -648,29 +648,7 @@ const AdminDashboard: React.FC = () => {
       refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
       refreshStudioSessions, refreshEventGigs,
       refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
-      uploadTrackList, downloadTrackList
    } = dataContext;
-
-   // DIAGNOSTIC TEST: Render a simple white box to see if it shows up on live.
-   return (
-      <div style={{
-         position: 'fixed',
-         top: 0,
-         left: 0,
-         width: '100%',
-         height: '100%',
-         background: 'white',
-         color: 'black',
-         display: 'flex',
-         alignItems: 'center',
-         justifyContent: 'center',
-         zIndex: 9999,
-         fontSize: '24px',
-         fontWeight: 'bold'
-      }}>
-         ADMIN DASHBOARD IS RENDERING (DIAGNOSTIC)
-      </div>
-   );
 
    const ordersLoading = odLoading;
    const subsLoading = sbLoading;
@@ -1754,6 +1732,7 @@ const AdminDashboard: React.FC = () => {
       }
    }
 
+   console.log("AdminDashboard: Reaching main return", { activeTab });
    return (
       <div className="flex h-screen bg-[#0B0B0F] text-white">
          <AdminPaymentListener setLiveSales={setLiveSales} />

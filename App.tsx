@@ -25,6 +25,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/AdminDashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
@@ -134,7 +135,13 @@ const App: React.FC = () => {
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
-                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+                  <Route path="/admin" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
                 </Routes>
               </Layout>
             </Router>
