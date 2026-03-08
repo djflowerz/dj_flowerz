@@ -9,13 +9,14 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 
-import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage } from '../types';
+import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage, StudioSession, EventGig } from '../types';
 import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
 import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
@@ -23,6 +24,18 @@ import { manualSync } from '../utils/autoSyncTracks';
 
 import { uploadFileToR2, saveToR2, updateR2Item } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
+
+import AdminProductsTab from '../components/admin/AdminProductsTab';
+import AdminOrdersTab from '../components/admin/AdminOrdersTab';
+import SubscriptionTab from '../components/admin/SubscriptionTab';
+import AnalyticsTab from '../components/admin/AnalyticsTab';
+import NewsletterTab from '../components/admin/NewsletterTab';
+import MessagesTab from '../components/admin/MessagesTab';
+import AdminPaymentListener from '../components/admin/AdminPaymentListener';
+import AdminPaymentsTab from '../components/admin/AdminPaymentsTab';
+import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
+import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory';
+import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
    <textarea
@@ -493,12 +506,17 @@ const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, descript
 
 
 
+const WORKER_URL = 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+
 const AdminDashboard: React.FC = () => {
    const { user, loading, logout } = useAuth();
    const [activeTab, setActiveTab] = useState('dashboard');
+   const [liveSales, setLiveSales] = useState<any[]>([]);
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
-   const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance'>('services');
+   const [bookingSubTab, setBookingSubTab] = useState('list');
+   const [gigSubTab, setGigSubTab] = useState('pipeline');
+   const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance' | 'studio-bookings' | 'gigs'>('services');
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
    // --- Scanned Updates state ---
@@ -528,7 +546,6 @@ const AdminDashboard: React.FC = () => {
    const [scanResults, setScanResults] = useState<{ broken: number; checked: number; missingVersions: number }>({ broken: 0, checked: 0, missingVersions: 0 });
 
    const [newsletterSubTab, setNewsletterSubTab] = useState('subscribers');
-   const [bookingSubTab, setBookingSubTab] = useState('list');
    const [subscriptionSubTab, setSubscriptionSubTab] = useState<'overview' | 'plans'>('overview');
    const [marketingSubTab, setMarketingSubTab] = useState<'referrals' | 'coupons' | 'newsletter'>('referrals');
 
@@ -594,9 +611,11 @@ const AdminDashboard: React.FC = () => {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
       payments, tips, contactMessages,
+      studioSessions, eventGigs,
       mixtapesLoading: mxLoading, productsLoading: pdLoading, ordersLoading: odLoading, usersLoading: usLoading, subscriptionsLoading: sbLoading, poolLoading,
       bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading: pyLoading, tipsLoading,
       studioEquipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading,
+      studioSessionsLoading, eventGigsLoading,
       poolError, productsError, mixtapesError, ordersError, usersError, subscriptionsError, bookingsError,
       hasQuotaExceeded,
       telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
@@ -619,6 +638,7 @@ const AdminDashboard: React.FC = () => {
       refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
       refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
       refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
+      refreshStudioSessions, refreshEventGigs,
       refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
       uploadTrackList, downloadTrackList
    } = dataContext;
@@ -1125,12 +1145,50 @@ const AdminDashboard: React.FC = () => {
 
    // Removed redundant hooks previously here
 
+   const handleSystemReset = async () => {
+      if (!confirm("⚠️ CAUTION: This will clear Live Session states and Cache. Continue?")) return;
+      try {
+         const res = await fetch(`${WORKER_URL}/api/admin/system-reset`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${process.env.VITE_PAYSTACK_SECRET_KEY}` }
+         });
+         const data = await res.json();
+         if (data.success) toast.success("System reset successful");
+         else throw new Error(data.error);
+      } catch (e: any) {
+         toast.error(`Reset failed: ${e.message}`);
+      }
+   };
+
+   const handleManualGrant = async (type: 'subscription' | 'studio', email: string, amount: number, id?: string) => {
+      try {
+         const res = await fetch(`${WORKER_URL}/api/admin/manual-grant`, {
+            method: 'POST',
+            body: JSON.stringify({ type, email, amount, id }),
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${process.env.VITE_PAYSTACK_SECRET_KEY}`
+            }
+         });
+         const data = await res.json();
+         if (data.success) {
+            toast.success(`Manual ${type} granted to ${email}`);
+            refreshUsers();
+            if (type === 'studio') refreshStudioSessions();
+         } else throw new Error(data.error);
+      } catch (e: any) {
+         toast.error(`Grant failed: ${e.message}`);
+      }
+   };
+
    const tabs = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'orders', label: 'Orders', icon: Package },
       { id: 'subscriptions', label: 'Subscriptions', icon: Timer },
+      { id: 'expiry-watch', label: 'Expiry Watch', icon: Clock },
       { id: 'pool', label: 'Music Pool', icon: Headphones },
-      { id: 'bookings', label: 'Bookings', icon: Calendar },
+      { id: 'bookings', label: 'Studio Bookings', icon: Calendar },
+      { id: 'gigs', label: 'Gig Manager', icon: MapPin },
       { id: 'studio', label: 'Studio Manager', icon: Mic },
       { id: 'store', label: 'Store', icon: ShoppingBag },
       { id: 'mixtapes', label: 'Mixtapes', icon: Music },
@@ -1143,6 +1201,7 @@ const AdminDashboard: React.FC = () => {
       { id: 'shipping', label: 'Shipping', icon: Truck },
       { id: 'newsletters', label: 'Newsletters', icon: Mail },
       { id: 'messages', label: 'Messages', icon: MessageSquare },
+      { id: 'analytics', label: 'Analytics', icon: BarChart2 },
       { id: 'system', label: 'System', icon: Database },
    ];
 
@@ -1686,6 +1745,7 @@ const AdminDashboard: React.FC = () => {
 
    return (
       <div className="flex h-screen bg-[#0B0B0F] text-white">
+         <AdminPaymentListener setLiveSales={setLiveSales} />
          <div className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/10 flex flex-col bg-[#0f0f13] transition-transform duration-300 md:translate-x-0 md:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             <div className="h-20 flex items-center justify-between px-8 border-b border-white/5 shrink-0">
                <Link to="/" className="text-xl font-bold font-display tracking-wider">
@@ -1746,6 +1806,15 @@ const AdminDashboard: React.FC = () => {
                         <>
                            <div className="fixed inset-0 z-40" onClick={() => setNotificationsDropdownOpen(false)} />
                            <div className="absolute right-0 mt-4 w-96 bg-[#15151A] border border-white/10 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
+                              <button
+                                 onClick={() => setActiveTab('usage-monitor')}
+                                 className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group ${activeTab === 'usage-monitor' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/25' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                              >
+                                 <Shield size={20} className={`transition-transform duration-500 ${activeTab === 'usage-monitor' ? 'scale-110 rotate-12' : 'group-hover:scale-110'}`} />
+                                 <span className="text-[10px] font-black uppercase tracking-[0.2em]">Usage Monitor</span>
+                              </button>
+
+                              <div className="my-6 border-t border-white/5 mx-6 opacity-40" />
                               <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#1A1A20]">
                                  <h3 className="font-bold text-sm tracking-tight">Transmission Center</h3>
                                  <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest bg-brand-purple/10 px-2.5 py-1 rounded-full border border-brand-purple/20">
@@ -2021,198 +2090,11 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'orders' && (
-                  <div className="animate-fade-in-up space-y-8">
-                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                           <h3 className="text-3xl font-black text-white tracking-tight">Order Fulfillment</h3>
-                           <p className="text-sm text-gray-500 font-medium mt-1">Manage physical and digital distribution streams</p>
-                        </div>
-                        <div className="flex gap-3">
-                           <button className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2">
-                              <Download size={16} /> Export CSV
-                           </button>
-                        </div>
-                     </div>
+               {activeTab === 'newsletters' && <NewsletterTab />}
+               {activeTab === 'messages' && <MessagesTab />}
+               {activeTab === 'analytics' && <AnalyticsTab />}
 
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
-                           <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shadow-inner shrink-0">
-                              <Package size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Queueing</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'processing' || o.status === 'pending').length}</p>
-                              <p className="text-[10px] text-brand-cyan font-bold mt-1">Needs attention</p>
-                           </div>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-blue-500/10 transition-colors" />
-                           <div className="w-16 h-16 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shadow-inner shrink-0">
-                              <Truck size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">In Transit</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'shipped').length}</p>
-                              <p className="text-[10px] text-blue-500 font-bold mt-1">Active logistics</p>
-                           </div>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
-                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner shrink-0">
-                              <CheckCircle size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Finalized</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{liveOrders.filter(o => o.status === 'completed' || o.status === 'success').length}</p>
-                              <p className="text-[10px] text-green-500 font-bold mt-1">Success cycles</p>
-                           </div>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
-                           <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shadow-inner shrink-0">
-                              <DollarSign size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Gross Yield</p>
-                              <p className="text-2xl font-black text-white tracking-tighter">KES {liveOrders.reduce((acc, o) => acc + (o.total || 0), 0).toLocaleString()}</p>
-                              <p className="text-[10px] text-brand-purple font-bold mt-1">All time volume</p>
-                           </div>
-                        </div>
-                     </div>
-
-                     <div className="flex flex-col md:flex-row gap-4 items-center p-6 bg-[#0B0B0F] rounded-[2rem] border border-white/5 shadow-xl">
-                        <div className="relative flex-1 group w-full">
-                           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={18} />
-                           <input
-                              type="text"
-                              placeholder="Scan manifest by name, email, phone or ID..."
-                              value={orderSearchQuery}
-                              onChange={(e) => setOrderSearchQuery(e.target.value)}
-                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-brand-cyan focus:bg-white/[0.07] transition-all font-medium placeholder:text-gray-600"
-                           />
-                        </div>
-                        <div className="flex gap-2 w-full md:w-auto">
-                           <select
-                              value={orderStatusFilter}
-                              onChange={(e) => setOrderStatusFilter(e.target.value as any)}
-                              className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:outline-none focus:border-brand-cyan transition-all font-black uppercase tracking-widest cursor-pointer hover:bg-white/[0.07]"
-                           >
-                              <option value="all">Global Status</option>
-                              <option value="pending">Pending</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="completed">Completed</option>
-                              <option value="cancelled">Cancelled</option>
-                           </select>
-                           {(orderSearchQuery || orderStatusFilter !== 'all') && (
-                              <button
-                                 onClick={() => { setOrderSearchQuery(''); setOrderStatusFilter('all'); }}
-                                 className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-500/10"
-                                 title="Clear Filters"
-                              >
-                                 <X size={20} />
-                              </button>
-                           )}
-                        </div>
-                     </div>
-
-                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-left whitespace-nowrap">
-                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                 <tr>
-                                    <th className="px-8 py-6">Order Control #</th>
-                                    <th className="px-8 py-6">Consignee</th>
-                                    <th className="px-8 py-6">Manifest Meta</th>
-                                    <th className="px-8 py-6">Revenue</th>
-                                    <th className="px-8 py-6">Lifecycle</th>
-                                    <th className="px-8 py-6 text-right">Operations</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {filteredOrders.length === 0 ? (
-                                    <tr>
-                                       <td colSpan={6} className="px-8 py-20 text-center">
-                                          <div className="flex flex-col items-center gap-4 opacity-50 text-gray-500">
-                                             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center shadow-inner">
-                                                <Package size={40} />
-                                             </div>
-                                             <div className="text-center">
-                                                <p className="text-xs font-black uppercase tracking-[0.2em]">No target manifest identified</p>
-                                                {(orderSearchQuery || orderStatusFilter !== 'all') && (
-                                                   <p className="text-[10px] font-bold mt-1">Adjust scanning parameters for better results</p>
-                                                )}
-                                             </div>
-                                          </div>
-                                       </td>
-                                    </tr>
-                                 ) : (
-                                    filteredOrders.map(order => (
-                                       <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group">
-                                          <td className="px-8 py-6">
-                                             <div className="flex flex-col">
-                                                <span className="font-black text-brand-cyan tracking-wider">#{order.id.slice(-8).toUpperCase()}</span>
-                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-1">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</span>
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="font-black text-white group-hover:text-brand-purple transition-colors">{order.customerName}</div>
-                                             <div className="text-[11px] text-gray-500 font-medium flex flex-col gap-0.5">
-                                                <span>{order.customerEmail}</span>
-                                                {order.customerPhone && <span className="text-[10px] text-gray-600 font-bold">{order.customerPhone}</span>}
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="flex flex-col gap-2 max-w-[240px]">
-                                                <div className="flex flex-wrap gap-1.5">
-                                                   {order.city && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-brand-cyan/10 text-brand-cyan rounded-md border border-brand-cyan/20">{order.city}</span>}
-                                                   {order.deliveryMethod && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-brand-purple/10 text-brand-purple rounded-md border border-brand-purple/20">{order.deliveryMethod}</span>}
-                                                </div>
-                                                {Array.isArray(order.items) ? order.items.slice(0, 2).map((item, idx) => (
-                                                   <div key={idx} className="flex items-center gap-2">
-                                                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'physical' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`}></div>
-                                                      <span className="text-gray-400 font-bold truncate text-[11px] tracking-tight">{item.productName}</span>
-                                                      {item.variant && <span className="text-[10px] text-gray-600 font-medium italic">({item.variant})</span>}
-                                                      {item.quantity > 1 && <span className="text-[10px] text-white bg-white/10 px-1.5 rounded-md font-black">x{item.quantity}</span>}
-                                                   </div>
-                                                )) : <span className="text-gray-600 italic text-[10px]">No items found</span>}
-                                                {Array.isArray(order.items) && order.items.length > 2 && (
-                                                   <span className="text-[10px] text-brand-purple font-black uppercase tracking-widest px-2 py-0.5 bg-brand-purple/5 rounded-md self-start">+{order.items.length - 2} Multiple Line Items</span>
-                                                )}
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="text-white font-black text-base">KES {order.total.toLocaleString()}</div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${order.status === 'completed' || order.status === 'success' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
-                                                order.status === 'shipped' ? 'bg-blue-500/5 text-blue-500 border-blue-500/20' :
-                                                   'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
-                                                }`}>
-                                                {order.status}
-                                             </span>
-                                          </td>
-                                          <td className="px-8 py-6 text-right">
-                                             <div className="flex justify-end gap-3">
-                                                {order.status === 'processing' && (
-                                                   <button onClick={() => openShipModal(order)} className="px-5 py-2.5 bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all">Direct Ship</button>
-                                                )}
-                                                <button onClick={() => { setSelectedOrder(order); setActiveModal('editOrderStatus'); }} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-2xl border border-white/5 transition-all" title="Modify Status"><Edit2 size={18} /></button>
-                                                <button className="p-3 text-gray-500 hover:text-white hover:bg-white/5 rounded-2xl border border-white/5 transition-all" title="Inspect Record"><Eye size={18} /></button>
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    ))
-                                 )}
-                              </tbody>
-                           </table>
-                        </div>
-                     </div>
-                  </div>
-               )}
-
+               {activeTab === 'orders' && <AdminOrdersTab />}
                {activeTab === 'subscriptions' && (
                   <div className="animate-fade-in-up space-y-8">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -3115,138 +2997,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'store' && (
-                  <div className="animate-fade-in-up space-y-8">
-                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                           <h3 className="text-3xl font-black text-white tracking-tight">Merchandise Catalog</h3>
-                           <p className="text-sm text-gray-500 font-medium mt-1">Curate your inventory across active commerce channels</p>
-                        </div>
-                        <button onClick={openAddProduct} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
-                           <Plus size={18} /> Catalog New Item
-                        </button>
-                     </div>
-
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
-                           <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shadow-inner">
-                              <ShoppingBag size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Total Assets</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{products.length}</p>
-                              <p className="text-[10px] text-brand-purple font-bold mt-1">Items in catalog</p>
-                           </div>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
-                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
-                              <CheckCircle size={28} />
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Stream Ready</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.status === 'published').length}</p>
-                              <p className="text-[10px] text-green-500 font-bold mt-1">Live in store</p>
-                           </div>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-orange-500/10 transition-colors" />
-                           <div className="w-16 h-16 rounded-3xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shadow-inner">
-                              <AlertCircle size={28} />
-                           </div>
-                           <div className="relative z-10">
-                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Depletion Alert</p>
-                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.type === 'physical' && (p.stock || 0) < 10).length}</p>
-                              <p className="text-[10px] text-orange-500 font-bold mt-1">Requires restock</p>
-                           </div>
-                        </div>
-                     </div>
-
-                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-left whitespace-nowrap">
-                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                 <tr>
-                                    <th className="px-8 py-6">Asset Profile</th>
-                                    <th className="px-8 py-6">Classification</th>
-                                    <th className="px-8 py-6">Inventory Quant</th>
-                                    <th className="px-8 py-6">Market Value</th>
-                                    <th className="px-8 py-6">Channel Status</th>
-                                    <th className="px-8 py-6 text-right">Ops Control</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {(Array.isArray(products) ? [...products] : [])
-                                    .sort((a, b) => {
-                                       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                                       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                                       return dateB - dateA;
-                                    })
-                                    .map((p) => (
-                                       <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
-                                          <td className="px-8 py-6">
-                                             <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 p-0.5">
-                                                   <img src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
-                                                </div>
-                                                <div className="min-w-0">
-                                                   <div className="font-black text-white truncate max-w-[200px] group-hover:text-brand-purple transition-colors">{p.name}</div>
-                                                   <div className="flex items-center gap-2 mt-1">
-                                                      <span className={`text-[9px] px-2 py-0.5 rounded-md uppercase font-black tracking-widest border ${p.type === 'digital' ? 'bg-blue-500/5 text-blue-500 border-blue-500/10' : 'bg-orange-500/5 text-orange-500 border-orange-500/10'}`}>{p.type}</span>
-                                                      {p.os && p.os !== 'None' && <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">OS/ {p.os}</span>}
-                                                   </div>
-                                                </div>
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[10px] border border-white/5 px-3 py-1 rounded-full">{p.category}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="flex flex-col">
-                                                <span className="text-white font-black text-base">
-                                                   {p.type === 'digital' ? <Infinity size={18} className="text-gray-600" /> : (
-                                                      (p.variantGroups && p.variantGroups.length > 0) ? (
-                                                         p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
-                                                      ) : (p.stock || 0)
-                                                   )}
-                                                </span>
-                                                {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-orange-500 font-black uppercase tracking-[0.2em] mt-1">Low Buffer</span>}
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="flex flex-col">
-                                                <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-600 line-through text-[10px] font-bold' : 'text-white font-black text-base'}>
-                                                   KES {(p.price || 0).toLocaleString()}
-                                                </span>
-                                                {p.discountPrice && p.discountPrice > 0 && (
-                                                   <span className="text-brand-cyan font-black text-base">
-                                                      KES {(p.discountPrice || 0).toLocaleString()}
-                                                   </span>
-                                                )}
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${p.status === 'published' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
-                                                p.status === 'hidden' ? 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20' :
-                                                   'bg-white/5 text-gray-400 border-white/10'
-                                                }`}>
-                                                {p.status}
-                                             </span>
-                                          </td>
-                                          <td className="px-8 py-6 text-right">
-                                             <div className="flex justify-end gap-3">
-                                                <button onClick={() => openEditProduct(p)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
-                                                <button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    ))}
-                              </tbody>
-                           </table>
-                        </div>
-                     </div>
-                  </div>
-               )}
-
+               {activeTab === 'store' && <AdminProductsTab />}
                {activeTab === 'mixtapes' && (
                   <div className="animate-fade-in-up">
                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -3576,10 +3327,13 @@ const AdminDashboard: React.FC = () => {
                   <div className="animate-fade-in-up space-y-8">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
-                           <h3 className="text-3xl font-black text-white tracking-tight">Session Logistics</h3>
-                           <p className="text-sm text-gray-500 font-medium mt-1">Manage temporal assets and studio reservations</p>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Studio Sessions</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Manage temporal assets and studio reservations (D1 Backed)</p>
                         </div>
                         <div className="flex items-center gap-4">
+                           <button onClick={refreshStudioSessions} className="p-4 bg-[#0B0B0F] border border-white/5 rounded-2xl text-gray-400 hover:text-white transition-all">
+                              <RefreshCw size={20} className={studioSessionsLoading ? 'animate-spin' : ''} />
+                           </button>
                            <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
                               <button onClick={() => setBookingSubTab('list')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${bookingSubTab === 'list' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>
                                  <List size={14} /> Queue
@@ -3588,9 +3342,6 @@ const AdminDashboard: React.FC = () => {
                                  <Calendar size={14} /> Timeline
                               </button>
                            </div>
-                           <button onClick={openAddBooking} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
-                              <Plus size={18} /> Schedule Session
-                           </button>
                         </div>
                      </div>
 
@@ -3602,43 +3353,51 @@ const AdminDashboard: React.FC = () => {
                                  <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
                                     <tr>
                                        <th className="px-8 py-6">Client Profile</th>
-                                       <th className="px-8 py-6">Service Classification</th>
+                                       <th className="px-8 py-6">Duration & Extras</th>
                                        <th className="px-8 py-6">Temporal Slot</th>
-                                       <th className="px-8 py-6">Pipeline Status</th>
-                                       <th className="px-8 py-6 text-right">Ops Control</th>
+                                       <th className="px-8 py-6">Fulfillment</th>
+                                       <th className="px-8 py-6 text-right">Magnitude</th>
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {(bookings || []).map((b) => (
-                                       <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
+                                    {(studioSessions || []).map((s) => (
+                                       <tr key={s.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan font-black text-xs uppercase">
-                                                   {b.clientName.substring(0, 2)}
+                                                   {s.customer_email.substring(0, 2)}
                                                 </div>
-                                                <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{b.clientName}</span>
+                                                <div className="flex flex-col">
+                                                   <span className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{s.customer_email.split('@')[0]}</span>
+                                                   <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{s.id}</span>
+                                                </div>
                                              </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full">{b.serviceName || b.serviceType}</span>
                                           </td>
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col gap-1">
-                                                <span className="text-white font-black text-sm">{b.date}</span>
-                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">At {b.time}</span>
+                                                <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full w-max">{s.duration_hours} Hour Session</span>
+                                                <div className="flex gap-1">
+                                                   {JSON.parse(s.extras || '[]').map((ex: string) => (
+                                                      <span key={ex} className="text-[8px] font-black uppercase tracking-tighter text-brand-cyan/60">{ex}</span>
+                                                   ))}
+                                                </div>
                                              </div>
                                           </td>
                                           <td className="px-8 py-6">
-                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${b.status === 'confirmed' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                             <div className="flex flex-col gap-1">
+                                                <span className="text-white font-black text-sm">{s.session_date}</span>
+                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">At {s.start_time}</span>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${s.status === 'paid' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
                                                 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20'
                                                 }`}>
-                                                {b.status}
+                                                {s.status}
                                              </span>
                                           </td>
                                           <td className="px-8 py-6 text-right">
-                                             <div className="flex justify-end gap-3">
-                                                <button onClick={() => openEditBooking(b)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all shadow-sm" title="Adjust Reservation"><PenSquare size={18} /></button>
-                                             </div>
+                                             <span className="text-white font-black">KES {Number(s.total_price_kes).toLocaleString()}</span>
                                           </td>
                                        </tr>
                                     ))}
@@ -3653,6 +3412,102 @@ const AdminDashboard: React.FC = () => {
                            </div>
                            <h3 className="text-2xl font-black text-white tracking-tight mb-2">Chronological View</h3>
                            <p className="text-gray-500 font-medium max-w-sm mx-auto">Temporal visualization is currently under reconstruction. Please utilize the Queue view for all immediate logistics.</p>
+                        </div>
+                     )}
+                  </div>
+               )}
+
+               {activeTab === 'gigs' && (
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Gig Manager</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Premium event booking and sales pipeline</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <button onClick={refreshEventGigs} className="p-4 bg-[#0B0B0F] border border-white/5 rounded-2xl text-gray-400 hover:text-white transition-all">
+                              <RefreshCw size={20} className={eventGigsLoading ? 'animate-spin' : ''} />
+                           </button>
+                           <div className="flex bg-[#0B0B0F] p-1.5 rounded-[1.5rem] border border-white/5 shadow-inner">
+                              <button onClick={() => setGigSubTab('pipeline')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${gigSubTab === 'pipeline' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>
+                                 <Activity size={14} /> Pipeline
+                              </button>
+                              <button onClick={() => setGigSubTab('list')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${gigSubTab === 'list' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>
+                                 <List size={14} /> Ledger
+                              </button>
+                           </div>
+                        </div>
+                     </div>
+
+                     {gigSubTab === 'pipeline' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                           {['inquiry', 'quote_sent', 'confirmed', 'completed'].map((stage) => (
+                              <div key={stage} className="space-y-4">
+                                 <div className="flex items-center justify-between px-4 pb-2 border-b border-white/5">
+                                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{stage.replace('_', ' ')}</h4>
+                                    <span className="text-[10px] font-black text-brand-purple bg-brand-purple/10 px-2 py-0.5 rounded-full">
+                                       {(eventGigs || []).filter(g => g.status === stage).length}
+                                    </span>
+                                 </div>
+                                 <div className="space-y-3">
+                                    {(eventGigs || []).filter(g => g.status === stage).map(gig => (
+                                       <div key={gig.id} className="bg-[#0B0B0F] p-5 rounded-2xl border border-white/5 hover:border-brand-purple/30 transition-all cursor-pointer group shadow-lg">
+                                          <div className="flex justify-between items-start mb-3">
+                                             <span className="text-[9px] font-black text-brand-cyan uppercase tracking-widest">{gig.event_type}</span>
+                                             <span className="text-[9px] text-gray-600 font-bold">{new Date(gig.created_at).toLocaleDateString()}</span>
+                                          </div>
+                                          <h5 className="text-white font-black group-hover:text-brand-purple transition-colors mb-1">{gig.client_name}</h5>
+                                          <p className="text-xs text-gray-500 line-clamp-1 mb-3">{gig.location_details}</p>
+                                          <div className="flex justify-between items-center pt-3 border-t border-white/[0.03]">
+                                             <span className="text-[10px] text-gray-400 font-black">{gig.event_date}</span>
+                                             {gig.deposit_received ? (
+                                                <span className="text-[10px] text-green-500 font-black">KES {gig.deposit_received}</span>
+                                             ) : (
+                                                <div className="w-2 h-2 rounded-full bg-yellow-500/50 animate-pulse" />
+                                             )}
+                                          </div>
+                                       </div>
+                                    ))}
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     ) : (
+                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative text-sm">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Event Details</th>
+                                    <th className="px-8 py-6">Client</th>
+                                    <th className="px-8 py-6">Location</th>
+                                    <th className="px-8 py-6">Status</th>
+                                    <th className="px-8 py-6 text-right">Magnitude</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03]">
+                                 {(eventGigs || []).map(gig => (
+                                    <tr key={gig.id} className="hover:bg-white/[0.02] transition-colors">
+                                       <td className="px-8 py-6">
+                                          <div className="flex flex-col">
+                                             <span className="text-white font-black">{gig.event_type}</span>
+                                             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{gig.event_date}</span>
+                                          </div>
+                                       </td>
+                                       <td className="px-8 py-6">
+                                          <div className="flex flex-col">
+                                             <span className="text-gray-300 font-bold">{gig.client_name}</span>
+                                             <span className="text-[10px] text-gray-600">{gig.client_email}</span>
+                                          </div>
+                                       </td>
+                                       <td className="px-8 py-6 text-gray-400">{gig.location_details}</td>
+                                       <td className="px-8 py-6">
+                                          <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-white/10 bg-white/5 text-gray-400">{gig.status}</span>
+                                       </td>
+                                       <td className="px-8 py-6 text-right font-black text-brand-purple">KES {gig.deposit_received || 0}</td>
+                                    </tr>
+                                 ))}
+                              </tbody>
+                           </table>
                         </div>
                      )}
                   </div>
@@ -4100,148 +3955,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'users' && (
-                  <div className="animate-fade-in-up space-y-8">
-                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                           <h3 className="text-3xl font-black text-white tracking-tight">Access Control</h3>
-                           <p className="text-sm text-gray-500 font-medium mt-1">Manage credentials and authentication layers across global users</p>
-                        </div>
-                        <div className="flex bg-[#0B0B0F] p-1.5 rounded-2xl border border-white/5 shadow-inner">
-                           <div className="px-5 py-2.5 bg-brand-purple/10 border border-brand-purple/20 rounded-xl flex items-center gap-2">
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                              <span className="text-[10px] font-black uppercase tracking-widest text-brand-purple">{(liveUsers || []).length} Pulse Active</span>
-                           </div>
-                        </div>
-                     </div>
-
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-purple/10 transition-colors" />
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple">
-                                 <Users size={24} />
-                              </div>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold border border-green-500/10">↑ 2.4%</span>
-                           </div>
-                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Authenticated</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).length}</p>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-green-500/10 transition-colors" />
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
-                                 <CheckCircle size={24} />
-                              </div>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold border border-green-500/10">↑ 1.2%</span>
-                           </div>
-                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Access Pass</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).filter(u => u.isSubscriber).length}</p>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-red-500/10 transition-colors" />
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
-                                 <Shield size={24} />
-                              </div>
-                           </div>
-                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Root Admin</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">{(users || []).filter(u => u.role === 'admin').length}</p>
-                        </div>
-                        <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-brand-cyan/10 transition-colors" />
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan">
-                                 <Monitor size={24} />
-                              </div>
-                              <div className="w-2 h-2 bg-brand-cyan rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                           </div>
-                           <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">System Live</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">{(liveUsers || []).length}</p>
-                        </div>
-                     </div>
-
-                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
-                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-left whitespace-nowrap">
-                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                 <tr>
-                                    <th className="px-8 py-6">Operational Profile</th>
-                                    <th className="px-8 py-6">System Credential</th>
-                                    <th className="px-8 py-6">Privilege Status</th>
-                                    <th className="px-8 py-6">Verification</th>
-                                    <th className="px-8 py-6 text-right">Access Control</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {(users || []).map(u => {
-                                    const isOnline = liveUsers.some(lu => lu.id === u.id);
-                                    const displayStatus = u.status || 'active';
-                                    return (
-                                       <tr key={u.id} className="hover:bg-white/[0.02] transition-colors group">
-                                          <td className="px-8 py-6">
-                                             <div className="flex items-center gap-5">
-                                                <div className="relative shrink-0 group-hover:scale-105 transition-transform duration-500">
-                                                   <div className="w-14 h-14 rounded-[1.25rem] bg-brand-purple/20 border-2 border-brand-purple/20 overflow-hidden shadow-lg p-0.5">
-                                                      <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}&background=7B5CFF&color=fff`} alt="" className="w-full h-full object-cover rounded-[1rem]" />
-                                                   </div>
-                                                   {isOnline && <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-4 border-[#0B0B0F] rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.3)]" title="Online" />}
-                                                </div>
-                                                <div className="min-w-0">
-                                                   <div className="font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{u.name}</div>
-                                                   <div className="text-[11px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{u.email}</div>
-                                                </div>
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="flex items-center gap-2.5">
-                                                <div className={`p-2 rounded-xl border ${u.role === 'admin' ? 'bg-red-500/5 border-red-500/20 text-red-500' : 'bg-gray-500/5 border-white/5 text-gray-500'}`}>
-                                                   {u.role === 'admin' ? <Shield size={16} /> : <Users size={16} />}
-                                                </div>
-                                                <span className={`capitalize font-black text-[10px] uppercase tracking-[0.1em] ${u.role === 'admin' ? 'text-red-400' : 'text-gray-400'}`}>{u.role}</span>
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             {(u.isSubscriber || u.subscriptionExpiry) ? (
-                                                <div className="flex flex-col gap-2">
-                                                   <span className={`${u.isSubscriber ? 'text-green-500' : 'text-orange-400'} font-black text-[10px] uppercase tracking-widest flex items-center gap-2 px-3 py-1.5 rounded-full border ${u.isSubscriber ? 'bg-green-500/5 border-green-500/10' : 'bg-orange-500/5 border-orange-500/10'} w-fit shadow-sm`}>
-                                                      <div className={`w-1.5 h-1.5 rounded-full ${u.isSubscriber ? 'bg-green-500 animate-pulse' : 'bg-orange-400'}`} />
-                                                      {u.isSubscriber ? (u.subscriptionPlan || 'Pro Member') : 'Access Expired'}
-                                                   </span>
-                                                   {u.subscriptionExpiry && (
-                                                      <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                                                         <div className="w-4 h-4 rounded-md bg-white/5 flex items-center justify-center text-gray-600">
-                                                            <Clock size={10} />
-                                                         </div>
-                                                         <div className="text-[10px] text-gray-500 font-bold tracking-tighter">
-                                                            <CountdownTimer expiryDate={u.subscriptionExpiry} />
-                                                         </div>
-                                                      </div>
-                                                   )}
-                                                </div>
-                                             ) : <span className="text-gray-600 font-black uppercase tracking-[0.2em] text-[9px] px-3 py-1 border border-white/5 rounded-full">Base Access</span>}
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3.5 py-1.5 rounded-xl border shadow-sm ${displayStatus === 'active' ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>
-                                                {displayStatus}
-                                             </span>
-                                          </td>
-                                          <td className="px-8 py-6 text-right">
-                                             <div className="flex justify-end gap-3">
-                                                <button onClick={() => openUserDetail(u)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-2xl border border-white/5 transition-all shadow-sm" title="Profile Intel"><Eye size={18} /></button>
-                                                <button className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-2xl border border-white/5 transition-all shadow-sm" title="Fast Credential Update"><PenSquare size={18} /></button>
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    );
-                                 })}
-                              </tbody>
-                           </table>
-                        </div>
-                     </div>
-                  </div>
-               )}
+               {activeTab === 'users' && <AdminCommunityDirectory />}
 
                {activeTab === 'shipping' && (
                   <div className="animate-fade-in-up space-y-8">
@@ -4726,88 +4440,10 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'payments' && (
-                  <div className="animate-fade-in-up space-y-8">
-                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                           <h3 className="text-3xl font-black text-white tracking-tight">Ledger Matrix</h3>
-                           <p className="text-sm text-gray-500 font-medium mt-1">Global transaction tracking and fiscal integrity audit</p>
-                        </div>
-                     </div>
+               {activeTab === 'payments' && <AdminPaymentsTab liveSales={liveSales} />}
 
-                     {paymentsLoading || ordersLoading ? (
-                        <div className="bg-[#0B0B0F] p-32 rounded-[3.5rem] border border-white/5 shadow-2xl flex flex-col items-center gap-6">
-                           <RefreshCw className="animate-spin text-brand-purple" size={48} />
-                           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Synchronizing Ledger...</p>
-                        </div>
-                     ) : combinedTransactions.length === 0 ? (
-                        <div className="bg-[#0B0B0F] p-32 rounded-[3.5rem] border border-white/5 shadow-2xl flex flex-col items-center gap-6">
-                           <div className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center text-gray-700">
-                              <CreditCard size={48} />
-                           </div>
-                           <div className="text-center">
-                              <p className="text-xl font-black text-white tracking-tight">Zero Transactions Flagged</p>
-                              <p className="text-sm text-gray-500 font-medium mt-1">Awaiting initial fiscal activity across all vectors</p>
-                           </div>
-                        </div>
-                     ) : (
-                        <div className="bg-[#0B0B0F] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl relative">
-                           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-purple/20 to-transparent" />
-                           <div className="overflow-x-auto">
-                              <table className="w-full text-left whitespace-nowrap">
-                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                                    <tr>
-                                       <th className="px-8 py-6">Type</th>
-                                       <th className="px-8 py-6">Reference</th>
-                                       <th className="px-8 py-6">Date & Time</th>
-                                       <th className="px-8 py-6">Customer</th>
-                                       <th className="px-8 py-6">Details</th>
-                                       <th className="px-8 py-6">Amount</th>
-                                       <th className="px-8 py-6 text-right">Status</th>
-                                    </tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {combinedTransactions.map(tx => (
-                                       <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">
-                                          <td className="px-8 py-6">
-                                             <span className={`px-4 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest border ${tx.type === 'Order' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                                                tx.type === 'Tip' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                                                   'bg-brand-purple/10 text-brand-purple border-brand-purple/20'
-                                                }`}>{tx.type}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="font-mono text-[11px] text-gray-500 select-all">{tx.ref || 'VOID_PRTCL'}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <div className="flex flex-col">
-                                                <span className="font-black text-white text-xs">{tx.date}</span>
-                                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{tx.time}</span>
-                                             </div>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="font-black text-white text-sm tracking-tight">{tx.name}</span>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <p className="text-[11px] text-gray-500 font-medium max-w-[200px] truncate">{tx.items}</p>
-                                          </td>
-                                          <td className="px-8 py-6">
-                                             <span className="font-black text-white text-base tracking-tighter">KES {tx.amount.toLocaleString()}</span>
-                                          </td>
-                                          <td className="px-8 py-6 text-right">
-                                             <span className={`px-4 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest border ${['completed', 'paid', 'success', 'shipped', 'active'].includes(tx.status.toLowerCase()) ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                                                ['pending', 'processing'].includes(tx.status.toLowerCase()) ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                                                   'bg-red-500/10 text-red-500 border-red-500/20'
-                                                }`}>{tx.status}</span>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                 </tbody>
-                              </table>
-                           </div>
-                        </div>
-                     )}
-                  </div>
-               )}
+               {activeTab === 'usage-monitor' && <AdminUsageMonitor />}
+               {activeTab === 'expiry-watch' && <AdminExpiryWatch />}
 
                {activeTab === 'newsletters' && (
                   <div className="animate-fade-in-up space-y-8">
@@ -5194,6 +4830,55 @@ const AdminDashboard: React.FC = () => {
                                     <Shield size={16} />
                                     Repair Data
                                  </button>
+                              </div>
+                           </div>
+                        </div>
+
+                        {/* Emergency Protocols Card */}
+                        <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/5 blur-[80px] rounded-full -mr-24 -mt-24 group-hover:bg-orange-500/10 transition-all" />
+                           <div className="relative z-10 space-y-6">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500">
+                                    <ShieldAlert size={28} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Emergency Override</h4>
+                                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Manual Grant & Master Reset</p>
+                                 </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                 <button
+                                    onClick={handleSystemReset}
+                                    className="w-full py-4 bg-orange-500/10 border border-orange-500/30 text-orange-500 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                                 >
+                                    <RotateCcw size={16} /> Master Reset (DO/KV)
+                                 </button>
+
+                                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-3 text-center">Manual Subscription Grant</p>
+                                    <div className="flex flex-col gap-2">
+                                       <button
+                                          onClick={() => {
+                                             const email = prompt("Enter DJ Email:");
+                                             if (email) handleManualGrant('subscription', email, 3000);
+                                          }}
+                                          className="py-3 bg-white/5 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-white/10"
+                                       >
+                                          Grant 30 Days (Pool)
+                                       </button>
+                                       <button
+                                          onClick={() => {
+                                             const email = prompt("Enter DJ Email:");
+                                             if (email) handleManualGrant('subscription', email, 1500);
+                                          }}
+                                          className="py-3 bg-white/5 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-xl hover:bg-white/10"
+                                       >
+                                          Grant 1 Day (Pool)
+                                       </button>
+                                    </div>
+                                 </div>
                               </div>
                            </div>
                         </div>

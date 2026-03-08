@@ -8,6 +8,7 @@ import { isUserSubscriber, getSubscriptionTimeLeft } from '../utils/authHelpers'
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import MFAEnrollment from '../components/MFAEnrollment';
 import ReauthModal from '../components/ReauthModal';
+import SubscriptionTimer from '../components/SubscriptionTimer';
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
@@ -105,34 +106,7 @@ const Account: React.FC = () => {
     }
   }, [user, orders, contextOrdersLoading, referralLogs, allReferralStats]);
 
-  useEffect(() => {
-    if (!user?.isSubscriber || !user?.subscriptionExpiry) {
-      setTimeLeft('');
-      return;
-    }
-
-    const updateTimer = () => {
-      if (!user.subscriptionExpiry) return;
-      const now = new Date().getTime();
-      const expiry = new Date(user.subscriptionExpiry).getTime();
-      const distance = expiry - now;
-
-      if (distance < 0) {
-        setTimeLeft('Expired');
-        return;
-      }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-
-      setTimeLeft(`${days}d ${hours}h ${minutes}m`);
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, [user]);
+  // Removed manual timer logic as we now use SubscriptionTimer component
 
   const handleSaveProfile = async () => {
     setEditLoading(true);
@@ -462,14 +436,16 @@ const Account: React.FC = () => {
 
                       {isUserSubscriber(user) ? (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                          <div>
-                            <p className="text-brand-cyan font-bold text-2xl capitalize flex items-center gap-2 mb-1">
+                          <div className="flex-1 w-full sm:w-auto">
+                            <p className="text-brand-cyan font-bold text-2xl capitalize mb-3">
                               {user.subscriptionPlan} Plan
                             </p>
-                            <p className="text-gray-500 text-sm flex items-center gap-2">
-                              <Clock size={12} /> Expires on <span className="text-white">{new Date(user.subscriptionExpiry!).toLocaleDateString()}</span>
-                              {timeLeft && <span className="text-xs bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded border border-brand-purple/30">{timeLeft} left</span>}
-                            </p>
+                            <SubscriptionTimer
+                              expiryDate={user.subscriptionExpiry}
+                              onExpired={() => {
+                                // Potentially refresh user profile or show toast
+                              }}
+                            />
                           </div>
                           <div className="flex gap-2 w-full sm:w-auto">
                             <button
@@ -478,7 +454,7 @@ const Account: React.FC = () => {
                             >
                               Manage
                             </button>
-                            <Link to="/music-pool" className="flex-1 sm:flex-none text-sm bg-brand-purple hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-bold transition shadow-lg shadow-brand-purple/20 text-center">Extend</Link>
+                            <Link to="/music-pool" className="flex-1 sm:flex-none text-sm bg-brand-purple hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-bold transition shadow-lg shadow-brand-purple/20 text-center flex items-center justify-center">Extend</Link>
                           </div>
                         </div>
                       ) : (

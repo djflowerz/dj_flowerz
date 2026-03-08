@@ -8,7 +8,7 @@ const Footer: React.FC = () => {
   const { footer, socials, contact } = siteConfig;
 
   return (
-    <footer className="bg-[#050507] border-t border-white/5 pt-12 pb-24 md:pb-8">
+    <footer className="bg-[#050507] border-t border-white/5 pt-12 pb-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1 md:col-span-1">
@@ -20,7 +20,7 @@ const Footer: React.FC = () => {
               {footer.description}
             </p>
           </div>
-          
+
           <div>
             <h3 className="text-white font-bold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm text-gray-400">
@@ -50,12 +50,12 @@ const Footer: React.FC = () => {
               {socials.youtube && <a href={socials.youtube} className="text-gray-400 hover:text-brand-purple transition"><Youtube size={20} /></a>}
               {socials.facebook && <a href={socials.facebook} className="text-gray-400 hover:text-brand-purple transition"><Facebook size={20} /></a>}
             </div>
-            <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm">
-               <Mail size={16} /> {contact.email}
+            <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm hover:text-brand-purple transition cursor-pointer">
+              <Mail size={16} /> <a href="mailto:admin@djflowerz.co.ke">admin@djflowerz.co.ke</a>
             </div>
           </div>
         </div>
-        
+
         <div className="border-t border-white/5 pt-8 text-center text-gray-500 text-xs">
           {footer.copyright}
         </div>

@@ -3,10 +3,10 @@ import { supabase } from './supabase';
 /**
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
-const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev').trim();
+export const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev').trim();
 const VITE_R2_URL = (import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL).trim();
 
-async function getAuthHeader() {
+export async function getAuthHeader() {
     const { data: { session } } = await supabase.auth.getSession();
     return session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
 }
@@ -213,4 +213,64 @@ export async function removeBatchR2Items(collection: string, ids: string[]): Pro
         throw new Error(`R2 Sync Error: ${resStatus(response.status)} - ${err}`);
     }
     return true;
+}
+
+export async function fetchPoolTracks(): Promise<{ tracks: any[]; isAuthorized: boolean; downloadLimit?: number; downloadsCount?: number }> {
+    const authHeader = await getAuthHeader();
+    const url = `${STORAGE_WORKER_URL}/api/pool/tracks`;
+
+    try {
+        console.log(`[R2] Gated fetch for pool tracks: ${url}`);
+        const response = await fetch(url, { headers: authHeader });
+
+        if (response.status === 403) {
+            console.warn("[R2] Access Denied for Music Pool");
+            return { tracks: [], isAuthorized: false };
+        }
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Pool fetch failed: ${err}`);
+        }
+
+        const data = await response.json();
+        return {
+            tracks: data.tracks || [],
+            isAuthorized: true,
+            downloadLimit: data.downloadLimit,
+            downloadsCount: data.downloadsCount
+        };
+    } catch (error) {
+        console.error("[R2] Pool fetch error:", error);
+        return { tracks: [], isAuthorized: false };
+    }
+}
+
+export async function trackPoolDownload(trackId: string): Promise<boolean> {
+    const authHeader = await getAuthHeader();
+    const url = `${STORAGE_WORKER_URL}/api/pool/download`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify({ trackId })
+        });
+        return response.ok;
+    } catch (error) {
+        console.error("[R2] Track download error:", error);
+        return false;
+    }
+}
+
+export async function fetchPoolFilters(): Promise<{ genres: string[]; years: string[]; months: string[] }> {
+    try {
+        const url = `${STORAGE_WORKER_URL}/api/musicpool/filters`;
+        const response = await fetch(url);
+        if (!response.ok) return { genres: [], years: [], months: [] };
+        return await response.json();
+    } catch (error) {
+        console.error("[R2] Filter fetch error:", error);
+        return { genres: [], years: [], months: [] };
+    }
 }

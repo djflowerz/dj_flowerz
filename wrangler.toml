@@ -29,7 +29,16 @@ index_name = "djflowerz-search-index"
 binding = "AI"
 
 [triggers]
-crons = []
+crons = ["0 0 * * *"] # Run daily at midnight
+
+# 6. Durable Objects (Real-time Hub)
+[[durable_objects.bindings]]
+name = "ADMIN_HUB"
+class_name = "AdminHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AdminHub"]
 
 # Deploy to workers.dev instead to avoid breaking the Vercel site.
 # workers_dev = true

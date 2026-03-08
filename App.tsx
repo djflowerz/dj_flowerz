@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { Toaster } from 'sonner';
 import AudioPlayer from './components/AudioPlayer';
 import Home from './pages/Home';
 import Mixtapes from './pages/Mixtapes';
@@ -24,6 +25,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/AdminDashboard';
+import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
@@ -38,19 +40,26 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Layout wrapper to conditionally hide footer/player on Admin
+// Layout wrapper to conditionally hide footer/player on Admin or Music Pool
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  // Music Pool has its own fullscreen layout (height:100dvh) — skip global padding/footer/player
+  const isMusicPool = location.pathname === '/music-pool';
 
   return (
     <>
       <Navbar />
-      <main className="flex-grow bg-[#0B0B0F] text-white min-h-screen">
+      <main
+        className={`flex-grow bg-[#0B0B0F] text-white ${isMusicPool
+          ? 'flex flex-col overflow-hidden mt-20'    // bare container, offset for fixed navbar
+          : 'min-h-screen pt-20 pb-24'               // normal pages
+          }`}
+      >
         {children}
       </main>
-      {!isAdmin && <AudioPlayer />}
-      {!isAdmin && <Footer />}
+      {!isAdmin && !isMusicPool && <AudioPlayer />}
+      {!isAdmin && !isMusicPool && <Footer />}
     </>
   );
 };
@@ -61,11 +70,28 @@ const App: React.FC = () => {
       e.preventDefault();
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent Ctrl+C, Ctrl+U, Ctrl+S, F12 (Basic protection as requested)
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'u' || e.key === 's')) {
+      // 1. Disable F12
+      if (e.key === 'F12') e.preventDefault();
+
+      // 2. Disable Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (DevTools)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
         e.preventDefault();
       }
-      if (e.key === 'F12') e.preventDefault();
+
+      // 3. Disable Ctrl+U (View Source)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+        e.preventDefault();
+      }
+
+      // 4. Disable Ctrl+S (Save Page)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+      }
+
+      // 5. Disable Ctrl+C (Copy) - Users should not steal track metadata easily
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+      }
     };
 
     document.addEventListener('contextmenu', handleContextMenu);
@@ -83,6 +109,7 @@ const App: React.FC = () => {
           <PlayerProvider>
             <Router>
               <ScrollToTop />
+              <Toaster position="top-right" richColors closeButton theme="dark" />
               <Layout>
                 <Routes>
                   <Route path="/" element={<Home />} />
@@ -102,6 +129,7 @@ const App: React.FC = () => {
                   <Route path="/about" element={<About />} />
                   <Route path="/tip-jar" element={<TipJar />} />
                   <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />

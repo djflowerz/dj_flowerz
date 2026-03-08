@@ -1,5 +1,27 @@
-
 import { Mixtape, Product, Track, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre } from './types';
+
+export const KENYAN_COUNTIES = [
+  'Nairobi', 'Mombasa', 'Kwale', 'Kilifi', 'Tana River', 'Lamu', 'Taita Taveta',
+  'Garissa', 'Wajir', 'Mandera', 'Marsabit', 'Isiolo', 'Meru', 'Tharaka-Nithi',
+  'Embu', 'Kitui', 'Machakos', 'Makueni', 'Nyandarua', 'Nyeri', 'Kirinyaga',
+  'Murang\'a', 'Kiambu', 'Turkana', 'West Pokot', 'Samburu', 'Trans Nzoia',
+  'Uasin Gishu', 'Elgeyo Marakwet', 'Nandi', 'Baringo', 'Laikipia', 'Nakuru',
+  'Narok', 'Kajiado', 'Kericho', 'Bomet', 'Kakamega', 'Vihiga', 'Bungoma',
+  'Busia', 'Siaya', 'Kisumu', 'Homa Bay', 'Migori', 'Kisii', 'Nyamira'
+];
+
+export const COUNTY_TO_ZONE_MAP: Record<string, string> = {
+  'Nairobi': 'nairobi',
+  'Kiambu': 'greater_nairobi',
+  'Machakos': 'greater_nairobi',
+  'Kajiado': 'greater_nairobi',
+  'Mombasa': 'major_towns',
+  'Kisumu': 'major_towns',
+  'Nakuru': 'major_towns',
+  'Uasin Gishu': 'major_towns',
+  'Kilifi': 'major_towns',
+  // Default for others will be 'upcountry'
+};
 
 // --- MUSIC POOL DATA ---
 
@@ -164,51 +186,42 @@ export const INITIAL_STUDIO_EQUIPMENT: StudioEquipment[] = [];
 
 export const INITIAL_SHIPPING_ZONES: ShippingZone[] = [
   {
-    id: 'nbi_central',
-    name: 'Nairobi (Central/West/East)',
-    description: 'Westlands, Kileleshwa, Embakasi, Langata, Upperhill, Hurlingham, Kasarani, Ruaraka, Kibra, Dagoretti South',
+    id: 'nairobi',
+    name: 'Nairobi Region',
+    description: 'CBD, Westlands, Upperhill, Kilimani, Embakasi, and surrounding estates.',
     rates: [
-      { id: 'r1', type: 'instant', price: 600, label: 'Instant Delivery', timeline: '4 Hours (Mon-Sat, 9am-5pm)' },
-      { id: 'r2', type: 'express', price: 400, label: 'Express Delivery', timeline: '1 Day (Mon-Sat)' },
-      { id: 'r3', type: 'standard', price: 250, label: 'Standard Shipping', timeline: '1-3 Days (Mon-Sat)' }
+      { id: 'nr1', type: 'instant', price: 600, label: 'Express (4hrs)', timeline: 'Within 4 Hours' },
+      { id: 'nr2', type: 'express', price: 400, label: 'Next Day Delivery', timeline: '24 Hours' },
+      { id: 'nr3', type: 'standard', price: 200, label: 'Pickup (CBD)', timeline: 'Instant' }
     ]
   },
   {
-    id: 'nbi_greater',
+    id: 'greater_nairobi',
     name: 'Greater Nairobi',
-    description: 'Kiambu Town, Thika Town, Syokimau, Mlolongo, Athi River',
+    description: 'Kiambu, Thika, Syokimau, Athi River, Kitengela, Rongai.',
     rates: [
-      { id: 'r4', type: 'express', price: 500, label: 'Express Delivery', timeline: '1 Day (Mon-Sat)' },
-      { id: 'r5', type: 'standard', price: 300, label: 'Standard Shipping', timeline: '1-3 Days (Mon-Sat)' }
+      { id: 'gn1', type: 'express', price: 500, label: 'Door-to-Door', timeline: '1 Day' },
+      { id: 'gn2', type: 'standard', price: 300, label: 'Standard Shipping', timeline: '2 Days' }
     ]
   },
   {
     id: 'major_towns',
     name: 'Major Towns',
-    description: 'Mombasa, Eldoret, Naivasha, Kisumu',
+    description: 'Mombasa, Kisumu, Nakuru, Eldoret, Malindi.',
     rates: [
-      { id: 'r6', type: 'express', price: 800, label: 'Express Delivery', timeline: '1-2 Days (Mon-Sat)' },
-      { id: 'r7', type: 'standard', price: 550, label: 'Standard Shipping', timeline: '3-4 Days (Mon-Sat)' }
+      { id: 'mt1', type: 'express', price: 750, label: 'Door-to-Door', timeline: '1-2 Days' },
+      { id: 'mt2', type: 'standard', price: 450, label: 'Pickup Point', timeline: '2-3 Days' }
     ]
   },
   {
-    id: 'regional_1',
-    name: 'Western / Coast Region',
-    description: 'Bungoma, Busia, Kilifi, Kisii',
+    id: 'upcountry',
+    name: 'Upcountry / Other Regions',
+    description: 'All other counties and remote areas across Kenya.',
     rates: [
-      { id: 'r8', type: 'express', price: 950, label: 'Express Delivery', timeline: '2-3 Days (Mon-Sat)' },
-      { id: 'r9', type: 'standard', price: 650, label: 'Standard Shipping', timeline: '4-5 Days (Mon-Sat)' }
-    ]
-  },
-  {
-    id: 'regional_2',
-    name: 'Other Regions',
-    description: 'Kakamega, Kericho, Siaya, Turkana, Isiolo',
-    rates: [
-      { id: 'r10', type: 'express', price: 1200, label: 'Express Delivery', timeline: '3-4 Days (Mon-Sat)' },
-      { id: 'r11', type: 'standard', price: 850, label: 'Standard Shipping', timeline: '5-6 Days (Mon-Sat)' }
+      { id: 'up1', type: 'express', price: 950, label: 'Door-to-Door', timeline: '2-3 Days' },
+      { id: 'up2', type: 'standard', price: 650, label: 'Standard Shipping', timeline: '3-5 Days' }
     ]
   }
 ];
 
-export const MOCK_SUBSCRIBERS: NewsletterSubscriber[] = [];
+export const INITIAL_SUBSCRIBERS: NewsletterSubscriber[] = [];

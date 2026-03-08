@@ -4,6 +4,7 @@ import { Menu, X, ShoppingCart, User, LogIn, ChevronRight, Bell, MessageCircle }
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import SubscriptionTimer from './SubscriptionTimer';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -92,6 +93,12 @@ const Navbar: React.FC = () => {
 
             {/* Right Icons */}
             <div className="hidden md:flex items-center space-x-6">
+              {user?.isSubscriber && user?.subscriptionExpiry && (
+                <div className="hidden lg:block">
+                  <SubscriptionTimer expiryDate={user.subscriptionExpiry} />
+                </div>
+              )}
+
               <Link to="/music-pool" className="text-xs font-bold text-brand-cyan border border-brand-cyan/30 px-3 py-1.5 rounded-full hover:bg-brand-cyan/10 transition">
                 JOIN POOL
               </Link>
@@ -103,7 +110,7 @@ const Navbar: React.FC = () => {
                   className="text-gray-300 hover:text-white transition group relative p-1"
                 >
                   <Bell size={22} className="group-hover:text-brand-purple transition" />
-                  {notifications?.filter(n => !n.read).length > 0 && (
+                  {notifications?.filter(n => n.userId === user?.id && !n.read).length > 0 && (
                     <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0B0B0F]"></span>
                   )}
                 </button>
@@ -115,8 +122,8 @@ const Navbar: React.FC = () => {
                       <button className="text-[10px] text-brand-purple font-bold hover:underline">Mark all read</button>
                     </div>
                     <div className="max-h-[350px] overflow-y-auto">
-                      {notifications?.length > 0 ? (
-                        notifications.slice(0, 5).map(n => (
+                      {notifications?.filter(n => n.userId === user?.id).length > 0 ? (
+                        notifications.filter(n => n.userId === user?.id).slice(0, 5).map(n => (
                           <div
                             key={n.id}
                             onClick={() => { markNotificationAsRead(n.id); if (n.link) window.location.href = n.link; }}

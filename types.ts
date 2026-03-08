@@ -292,21 +292,40 @@ export interface TrackVersion {
   type: string; // e.g. 'Clean', 'Dirty', 'Intro - Clean', 'Acapella'
   label?: string; // e.g. "Extended Mix"
   downloadUrl: string;
+  previewUrl?: string;
 }
 
 export interface Track {
   id: string;
   artist: string;
   title: string;
-  genre: string; // Maps to Genre.name
+  /** Legacy/raw genre string — kept for backward compat */
+  genre: string;
+  /** Cleaned, UI-facing genre label (e.g. 'Afrohouse', 'RnB Remixes') */
+  displayGenre?: string;
+  /** Top-level hub / collection (e.g. 'Remix & Mashups Hub', "Riddimz F'") */
+  collectionHub?: string;
+  /** Sub-category within a hub (e.g. specific Riddim folder name) */
   subGenre?: string;
-  category: string[]; // e.g. ['Redrums', 'New Uploads']
+  /** Energy vibe: 'Hype' | 'Low Hype' | 'Chill' | 'Energetic' */
+  vibe?: string;
+  /** Release year extracted from URL/folder (e.g. 2025) */
+  releaseYear?: number;
+  /** Release month extracted from URL/folder (e.g. 'March') */
+  releaseMonth?: string;
+  category: string[];
   bpm: number;
   key?: string;
-  year: number;
+  /** Kept for legacy — use releaseYear instead */
+  year?: number | string;
   versions: TrackVersion[];
   dateAdded: string;
-  previewUrl?: string; // For mini player
+  /** Streamable preview URL for the mini player */
+  previewUrl?: string;
+  /** Direct download URL (primary version) */
+  downloadUrl?: string;
+  /** Link health: 'ok' | 'broken' | 'unchecked' */
+  linkStatus?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -384,6 +403,36 @@ export interface Video {
   title: string;
   thumbnail: string;
   url: string;
+}
+
+export interface StudioSession {
+  id: string;
+  dj_id?: string;
+  customer_email: string;
+  session_date: string;
+  start_time: string;
+  duration_hours: number;
+  extras: string; // JSON string from D1
+  total_price_kes: number;
+  status: 'pending' | 'paid' | 'completed' | 'cancelled';
+  paystack_ref?: string;
+  created_at: string;
+}
+
+export interface EventGig {
+  id: string;
+  client_id?: string;
+  client_name: string;
+  client_email: string;
+  event_date: string;
+  event_type: string;
+  location_details: string;
+  guests_estimate?: number;
+  requirements?: string;
+  status: 'inquiry' | 'quote_sent' | 'confirmed' | 'completed' | 'cancelled';
+  deposit_received?: number;
+  paystack_ref?: string;
+  created_at: string;
 }
 
 export interface TelegramConfig {

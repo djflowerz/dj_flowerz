@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification } from '../types';
-import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, MOCK_SUBSCRIBERS, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
+import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
 import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1 } from '../utils/r2';
@@ -245,18 +245,35 @@ const mapR2Track = (t: any): Track => {
   const DEFAULT_CDN_BASE = `${WORKER_BASE}/files`;
 
   /**
-   * Rewrite vicknickvideopool CDN URLs → djflowerz worker /files/…
-   * Then encode path segments so spaces, &, (, ) etc. are URL-safe.
+   * Fix track media URLs so they point to the correct publicly accessible CDN.
+   *
+   * Key insight:
+   *  - `r2.vicknickvideopool.com` is the private/origin R2 bucket (403/404 publicly)
+   *  - `cdn.vicknickvideopool.com` is the PUBLIC Cloudflare CDN that serves the actual files
+   *  - `remix-and-mashups-worker.dennismacharia20.workers.dev` is a UI worker, NOT a file CDN;
+   *    all its tracks are also served from `cdn.vicknickvideopool.com`
+   *
+   * Pool tracks JSON was built with `r2.` domain — we fix that here at read time.
    */
   const encodeR2Url = (u: string): string => {
     if (!u) return u;
     try {
       const urlObj = new URL(u);
-      // Rewrite third-party CDN domains to go through the djflowerz worker
-      if (urlObj.hostname === 'r2.vicknickvideopool.com' || urlObj.hostname === 'cdn.vicknickvideopool.com') {
-        urlObj.hostname = 'djflowerz-worker.ianmuriithiflowerz.workers.dev';
-        urlObj.pathname = '/files' + urlObj.pathname;
+      const PUBLIC_CDN = 'cdn.vicknickvideopool.com';
+
+      // Fix private/origin R2 domain → public CDN
+      if (urlObj.hostname === 'r2.vicknickvideopool.com') {
+        urlObj.hostname = PUBLIC_CDN;
       }
+
+      // Remix-and-mashups-worker is a UI, its actual files live on the vicknick CDN.
+      // The path structure in pool_tracks.json already has the correct key path.
+      if (urlObj.hostname === 'remix-and-mashups-worker.dennismacharia20.workers.dev') {
+        urlObj.hostname = PUBLIC_CDN;
+        // Strip any leading /api path if present from the remix worker fetch
+        urlObj.pathname = urlObj.pathname.replace(/^\/api\//, '/');
+      }
+
       // Encode each path segment individually (handles spaces, &, parens, etc.)
       urlObj.pathname = urlObj.pathname
         .split('/')

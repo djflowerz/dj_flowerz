@@ -1,10 +1,12 @@
 import React from 'react';
 import { Mail, Phone, Upload, Disc, Calendar, Music } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import Hero from '../components/Hero';
 
 const Bookings: React.FC = () => {
    const { addSubscriber } = useData();
+   const { user } = useAuth();
 
    return (
 
@@ -51,13 +53,32 @@ const Bookings: React.FC = () => {
                            }
 
                            try {
-                              // 1. Record inquiry locally (Admin Dashboard Visibility)
-                              await addSubscriber(email, 'Booking Inquiry');
+                              // 1. Record inquiry in D1 via Worker
+                              const response = await fetch('/api/bookings/gig', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({
+                                    client_id: user?.id,
+                                    name,
+                                    email,
+                                    phone,
+                                    type: eventType,
+                                    date: eventDate,
+                                    location,
+                                    duration,
+                                    requirements: details,
+                                    budget
+                                 })
+                              });
+
+                              const data = await response.json();
+                              if (!data.success) throw new Error('Failed to submit inquiry');
 
                               // 2. Alert success
                               alert('Booking inquiry sent! DJ FLOWERZ will contact you soon.');
                               (e.target as HTMLFormElement).reset();
                            } catch (err) {
+                              console.error('Inquiry Error:', err);
                               alert('Something went wrong. Please try again.');
                            } finally {
                               if (btn) {

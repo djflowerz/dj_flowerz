@@ -25,17 +25,20 @@
     "framer-motion": "^12.34.2",
     "lucide-react": "^0.563.0",
     "micro": "^10.0.1",
+    "motion": "^12.35.1",
     "node-fetch": "^3.3.2",
     "nodemailer": "^8.0.1",
     "pg": "^8.18.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-hook-form": "^7.71.2",
     "react-is": "^19.2.4",
     "react-paystack": "5.0.0",
     "react-quill": "^2.0.0",
     "react-router-dom": "^7.13.0",
     "react-virtuoso": "^4.18.1",
-    "recharts": "^3.7.0"
+    "recharts": "^3.7.0",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

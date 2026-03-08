@@ -1,994 +1,1007 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Virtuoso } from 'react-virtuoso';
-import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
-import { usePlayer } from '../context/PlayerContext';
 import {
-   LayoutDashboard, Package, Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
-   Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, CheckCircle,
-   Layers, ChevronDown, ChevronUp, ChevronLeft, Folder, Database, RefreshCw, Zap, Shield, Play, Pause, Music, Star, Smartphone, Clock, Filter, Ticket
+   Search, Download, Play, Pause, X, ChevronDown,
+   Music2, Radio, Filter, Zap, CheckCircle2, AlertCircle,
+   Clock, SortAsc, SortDesc, Disc3, Fuel
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { POOL_HUBS, POOL_YEARS, MONTHS } from '../constants';
-import SubscribeButton from '../components/SubscribeButton';
-import { isUserSubscriber } from '../utils/authHelpers';
-import { downloadFileSecurely } from '../utils/downloadHelper';
+import { useData } from '../context/DataContext';
+import { Track } from '../types';
+import { POOL_HUBS, POOL_YEARS, MONTHS, GENRE_NAMES } from '../constants';
+import { fetchPoolTracks, trackPoolDownload, fetchPoolFilters } from '../utils/r2';
+import AccessDenied from '../components/AccessDenied';
+import { toast } from 'sonner';
 
-// Add 'New' to POOL_HUBS if not present, or handled in UI
-const DISPLAY_HUBS = ['New', ...POOL_HUBS.filter(h => h !== 'New')];
+// ─── Mini Audio Player State ──────────────────────────────────────────────────
+interface PlayerState {
+   track: Track | null;
+   versionId?: string;
+   isPlaying: boolean;
+}
 
-import Hero from '../components/Hero';
+// ─── Filter State ─────────────────────────────────────────────────────────────
+interface Filters {
+   search: string;
+   hub: string;
+   displayGenre: string;
+   year: string;
+   month: string;
+   vibe: string;
+}
 
-const MusicPool: React.FC = () => {
-   const { user, updateUserProfile } = useAuth();
-   const { poolTracks, genres, subscriptionPlans, poolError, poolLoading, loadMorePoolTracks, refreshPoolTracks, applyReferralCode, siteConfig, referralSettings, startFreeTrial } = useData();
-   const [referralCode, setReferralCode] = useState('');
-   const [appliedReferral, setAppliedReferral] = useState<{ code: string; discount: number; discountType: 'flat' | 'percentage'; referrerId: string } | null>(null);
-   const [referralError, setReferralError] = useState('');
-   const [isApplying, setIsApplying] = useState(false);
-   const [isTrialing, setIsTrialing] = useState(false);
-   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
-   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+const DEFAULT_FILTERS: Filters = {
+   search: '',
+   hub: '',
+   displayGenre: '',
+   year: '',
+   month: '',
+   vibe: '',
+};
 
-   const handleApplyReferral = async () => {
-      if (!referralCode.trim()) return;
-      setIsApplying(true);
-      setReferralError('');
+// ─── Vibe Colours ─────────────────────────────────────────────────────────────
+const VIBE_COLORS: Record<string, string> = {
+   'Hype': 'hsl(25 95% 55%)',
+   'Low Hype': 'hsl(205 85% 55%)',
+   'Chill': 'hsl(160 60% 45%)',
+   'Energetic': 'hsl(300 80% 55%)',
+};
 
-      const result = await applyReferralCode(referralCode);
-      if (result.success) {
-         setAppliedReferral({
-            code: referralCode,
-            discount: result.discount || 0,
-            discountType: result.discountType || 'percentage',
-            referrerId: result.referrerId || ''
-         });
-         setReferralCode('');
-      } else {
-         setReferralError(result.message || 'Invalid referral code');
+const VIBES = ['Hype', 'Low Hype', 'Chill', 'Energetic'];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const normalise = (s: string) => s.toLowerCase().trim();
+
+function getUnique<T>(arr: T[], fn: (item: T) => string | undefined): string[] {
+   const seen = new Set<string>();
+   const result: string[] = [];
+   for (const item of arr) {
+      const val = fn(item);
+      if (val && !seen.has(val)) {
+         seen.add(val);
+         result.push(val);
       }
-      setIsApplying(false);
-   };
-   const { pauseTrack: pauseGlobalTrack } = usePlayer();
-   const isUnlocked = isUserSubscriber(user);
-
-   // Auto-apply promotional discount for non-subscribers
-   // REMOVED as per user request: "prices in plans restore to normal prices without discount, discount only if you have promo code"
-   /*
-   useEffect(() => {
-      if (!isUnlocked && referralSettings?.enabled && referralSettings?.newUserDiscount > 0) {
-         setAppliedReferral(prev => {
-            if (prev) return prev; // Already applied
-            return {
-               code: 'PROMO_DISCOUNT',
-               discount: referralSettings.newUserDiscount,
-               discountType: referralSettings.newUserDiscountType || 'percentage',
-               referrerId: 'system'
-            };
-         });
-      }
-   }, [isUnlocked, referralSettings]);
-   */
-
-   // View State
-   const [activeCategory, setActiveCategory] = useState('All');
-   const [selectedYear, setSelectedYear] = useState<number | 'All'>('All');
-   const [selectedMonth, setSelectedMonth] = useState<string>('All');
-   const [selectedGenre, setSelectedGenre] = useState('All');
-   const [selectedSubGenre, setSelectedSubGenre] = useState('All');
-   const [searchQuery, setSearchQuery] = useState('');
-   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
-
-   // Filter State Handlers (Enhanced to reset others)
-   const changeCategory = (cat: string) => {
-      setActiveCategory(cat);
-      setSearchQuery('');
-      setSelectedYear('All');
-      setSelectedMonth('All');
-   };
-
-   const changeYear = (year: number | 'All') => {
-      setSelectedYear(year);
-      setSearchQuery('');
-      if (year !== 'All') {
-         setActiveCategory('All');
-         setSelectedGenre('All');
-      }
-   };
-
-   const changeGenre = (genre: string) => {
-      setSelectedGenre(genre);
-      setSelectedSubGenre('All');
-      setSearchQuery('');
-   };
-
-   const changeSubGenre = (subGenre: string) => {
-      setSelectedSubGenre(subGenre);
-      setSearchQuery('');
-   };
-
-   const changeMonth = (month: string) => {
-      setSelectedMonth(month);
-      setSearchQuery('');
-   };
-
-   // Audio Player State
-   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-   const mediaRef = React.useRef<HTMLMediaElement | null>(null);
-
-   const handleDownload = async (url: string, fileName: string, track: any) => {
-      if (!user) {
-         alert("Please login to download.");
-         return;
-      }
-
-      if (!isUserSubscriber(user)) {
-         alert("Subscription required or expired. Please renew or start your free trial to download.");
-         return;
-      }
-
-      // Use the secure download helper which handles limits, logging, and token attachment server-side
-      const result = await downloadFileSecurely(url, {
-         fileName,
-         trackId: track.id,
-         artist: track.artist,
-         title: track.title,
-         type: 'track'
-      });
-
-      if (!result.success && result.error?.includes('429')) {
-         // Auto-popup for trial users reaching limit
-         if (user.subscriptionPlan === 'trial') {
-            alert("You've reached your daily trial limit (10 downloads). Subscribe to a paid plan for unlimited access!");
-         }
-      }
-   };
-
-   const handleBulkDownload = async () => {
-      if (selectedTracks.size === 0) return;
-      if (!isUserSubscriber(user)) {
-         alert("Subscription required for downloads.");
-         return;
-      }
-
-      setIsBulkDownloading(true);
-      const tracksToDownload = filteredTracks.filter(t => selectedTracks.has(t.id));
-
-      // Download sequentially to avoid browser blocking multiple popups
-      for (const track of tracksToDownload) {
-         const firstVersion = track.versions?.[0];
-         if (firstVersion?.downloadUrl) {
-            const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-            await downloadFileSecurely(firstVersion.downloadUrl, {
-               fileName: `${track.artist} - ${track.title}.${ext}`,
-               trackId: track.id,
-               artist: track.artist,
-               title: track.title,
-               type: 'track'
-            });
-            // Small delay between downloads
-            await new Promise(resolve => setTimeout(resolve, 800));
-         }
-      }
-
-      setIsBulkDownloading(false);
-      setSelectedTracks(new Set());
-      alert(`Successfully processed ${tracksToDownload.length} downloads.`);
-   };
-
-   const toggleTrackSelection = (trackId: string) => {
-      setSelectedTracks(prev => {
-         const next = new Set(prev);
-         if (next.has(trackId)) next.delete(trackId);
-         else next.add(trackId);
-         return next;
-      });
-   };
-
-   const selectAllVisible = () => {
-      if (selectedTracks.size === filteredTracks.length) {
-         setSelectedTracks(new Set());
-      } else {
-         setSelectedTracks(new Set(filteredTracks.map(t => t.id)));
-      }
-   };
-
-   const handleActivateTrial = async () => {
-      if (isTrialing) return;
-      setIsTrialing(true);
-      const result = await startFreeTrial();
-      if (result.success) {
-         alert(result.message);
-      } else {
-         alert(result.message);
-      }
-      setIsTrialing(false);
-   };
-
-   const togglePlay = (track: any) => {
-      if (playingTrackId === track.id) {
-         setPlayingTrackId(null);
-         mediaRef.current?.pause();
-      } else {
-         const url = track.previewUrl || track.versions?.[0]?.downloadUrl;
-         if (!url) return;
-
-         pauseGlobalTrack(); // Stop global player to avoid double audio
-         setPlayingTrackId(track.id);
-      }
-   };
-
-   // Auto-play: handled via autoPlay attribute on <audio>/<video> elements directly.
-   // We still keep a ref to the active media element so we can pause when switching.
-   // The ref is updated via onPlay event from each element to avoid ref overwrite in .map().
-
-   // Filter Logic
-   // Filter Logic
-   const filteredTracks = useMemo(() => {
-      const query = searchQuery.toLowerCase();
-      return (poolTracks || []).filter(track => {
-         if (!track) return false;
-         const title = (track.title || '').toLowerCase();
-         const artist = (track.artist || '').toLowerCase();
-         const genre = (track.genre || '').toLowerCase();
-         const categories = (track.category || []).map(c => c.toLowerCase());
-
-         const matchesSearch = title.includes(query) || artist.includes(query);
-
-         const matchesCategory = activeCategory === 'All' ||
-            (activeCategory === 'New' && (categories.some(c => c.toLowerCase() === 'new') || (track as any).isNew)) ||
-            categories.some(c => c !== '' && (c.includes(activeCategory.toLowerCase()) || activeCategory.toLowerCase().includes(c)));
-
-         const matchesYear = selectedYear === 'All' || Number(track.year) === Number(selectedYear);
-
-         const matchesSubGenre = selectedSubGenre === 'All' || (track as any).subGenre === selectedSubGenre;
-
-         const matchesGenre = selectedGenre === 'All' || genre === selectedGenre.toLowerCase();
-
-         // Month filtering for year-based categories
-         // Month filtering for year-based categories
-         const matchesMonth = selectedMonth === 'All' ||
-            categories.some(c => {
-               const catLower = c.toLowerCase();
-               const monthLower = selectedMonth.toLowerCase();
-               // Check full name first
-               if (catLower.includes(monthLower)) return true;
-
-               // Check 3-letter abbreviation (e.g. Jan for January)
-               const abbr = monthLower.slice(0, 3);
-               // Ensure it's not a partial match of another word (e.g. Jun in Jungle) unless it's explicitly spaced or hyphenated?
-               // For now, simple includes is safer than missing data, assuming categories are mostly "Jan 2022" etc.
-               return catLower.includes(abbr);
-            });
-
-         return matchesSearch && matchesCategory && matchesYear && matchesGenre && matchesSubGenre && matchesMonth;
-      }).sort((a, b) => {
-         // Sort newest first — use dateAdded, then createdAt, then updatedAt as fallbacks
-         const aTime = new Date(a.dateAdded || a.createdAt || a.updatedAt || 0).getTime();
-         const bTime = new Date(b.dateAdded || b.createdAt || b.updatedAt || 0).getTime();
-         return bTime - aTime;
-      });
-   }, [poolTracks, searchQuery, activeCategory, selectedYear, selectedMonth, selectedGenre]);
-
-   // Pagination is now handled by Virtuoso virtualization
-   // const totalPages = Math.ceil(filteredTracks.length / tracksPerPage);
-   // const visibleTracks = filteredTracks.slice((currentPage - 1) * tracksPerPage, currentPage * tracksPerPage);
-
-   const toggleExpand = (id: string) => {
-      setExpandedTrackId(expandedTrackId === id ? null : id);
    }
+   return result.sort();
+}
 
-   // --- UNLOCKED VIEW (LIBRARY) ---
-   if (isUnlocked) {
-      return (
-         <div className="pt-24 pb-20 min-h-screen bg-[#0B0B0F]">
-            <div className="w-full px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32">
+// ─── Select Component ─────────────────────────────────────────────────────────
+function FilterSelect({
+   value, onChange, options, placeholder, icon: Icon
+}: {
+   value: string;
+   onChange: (v: string) => void;
+   options: string[];
+   placeholder: string;
+   icon: React.ElementType;
+}) {
+   return (
+      <div className="mp-select-wrapper">
+         <Icon size={15} className="mp-select-icon" />
+         <select
+            className="mp-select"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+         >
+            <option value="">{placeholder}</option>
+            {options.map(o => (
+               <option key={o} value={o}>{o}</option>
+            ))}
+         </select>
+         <ChevronDown size={13} className="mp-select-chevron" />
+      </div>
+   );
+}
 
-               {/* Header & Search */}
-               <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                  <h1 className="text-3xl font-display font-bold text-white flex items-center gap-3">
-                     <Headphones className="text-brand-purple" /> DJ Pool Library
-                  </h1>
-                  <div className="relative w-full md:w-96 group">
-                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-purple transition-colors" size={18} />
-                     <input
-                        type="text"
-                        placeholder="Search artist or title..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#15151A] border border-white/10 rounded-full py-3.5 pl-11 pr-12 text-white focus:border-brand-purple focus:outline-none placeholder:text-gray-600 shadow-xl transition-all"
-                     />
-                     {searchQuery && (
+// ─── Track Row ────────────────────────────────────────────────────────────────
+const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
+   track: Track;
+   player: PlayerState;
+   onPlay: (t: Track, versionId?: string) => void;
+   onDownload: (t: Track, versionId?: string) => void;
+}) => {
+   const [selectedVersionId, setSelectedVersionId] = useState(track.versions?.[0]?.id);
+   const isActive = player.track?.id === track.id;
+   const isPlaying = isActive && player.isPlaying;
+   const vibe = track.vibe || 'Hype';
+   const vibeColor = VIBE_COLORS[vibe] || VIBE_COLORS['Hype'];
+   const yearLabel = track.releaseYear || track.year;
+
+   const activeVersionId = isActive ? player.versionId : selectedVersionId;
+
+   return (
+      <div className={`mp-track-row${isActive ? ' mp-track-row--active' : ''}`} data-id={track.id}>
+         {/* Waveform / Play button */}
+         <button
+            className="mp-play-btn"
+            onClick={() => onPlay(track, selectedVersionId)}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            style={{ '--vibe': vibeColor } as React.CSSProperties}
+         >
+            {isPlaying
+               ? <Pause size={16} />
+               : <Play size={16} />
+            }
+            {isActive && <span className="mp-play-pulse" />}
+         </button>
+
+         {/* Labels */}
+         <div className="mp-track-info">
+            <span className="mp-track-title">{track.title}</span>
+            <div className="flex items-center gap-3">
+               <span className="mp-track-artist">{track.artist}</span>
+               {track.versions && track.versions.length > 1 && (
+                  <div className="flex gap-1">
+                     {track.versions.map(v => (
                         <button
-                           onClick={() => setSearchQuery('')}
-                           className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1 transition-colors"
+                           key={v.id}
+                           onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedVersionId(v.id);
+                              if (isActive && player.versionId !== v.id) {
+                                 onPlay(track, v.id);
+                              }
+                           }}
+                           className={`mp-version-chip ${selectedVersionId === v.id ? 'active' : ''}`}
                         >
+                           {v.type}
+                        </button>
+                     ))}
+                  </div>
+               )}
+            </div>
+         </div>
+
+         <div className="mp-track-meta">
+            {track.displayGenre && (
+               <span className="mp-badge mp-badge--genre">{track.displayGenre}</span>
+            )}
+            {vibe && (
+               <span
+                  className="mp-badge mp-badge--vibe"
+                  style={{ background: `${vibeColor}22`, color: vibeColor, borderColor: `${vibeColor}44` }}
+               >
+                  {vibe}
+               </span>
+            )}
+            {yearLabel && (
+               <span className="mp-badge mp-badge--year">{yearLabel}</span>
+            )}
+            {track.releaseMonth && (
+               <span className="mp-badge mp-badge--month">{track.releaseMonth}</span>
+            )}
+         </div>
+
+         {/* Link health */}
+         {track.linkStatus === 'broken' && (
+            <AlertCircle size={14} className="mp-link-broken" title="Broken link" />
+         )}
+
+         {/* Download */}
+         <button
+            className="mp-dl-btn"
+            onClick={() => onDownload(track, selectedVersionId)}
+            aria-label="Download"
+            title={`Download: ${track.title}`}
+         >
+            <Download size={15} />
+         </button>
+      </div>
+   );
+});
+
+// ─── Mini Player Bar ──────────────────────────────────────────────────────────
+function MiniPlayer({ player, audioRef, onClose }: {
+   player: PlayerState;
+   audioRef: React.RefObject<HTMLAudioElement | null>;
+   onClose: () => void;
+}) {
+   if (!player.track) return null;
+   const t = player.track;
+   const vibeColor = VIBE_COLORS[t.vibe || 'Hype'];
+
+   return (
+      <div className="mp-mini-player" style={{ '--vibe': vibeColor } as React.CSSProperties}>
+         <div className="mp-mini-player__bar" />
+         <Disc3 size={22} className={`mp-mini-player__disc${player.isPlaying ? ' spinning' : ''}`} />
+         <div className="mp-mini-player__info">
+            <span className="mp-mini-player__title">{t.title}</span>
+            <div className="flex items-center gap-2">
+               <span className="mp-mini-player__artist">{t.artist}</span>
+               {player.versionId && (
+                  <span className="mp-mini-player__version">
+                     {t.versions.find(v => v.id === player.versionId)?.type}
+                  </span>
+               )}
+            </div>
+         </div>
+         <audio
+            ref={audioRef}
+            src={t.versions.find(v => v.id === player.versionId)?.previewUrl || t.previewUrl}
+            autoPlay
+         />
+         <button className="mp-mini-player__close" onClick={onClose} aria-label="Close player">
+            <X size={16} />
+         </button>
+      </div>
+   );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function MusicPool() {
+   // -- Gated Access & Limits --
+   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+   const [usage, setUsage] = useState({ limit: 0, count: 0 });
+   const [poolTracks, setPoolTracks] = useState<Track[]>([]);
+   const [poolLoading, setPoolLoading] = useState(true);
+
+   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+   const [filterMetadata, setFilterMetadata] = useState<{
+      genres: string[];
+      years: string[];
+      months: string[];
+   }>({ genres: [], years: [], months: [] });
+
+   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+   const [player, setPlayer] = useState<PlayerState>({ track: null, isPlaying: false });
+   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+   const fetchGatedPool = useCallback(async () => {
+      setPoolLoading(true);
+      const [poolResult, filtersResult] = await Promise.all([
+         fetchPoolTracks(),
+         fetchPoolFilters()
+      ]);
+
+      setIsAuthorized(poolResult.isAuthorized);
+      if (poolResult.isAuthorized) {
+         setPoolTracks(poolResult.tracks);
+         setUsage({ limit: poolResult.downloadLimit || 0, count: poolResult.downloadsCount || 0 });
+      }
+      setFilterMetadata(filtersResult);
+      setPoolLoading(false);
+   }, []);
+
+   useEffect(() => {
+      fetchGatedPool();
+   }, [fetchGatedPool]);
+
+   // ── Derived filter options (prioritize API, fallback to derived) ────────────
+   const hubs = useMemo(() => getUnique(poolTracks as Track[], (t: Track) => t.collectionHub), [poolTracks]);
+   const displayGenres = useMemo(() =>
+      filterMetadata.genres.length > 0 ? filterMetadata.genres : getUnique(poolTracks as Track[], (t: Track) => t.displayGenre),
+      [poolTracks, filterMetadata]);
+   const years = useMemo(() =>
+      filterMetadata.years.length > 0 ? filterMetadata.years : getUnique(poolTracks as Track[], (t: Track) => t.releaseYear?.toString()),
+      [poolTracks, filterMetadata]);
+   const months = useMemo(() =>
+      filterMetadata.months.length > 0 ? filterMetadata.months : MONTHS.filter(m => poolTracks.some((t: Track) => t.releaseMonth === m)),
+      [poolTracks, filterMetadata]);
+
+   // ── Filtered & sorted tracks ───────────────────────────────────────────────
+   const filtered = useMemo(() => {
+      let list: Track[] = poolTracks;
+
+      if (filters.search) {
+         const q = normalise(filters.search);
+         list = list.filter(t =>
+            normalise(t.title).includes(q) ||
+            normalise(t.artist).includes(q) ||
+            normalise(t.genre).includes(q) ||
+            normalise(t.displayGenre || '').includes(q)
+         );
+      }
+      if (filters.hub) list = list.filter(t => t.collectionHub === filters.hub);
+      if (filters.displayGenre) list = list.filter(t => t.displayGenre === filters.displayGenre);
+      if (filters.year) list = list.filter(t => String(t.releaseYear || t.year) === filters.year);
+      if (filters.month) list = list.filter(t => t.releaseMonth === filters.month);
+      if (filters.vibe) list = list.filter(t => t.vibe === filters.vibe);
+
+      list = [...list].sort((a, b) => {
+         const da = new Date(a.dateAdded || a.createdAt || 0).getTime();
+         const db = new Date(b.dateAdded || b.createdAt || 0).getTime();
+         return sortDir === 'desc' ? db - da : da - db;
+      });
+
+      return list;
+   }, [poolTracks, filters, sortDir]);
+
+   // ── Active filter count ────────────────────────────────────────────────────
+   const activeFilterCount = useMemo(() =>
+      Object.entries(filters).filter(([k, v]) => k !== 'search' && v !== '').length,
+      [filters]);
+
+   const setFilter = useCallback((key: keyof Filters, val: string) =>
+      setFilters(f => ({ ...f, [key]: val })), []);
+
+   const clearFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
+
+   // ── Player controls ────────────────────────────────────────────────────────
+   const handlePlay = useCallback((track: Track, versionId?: string) => {
+      setPlayer(prev => {
+         if (prev.track?.id === track.id && (versionId === undefined || prev.versionId === versionId)) {
+            // Toggle
+            if (prev.isPlaying) audioRef.current?.pause();
+            else audioRef.current?.play();
+            return { ...prev, isPlaying: !prev.isPlaying };
+         }
+         return { track, versionId: versionId || track.versions?.[0]?.id, isPlaying: true };
+      });
+   }, []);
+
+   const closePlayer = useCallback(() => {
+      audioRef.current?.pause();
+      setPlayer({ track: null, isPlaying: false });
+   }, []);
+
+   // ── Download handler ───────────────────────────────────────────────────────
+   const handleDownload = useCallback(async (track: Track, versionId?: string) => {
+      if (usage.limit > 0 && usage.count >= usage.limit) {
+         toast.error("Daily download limit reached. Upgrade for more fuel!");
+         return;
+      }
+
+      const version = versionId ? track.versions?.find(v => v.id === versionId) : track.versions?.[0];
+      const url = version?.downloadUrl || track.downloadUrl || track.previewUrl;
+
+      if (!url) return;
+
+      // Track download on server
+      const ok = await trackPoolDownload(track.id);
+      if (!ok) {
+         toast.error("Access denied or limit reached.");
+         return;
+      }
+
+      // Increment local count
+      setUsage(u => ({ ...u, count: u.count + 1 }));
+
+      const a = document.createElement('a');
+      a.href = url;
+      const fileName = `${track.artist} - ${track.title}${version ? ` (${version.type})` : ''}`.replace(/[/\\?%*:|"<>]/g, '_');
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      toast.success(`Downloading ${track.title}${version ? ` (${version.type})` : ''}`);
+   }, [usage]);
+
+   // ── Handle audio end ───────────────────────────────────────────────────────
+   useEffect(() => {
+      const el = audioRef.current;
+      if (!el) return;
+      const onEnd = () => setPlayer(p => ({ ...p, isPlaying: false }));
+      el.addEventListener('ended', onEnd);
+      return () => el.removeEventListener('ended', onEnd);
+   }, [player.track]);
+
+   return (
+      <div className="mp-root">
+         <style>{MUSIC_POOL_CSS}</style>
+
+         {/* ── Gated Access Check ─────────────────────────────────────────────── */}
+         {poolLoading ? (
+            <div className="mp-loading">
+               <div className="mp-spinner" />
+               <span>Loading your music library…</span>
+            </div>
+         ) : isAuthorized === false ? (
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+               <AccessDenied />
+            </div>
+         ) : (
+            <>
+               {/* ── Header ─────────────────────────────────────────────────────────── */}
+               <header className="mp-header">
+                  <div className="mp-header__inner">
+                     <div className="mp-header__brand">
+                        <Music2 size={28} className="mp-header__icon text-gradient-cyan" />
+                        <div>
+                           <h1 className="mp-header__title">Music Pool</h1>
+                           <p className="mp-header__sub">
+                              {`${filtered.length.toLocaleString()} of ${poolTracks.length.toLocaleString()} tracks`}
+                           </p>
+                        </div>
+                     </div>
+
+                     {/* Download Fuel Tracker */}
+                     {usage.limit > 0 && (
+                        <div className="mp-fuel">
+                           <div className="mp-fuel__label">
+                              <Fuel size={14} className="text-brand-pink" />
+                              <span>Download Fuel: {usage.limit - usage.count} left today</span>
+                           </div>
+                           <div className="mp-fuel__bar-bg">
+                              <div
+                                 className="mp-fuel__bar-fill"
+                                 style={{ width: `${Math.max(0, Math.min(100, (1 - usage.count / usage.limit) * 100))}%` }}
+                              />
+                           </div>
+                        </div>
+                     )}
+
+                     {/* Sort */}
+                     <button
+                        className="mp-sort-btn"
+                        onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                        title="Toggle sort order"
+                     >
+                        {sortDir === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
+                        <span>{sortDir === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                     </button>
+                  </div>
+
+                  {/* ── Search ──────────────────────────────────────────────────────── */}
+                  <div className="mp-search-bar">
+                     <Search size={17} className="mp-search-icon" />
+                     <input
+                        className="mp-search-input"
+                        type="search"
+                        placeholder="Search by title, artist, genre…"
+                        value={filters.search}
+                        onChange={e => setFilter('search', e.target.value)}
+                        aria-label="Search tracks"
+                     />
+                     {filters.search && (
+                        <button className="mp-search-clear" onClick={() => setFilter('search', '')} aria-label="Clear search">
                            <X size={14} />
                         </button>
                      )}
                   </div>
-               </div>
 
-               {/* Hubs Scroll */}
-               <div className="mb-6 overflow-x-auto pb-4 custom-scrollbar">
-                  <div className="flex gap-3">
-                     <button
-                        onClick={() => changeCategory('All')}
-                        className={`px-6 py-2.5 rounded-full font-bold whitespace-nowrap transition-all duration-300 ${activeCategory === 'All' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                     >
-                        All Tracks
-                     </button>
-                     {DISPLAY_HUBS.map(hub => (
-                        <button
-                           key={hub}
-                           onClick={() => changeCategory(hub)}
-                           className={`px-6 py-2.5 rounded-full font-bold whitespace-nowrap transition-all duration-300 ${activeCategory === hub ? 'bg-brand-purple text-white shadow-[0_0_20px_rgba(123,92,255,0.3)]' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                        >
-                           {hub}
-                        </button>
-                     ))}
-                  </div>
-               </div>
-
-               {/* Years Folders */}
-               <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
-                  <div className="flex gap-4">
-                     {POOL_YEARS.map(year => (
-                        <button
-                           key={year}
-                           onClick={() => changeYear(selectedYear === year ? 'All' : year)}
-                           className={`flex items-center gap-2 px-5 py-4 rounded-2xl border transition-all min-w-[140px] shadow-lg ${selectedYear === year ? 'bg-brand-cyan/10 border-brand-cyan text-brand-cyan shadow-brand-cyan/10' : 'bg-[#15151A] border-white/5 text-gray-400 hover:border-white/20'}`}
-                        >
-                           <Folder size={20} className={selectedYear === year ? "fill-current" : ""} />
-                           <span className="font-bold">{year} Edits</span>
-                        </button>
-                     ))}
-                  </div>
-               </div>
-
-               {/* Main Content with Sidebar */}
-               <div className="flex flex-col lg:flex-row gap-8 items-start">
-
-                  {/* Genre Sidebar / Mobile Scroll */}
-                  <div className="w-full lg:w-72 flex-shrink-0">
-                     {/* Mobile Horizontal Scroll */}
-                     <div className="lg:hidden mb-6 overflow-x-auto pb-2 custom-scrollbar flex gap-2">
-                        <button
-                           onClick={() => changeGenre('All')}
-                           className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all ${selectedGenre === 'All' ? 'bg-brand-purple text-white' : 'bg-[#15151A] text-gray-400 border border-white/10'}`}
-                        >
-                           All Genres
-                        </button>
-                        {genres.map(genre => (
-                           <button
-                              key={genre.id}
-                              onClick={() => changeGenre(genre.name)}
-                              className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all ${selectedGenre === genre.name ? 'bg-brand-purple text-white' : 'bg-[#15151A] text-gray-400 border border-white/10'}`}
-                           >
-                              {genre.name}
+                  {/* ── Filters ─────────────────────────────────────────────────────── */}
+                  <div className="mp-filters">
+                     <div className="mp-filters__row">
+                        <FilterSelect
+                           value={filters.hub}
+                           onChange={v => setFilter('hub', v)}
+                           options={hubs}
+                           placeholder="All Hubs"
+                           icon={Radio}
+                        />
+                        <FilterSelect
+                           value={filters.displayGenre}
+                           onChange={v => setFilter('displayGenre', v)}
+                           options={displayGenres}
+                           placeholder="All Genres"
+                           icon={Music2}
+                        />
+                        <FilterSelect
+                           value={filters.year}
+                           onChange={v => setFilter('year', v)}
+                           options={years}
+                           placeholder="Any Year"
+                           icon={Clock}
+                        />
+                        <FilterSelect
+                           value={filters.month}
+                           onChange={v => setFilter('month', v)}
+                           options={months}
+                           placeholder="Any Month"
+                           icon={Filter}
+                        />
+                        <FilterSelect
+                           value={filters.vibe}
+                           onChange={v => setFilter('vibe', v)}
+                           options={VIBES}
+                           placeholder="Any Vibe"
+                           icon={Zap}
+                        />
+                        {activeFilterCount > 0 && (
+                           <button className="mp-clear-filters" onClick={clearFilters}>
+                              <X size={13} />
+                              Clear ({activeFilterCount})
                            </button>
-                        ))}
-                     </div>
-
-                     {/* Desktop Persistent Sidebar */}
-                     <div className="hidden lg:block bg-[#15151A]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sticky top-24 shadow-2xl overflow-hidden group">
-                        {/* Background glow */}
-                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-purple/10 rounded-full blur-[80px] group-hover:bg-brand-purple/20 transition-colors"></div>
-
-                        <h3 className="text-white font-display font-bold text-xl flex items-center gap-2 mb-6 relative z-10">
-                           <Layers size={22} className="text-brand-purple" />
-                           Genres
-                        </h3>
-
-                        <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 custom-scrollbar relative z-10">
-                           <button
-                              onClick={() => changeGenre('All')}
-                              className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 text-sm flex items-center justify-between group/genre ${selectedGenre === 'All'
-                                 ? 'bg-gradient-to-r from-brand-purple to-purple-600 text-white font-bold shadow-lg shadow-brand-purple/20'
-                                 : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
-                                 }`}
-                           >
-                              <span>All Genres</span>
-                              {selectedGenre === 'All' && <Check size={14} />}
-                           </button>
-                           {genres.map(genre => (
-                              <button
-                                 key={genre.id}
-                                 onClick={() => changeGenre(genre.name)}
-                                 className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 text-sm flex items-center justify-between group/genre ${selectedGenre === genre.name
-                                    ? 'bg-gradient-to-r from-brand-purple to-purple-600 text-white font-bold shadow-lg shadow-brand-purple/20'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
-                                    }`}
-                              >
-                                 <span className="truncate">{genre.name}</span>
-                                 {selectedGenre === genre.name && <Check size={14} />}
-                              </button>
-                           ))}
-                        </div>
+                        )}
                      </div>
                   </div>
+               </header>
 
-                  {/* Tracks Section */}
-                  <div id="track-list-top" className="flex-1 min-w-0 w-full">
-                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                        <h3 className="text-2xl font-display font-bold text-white flex items-center gap-2">
-                           <Music className="text-brand-cyan" size={24} />
-                           Tracks <span className="text-gray-500 font-normal text-lg">({filteredTracks.length})</span>
-                        </h3>
-                        <div className="flex gap-4">
-                           <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 text-xs text-gray-400">
-                              <Check size={14} className="text-green-500" /> High Quality
-                           </div>
-                           <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 text-xs text-gray-400">
-                              <Zap size={14} className="text-yellow-500" /> Instant DL
-                           </div>
-                        </div>
-                     </div>
-
-                     {/* Sub-Genre / Folder Filter (Internal Folders) */}
-                     {selectedGenre !== 'All' && (
-                        <div className="mb-6">
-                           {(() => {
-                              const currentGenreObj = (genres as any[]).find(g => g.name === selectedGenre);
-                              const subGenres = currentGenreObj?.subGenres || [];
-                              if (subGenres.length === 0) return null;
-
-                              return (
-                                 <div className="bg-[#15151A]/40 border border-white/10 rounded-3xl p-6 mb-8">
-                                    <div className="flex items-center gap-3 mb-4">
-                                       <Folder size={18} className="text-brand-cyan" />
-                                       <span className="text-white font-bold text-sm">Browse Folders:</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                       <button
-                                          onClick={() => changeSubGenre('All')}
-                                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedSubGenre === 'All' ? 'bg-brand-cyan text-black shadow-lg shadow-brand-cyan/20' : 'bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:border-white/10'}`}
-                                       >
-                                          All Folders
-                                       </button>
-                                       {subGenres.map((sg: string) => (
-                                          <button
-                                             key={sg}
-                                             onClick={() => changeSubGenre(sg)}
-                                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all max-w-[200px] truncate ${selectedSubGenre === sg ? 'bg-brand-cyan text-black shadow-lg shadow-brand-cyan/20' : 'bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:border-white/10'}`}
-                                             title={sg}
-                                          >
-                                             {sg}
-                                          </button>
-                                       ))}
-                                    </div>
-                                 </div>
-                              );
-                           })()}
-                        </div>
-                     )}
-
-                     {/* Month Filter (shows when year is selected) */}
-                     {selectedYear !== 'All' && (
-                        <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
-                           <div className="flex items-center gap-3 mb-3">
-                              <Clock size={18} className="text-brand-purple" />
-                              <span className="text-white font-bold text-sm">Filter by Month:</span>
-                           </div>
-                           <div className="flex gap-2">
-                              <button
-                                 onClick={() => changeMonth('All')}
-                                 className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === 'All' ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                              >
-                                 All Months
-                              </button>
-                              {MONTHS.map(month => (
-                                 <button
-                                    key={month}
-                                    onClick={() => changeMonth(month)}
-                                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedMonth === month ? 'bg-brand-purple text-white shadow-lg' : 'bg-[#15151A] border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
-                                 >
-                                    {month}
-                                 </button>
-                              ))}
-                           </div>
-                        </div>
-                     )}
-
-                     <div className="bg-[#15151A]/60 backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        {/* Trial Promotion Banner */}
-                        {!isUnlocked && user && !user.hasUsedTrial && (
-                           <div className="p-8 text-center bg-gradient-to-r from-brand-purple/20 to-brand-cyan/20 border-b border-white/10 relative overflow-hidden">
-                              <div className="absolute top-0 right-0 p-4 opacity-10">
-                                 <Zap size={120} />
-                              </div>
-                              <div className="relative z-10">
-                                 <h3 className="font-display font-black text-2xl md:text-3xl text-white mb-2 uppercase tracking-tighter">
-                                    Music Pool Free Trial
-                                 </h3>
-                                 <p className="text-gray-300 max-w-xl mx-auto mb-6">
-                                    Get 7 days of access with 10 free downloads per day. Promotion valid until April 4th.
-                                 </p>
-                                 <button
-                                    onClick={handleActivateTrial}
-                                    disabled={isTrialing}
-                                    className="px-8 py-4 bg-brand-cyan text-black font-black rounded-2xl hover:bg-white transition-all transform hover:scale-105 active:scale-95 shadow-xl disabled:opacity-50"
-                                 >
-                                    {isTrialing ? 'ACTIVATING...' : 'START 1 WEEK FREE TRIAL'}
-                                 </button>
-                              </div>
-                           </div>
-                        )}
-
-                        {/* Bulk Actions Bar */}
-                        {isUnlocked && filteredTracks.length > 0 && (
-                           <div className="p-4 bg-[#1A1A22] border-b border-white/10 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
-                              <div className="flex items-center gap-3">
-                                 <button
-                                    onClick={selectAllVisible}
-                                    className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest px-3 py-2 bg-white/5 rounded-xl border border-white/5"
-                                 >
-                                    {selectedTracks.size === filteredTracks.length ? <X size={14} /> : <CheckCircle size={14} />}
-                                    {selectedTracks.size === filteredTracks.length ? 'Deselect All' : 'Select All'}
-                                 </button>
-                                 {selectedTracks.size > 0 && (
-                                    <span className="text-brand-cyan font-black text-xs uppercase tracking-widest animate-pulse">
-                                       {selectedTracks.size} Tracks Selected
-                                    </span>
-                                 )}
-                              </div>
-                              {selectedTracks.size > 0 && (
-                                 <button
-                                    onClick={handleBulkDownload}
-                                    disabled={isBulkDownloading}
-                                    className="px-6 py-2 bg-white text-black font-black rounded-xl hover:bg-brand-cyan transition-all flex items-center gap-2 text-xs uppercase tracking-widest disabled:opacity-50 shadow-lg"
-                                 >
-                                    {isBulkDownloading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
-                                    {isBulkDownloading ? 'Downloading...' : 'Download Selected'}
-                                 </button>
-                              )}
-                           </div>
-                        )}
-
-                        {poolError && (
-                           <div className="p-8 text-center text-red-400 bg-red-500/10 border-b border-red-500/20">
-                              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                 <Shield size={24} className="text-red-500" />
-                              </div>
-                              <p className="font-bold text-lg mb-1">Database High Traffic</p>
-                              <p className="text-sm opacity-80 max-w-md mx-auto">Our database is currently experiencing high traffic. Some tracks may not appear immediately. Please try refreshing or try again in a few moments.</p>
-                           </div>
-                        )}
-
-                        {filteredTracks.length > 0 ? (
-                           <div className="divide-y divide-white/5 px-4 md:px-0">
-                              <Virtuoso
-                                 useWindowScroll
-                                 data={filteredTracks}
-                                 increaseViewportBy={300}
-                                 itemContent={(index, track) => (
-                                    <div key={track.id} className={`group hover:bg-white/[0.05] border border-white/5 rounded-3xl mb-4 transition-all duration-300 overflow-hidden ${expandedTrackId === track.id ? 'bg-white/[0.05] border-brand-purple/30 ring-1 ring-brand-purple/20' : ''} ${selectedTracks.has(track.id) ? 'ring-2 ring-brand-cyan bg-brand-cyan/5 border-brand-cyan/30' : ''}`}>
-
-                                       {/* Main Content Area */}
-                                       <div className="p-6">
-                                          <div className="flex flex-col md:flex-row gap-6">
-                                             {/* Left: Checkbox & Play Icon & Song Details */}
-                                             <div className="flex-1 flex flex-col gap-4">
-                                                <div className="flex items-start gap-4">
-                                                   {/* Custom Checkbox */}
-                                                   {isUnlocked && (
-                                                      <div
-                                                         onClick={(e) => { e.stopPropagation(); toggleTrackSelection(track.id); }}
-                                                         className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all cursor-pointer flex items-center justify-center mt-5 ${selectedTracks.has(track.id) ? 'bg-brand-cyan border-brand-cyan' : 'border-white/20 hover:border-white/40'}`}
-                                                      >
-                                                         {selectedTracks.has(track.id) && <Check size={14} className="text-black stroke-[4px]" />}
-                                                      </div>
-                                                   )}
-
-                                                   {/* Play Toggle */}
-                                                   <div
-                                                      onClick={() => togglePlay(track)}
-                                                      className="relative flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden group-hover:ring-2 ring-white/10 cursor-pointer shadow-xl transition-all duration-300 group-hover:scale-105 active:scale-95"
-                                                   >
-                                                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
-                                                         {playingTrackId === track.id ? (
-                                                            <Pause size={28} className="text-brand-cyan fill-current animate-pulse" />
-                                                         ) : (
-                                                            <Play size={28} className="text-white fill-current translate-x-0.5" />
-                                                         )}
-                                                      </div>
-                                                      {playingTrackId === track.id && (
-                                                         <div className="absolute inset-0 bg-brand-cyan/10 animate-pulse"></div>
-                                                      )}
-                                                   </div>
-
-                                                   {/* Details: Title & Artist */}
-                                                   <div className="min-w-0 flex-1">
-                                                      <h4 className="font-display font-bold text-white text-base md:text-lg mb-0.5 group-hover:text-brand-cyan transition-colors leading-tight break-words flex items-center gap-2 flex-wrap">
-                                                         {track.title}
-                                                         {((track.category || []).map(c => c.toLowerCase()).includes('new') || (track as any).isNew) && (
-                                                            <span className="bg-green-600 text-white px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-widest inline-flex h-fit">
-                                                               NEW
-                                                            </span>
-                                                         )}
-                                                      </h4>
-                                                      <p className="text-brand-purple text-sm font-medium opacity-90 truncate italic">{track.artist}</p>
-                                                   </div>
-                                                </div>
-
-                                                {/* Metadata Info (Genres, Tags, Categories) - Stacked Below Title */}
-                                                <div className="flex flex-wrap gap-2 items-center mt-1">
-                                                   {/* Primary Genre Tag */}
-                                                   <span className="bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-lg border border-brand-purple/30 text-[10px] font-black uppercase tracking-widest whitespace-normal max-w-full">
-                                                      {track.genre?.replace(/\s*\(\d+\s*tracks\)/i, '').toUpperCase()}
-                                                   </span>
-
-                                                   {/* Version/Type Tag */}
-                                                   <span className="bg-white/5 text-gray-400 px-2 py-0.5 rounded-lg border border-white/10 text-[10px] uppercase font-medium">
-                                                      {track.versions?.[0]?.type || 'Video'}
-                                                   </span>
-
-                                                   {/* Additional Category Tags */}
-                                                   {track.category && track.category.length > 0 &&
-                                                      track.category
-                                                         .filter(cat => {
-                                                            const c = cat.toLowerCase();
-                                                            const g = track.genre?.toLowerCase() || '';
-                                                            return !c.includes('video pool') &&
-                                                               !c.includes('tracks') &&
-                                                               !c.includes('genres') &&
-                                                               c !== g &&
-                                                               c !== track.versions?.[0]?.type?.toLowerCase();
-                                                         })
-                                                         .map((cat, idx) => {
-                                                            // Clean up formatting for display
-                                                            let displayCat = cat.toUpperCase();
-                                                            // If it's a year but doesn't have EDITS, add it
-                                                            if (/20\d{2}/.test(displayCat) && !displayCat.includes('EDITS')) {
-                                                               displayCat = displayCat.replace(/(20\d{2})/, '$1 EDITS');
-                                                            }
-
-                                                            return (
-                                                               <span key={idx} className="bg-brand-cyan/10 text-brand-cyan px-2 py-0.5 rounded-lg border border-brand-cyan/20 text-[10px] font-bold uppercase whitespace-nowrap">
-                                                                  {displayCat}
-                                                               </span>
-                                                            );
-                                                         })
-                                                   }
-
-                                                   {/* Show year ONLY if NOT 2026 and not already in tags */}
-                                                   {track.year && Number(track.year) > 0 && Number(track.year) !== 2026 && (
-                                                      <span className="bg-brand-cyan/10 text-brand-cyan px-3 py-1 rounded-lg border border-brand-cyan/20 text-[10px] font-bold">
-                                                         {track.year}
-                                                      </span>
-                                                   )}
-                                                </div>
-                                             </div>
-
-                                             {/* Right: Action Buttons (Download & Expand) */}
-                                             <div className="flex flex-row md:flex-col lg:flex-row items-center gap-3 w-full md:w-auto self-end md:self-center">
-                                                <button
-                                                   onClick={() => {
-                                                      const firstVersion = track.versions?.[0];
-                                                      if (firstVersion?.downloadUrl) {
-                                                         const ext = firstVersion.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                         handleDownload(firstVersion.downloadUrl, `${track.artist} - ${track.title}.${ext}`, track);
-                                                      }
-                                                   }}
-                                                   onContextMenu={(e) => {
-                                                      e.preventDefault();
-                                                      alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
-                                                      return false;
-                                                   }}
-                                                   className="flex-1 md:flex-none px-10 py-4 bg-white text-black font-black rounded-2xl hover:bg-brand-cyan hover:scale-105 transition-all duration-300 text-sm shadow-2xl flex items-center justify-center gap-2 group/btn active:scale-95 uppercase tracking-widest"
-                                                >
-                                                   <Download size={18} className="group-hover/btn:translate-y-0.5 transition-transform" />
-                                                   Download
-                                                </button>
-                                                <button
-                                                   onClick={() => toggleExpand(track.id)}
-                                                   className={`p-4 rounded-2xl border transition-all duration-300 ${expandedTrackId === track.id ? 'bg-white/10 border-white/30 text-white' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'}`}
-                                                >
-                                                   {expandedTrackId === track.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                                                </button>
-                                             </div>
-                                          </div>
-                                       </div>
-
-                                       {/* Mini Player */}
-                                       {playingTrackId === track.id && (track.previewUrl || track.versions?.[0]?.downloadUrl) && (() => {
-                                          const mediaUrl = track.previewUrl || track.versions?.[0]?.downloadUrl || '';
-                                          const isVideo = mediaUrl.toLowerCase().match(/\.(mp4|mov|webm|m4v|avi|mkv|flv|wmv)/) || mediaUrl.toLowerCase().includes('video');
-                                          return (
-                                             <div className="px-5 pb-5 animate-fade-in relative z-10">
-                                                {isVideo ? (
-                                                   <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/20 ring-1 ring-white/10">
-                                                      <video
-                                                         controls
-                                                         autoPlay
-                                                         playsInline
-                                                         onContextMenu={(e) => e.preventDefault()}
-                                                         onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
-                                                         className="w-full max-h-[600px] object-contain"
-                                                         src={mediaUrl}
-                                                         onEnded={() => setPlayingTrackId(null)}
-                                                      />
-                                                   </div>
-                                                ) : (
-                                                   <div className="bg-[#0B0B0F] p-4 rounded-2xl border border-white/10 shadow-xl ring-1 ring-brand-purple/20">
-                                                      <audio
-                                                         controls
-                                                         autoPlay
-                                                         onContextMenu={(e) => e.preventDefault()}
-                                                         onPlay={(e) => { mediaRef.current = e.currentTarget as any; }}
-                                                         className="w-full h-10 accent-brand-purple"
-                                                         src={mediaUrl}
-                                                         onEnded={() => setPlayingTrackId(null)}
-                                                      />
-                                                   </div>
-                                                )}
-                                             </div>
-                                          );
-                                       })()}
-
-                                       {/* Expanded Versions */}
-                                       {expandedTrackId === track.id && (
-                                          <div className="bg-black/40 p-6 border-t border-white/5 animate-fade-in">
-                                             <h5 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 ml-1">Available Versions</h5>
-                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {(track.versions || []).map((version: any) => (
-                                                   <div key={version.id} className="flex items-center justify-between p-4 rounded-2xl bg-[#15151A] border border-white/5 hover:border-brand-purple/40 hover:bg-brand-purple/5 transition-all duration-300 group/v shadow-sm">
-                                                      <div className="flex flex-col">
-                                                         <span className={`text-xs font-black px-2.5 py-1 rounded-lg w-fit mb-1 ${version.type.includes('Dirty') ? 'bg-red-500/10 text-red-500' :
-                                                            version.type.includes('Clean') ? 'bg-green-500/10 text-green-500' :
-                                                               'bg-blue-500/10 text-blue-500'
-                                                            }`}>
-                                                            {version.type.toUpperCase()}
-                                                         </span>
-                                                         {version.label && <span className="text-xs text-gray-500 font-medium">{version.label}</span>}
-                                                      </div>
-                                                      <button
-                                                         onClick={() => {
-                                                            const ext = version.downloadUrl.split('.').pop()?.split('?')[0] || 'mp3';
-                                                            handleDownload(version.downloadUrl, `${track.artist} - ${track.title} (${version.type}).${ext}`, track);
-                                                         }}
-                                                         onContextMenu={(e) => {
-                                                            e.preventDefault();
-                                                            alert('⚠️ Right-click disabled. Please use the Download button to download tracks.');
-                                                            return false;
-                                                         }}
-                                                         className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-brand-purple transition-all duration-300 group-hover/v:scale-105 active:scale-95"
-                                                      >
-                                                         <Download size={18} />
-                                                      </button>
-                                                   </div>
-                                                ))}
-                                             </div>
-                                          </div>
-                                       )}
-                                    </div>
-                                 )}
-                              />
-                           </div>
-                        ) : (
-                           <div className="p-20 text-center">
-                              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
-                                 <Music size={40} className="text-gray-600" />
-                              </div>
-                              <h3 className="text-2xl font-display font-bold text-white mb-2">No tracks found</h3>
-                              <p className="text-gray-500 max-w-sm mx-auto">We couldn't find any tracks matching your current filters. Try adjusting your search terms or genre selection.</p>
-                              <button
-                                 onClick={() => {
-                                    setSearchQuery('');
-                                    setSelectedGenre('All');
-                                    setActiveCategory('All');
-                                    setSelectedYear('All');
-                                 }}
-                                 className="mt-6 px-6 py-3 bg-brand-purple/10 text-brand-purple font-bold rounded-2xl border border-brand-purple/20 hover:bg-brand-purple hover:text-white transition-all duration-300"
-                              >
-                                 Clear All Filters
-                              </button>
-                           </div>
-
-                        )}
-
-                        <div className="flex flex-col items-center gap-3 py-8 border-t border-white/5 bg-black/5">
-                           <p className="text-xs text-gray-500 font-medium underline underline-offset-4 decoration-brand-purple/30">Library Status</p>
-                           {poolLoading ? (
-                              <div className="flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 text-white rounded-2xl font-bold">
-                                 <RefreshCw size={18} className="text-brand-purple animate-spin" />
-                                 Fetching tracks from database... ({poolTracks.length.toLocaleString()} loaded)
-                              </div>
-                           ) : (
-                              <button
-                                 onClick={() => refreshPoolTracks()}
-                                 className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-2xl font-bold hover:bg-white/10 hover:border-brand-purple transition-all duration-300 flex items-center gap-2 group"
-                              >
-                                 <Database size={18} className="text-brand-purple group-hover:scale-110 transition-transform" />
-                                 Refresh Library ({poolTracks.length.toLocaleString()} total tracks)
-                              </button>
-                           )}
-                           <p className="text-[10px] text-gray-600 uppercase tracking-widest font-black opacity-50">
-                              {poolLoading ? "Loading more tracks in background..." : "The library now loads all available tracks automatically"}
-                           </p>
-                        </div>
-
-                        {/* Summary Footer */}
-                        <div className="p-6 bg-black/20 border-t border-white/5 flex flex-col items-center gap-4">
-                           <p className="text-gray-500 text-xs font-medium">
-                              Showing <span className="text-white font-bold">{filteredTracks.length.toLocaleString()}</span> total tracks in library
-                           </p>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </div>
-      );
-   }
-
-
-   // --- LOCKED VIEW (LANDING PAGE) ---
-   return (
-      <div className="pb-20 bg-[#0B0B0F]">
-         <Hero
-            badge="Exclusive DJ Pool"
-            title={<>UNLIMITED <span className="text-brand-purple">POOL</span> ACCESS</>}
-            subtitle="Join the elite community of DJs. Get unlimited access to exclusive edits, remixes, and high-quality tracks instantly."
-            cta1Text="Choose a Plan"
-            cta1Link="#plans"
-            bgImage={siteConfig.hero.bgImage}
-            showNewsletter={false}
-         />
-         <div id="plans" className="w-full px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 mt-12">
-
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
-               {subscriptionPlans
-                  .filter(plan => {
-                     // Filter out trial plan if it's expired
-                     if (plan.isTrial && plan.promoExpiry) {
-                        const expiry = new Date(plan.promoExpiry);
-                        if (new Date() > expiry) return false;
-                     }
-                     // Filter out trial plan if user has already used it
-                     if (plan.isTrial && user?.hasUsedTrial) {
-                        return false;
-                     }
-                     return true;
-                  })
-                  .map((plan) => {
-                     // 1. Check if this specific plan is allowed to have discounts
-                     // Per User Request: The One Week plan NEVER has a discount
-                     const isOneWeek = plan.id === 'KHpgU9C3B5Vnmr1iZsOa' || plan.name.toLowerCase().includes('1 week') || plan.isTrial;
-
-                     // 2. Check if the applied coupon/referral is restricted to specific plans
-                     const isPlanApplicable = appliedReferral?.applicablePlans
-                        ? appliedReferral.applicablePlans.includes(plan.id)
-                        : true;
-
-                     const canApplyDiscount = !isOneWeek && isPlanApplicable;
-                     const currentReferral = canApplyDiscount ? appliedReferral : null;
-
-                     return (
-                        <div
-                           key={plan.id}
-                           className={`relative bg-[#15151A] rounded-2xl border p-8 flex flex-col ${plan.isBestValue ? 'border-brand-purple shadow-[0_0_30px_rgba(123,92,255,0.15)] transform scale-105 z-10' : 'border-white/10 hover:border-white/20 transition'}`}
-                        >
-                           {plan.isTrial && (
-                              <div className="absolute -top-3 left-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-pulse">
-                                 Limited Time Promotion
-                              </div>
-                           )}
-                           {currentReferral && (
-                              <div className="absolute -top-3 right-4 bg-brand-cyan text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 animate-bounce">
-                                 {currentReferral.discountType === 'percentage' ? `${currentReferral.discount}%` : `KES ${currentReferral.discount}`} APPLIED
-                              </div>
-                           )}
-                           {plan.isBestValue && (
-                              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-purple text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-lg">
-                                 Best Value
-                              </div>
-                           )}
-                           <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                           <div className="mb-6 flex items-baseline gap-2">
-                              <div className="flex items-baseline">
-                                 {plan.price > 0 ? (
-                                    <>
-                                       <span className="text-sm text-gray-500 font-bold mr-1">KES</span>
-                                       <span className={`text-4xl font-bold tracking-tight ${currentReferral ? 'text-gray-500 line-through text-2xl' : 'text-white'}`}>
-                                          {plan.price.toLocaleString()}
-                                       </span>
-                                    </>
-                                 ) : (
-                                    <span className="text-4xl font-bold text-brand-cyan tracking-tight uppercase">Free</span>
-                                 )}
-                              </div>
-                              {currentReferral && plan.price > 0 && (
-                                 <div className="flex items-baseline">
-                                    <span className="text-sm text-brand-cyan font-bold mr-1">KES</span>
-                                    <span className="text-4xl font-bold text-white tracking-tight">
-                                       {currentReferral.discountType === 'percentage'
-                                          ? Math.round(plan.price * (1 - currentReferral.discount / 100)).toLocaleString()
-                                          : Math.max(0, plan.price - currentReferral.discount).toLocaleString()
-                                       }
-                                    </span>
-                                 </div>
-                              )}
-                           </div>
-
-                           <div className="flex-1">
-                              <ul className="space-y-4 mb-8">
-                                 {(plan.features || []).map((feature, idx) => (
-                                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
-                                       <Check size={16} className="text-brand-cyan mt-0.5 flex-shrink-0" />
-                                       {feature}
-                                    </li>
-                                 ))}
-                              </ul>
-                           </div>
-
-                           <SubscribeButton
-                              plan={plan}
-                              referralInfo={currentReferral || undefined}
-                              className={`block w-full py-4 text-center font-bold rounded-xl transition ${plan.isBestValue ? 'bg-brand-purple text-white hover:bg-purple-600 shadow-lg shadow-brand-purple/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                           />
-                        </div>
-                     )
-                  })}
-            </div>
-
-            {/* Referral Code Input */}
-            <div className="max-w-md mx-auto mb-16">
-               <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 shadow-xl">
-                  <div className="flex items-center gap-3 mb-4">
-                     <Ticket size={20} className="text-brand-purple" />
-                     <h4 className="text-white font-bold">Have a Referral Code?</h4>
-                  </div>
-
-                  {appliedReferral ? (
-                     <div className="bg-brand-cyan/10 border border-brand-cyan/20 p-4 rounded-xl flex items-center justify-between">
-                        <div>
-                           <p className="text-brand-cyan font-bold text-sm uppercase tracking-widest">Code Applied!</p>
-                           <p className="text-white text-xs font-mono">{appliedReferral.code.toUpperCase()}</p>
-                        </div>
-                        <button
-                           onClick={() => setAppliedReferral(null)}
-                           className="text-gray-500 hover:text-white transition"
-                        >
-                           <X size={18} />
-                        </button>
+               {/* ── Track List ─────────────────────────────────────────────────────── */}
+               <main className="mp-main">
+                  {filtered.length === 0 ? (
+                     <div className="mp-empty">
+                        <Music2 size={48} opacity={0.25} />
+                        <p>No tracks match your filters.</p>
+                        <button className="mp-clear-filters" onClick={clearFilters}>Clear filters</button>
                      </div>
                   ) : (
-                     <div className="space-y-3">
-                        <div className="flex gap-2">
-                           <input
-                              type="text"
-                              placeholder="ENTER CODE"
-                              value={referralCode}
-                              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                              className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono uppercase focus:border-brand-purple outline-none"
+                     <Virtuoso<Track>
+                        style={{ height: '100%' }}
+                        data={filtered}
+                        itemContent={(_, track) => (
+                           <TrackRow
+                              key={track.id}
+                              track={track}
+                              player={player}
+                              onPlay={handlePlay}
+                              onDownload={handleDownload}
                            />
-                           <button
-                              onClick={handleApplyReferral}
-                              disabled={isApplying || !referralCode.trim()}
-                              className="px-6 py-3 bg-brand-purple text-white font-bold rounded-xl hover:bg-brand-purple/80 transition disabled:opacity-50"
-                           >
-                              {isApplying ? <RefreshCw size={18} className="animate-spin" /> : 'APPLY'}
-                           </button>
-                        </div>
-                        {referralError && (
-                           <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{referralError}</p>
                         )}
-                     </div>
+                     />
                   )}
-               </div>
-            </div>
+               </main>
 
-            <div className="bg-[#15151A] p-8 rounded-2xl border border-white/10 text-center max-w-2xl mx-auto">
-               <p className="text-gray-400 mb-4">Already a member?</p>
-               <Link to="/login" className="inline-block px-8 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition">Log In to Access</Link>
-            </div>
-         </div >
-      </div >
+               {/* ── Mini Player ────────────────────────────────────────────────────── */}
+               <MiniPlayer player={player} audioRef={audioRef} onClose={closePlayer} />
+            </>
+         )}
+      </div>
    );
-};
+}
 
-export default MusicPool;
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const MUSIC_POOL_CSS = `
+.mp-root {
+  --accent:    var(--brand-cyan, #28E6DC);
+  --accent-2:  var(--brand-purple, #7B5CFF);
+  --accent-3:  var(--brand-pink, #FF287E);
+  --bg:        var(--bg-dark, #0B0B0F);
+  --surface:   var(--bg-card, #15151A);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --border:    var(--glass-border, rgba(255, 255, 255, 0.08));
+  --text:      #ffffff;
+  --muted:     #9ca3af;
+  --radius:    12px;
+  
+  display: flex;
+  flex-direction: column;
+  /* 80px = Navbar h-20. Music Pool fills remaining viewport below the fixed nav. */
+  height: calc(100dvh - 80px);
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.mp-header {
+  padding: 20px 24px 0;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.mp-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.mp-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mp-header__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  margin: 0;
+}
+.mp-header__sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+/* Sort */
+.mp-sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 7px 12px;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+.mp-sort-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+
+/* Fuel Tracker */
+.mp-fuel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: 16px;
+  min-width: 150px;
+}
+.mp-fuel__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.text-brand-pink { color: var(--accent-3); }
+.mp-fuel__bar-bg {
+  height: 4px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.mp-fuel__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-3), var(--accent-2));
+  box-shadow: 0 0 10px rgba(255, 40, 126, 0.4);
+  transition: width 0.3s ease;
+}
+
+/* ── Search ─────────────────────────────────────────────────────────────── */
+.mp-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 14px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  backdrop-filter: blur(4px);
+}
+.mp-search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(40, 230, 220, 0.15);
+}
+.mp-search-icon { color: var(--muted); flex-shrink: 0; }
+.mp-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 12px 0;
+  font-family: inherit;
+}
+.mp-search-input::placeholder { color: var(--muted); }
+.mp-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 50%;
+  transition: color 0.15s;
+}
+.mp-search-clear:hover { color: var(--text); }
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+.mp-filters { margin-bottom: 14px; }
+.mp-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Select */
+.mp-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.mp-select-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.mp-select {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 7px 30px 7px 30px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 130px;
+  max-width: 190px;
+  backdrop-filter: blur(4px);
+}
+.mp-select:hover { border-color: var(--accent); }
+.mp-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(40, 230, 220, 0.15); }
+.mp-select option { background: var(--bg); color: var(--text); }
+.mp-select-chevron {
+  position: absolute;
+  right: 9px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Clear filters */
+.mp-clear-filters {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 40, 126, 0.1);
+  border: 1px solid rgba(255, 40, 126, 0.3);
+  border-radius: 8px;
+  color: var(--accent-3);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 11px;
+  transition: all 0.2s;
+}
+.mp-clear-filters:hover { background: rgba(255, 40, 126, 0.2); }
+
+/* ── Main list ──────────────────────────────────────────────────────────── */
+.mp-main {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Track row ──────────────────────────────────────────────────────────── */
+.mp-track-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  position: relative;
+}
+.mp-track-row:hover { background: var(--surface-2); }
+.mp-track-row--active {
+  background: rgba(40, 230, 220, 0.08);
+  border-left: 3px solid var(--accent);
+}
+
+/* Play button */
+.mp-play-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--vibe, var(--accent));
+  color: white;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.mp-play-btn:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(40, 230, 220, 0.4); }
+
+.mp-play-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--vibe, var(--accent));
+  animation: mp-pulse 1.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes mp-pulse {
+  0%   { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+/* Track info */
+.mp-track-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-track-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-track-artist {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Meta badges */
+.mp-track-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex-shrink: 0;
+  max-width: 280px;
+}
+.mp-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.mp-badge--genre {
+  background: rgba(40, 230, 220, 0.1);
+  color: var(--accent);
+  border-color: rgba(40, 230, 220, 0.25);
+}
+.mp-badge--vibe {
+  /* set dynamically via inline style */
+}
+.mp-badge--year {
+  background: rgba(123, 92, 255, 0.1);
+  color: var(--accent-2);
+  border-color: rgba(123, 92, 255, 0.25);
+}
+.mp-badge--month {
+  background: rgba(255, 40, 126, 0.1);
+  color: var(--accent-3);
+  border-color: rgba(255, 40, 126, 0.25);
+}
+
+/* Link broken indicator */
+.mp-link-broken {
+  color: var(--accent-3);
+  flex-shrink: 0;
+}
+
+/* Download button */
+.mp-dl-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.mp-dl-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* ── Loading / Empty ─────────────────────────────────────────────────────── */
+.mp-loading, .mp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 100%;
+  color: var(--muted);
+}
+.mp-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Mini Player ─────────────────────────────────────────────────────────── */
+.mp-mini-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 24px 12px;
+  z-index: 200;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.mp-mini-player__bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--vibe, var(--accent)), transparent);
+}
+.mp-mini-player__disc {
+  color: var(--vibe, var(--accent));
+  flex-shrink: 0;
+}
+.mp-mini-player__disc.spinning { animation: spin 3s linear infinite; }
+.mp-mini-player__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mp-mini-player__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-mini-player__artist { font-size: 0.75rem; color: var(--muted); }
+.mp-mini-player__version {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--accent-2);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+.mp-mini-player__close {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+.mp-mini-player__close:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+
+/* Version selection chips */
+.mp-version-chip {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+}
+.mp-version-chip:hover { border-color: var(--accent); color: var(--text); }
+.mp-version-chip.active {
+  background: linear-gradient(to right, var(--accent-2), var(--accent));
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 0 10px rgba(40, 230, 220, 0.3);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .mp-header { padding: 14px 16px 0; }
+  .mp-track-row { padding: 10px 16px; }
+  .mp-track-meta { display: none; }
+  .mp-filters__row { gap: 6px; }
+  .mp-select { min-width: 100px; font-size: 0.75rem; padding: 6px 26px 6px 28px; }
+  .mp-mini-player { padding: 10px 16px 12px; }
+}
+`;

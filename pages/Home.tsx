@@ -135,7 +135,7 @@ const Home: React.FC = () => {
                {/* Top 4 Products Grid */}
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                   {displayProducts.slice(0, 4).map((product) => (
-                     <Link to={`/store/${product.id}`} key={product.id} className="bg-[#15151A] rounded-[20px] overflow-hidden group shadow-xl hover:shadow-2xl hover:border-brand-purple/50 border border-white/5 hover:-translate-y-1 transition duration-300 flex flex-col relative h-[480px]">
+                     <Link to={`/store/${product.slug || product.id}`} key={product.id} className="bg-[#15151A] rounded-[20px] overflow-hidden group shadow-xl hover:shadow-2xl hover:border-brand-purple/50 border border-white/5 hover:-translate-y-1 transition duration-300 flex flex-col relative h-[480px]">
                         <div className="absolute top-4 left-4 z-10">
                            <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow-md uppercase tracking-wider">Sale</span>
                         </div>
@@ -191,7 +191,7 @@ const Home: React.FC = () => {
                      {displayProducts.slice(4, 6).map((product, idx) => {
                         const bgColors = ['bg-gradient-to-br from-[#1A1A24] to-[#0B0B0F] border border-white/5', 'bg-gradient-to-br from-[#15151A] to-[#0A0A0C] border border-white/5'];
                         return (
-                           <Link to={`/store/${product.id}`} key={product.id} className={`${bgColors[idx]} rounded-[24px] p-8 flex flex-col sm:flex-row items-center justify-between relative overflow-hidden group hover:shadow-2xl hover:border-brand-purple/30 hover:-translate-y-1 transition duration-300`}>
+                           <Link to={`/store/${product.slug || product.id}`} key={product.id} className={`${bgColors[idx]} rounded-[24px] p-8 flex flex-col sm:flex-row items-center justify-between relative overflow-hidden group hover:shadow-2xl hover:border-brand-purple/30 hover:-translate-y-1 transition duration-300`}>
                               <div className="relative z-10 sm:w-1/2 flex flex-col items-start gap-3">
                                  <span className="text-[10px] font-bold tracking-widest uppercase text-brand-purple bg-brand-purple/10 px-3 py-1 rounded-full shadow-sm">
                                     {idx === 0 ? 'DJ Equipment' : 'Studio Essentials'}

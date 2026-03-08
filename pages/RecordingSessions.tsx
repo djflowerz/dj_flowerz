@@ -3,65 +3,12 @@ import { Mic, Music, Sliders, Calendar, Clock, Check, Play, Headphones, ArrowRig
 import { Link, useNavigate } from 'react-router-dom';
 import { usePaystackPayment } from 'react-paystack';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 
 // --- Constants & Data ---
 
-const LOCATIONS = [
-   {
-      id: 'studio-a',
-      name: 'Main Suite (Westlands)',
-      rate: 2000,
-      desc: 'Full acoustic treatment, vocal booth, client lounge.',
-      features: ['Vocal Booth', 'Lounge', 'AC', 'Private Entrance']
-   },
-   {
-      id: 'studio-b',
-      name: 'Production Room B',
-      rate: 1500,
-      desc: 'Ideal for mixing, beat-making, and podcasting.',
-      features: ['Mixing Desk', 'Nearfield Monitors', 'Fast Wi-Fi']
-   },
-   {
-      id: 'mobile',
-      name: 'On-Location / Mobile',
-      rate: 3500,
-      desc: 'We bring the studio to your house or venue.',
-      features: ['Portable Rig', 'Engineer Travel', 'Setup Included']
-   }
-];
-
-const PREMIUM_GEAR = [
-   {
-      id: 'sony-c800g',
-      name: 'Sony C800G Pac',
-      hourlyRate: 1000,
-      category: 'Microphone',
-      image: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?auto=format&fit=crop&q=80&w=200',
-      unavailableTimes: ['2023-11-25T14:00'] // Mock unavailability
-   },
-   {
-      id: 'telefunken',
-      name: 'Telefunken U47',
-      hourlyRate: 800,
-      category: 'Microphone',
-      image: 'https://images.unsplash.com/photo-1516280440614-6697288d5d38?auto=format&fit=crop&q=80&w=200'
-   },
-   {
-      id: 'analog-synths',
-      name: 'Analog Synth Rack',
-      hourlyRate: 500,
-      category: 'Instruments',
-      image: 'https://images.unsplash.com/photo-1563330232-5711c00f60f6?auto=format&fit=crop&q=80&w=200'
-   },
-   {
-      id: 'video-cam',
-      name: '4K Cinema Camera',
-      hourlyRate: 1500,
-      category: 'Video',
-      image: 'https://images.unsplash.com/photo-1588483977959-badc9893d432?auto=format&fit=crop&q=80&w=200',
-      desc: 'Operator included'
-   }
-];
+// --- Constants & Data ---
+// Removed hardcoded LOCATIONS and PREMIUM_GEAR
 
 const PACKAGES = [
    {
@@ -89,26 +36,34 @@ const PACKAGES = [
 
 const RecordingSessions: React.FC = () => {
    // Booking State
+   const { user } = useAuth();
+   const { studioLocations, studioGear, studioLocationsLoading, studioGearLoading } = useData();
+
+   // Internal tracking
    const [step, setStep] = useState(1);
-   const [selectedLocation, setSelectedLocation] = useState(LOCATIONS[0]);
+   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
    const [selectedDate, setSelectedDate] = useState('');
    const [selectedTime, setSelectedTime] = useState('');
    const [duration, setDuration] = useState(2);
    const [selectedGear, setSelectedGear] = useState<string[]>([]);
-   const { user } = useAuth();
+   const [showMpesa, setShowMpesa] = useState(false);
    const navigate = useNavigate();
+
+   const selectedLocation = useMemo(() => {
+      return (studioLocations || []).find(l => l.id === selectedLocationId) || (studioLocations || [])[0] || { name: 'None', rate: 0, features: [] };
+   }, [studioLocations, selectedLocationId]);
 
    // Pricing Calculation
    const calculateTotal = useMemo(() => {
-      const locationCost = selectedLocation.rate * duration;
+      const locationCost = (selectedLocation?.rate || 0) * duration;
 
       const gearCost = selectedGear.reduce((acc, gearId) => {
-         const item = PREMIUM_GEAR.find(g => g.id === gearId);
-         return acc + (item ? item.hourlyRate * duration : 0);
+         const item = (studioGear || []).find(g => g.id === gearId);
+         return acc + (item ? (item.hourlyRate || 0) * duration : 0);
       }, 0);
 
       return locationCost + gearCost;
-   }, [selectedLocation, duration, selectedGear]);
+   }, [selectedLocation, duration, selectedGear, studioGear]);
 
    // Paystack Config
    const config = {
@@ -154,23 +109,70 @@ const RecordingSessions: React.FC = () => {
       console.log('Payment closed');
    };
 
-   const handleBooking = () => {
+   const handleBooking = async () => {
       if (!user) {
          navigate('/login');
          return;
       }
-      initializePayment({ onSuccess, onClose });
+
+      try {
+         // 1. Create pending booking in D1
+         const response = await fetch('/api/bookings/studio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               email: user.email,
+               dj_id: user.id,
+               date: selectedDate,
+               startTime: selectedTime,
+               duration: duration,
+               extras: selectedGear,
+               totalPrice: calculateTotal
+            })
+         });
+
+         const data = await response.json();
+         if (!data.success) throw new Error('Failed to create booking');
+
+         // 2. Open Paystack with the booking ID
+         const paystackConfig = {
+            ...config,
+            metadata: {
+               ...config.metadata,
+               bookingId: data.id,
+               type: 'studio_session'
+            }
+         };
+
+         // Note: we can't easily update usePaystackPayment hook on the fly 
+         // without re-rendering or using a strategy that takes the new metadata.
+         // A better way is to pass the metadata directly if the hook allows or 
+         // just use the manual trigger if we had it. 
+         // Given the hook constraints, we'll use the pre-calculated config and 
+         // ensure metadata is passed.
+
+         const handler = (window as any).PaystackPop.setup({
+            ...paystackConfig,
+            callback: (response: any) => onSuccess(response),
+            onClose: () => onClose(),
+         });
+         handler.openIframe();
+
+      } catch (err) {
+         console.error('Booking Error:', err);
+         alert('Failed to initiate booking. Please try again.');
+      }
    };
 
    // Computed Availability Logic
    const checkAvailability = (gearId: string) => {
       // Mock Logic: If date is selected and gear has conflicts
-      const gear = PREMIUM_GEAR.find(g => g.id === gearId);
+      const gear = (studioGear || []).find(g => g.id === gearId);
       if (!selectedDate || !selectedTime) return { available: true };
 
-      // Simulate collision
+      // Simulate collision (to be replaced by live D1 check if possible)
       if (gear?.unavailableTimes?.includes(`${selectedDate}T${selectedTime}`)) {
-         return { available: false, reason: 'Reserved for Video Shoot' };
+         return { available: false, reason: 'Reserved' };
       }
       return { available: true };
    };
@@ -234,32 +236,38 @@ const RecordingSessions: React.FC = () => {
                      {step === 1 && (
                         <div className="animate-fade-in-up">
                            <h2 className="text-2xl font-bold text-white mb-6">Select Studio Location</h2>
-                           <div className="grid grid-cols-1 gap-4">
-                              {LOCATIONS.map((loc) => (
-                                 <div
-                                    key={loc.id}
-                                    onClick={() => setSelectedLocation(loc)}
-                                    className={`p-6 rounded-xl border cursor-pointer transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${selectedLocation.id === loc.id ? 'bg-brand-purple/10 border-brand-purple' : 'bg-black/20 border-white/5 hover:border-white/20'}`}
-                                 >
-                                    <div>
-                                       <div className="flex items-center gap-2 mb-1">
-                                          <MapPin size={18} className={selectedLocation.id === loc.id ? 'text-brand-purple' : 'text-gray-500'} />
-                                          <h3 className="font-bold text-white text-lg">{loc.name}</h3>
+                           {studioLocationsLoading ? (
+                              <div className="flex justify-center py-12">
+                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-purple"></div>
+                              </div>
+                           ) : (
+                              <div className="grid grid-cols-1 gap-4">
+                                 {(studioLocations || []).map((loc) => (
+                                    <div
+                                       key={loc.id}
+                                       onClick={() => setSelectedLocationId(loc.id)}
+                                       className={`p-6 rounded-xl border cursor-pointer transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${selectedLocation.id === loc.id ? 'bg-brand-purple/10 border-brand-purple' : 'bg-black/20 border-white/5 hover:border-white/20'}`}
+                                    >
+                                       <div>
+                                          <div className="flex items-center gap-2 mb-1">
+                                             <MapPin size={18} className={selectedLocation.id === loc.id ? 'text-brand-purple' : 'text-gray-500'} />
+                                             <h3 className="font-bold text-white text-lg">{loc.name}</h3>
+                                          </div>
+                                          <p className="text-gray-400 text-sm mb-3">{loc.desc}</p>
+                                          <div className="flex flex-wrap gap-2">
+                                             {loc.features.map((f, i) => (
+                                                <span key={i} className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-300">{f}</span>
+                                             ))}
+                                          </div>
                                        </div>
-                                       <p className="text-gray-400 text-sm mb-3">{loc.desc}</p>
-                                       <div className="flex flex-wrap gap-2">
-                                          {loc.features.map((f, i) => (
-                                             <span key={i} className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-300">{f}</span>
-                                          ))}
+                                       <div className="text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0">
+                                          <span className="block text-xl font-bold text-white">KES {loc.rate.toLocaleString()}</span>
+                                          <span className="text-xs text-gray-500">/ hour</span>
                                        </div>
                                     </div>
-                                    <div className="text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0">
-                                       <span className="block text-xl font-bold text-white">KES {loc.rate.toLocaleString()}</span>
-                                       <span className="text-xs text-gray-500">/ hour</span>
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
+                                 ))}
+                              </div>
+                           )}
                         </div>
                      )}
 
@@ -322,40 +330,46 @@ const RecordingSessions: React.FC = () => {
                            </div>
                            <div className="sm:hidden mb-4 text-xs text-brand-cyan bg-brand-cyan/10 px-3 py-1 rounded-full inline-block">Standard mic included</div>
 
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {PREMIUM_GEAR.map((item) => {
-                                 const status = checkAvailability(item.id);
-                                 const isSelected = selectedGear.includes(item.id);
+                           {studioGearLoading ? (
+                              <div className="flex justify-center py-12">
+                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-purple"></div>
+                              </div>
+                           ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 {(studioGear || []).map((item) => {
+                                    const status = checkAvailability(item.id);
+                                    const isSelected = selectedGear.includes(item.id);
 
-                                 return (
-                                    <div
-                                       key={item.id}
-                                       onClick={() => toggleGear(item.id)}
-                                       className={`relative p-4 rounded-xl border flex gap-4 transition-all ${status.available ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'} ${isSelected ? 'bg-brand-purple/10 border-brand-purple' : 'bg-black/20 border-white/5 hover:border-white/20'}`}
-                                    >
-                                       <div className="w-20 h-20 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0">
-                                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                       </div>
-                                       <div className="flex-1">
-                                          <div className="flex justify-between items-start">
-                                             <h3 className="font-bold text-white">{item.name}</h3>
-                                             {isSelected && <Check size={18} className="text-brand-purple" />}
+                                    return (
+                                       <div
+                                          key={item.id}
+                                          onClick={() => toggleGear(item.id)}
+                                          className={`relative p-4 rounded-xl border flex gap-4 transition-all ${status.available ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'} ${isSelected ? 'bg-brand-purple/10 border-brand-purple' : 'bg-black/20 border-white/5 hover:border-white/20'}`}
+                                       >
+                                          <div className="w-20 h-20 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0">
+                                             <img src={item.imageUrl || item.image} alt={item.name} className="w-full h-full object-cover" />
                                           </div>
-                                          <p className="text-xs text-gray-400 mb-2">{item.category}</p>
-                                          <p className="text-brand-cyan font-bold text-sm">+ KES {item.hourlyRate}/hr</p>
-
-                                          {!status.available && (
-                                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl backdrop-blur-sm">
-                                                <span className="text-xs font-bold text-red-400 bg-red-900/50 px-3 py-1 rounded-full border border-red-500/30">
-                                                   Unavailable: {status.reason}
-                                                </span>
+                                          <div className="flex-1">
+                                             <div className="flex justify-between items-start">
+                                                <h3 className="font-bold text-white">{item.name}</h3>
+                                                {isSelected && <Check size={18} className="text-brand-purple" />}
                                              </div>
-                                          )}
+                                             <p className="text-xs text-gray-400 mb-2">{item.category}</p>
+                                             <p className="text-brand-cyan font-bold text-sm">+ KES {item.hourlyRate}/hr</p>
+
+                                             {!status.available && (
+                                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl backdrop-blur-sm">
+                                                   <span className="text-xs font-bold text-red-400 bg-red-900/50 px-3 py-1 rounded-full border border-red-500/30">
+                                                      Unavailable: {status.reason}
+                                                   </span>
+                                                </div>
+                                             )}
+                                          </div>
                                        </div>
-                                    </div>
-                                 );
-                              })}
-                           </div>
+                                    );
+                                 })}
+                              </div>
+                           )}
                         </div>
                      )}
 
@@ -378,11 +392,11 @@ const RecordingSessions: React.FC = () => {
                                  <div>
                                     <span className="text-gray-400 block mb-2">Premium Gear</span>
                                     {selectedGear.map(id => {
-                                       const g = PREMIUM_GEAR.find(i => i.id === id);
+                                       const g = (studioGear || []).find(i => i.id === id);
                                        return (
                                           <div key={id} className="flex justify-between text-sm mb-1">
                                              <span className="text-gray-300">+ {g?.name}</span>
-                                             <span className="text-brand-purple">KES {g?.hourlyRate}/hr</span>
+                                             <span className="text-brand-purple">KES {g?.hourlyRate || g?.hourly_rate}/hr</span>
                                           </div>
                                        );
                                     })}
@@ -401,30 +415,63 @@ const RecordingSessions: React.FC = () => {
                      )}
 
                      {/* Navigation Buttons */}
-                     <div className="flex justify-between mt-8 pt-6 border-t border-white/5">
-                        {step > 1 ? (
-                           <button
-                              onClick={() => setStep(step - 1)}
-                              className="px-6 py-3 rounded-lg border border-white/10 text-white font-bold hover:bg-white/5 transition flex items-center gap-2"
-                           >
-                              <ChevronLeft size={18} /> Back
-                           </button>
-                        ) : (
-                           <div></div>
-                        )}
+                     <div className="flex flex-col gap-4 mt-8 pt-6 border-t border-white/5">
+                        <div className="flex justify-between items-center">
+                           {step > 1 ? (
+                              <button
+                                 onClick={() => setStep(step - 1)}
+                                 className="px-6 py-3 rounded-lg border border-white/10 text-white font-bold hover:bg-white/5 transition flex items-center gap-2"
+                              >
+                                 <ChevronLeft size={18} /> Back
+                              </button>
+                           ) : (
+                              <div></div>
+                           )}
 
-                        {step < 4 ? (
-                           <button
-                              onClick={() => setStep(step + 1)}
-                              disabled={step === 2 && (!selectedDate || !selectedTime)}
-                              className="px-8 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                              Next Step <ChevronRight size={18} />
-                           </button>
-                        ) : (
-                           <button className="px-8 py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition flex items-center gap-2">
-                              <CreditCard size={18} /> Pay Deposit (KES 1,000)
-                           </button>
+                           {step < 4 ? (
+                              <button
+                                 onClick={() => setStep(step + 1)}
+                                 disabled={step === 2 && (!selectedDate || !selectedTime)}
+                                 className="px-8 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                 Next Step <ChevronRight size={18} />
+                              </button>
+                           ) : (
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                 <button
+                                    onClick={() => setShowMpesa(!showMpesa)}
+                                    className="px-6 py-3 bg-green-600/20 border border-green-500/30 text-green-400 font-bold rounded-lg hover:bg-green-600/30 transition flex items-center gap-2"
+                                 >
+                                    <AlertCircle size={18} /> M-Pesa Fallback
+                                 </button>
+                                 <button
+                                    onClick={handleBooking}
+                                    className="px-8 py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition flex items-center gap-2"
+                                 >
+                                    <CreditCard size={18} /> Pay Deposit (KES 1,000)
+                                 </button>
+                              </div>
+                           )}
+                        </div>
+
+                        {showMpesa && step === 4 && (
+                           <div className="bg-green-600/10 border border-green-500/20 rounded-xl p-4 animate-fade-in">
+                              <h4 className="font-bold text-green-400 mb-2 flex items-center gap-2">
+                                 <Check size={16} /> Pay via M-Pesa Till
+                              </h4>
+                              <p className="text-sm text-gray-300 mb-3">
+                                 If Paystack is slow, use our Till Number directly:
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-white/5">
+                                    <span className="text-gray-400 text-xs uppercase font-bold">Buy Goods Till</span>
+                                    <span className="text-white font-mono text-lg font-bold">5952445</span>
+                                 </div>
+                                 <p className="text-[10px] text-gray-500 italic text-center">
+                                    After payment, please send your confirmation code to +254 7XX XXX XXX via WhatsApp.
+                                 </p>
+                              </div>
+                           </div>
                         )}
                      </div>
 
