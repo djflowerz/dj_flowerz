@@ -333,7 +333,7 @@ const mapR2Product = (p: any): Product => {
 
 const mapR2Mixtape = (m: any): Mixtape => ({
   ...m,
-  coverUrl: m.cover_url || m.coverUrl,
+  coverUrl: m.cover_url || m.coverUrl || m.cover_image || '',
   audioUrl: m.audio_url || m.audioUrl,
   duration: m.duration,
   releaseDate: m.release_date || m.releaseDate,

@@ -240,7 +240,17 @@ export default {
                 const formattedResults = results.map(m => {
                     let tags = m.tags;
                     try { if (typeof tags === 'string') tags = JSON.parse(tags); } catch (e) { tags = []; }
-                    return { ...m, tags: Array.isArray(tags) ? tags : [] };
+                    return {
+                        ...m,
+                        tags: Array.isArray(tags) ? tags : [],
+                        // Map snake_case → camelCase so frontend receives expected field names
+                        coverUrl: m.cover_url || m.cover_image || '',
+                        audioUrl: m.audio_url || '',
+                        downloadUrl: m.download_url || '',
+                        releaseDate: m.release_date || '',
+                        isFeatured: !!m.is_featured,
+                        requiredTier: m.required_tier || 'free',
+                    };
                 });
                 return new Response(JSON.stringify(formattedResults), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
@@ -250,16 +260,19 @@ export default {
                 const mx = await request.json();
                 const mxId = mx.id || `mixtape_${Date.now()}`;
 
+                const coverUrl = mx.coverUrl || mx.cover_url || mx.coverImage || mx.cover_image || null;
+                const audioUrl = mx.audioUrl || mx.audio_url || null;
+
                 await env.DB.prepare(`
                     INSERT INTO mixtapes (
-                        id, title, description, cover_image, audio_url, duration, genre, tags, is_featured, created_at, updated_at
+                        id, title, description, cover_url, audio_url, duration, genre, tags, is_featured, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 `).bind(
                     mxId ?? null,
                     mx.title ?? null,
                     mx.description ?? null,
-                    (mx.coverImage || mx.cover_image) ?? null,
-                    (mx.audioUrl || mx.audio_url) ?? null,
+                    coverUrl,
+                    audioUrl,
                     mx.duration ?? null,
                     mx.genre ?? null,
                     mx.tags ? JSON.stringify(mx.tags) : '[]',
@@ -285,7 +298,7 @@ export default {
                     UPDATE mixtapes SET 
                         title = COALESCE(?, title),
                         description = COALESCE(?, description),
-                        cover_image = COALESCE(?, cover_image),
+                        cover_url = COALESCE(?, cover_url),
                         audio_url = COALESCE(?, audio_url),
                         duration = COALESCE(?, duration),
                         genre = COALESCE(?, genre),
@@ -294,16 +307,22 @@ export default {
                         updated_at = datetime('now')
                      WHERE id = ?
                 `).bind(
-                    data.title, data.description, data.coverImage || data.cover_image, data.audioUrl || data.audio_url,
-                    data.duration, data.genre, data.tags ? JSON.stringify(data.tags) : null,
-                    data.isFeatured !== undefined ? (data.isFeatured ? 1 : 0) : null, mxId
+                    data.title ?? null,
+                    data.description ?? null,
+                    (data.coverUrl || data.cover_url || data.coverImage || data.cover_image) ?? null,
+                    (data.audioUrl || data.audio_url) ?? null,
+                    data.duration ?? null,
+                    data.genre ?? null,
+                    data.tags ? JSON.stringify(data.tags) : null,
+                    data.isFeatured !== undefined ? (data.isFeatured ? 1 : 0) : null,
+                    mxId
                 ).run();
 
                 await syncCollectionToR2(env, 'mixtapes', "SELECT * FROM mixtapes ORDER BY created_at DESC", (results) => {
                     return results.map(m => {
                         let tags = m.tags;
                         try { if (typeof tags === 'string') tags = JSON.parse(tags); } catch (e) { tags = []; }
-                        return { ...m, coverImage: m.cover_image, audioUrl: m.audio_url, isFeatured: Boolean(m.is_featured), tags: Array.isArray(tags) ? tags : [] };
+                        return { ...m, coverUrl: m.cover_url || m.cover_image || '', audioUrl: m.audio_url || '', isFeatured: Boolean(m.is_featured), tags: Array.isArray(tags) ? tags : [] };
                     });
                 });
                 return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
