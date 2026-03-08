@@ -510,6 +510,15 @@ const WORKER_URL = 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
 const AdminDashboard: React.FC = () => {
    const { user, loading, logout } = useAuth();
+   const dataContext = useData();
+
+   console.log("AdminDashboard Render:", { user, loading, hasDataContext: !!dataContext });
+
+   if (!dataContext) {
+      console.error("AdminDashboard: DataContext is missing!");
+      return <div className="p-10 text-white">Critical Error: Data Context Missing. Contact Support.</div>;
+   }
+
    const [activeTab, setActiveTab] = useState('dashboard');
    const [liveSales, setLiveSales] = useState<any[]>([]);
    const [contentSubTab, setContentSubTab] = useState('home');
@@ -606,7 +615,6 @@ const AdminDashboard: React.FC = () => {
    const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | Order['status']>('all');
 
    const [variantsInput, setVariantsInput] = useState('');
-   const dataContext = useData();
    const {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
