@@ -16,7 +16,7 @@ async function main() {
     // 1. Fetch Remix Hub
     console.log("Fetching remix worker data...");
     try {
-        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 10 --max-time 120 https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks -o ${remixFile}`);
+        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 30 --max-time 300 https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks -o ${remixFile}`);
     } catch (e) {
         console.error("Error fetching remix hub:", e.message);
     }
@@ -34,7 +34,7 @@ async function main() {
     // 2. Fetch Vicknick Pool
     console.log("Fetching vicknick pool data...");
     try {
-        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 10 --max-time 120 https://r2.vicknickvideopool.com/ -o ${vicknickFile}`);
+        require('child_process').execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" --connect-timeout 30 --max-time 300 https://r2.vicknickvideopool.com/ -o ${vicknickFile}`);
     } catch (e) {
         console.error("Error fetching vicknick pool:", e.message);
     }
@@ -189,7 +189,6 @@ async function main() {
         const downloadUrl = (track.id && track.id.startsWith("http")) ? track.id : `https://r2.vicknickvideopool.com/${track.key || track.fileName}`;
 
         return {
-            ...track,
             id: track.key || track.fileName || Math.random().toString(36).substr(2, 9),
             title: title,
             artist: artist,
@@ -232,9 +231,14 @@ async function main() {
         }
     }
 
+    const dataDir = 'public/data';
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+
     fs.writeFileSync('processed_pool_tracks.txt', output);
-    fs.writeFileSync('pool_tracks.json', JSON.stringify(allTracks, null, 2));
-    console.log("Done. Saved pool_tracks.json and processed_pool_tracks.txt");
+    fs.writeFileSync(`${dataDir}/pool_tracks.json`, JSON.stringify(allTracks, null, 2));
+    console.log(`Done. Saved ${dataDir}/pool_tracks.json and processed_pool_tracks.txt`);
 }
 
 main().catch(console.error);

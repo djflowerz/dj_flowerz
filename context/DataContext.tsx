@@ -642,19 +642,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [poolError, setPoolError] = useState<Error | null>(null);
 
   const refreshPoolTracks = async () => {
+    setPoolLoading(true);
+    console.log(`[DataContext] Refreshing pool tracks...`);
     try {
-      setPoolLoading(true);
       // Use optimized fetchFromR2 (Direct R2 first)
       const data = await fetchFromR2<Track>('pool_tracks');
       if (data && data.length > 0) {
+        console.log(`[DataContext] Fetched ${data.length} pool tracks`);
         setPoolTracks(data.map(mapR2Track));
         setPoolError(null);
       } else if (POOL_TRACKS && POOL_TRACKS.length > 0) {
         // Internal fallback if direct/worker fail
+        console.warn(`[DataContext] No R2 data, falling back to POOL_TRACKS constant`);
         setPoolTracks(POOL_TRACKS);
       }
     } catch (err: any) {
-      console.error("Pool refresh error:", err);
+      console.error("[DataContext] Pool refresh error:", err.message);
       setPoolError(err);
       if (POOL_TRACKS) setPoolTracks(POOL_TRACKS);
     } finally {
@@ -1210,7 +1213,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
       setMixtapes(updatedMixtapes);
-      await saveToR2('mixtapes', updatedMixtapes);
+      // await saveToR2('mixtapes', updatedMixtapes); // Old way (heavy overwrite)
+      await addR2Item('mixtapes', mapped); // Improved way (partial update)
       alert("Mixtape added successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -1222,7 +1226,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
       setMixtapes(updatedMixtapes);
-      await saveToR2('mixtapes', updatedMixtapes);
+      // await saveToR2('mixtapes', updatedMixtapes);
+      await updateR2Item('mixtapes', id, data);
       alert("Mixtape updated successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -1234,7 +1239,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const updatedMixtapes = mixtapes.filter(m => m.id !== id);
       setMixtapes(updatedMixtapes);
-      await saveToR2('mixtapes', updatedMixtapes);
+      // await saveToR2('mixtapes', updatedMixtapes);
+      await removeR2Item('mixtapes', id);
       alert("Mixtape deleted successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {

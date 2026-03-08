@@ -17,10 +17,13 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     const R2_URL = (import.meta.env.VITE_R2_URL || PUBLIC_R2_URL).trim();
     const directUrl = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
 
+    console.log(`[R2] Fetching ${collection} from: ${directUrl}`);
+
     try {
         const response = await fetch(directUrl);
         if (response.ok) {
             const data = await response.json();
+            console.log(`[R2] Successfully fetched ${collection} (${Array.isArray(data) ? data.length : 'unknown'} items)`);
             return Array.isArray(data) ? data : [];
         }
         console.warn(`[R2] Direct fetch failed for ${collection} (${response.status}), falling back to Worker...`);
@@ -31,6 +34,7 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
     // 2. Fallback: Cloudflare Worker Proxy (May be rate-limited or 429'd)
     try {
         const url = `${STORAGE_WORKER_URL}/api/data/${collection}.json?t=${Date.now()}`;
+        console.log(`[R2 Fallback] Fetching ${collection} from: ${url}`);
         const response = await fetch(url);
 
         if (response.status === 429) {
@@ -44,6 +48,7 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
         }
 
         const data = await response.json();
+        console.log(`[R2 Fallback] Successfully fetched ${collection} (${Array.isArray(data) ? data.length : 'unknown'} items)`);
         return Array.isArray(data) ? data : [];
     } catch (error) {
         console.error(`[Worker] Fetch exception for ${collection}:`, error);
@@ -54,16 +59,19 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
     const key = `data/${collection}.json`;
+    console.log(`[R2] Saving ${collection} to: /api/r2-sync`, { key });
     const response = await fetch(`/api/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ collection, key, data }),
+        body: JSON.stringify({ collection, key, action: 'save', data }),
     });
 
     if (!response.ok) {
         const err = await response.text();
+        console.error(`[R2] Save failed for ${collection}:`, err);
         throw new Error(`R2 Sync Error: ${resStatus(response.status)} - ${err}`);
     }
+    console.log(`[R2] Successfully saved ${collection}`);
     return true;
 }
 

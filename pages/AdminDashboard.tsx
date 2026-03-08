@@ -21,7 +21,7 @@ import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 
-import { uploadFileToR2, saveToR2 } from '../utils/r2';
+import { uploadFileToR2, saveToR2, updateR2Item } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
@@ -2969,11 +2969,8 @@ const AdminDashboard: React.FC = () => {
                                              <button
                                                 onClick={async () => {
                                                    try {
-                                                      // Update in R2: replace the matching track in scannedTracks array
-                                                      const updated = (scannedTracks || []).map((t: any) =>
-                                                         t.id === editingScannedTrack.id ? { ...t, ...editingScannedTrack } : t
-                                                      );
-                                                      await saveToR2('scanned_tracks', updated);
+                                                      // Use improved updateR2Item for partial updates (Fixes 413 risk)
+                                                      await updateR2Item('scanned_tracks', editingScannedTrack.id, editingScannedTrack);
                                                       if (dataContext.refreshScannedTracks) dataContext.refreshScannedTracks();
                                                       setEditingScannedTrack(null);
                                                    } catch (err: any) {
