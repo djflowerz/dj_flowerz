@@ -651,6 +651,27 @@ const AdminDashboard: React.FC = () => {
       uploadTrackList, downloadTrackList
    } = dataContext;
 
+   // DIAGNOSTIC TEST: Render a simple white box to see if it shows up on live.
+   return (
+      <div style={{
+         position: 'fixed',
+         top: 0,
+         left: 0,
+         width: '100%',
+         height: '100%',
+         background: 'white',
+         color: 'black',
+         display: 'flex',
+         alignItems: 'center',
+         justifyContent: 'center',
+         zIndex: 9999,
+         fontSize: '24px',
+         fontWeight: 'bold'
+      }}>
+         ADMIN DASHBOARD IS RENDERING (DIAGNOSTIC)
+      </div>
+   );
+
    const ordersLoading = odLoading;
    const subsLoading = sbLoading;
    const paymentsLoading = pyLoading;
