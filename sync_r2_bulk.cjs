@@ -14,7 +14,21 @@ const s3 = new S3Client({
 
 async function run() {
     const dataDir = path.join(process.cwd(), 'public/data');
-    const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'));
+
+    // Explicitly exclude files that are updated dynamically on the live site from R2
+    const EXCLUDED_FILES = [
+        'products.json',
+        'mixtapes.json',
+        'orders.json',
+        'subscriptions.json',
+        'subscribers.json',
+        'profiles.json',
+        'bookings.json',
+        'scanned_tracks.json',
+        'youtube_videos.json' // Dynamic
+    ];
+
+    const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json') && !EXCLUDED_FILES.includes(f));
 
     for (const file of files) {
         const filePath = path.join(dataDir, file);
