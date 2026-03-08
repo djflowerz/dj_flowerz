@@ -210,6 +210,8 @@ export default {
 
             // Update Product: PUT /api/products/:id
             if (method === "PUT" && path.startsWith("/api/products/")) {
+                const productId = path.split("/").pop();
+                const data = await request.json();
                 const {
                     name, description, price, category, image, images, inventory,
                     is_active, is_featured, currency, discountPrice, compareAtPrice,
