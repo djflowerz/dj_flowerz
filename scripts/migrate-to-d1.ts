@@ -34,7 +34,7 @@ async function migrateJsonToD1() {
         const mixtapes = JSON.parse(fs.readFileSync(mixtapesPath, 'utf8'));
         sqlOutput += `-- Inserting ${mixtapes.length} mixtapes\n`;
         mixtapes.forEach((m: any) => {
-            const id = m.id || m.title?.toLowerCase().replace(/ /g, '-');
+            const id = m.id || m.title?.toLowerCase().replace(/ /g, '-').replace(/[^\w-]/g, '');
             const title = m.title?.replace(/'/g, "''");
             const artist = m.artist?.replace(/'/g, "''") || 'DJ Flowerz';
             const genre = m.genre || 'General';
@@ -43,8 +43,12 @@ async function migrateJsonToD1() {
             const audio = m.audio_url?.startsWith('data:') ? '' : (m.audio_url || '');
             const download = m.download_url?.startsWith('data:') ? '' : (m.download_url || '');
             const tier = m.required_tier || 'free';
+            const isFeatured = m.is_featured ? 1 : 0;
+            const releaseDate = m.release_date || '';
+            const duration = m.duration || '';
+            const tags = Array.isArray(m.tags) ? m.tags.join(',') : (m.tags || '');
 
-            sqlOutput += `INSERT OR REPLACE INTO mixtapes (id, title, artist, genre, description, cover_url, audio_url, download_url, required_tier) VALUES ('${id}', '${title}', '${artist}', '${genre}', '${desc}', '${cover}', '${audio}', '${download}', '${tier}');\n`;
+            sqlOutput += `INSERT OR REPLACE INTO mixtapes (id, title, artist, genre, description, cover_url, audio_url, download_url, required_tier, is_featured, release_date, duration, tags, cover_image) VALUES ('${id}', '${title}', '${artist}', '${genre}', '${desc}', '${cover}', '${audio}', '${download}', '${tier}', ${isFeatured}, '${releaseDate}', '${duration}', '${tags}', '${cover}');\n`;
         });
         sqlOutput += "\n";
     }

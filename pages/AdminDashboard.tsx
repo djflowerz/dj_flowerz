@@ -5461,6 +5461,9 @@ const AdminDashboard: React.FC = () => {
                               onChange={v => updateProductField('category', v)}
                            />
                            <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
+                           <div className="flex items-end pb-4 col-span-1 md:col-span-3">
+                              <InputGroup label="Standard Logistics" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} helperText="Check this if the item needs physical delivery." />
+                           </div>
                         </div>
 
                         {newProduct.category === 'Software' && (
@@ -5776,10 +5779,14 @@ const AdminDashboard: React.FC = () => {
                      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0B0B0F] p-8 rounded-3xl border border-white/5">
                            <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} placeholder="e.g. 0.5" />
-                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} placeholder="e.g. 20x15x10 cm" />
+                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} placeholder="e.g. 21x15x5 cm" />
                            <InputGroup label="SKU / Model #" value={newProduct.sku} onChange={v => updateProductField('sku', v)} placeholder="Stock keeping unit" />
-                           <div className="flex items-end pb-5">
-                              <InputGroup label="Logistics" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} placeholder="Requires Shipping" />
+                           <div className="flex items-center gap-3 p-4 bg-brand-purple/5 rounded-2xl border border-brand-purple/10">
+                              <Truck size={18} className="text-brand-purple" />
+                              <div>
+                                 <p className="text-[10px] font-bold text-brand-purple uppercase tracking-widest mb-0.5">Physical Product Setup</p>
+                                 <p className="text-xs text-brand-purple/70">Enable 'Standard Logistics' in the Basic tab to activate shipping options for this item.</p>
+                              </div>
                            </div>
                         </div>
                      </div>
