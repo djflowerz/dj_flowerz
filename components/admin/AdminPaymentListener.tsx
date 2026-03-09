@@ -38,7 +38,7 @@ interface Props {
     onNewActivity?: (activity: LiveActivity) => void;
 }
 
-const AdminPaymentListener: React.FC<Props> = ({ onNewSale }) => {
+const AdminPaymentListener: React.FC<Props> = ({ onNewSale, onNewActivity }) => {
     const wsRef = useRef<WebSocket | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
