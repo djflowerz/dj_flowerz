@@ -365,6 +365,9 @@ const mapR2Product = (p: any): Product => {
     digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
     downloadPassword: p.download_password || p.downloadPassword || '',
     secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
+    meta_title: p.meta_title || p.metaTitle || '',
+    meta_description: p.meta_description || p.metaDescription || '',
+    meta_keywords: p.meta_keywords || '',
   };
 };
 

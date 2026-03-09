@@ -27,3 +27,4 @@ dist-ssr
 r2_downloads_list.txt
 .vercel
 .env*.local
+.wrangler

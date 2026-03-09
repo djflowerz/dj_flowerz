@@ -16,6 +16,11 @@ export default function AdminProductsTab() {
     }
   };
 
+  const handleToggleStatus = async (product: Product) => {
+    const isCurrentlyActive = product.isActive;
+    await updateProduct(product.id, { isActive: !isCurrentlyActive });
+  };
+
   const handleSave = async (formData: FormData) => {
     const data = Object.fromEntries(formData.entries());
     const variants = data.variants ? JSON.parse(data.variants as string) : [];
@@ -92,6 +97,7 @@ export default function AdminProductsTab() {
           products={products}
           onEdit={(product) => { setEditingProduct(product); setIsModalOpen(true); }}
           onDelete={handleDelete}
+          onToggleStatus={handleToggleStatus}
         />
       )}
     </div>

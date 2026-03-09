@@ -36,6 +36,7 @@ import AdminPaymentsTab from '../components/admin/AdminPaymentsTab';
 import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
 import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory';
 import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
+import BlackoutManager from '../components/admin/BlackoutManager';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
    <textarea
@@ -524,7 +525,7 @@ const AdminDashboard: React.FC = () => {
    const [contentSubTab, setContentSubTab] = useState('home');
    const [telegramSubTab, setTelegramSubTab] = useState('config');
    const [bookingSubTab, setBookingSubTab] = useState('list');
-   const [gigSubTab, setGigSubTab] = useState('pipeline');
+   const [gigSubTab, setGigSubTab] = useState<'pipeline' | 'list' | 'blackouts'>('pipeline');
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance' | 'studio-bookings' | 'gigs'>('services');
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
@@ -1340,8 +1341,16 @@ const AdminDashboard: React.FC = () => {
       try {
          const now = new Date().toISOString();
 
+         // Auto-generate SEO fields if empty
+         const meta_title = newProduct.meta_title || newProduct.name;
+         const meta_description = newProduct.meta_description || (newProduct.description?.substring(0, 160) || '');
+         const meta_keywords = newProduct.meta_keywords || `${newProduct.name}, ${newProduct.category}, DJ Flowerz`;
+
          const productToSave: Product = {
             ...newProduct,
+            meta_title,
+            meta_description,
+            meta_keywords,
             variantGroups: newProduct.variantGroups || [],
             whatsappEnabled: true,
             hasVariants: (newProduct.variantGroups || []).some(g => (g.variants || []).length > 0),

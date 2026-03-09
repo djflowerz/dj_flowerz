@@ -113,8 +113,11 @@ export interface Product {
   isFree?: boolean;
   whatsappEnabled: boolean;
   shippingPrice?: number;
-  metaTitle?: string;
-  metaDescription?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string;
+  metaTitle?: string; // Legacy
+  metaDescription?: string; // Legacy
   ogImage?: string;
   condition?: 'new' | 'refurbished';
   status: 'draft' | 'published' | 'hidden';

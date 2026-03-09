@@ -138,7 +138,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Status</label>
                     <select
                       name="status"
-                      defaultValue={initialData?.is_active ? 'active' : 'draft'}
+                      defaultValue={initialData ? (initialData.is_active || initialData.isActive ? 'active' : 'draft') : 'active'}
                       className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
                     >
                       <option value="active">Active</option>

@@ -37,7 +37,10 @@ async function syncProductsToR2(env) {
                 releaseDate: p.release_date,
                 isActive: Boolean(p.is_active),
                 isHot: Boolean(p.is_featured),
-                stock: p.inventory // Map inventory column to frontend 'stock' field
+                stock: p.inventory, // Map inventory column to frontend 'stock' field
+                meta_title: p.meta_title || p.name || "",
+                meta_description: p.meta_description || (p.description ? p.description.substring(0, 160) : ""),
+                meta_keywords: p.meta_keywords || `${p.name || ""}, ${p.category || ""}, DJ Flowerz`
             };
         });
 
@@ -123,6 +126,32 @@ const DOWNLOAD_LIMITS = {
 };
 
 // --- Helpers ---
+
+async function sendEmail(env, { to, subject, html, from = "DJ Flowerz <no-reply@djflowerz.co.ke>" }) {
+    if (!env.RESEND_API_KEY) {
+        console.warn("[Email] RESEND_API_KEY not set. Skipping email to:", to);
+        return false;
+    }
+    try {
+        const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ from, to, subject, html })
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            console.error("[Email] Resend API error:", err);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error("[Email] Failed to send email:", e);
+        return false;
+    }
+}
 
 async function verifySupabaseJWT(token, secret) {
     if (!token || !secret) return null;
@@ -249,6 +278,76 @@ export default {
                 });
             }
 
+            // --- PAYSTACK WEBHOOK: POST /api/webhooks/paystack ---
+            if (method === "POST" && path === "/api/webhooks/paystack") {
+                const body = await request.json();
+
+                if (body.event === "charge.success") {
+                    const { user_id, plan_type } = body.data.metadata || {};
+                    const email = body.data.customer?.email;
+
+                    if (!email && !user_id) {
+                        return new Response("Missing user info", { status: 400, headers: corsHeaders });
+                    }
+
+                    const planDays = { 'weekly': 7, 'monthly': 30, 'pro': 365 };
+                    const days = planDays[plan_type] || 30;
+
+                    await env.DB.prepare(`
+                        UPDATE users SET 
+                            is_subscriber = 1,
+                            subscription_plan = ?,
+                            subscription_end_date = datetime('now', '+' || ? || ' days'),
+                            last_payment_ref = ?
+                        WHERE id = ? OR email = ?
+                    `).bind(plan_type || 'monthly', days, body.data.reference, user_id || null, email || null).run();
+
+                    // Optional: Notify Admin Hub
+                    try {
+                        const hubId = env.ADMIN_HUB.idFromName("global_admin");
+                        const hub = env.ADMIN_HUB.get(hubId);
+                        await hub.fetch("https://hub/event", {
+                            method: "POST",
+                            body: JSON.stringify({
+                                type: "PAYMENT_SUCCESS",
+                                message: `Activated: ${email || user_id} for ${plan_type} plan.`
+                            })
+                        });
+                    } catch (e) { }
+
+                    return new Response("OK", { status: 200, headers: corsHeaders });
+                }
+                return new Response("Event ignored", { status: 200, headers: corsHeaders });
+            }
+
+            // --- ADMIN: MANAGE SUBSCRIPTIONS: POST /api/admin/subscriptions/manage ---
+            if (method === "POST" && path === "/api/admin/subscriptions/manage") {
+                const { userId, plan, action } = await request.json();
+
+                if (action === 'revoke') {
+                    await env.DB.prepare("UPDATE users SET is_subscriber = 0, subscription_end_date = NULL WHERE id = ?")
+                        .bind(userId).run();
+                } else {
+                    const planDays = {
+                        'trial': 7,
+                        'weekly': 7,
+                        'monthly': 30,
+                        'pro': 365
+                    };
+                    const days = planDays[plan] || 30;
+
+                    await env.DB.prepare(`
+                        UPDATE users SET 
+                            is_subscriber = 1, 
+                            subscription_plan = ?, 
+                            subscription_end_date = datetime('now', '+' || ? || ' days')
+                        WHERE id = ?
+                    `).bind(plan, days, userId).run();
+                }
+
+                return Response.json({ success: true }, { headers: corsHeaders });
+            }
+
             // Public Data Fetch: GET /api/data/:collection.json
             if (method === "GET" && path.startsWith("/api/data/")) {
                 let collection = path.replace("/api/data/", "");
@@ -315,15 +414,18 @@ export default {
                 const variant_groups = product.variantGroups !== undefined ? product.variantGroups : product.variant_groups;
                 const whatsapp_enabled = product.whatsappEnabled !== undefined ? product.whatsappEnabled : product.whatsapp_enabled;
                 const is_free = product.isFree !== undefined ? product.isFree : product.is_free;
+                const meta_title = product.metaTitle || product.meta_title;
+                const meta_description = product.metaDescription || product.meta_description;
+                const meta_keywords = product.metaKeywords || product.meta_keywords;
 
                 await env.DB.prepare(`
                     INSERT INTO products (
                         id, name, description, price, category, image, images, inventory, currency, 
                         is_active, is_featured, discount_price, compare_at_price, type, brand, release_date, status, 
                         requires_shipping, weight, dimensions, sku, variant_groups, 
-                        whatsapp_enabled, is_free, created_at, updated_at
+                        whatsapp_enabled, is_free, meta_title, meta_description, meta_keywords, created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 `).bind(
                     productId,
                     name ?? null,
@@ -348,7 +450,10 @@ export default {
                     sku ?? null,
                     variant_groups ? JSON.stringify(variant_groups) : '[]',
                     whatsapp_enabled !== false ? 1 : 0,
-                    is_free ? 1 : 0
+                    is_free ? 1 : 0,
+                    meta_title ?? null,
+                    meta_description ?? null,
+                    meta_keywords ?? null
                 ).run();
 
                 // Vectorize: Generate embedding for semantic search
@@ -424,6 +529,9 @@ export default {
                         variant_groups = COALESCE(?, variant_groups),
                         whatsapp_enabled = COALESCE(?, whatsapp_enabled),
                         is_free = COALESCE(?, is_free),
+                        meta_title = COALESCE(?, meta_title),
+                        meta_description = COALESCE(?, meta_description),
+                        meta_keywords = COALESCE(?, meta_keywords),
                         updated_at = datetime('now')
                      WHERE id = ?`
                 ).bind(
@@ -450,6 +558,9 @@ export default {
                     variant_groups ? JSON.stringify(variant_groups) : null,
                     whatsapp_enabled !== undefined ? (whatsapp_enabled ? 1 : 0) : null,
                     is_free !== undefined ? (is_free ? 1 : 0) : null,
+                    data.metaTitle ?? data.meta_title ?? null,
+                    data.metaDescription ?? data.meta_description ?? null,
+                    data.metaKeywords ?? data.meta_keywords ?? null,
                     productId
                 ).run();
 
@@ -538,6 +649,44 @@ export default {
                 } catch (e) {
                     return Response.json({ status: "unhealthy", error: e.message }, { status: 500, headers: corsHeaders });
                 }
+            }
+
+            // --- GIG MANAGER: BLACKOUT DATES ---
+
+            // Public: List Blackouts (for booking calendar)
+            if (method === "GET" && path === "/api/blackouts") {
+                const { results } = await env.DB.prepare("SELECT * FROM blackouts ORDER BY date ASC").all();
+                return Response.json(results, { headers: corsHeaders });
+            }
+
+            // Admin: Add Blackout
+            if (method === "POST" && path === "/api/admin/bookings/blackout") {
+                const user = await getAuthorizedUser(request, env);
+                if (!user || user.role !== 'admin') {
+                    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+                }
+
+                const { date, reason } = await request.json();
+                const id = crypto.randomUUID();
+
+                await env.DB.prepare("INSERT INTO blackouts (id, date, reason) VALUES (?, ?, ?)")
+                    .bind(id, date, reason || "Gig Confirmed")
+                    .run();
+
+                return Response.json({ success: true, id }, { headers: corsHeaders });
+            }
+
+            // Admin: Delete Blackout
+            if (method === "DELETE" && path.startsWith("/api/admin/bookings/blackout/")) {
+                const user = await getAuthorizedUser(request, env);
+                if (!user || user.role !== 'admin') {
+                    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+                }
+
+                const id = path.split("/").pop();
+                await env.DB.prepare("DELETE FROM blackouts WHERE id = ?").bind(id).run();
+
+                return Response.json({ success: true }, { headers: corsHeaders });
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -676,9 +825,10 @@ export default {
                         id, user_id, total_amount, status, items, 
                         customer_name, customer_email, customer_phone, city, address,
                         payment_status, payment_method, tracking_number, 
-                        shipping_provider, shipping_method, shipping_cost, notes, created_at
+                        shipping_provider, shipping_method, shipping_cost, notes, 
+                        paystack_ref, refund_status, created_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                 `).bind(
                     orderId,
                     order.userId || order.user_id,
@@ -696,7 +846,9 @@ export default {
                     order.shippingProvider || order.shipping_provider,
                     order.shippingMethod || order.shipping_method,
                     order.shippingCost || order.shipping_cost || 0,
-                    order.notes || null
+                    order.notes || null,
+                    order.paystackRef || order.paystack_ref || null,
+                    order.refundStatus || order.refund_status || null
                 ).run();
                 await syncCollectionToR2(env, 'orders', "SELECT * FROM orders ORDER BY created_at DESC", res => res.map(o => ({
                     ...o,
@@ -1804,18 +1956,68 @@ export default {
                             `).bind(expiry.toISOString(), plan, plan, email).run();
 
                             fulfillmentMsg = `Subscription Granted (${plan})`;
+
+                            // Send Receipt
+                            await sendEmail(env, {
+                                to: email,
+                                subject: "Your DJ Flowerz Subscription is Active!",
+                                html: `<h1>Welcome to the VIP Pool!</h1><p>Your ${plan} subscription is now active until ${expiry.toLocaleDateString()}.</p><p>Enjoy unlimited downloads and exclusive content.</p>`
+                            });
                         }
                         else if (meta.type === "studio_session") {
                             await env.DB.prepare(`
                                 UPDATE studio_sessions SET status = 'paid', paystack_ref = ? WHERE id = ?
                             `).bind(ref, meta.bookingId).run();
                             fulfillmentMsg = "Studio Session Locked";
+
+                            // Send Receipt
+                            await sendEmail(env, {
+                                to: email,
+                                subject: "Studio Session Confirmed - DJ Flowerz",
+                                html: `<h1>We're Ready for You!</h1><p>Your studio session (Ref: ${meta.bookingId}) has been confirmed and paid.</p><p>Check your dashboard for details.</p>`
+                            });
                         }
                         else if (meta.type === "event_gig") {
                             await env.DB.prepare(`
                                 UPDATE event_gigs SET status = 'confirmed', deposit_received = ?, paystack_ref = ? WHERE id = ?
                             `).bind(amountKes, ref, meta.gigId).run();
                             fulfillmentMsg = "Event Gig Confirmed";
+
+                            // Send Receipt
+                            await sendEmail(env, {
+                                to: email,
+                                subject: "Gig Deposit Received - DJ Flowerz",
+                                html: `<h1>It's a Date!</h1><p>We've received your deposit of KES ${amountKes} for the event on ${meta.eventDate || 'your selected date'}.</p><p>Ref: ${meta.gigId}</p>`
+                            });
+                        }
+                        else if (meta.type === "store_order") {
+                            await env.DB.prepare(`
+                                UPDATE orders SET status = 'paid', payment_status = 'paid', paystack_ref = ? WHERE id = ?
+                            `).bind(ref, meta.orderId).run();
+                            fulfillmentMsg = "Store Order Paid";
+
+                            // Fetch order details for rich receipt
+                            const order = await env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(meta.orderId).first();
+                            if (order) {
+                                const items = JSON.parse(order.items || "[]");
+                                const itemsHtml = items.map(it => `<li>${it.name} x ${it.qty || it.quantity} - KES ${it.price * (it.qty || it.quantity)}</li>`).join('');
+                                await sendEmail(env, {
+                                    to: email,
+                                    subject: `Order Confirmation #${order.id}`,
+                                    html: `
+                                        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;">
+                                            <h2 style="color: #e11d48;">Thanks for your order!</h2>
+                                            <p>Hi ${order.customer_name || 'there'},</p>
+                                            <p>Your payment of <strong>KES ${order.total_amount}</strong> was successful. Here's what you ordered:</p>
+                                            <ul style="list-style: none; padding: 0;">${itemsHtml}</ul>
+                                            <hr/>
+                                            <p><strong>Shipping to:</strong><br/>${order.address}, ${order.city}</p>
+                                            <p>We'll send you a tracking number as soon as your items are dispatched.</p>
+                                            <p>Questions? Just reply to this email.</p>
+                                        </div>
+                                    `
+                                });
+                            }
                         }
                         else {
                             // Fallback: Default to subscription if no type (backward compatibility)

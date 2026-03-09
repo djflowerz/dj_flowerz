@@ -189,6 +189,47 @@ async function handleChargeSuccess(data: any, metadata: any) {
     await updateR2Item('orders', orderId, orderData);
     console.log(`Order ${orderId} saved to R2`);
 
+    // --- INVENTORY GUARD (Subtract Stock) ---
+    try {
+        const products = await getR2Collection<any>('products');
+        let productsModified = false;
+
+        for (const item of orderData.items) {
+            // Check if item is physical. Note: item.type might be 'physical' from metadata
+            if (item.type === 'physical') {
+                const productIdx = products.findIndex(p => p.id === item.productId);
+                if (productIdx !== -1) {
+                    const product = products[productIdx];
+                    const currentStock = Number(product.stock || product.inventory || 0);
+                    const purchasedQty = Number(item.quantity || 1);
+                    const newStock = Math.max(0, currentStock - purchasedQty);
+
+                    products[productIdx].stock = newStock;
+                    productsModified = true;
+
+                    // Low Stock Alert (Threshold: 3)
+                    if (newStock < 3) {
+                        await addAdminNotification(
+                            `⚠️ Low Stock: ${product.name}`,
+                            `Only ${newStock} units left in stock. Time to restock!`,
+                            'warning',
+                            `/admin?tab=store&id=${product.id}`
+                        );
+                    }
+                }
+            }
+        }
+
+        if (productsModified) {
+            // Need saveR2Collection which wasn't imported at top
+            const { saveR2Collection } = await import('../../utils/server-r2');
+            await saveR2Collection('products', products);
+            console.log(`[Inventory Guard] Updated stock for ${orderId}`);
+        }
+    } catch (invError) {
+        console.error('Inventory Guard Error:', invError);
+    }
+
     // Add Admin Notification
     await addAdminNotification(
         `New Order: ${orderData.id}`,

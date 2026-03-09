@@ -7,9 +7,10 @@ interface ProductTableProps {
   products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
+  onToggleStatus: (product: Product) => void;
 }
 
-const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, onDelete }) => {
+const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, onDelete, onToggleStatus }) => {
   // Helper to format currency specifically for KES
   const formatKES = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
@@ -87,10 +88,13 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, onDelete 
                     )}
                   </td>
                   <td className="px-8 py-6 text-center">
-                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${product.is_active || product.isActive || (product.is_active === undefined && product.isActive === undefined) ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/10' : 'bg-white/5 text-gray-600 border border-white/5'
-                      }`}>
+                    <button
+                      onClick={() => onToggleStatus(product)}
+                      className={`inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${product.is_active || product.isActive || (product.is_active === undefined && product.isActive === undefined) ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-gray-600 border border-white/5 hover:bg-white/10'
+                        }`}
+                    >
                       {(product.is_active || product.isActive || (product.is_active === undefined && product.isActive === undefined)) ? 'Active' : 'Draft'}
-                    </span>
+                    </button>
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex items-center justify-end gap-2">

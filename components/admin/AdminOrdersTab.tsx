@@ -140,6 +140,8 @@ export default function AdminOrdersTab() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shipping Details</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {activeTab === 'fulfillment' ? 'Fulfillment Action' : 'Date'}
                 </th>
@@ -163,9 +165,9 @@ export default function AdminOrdersTab() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                        order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
+                      order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
                       }`}>
                       {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                     </span>
@@ -176,7 +178,22 @@ export default function AdminOrdersTab() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                    {formatCurrency(order.total_amount)}
+                    {formatCurrency(order.total_amount || (order as any).total || 0)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-gray-900">{order.city || 'N/A'}</span>
+                      <span className="text-xs">{order.address || order.shipping_address || 'N/A'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div className="flex flex-col gap-1 max-w-[200px] overflow-hidden">
+                      {order.items && order.items.map((item: any, idx: number) => (
+                        <span key={idx} className="truncate text-xs">
+                          {item.quantity}x {item.productName || item.name}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {activeTab === 'fulfillment' ? (
@@ -224,6 +241,17 @@ export default function AdminOrdersTab() {
                         >
                           <AlertCircle size={16} />
                         </button>
+                      )}
+                      {(order.customer_phone || order.customerPhone) && (
+                        <a
+                          href={`https://wa.me/${(order.customer_phone || order.customerPhone)?.replace(/\+/g, '').replace(/\s/g, '')}?text=Hello%20${encodeURIComponent(order.customer_name || '')},%20your%20order%20%23${order.id.slice(0, 8)}%20from%20DJ%20Flowerz%20is%20${order.status}.`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 hover:text-green-900 hover:bg-green-50 p-1 rounded"
+                          title="Contact via WhatsApp"
+                        >
+                          <MessageCircle size={16} />
+                        </a>
                       )}
                     </div>
                   </td>
