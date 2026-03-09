@@ -10,11 +10,11 @@ interface State {
     error: Error | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-    constructor(props: Props) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
+export class ErrorBoundary extends Component<Props, State> {
+    public state: State = {
+        hasError: false,
+        error: null
+    };
 
     static getDerivedStateFromError(error: Error): State {
         return { hasError: true, error };
@@ -41,11 +41,6 @@ class ErrorBoundary extends Component<Props, State> {
                         <p className="text-gray-400 mb-8 font-medium leading-relaxed">The admin interface encountered a critical logic failure. The details below have been logged to the console for the developer.</p>
                         <div className="bg-black/40 p-6 rounded-3xl overflow-auto text-xs font-mono text-red-400 border border-white/5 mb-8 max-h-64">
                             {this.state.error?.message}
-                            {this.state.error?.stack && (
-                                <div className="mt-4 opacity-50 whitespace-pre">
-                                    {this.state.error.stack}
-                                </div>
-                            )}
                         </div>
                         <div className="flex gap-4">
                             <button
