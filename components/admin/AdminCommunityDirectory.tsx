@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+import { supabase } from '../../utils/supabase';
+
 const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
 interface User {
@@ -32,15 +34,20 @@ interface User {
 }
 
 const AdminCommunityDirectory: React.FC = () => {
-    const { session } = useAuth() as any;
+    const { user } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
     const fetchUsers = useCallback(async () => {
-        if (!session?.access_token) return;
         setLoading(true);
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                setLoading(false);
+                return;
+            }
+
             const res = await fetch(`${WORKER_URL}/api/admin/users`, {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
@@ -51,7 +58,7 @@ const AdminCommunityDirectory: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [session?.access_token]);
+    }, []);
 
     useEffect(() => {
         fetchUsers();
