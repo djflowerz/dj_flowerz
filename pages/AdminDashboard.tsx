@@ -1355,7 +1355,8 @@ const AdminDashboard: React.FC = () => {
                ...productToSave,
                id: `p${Date.now()}`,
                slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-               createdAt: now
+               createdAt: now,
+               image_url: productToSave.image || productToSave.image_url // Ensure image is mapped
             };
             await addProduct(finalProduct);
          }
@@ -5052,7 +5053,7 @@ const AdminDashboard: React.FC = () => {
             <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="lg">
                <div className="space-y-8">
                   {/* Step Indicators */}
-                  <div className="flex bg-[#0B0B0F] p-1.5 rounded-2xl border border-white/5 overflow-x-auto scrollbar-hide">
+                  <div className="flex bg-black p-1.5 rounded-2xl border border-white/5 overflow-x-auto scrollbar-hide">
                      <button onClick={() => setProductFormTab('type')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'type' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                         <Box size={14} /> Type
                      </button>
@@ -5115,7 +5116,7 @@ const AdminDashboard: React.FC = () => {
                            <InputGroup label="Brand" value={newProduct.brand || ''} onChange={v => updateProductField('brand', v)} placeholder="e.g. Pioneer DJ, Yamaha, Apple..." />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black p-6 rounded-3xl border border-white/5">
                            <InputGroup label="Base Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
                            <InputGroup label="Discount Price" type="number" value={newProduct.discountPrice || 0} onChange={v => updateProductField('discountPrice', Number(v))} helperText="Leave 0 for no discount" />
                            <InputGroup label="Compare At Price" type="number" value={newProduct.compareAtPrice || 0} onChange={v => updateProductField('compareAtPrice', Number(v))} />
@@ -5126,11 +5127,8 @@ const AdminDashboard: React.FC = () => {
                            <InputGroup
                               label="Category"
                               options={[
-                                 'Head Phones & Ear Buds', 'Laptops', 'Gaming', 'CPUs', 'Monitors', 'Printers', 'Speakers',
-                                 'All-In-One Desktops', 'Tablets', 'Computer Accessories', 'Mobile Phones', 'Apparel',
-                                 'Accessories', 'Software', 'Samples', 'Music Production', 'Studio Furniture', 'Vinyl Records',
-                                 'Digital Downloads', 'Hard Drives/USB', 'DJ Lighting', 'Microphones', 'Studio Monitors',
-                                 'Cables', 'Merchandise', 'DJ Controllers', 'Other'
+                                 'All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Mobile Phones',
+                                 'Mobile Accessories', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'
                               ]}
                               value={newProduct.category}
                               onChange={v => updateProductField('category', v)}
@@ -5249,7 +5247,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
 
                         {(newProduct.variantGroups || []).length === 0 && (
-                           <div className="text-center py-12 bg-[#0B0B0F] rounded-3xl border-2 border-dashed border-white/5">
+                           <div className="text-center py-12 bg-black rounded-3xl border-2 border-dashed border-white/5">
                               <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-600 mx-auto mb-3">
                                  <List size={24} />
                               </div>
@@ -5258,7 +5256,7 @@ const AdminDashboard: React.FC = () => {
                         )}
 
                         {(newProduct.variantGroups || []).map((group, gIdx) => (
-                           <div key={gIdx} className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5 space-y-4">
+                           <div key={gIdx} className="bg-black p-6 rounded-3xl border border-white/5 space-y-4">
                               <div className="flex justify-between items-start gap-4">
                                  <div className="flex-1">
                                     <InputGroup
@@ -5308,7 +5306,7 @@ const AdminDashboard: React.FC = () => {
 
                                  <div className="space-y-2">
                                     {group.variants.map((variant, vIdx) => (
-                                       <div key={vIdx} className="grid grid-cols-1 shadow-sm md:grid-cols-12 gap-3 items-center bg-[#15151A] p-4 rounded-2xl border border-white/5">
+                                       <div key={vIdx} className="grid grid-cols-1 shadow-sm md:grid-cols-12 gap-3 items-center bg-black p-4 rounded-2xl border border-white/5">
                                           <div className="md:col-span-2">
                                              <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Name</label>
                                              <input
@@ -5485,7 +5483,7 @@ const AdminDashboard: React.FC = () => {
                   )}
 
                   {/* Modal Footer */}
-                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-[#15151A] z-10 -m-8 mt-2 p-8 rounded-b-3xl">
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-black z-10 -m-8 mt-2 p-8 rounded-b-3xl">
                      <button onClick={() => setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
                      <button
                         onClick={handleSaveProduct}
