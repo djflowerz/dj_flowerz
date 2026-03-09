@@ -28,15 +28,15 @@ export default function AdminProductsTab() {
       sku: data.sku as string,
       weight: data.weight ? (data.weight as string) : undefined,
       dimensions: data.dimensions as string,
-      compare_at_price: data.compare_at_price ? parseFloat(data.compare_at_price as string) : undefined,
-      is_active: data.is_active === 'on',
-      is_featured: data.is_featured === 'on',
-      is_free: data.is_free === 'on',
-      whatsapp_enabled: data.whatsapp_enabled === 'on'
+      compareAtPrice: data.compareAtPrice ? parseFloat(data.compareAtPrice as string) : undefined,
+      isActive: data.isActive === 'on',
+      isFeatured: data.isFeatured === 'on',
+      isFree: data.isFree === 'on',
+      whatsappEnabled: data.whatsappEnabled === 'on'
     };
 
-    if (editingProduct && (editingProduct.image || editingProduct.image_url)) {
-      productData.image_url = editingProduct.image_url || editingProduct.image;
+    if (editingProduct && editingProduct.image) {
+      productData.image = editingProduct.image;
     }
 
     if (editingProduct) {

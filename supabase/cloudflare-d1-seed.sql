@@ -1,4 +1,4 @@
--- DJ Flowerz D1 Data Seed Generated on 2026-03-08T06:36:26.722Z
+-- DJ Flowerz D1 Data Seed Generated on 2026-03-09T03:40:52.551Z
 
 -- Inserting 48 products
 INSERT OR REPLACE INTO products (id, name, description, price, category, image, is_active) VALUES ('p1771285147628', 'Dell Latitude 5420', '11th Gen Intel Core i7-1185G7 Quad-Core Processor 3.0 GHz to 4.80 GHz/16GB DDR4 3200 MHz Dual-channel Memory/512 GB PCIe NVMe SSD/No optical Drive  14-inch Full HD 1920 x 1080 anti-glare non-touch display/Intel Iris Xe Graphics/1 RJ-45 Ethernet port/1 USB 3.2 Gen 1 port  1 USB 3.2 Gen 1 port with PowerShare/2 Thunderbolt 4 ports with DisplayPort Alt Mode, USB4 and Power Delivery/1 HDMI 2.0 port  1 Universal audio port/1 microSD-card slot/Gigabit Ethernet RJ-45 LAN Port/Wi-Fi 6 (802.11ax) plus  Bluetooth 5.1/720p HD RGB camera/Full size Backlit Keyboard  Dual-array microphones/Stereo speakers (2W x 2)/Realtek Waves MaxxAudio/3-cell, 42 WHr Battery/Windows 11 Pro 64/Silver color', 43000, 'Laptops', '', 1);

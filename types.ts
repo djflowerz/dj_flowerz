@@ -86,6 +86,7 @@ export interface Product {
   visibility: 'public' | 'members_only';
   tags: string[];
   isHot?: boolean;
+  isFeatured?: boolean;
   image: string;
   images?: string[];
   videoUrl?: string;
