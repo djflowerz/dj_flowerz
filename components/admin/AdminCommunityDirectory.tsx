@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
 interface User {
     id: string;

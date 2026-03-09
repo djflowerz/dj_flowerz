@@ -25,7 +25,7 @@ import { manualSync } from '../utils/autoSyncTracks';
 import { uploadFileToR2, saveToR2, updateR2Item } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
-import AdminProductsTab from '../components/admin/AdminProductsTab';
+
 import AdminOrdersTab from '../components/admin/AdminOrdersTab';
 import SubscriptionTab from '../components/admin/SubscriptionTab';
 import AnalyticsTab from '../components/admin/AnalyticsTab';
@@ -1036,7 +1036,7 @@ const AdminDashboard: React.FC = () => {
 
       let broken = 0;
       let missingVersions = 0;
-      const total = poolTracks.length;
+      const total = (poolTracks || []).length;
 
       for (let i = 0; i < total; i++) {
          const t = poolTracks[i];
@@ -1355,8 +1355,9 @@ const AdminDashboard: React.FC = () => {
                ...productToSave,
                id: `p${Date.now()}`,
                slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-               createdAt: now,
-               image_url: productToSave.image || productToSave.image_url // Ensure image is mapped
+               createdAt: now
+               // image_url is managed by updateProduct/addProduct implementation internally or db triggers if needed,
+               // but TS complains about it on the frontend Product interface. We'll leave it as `image` in `productToSave`.
             };
             await addProduct(finalProduct);
          }
@@ -2255,7 +2256,7 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div>
                                     <h4 className="text-xl font-black text-white">Cloud Indexing</h4>
-                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">Total indexed tracks: {poolTracks.length.toLocaleString()}</p>
+                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">Total indexed tracks: {(poolTracks || []).length.toLocaleString()}</p>
                                  </div>
                               </div>
                               <div className="flex flex-wrap gap-3 w-full lg:w-auto">
@@ -2399,12 +2400,12 @@ const AdminDashboard: React.FC = () => {
                               </div>
 
 
-                              {!poolLoading && poolTracks.length > 0 && (
+                              {!poolLoading && (poolTracks || []).length > 0 && (
                                  <div className="p-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.01]">
                                     <div className="flex items-center gap-3">
                                        <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
                                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">
-                                          Database Fully Synchronized ({poolTracks.length.toLocaleString()} tracks)
+                                          Database Fully Synchronized ({(poolTracks || []).length.toLocaleString()} tracks)
                                        </p>
                                     </div>
                                     <div className="flex gap-3">
@@ -2988,7 +2989,137 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'store' && <AdminProductsTab />}
+               {activeTab === 'store' && (
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Merchandise Catalog</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Curate your inventory across active commerce channels</p>
+                        </div>
+                        <button onClick={openAddProduct} className="px-8 py-4 bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-purple-600 shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 flex items-center gap-3">
+                           <Plus size={18} /> Catalog New Item
+                        </button>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-purple shadow-inner">
+                              <ShoppingBag size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Total Assets</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.length}</p>
+                              <p className="text-[10px] text-brand-purple font-bold mt-1">Items in catalog</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-3xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shadow-inner">
+                              <CheckCircle size={28} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Stream Ready</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.status === 'published').length}</p>
+                              <p className="text-[10px] text-green-500 font-bold mt-1">Live in store</p>
+                           </div>
+                        </div>
+                        <div className="bg-[#0B0B0F] p-7 rounded-[2.5rem] border border-white/5 flex items-center gap-6 shadow-xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-orange-500/10 transition-colors" />
+                           <div className="w-16 h-16 rounded-3xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shadow-inner">
+                              <AlertCircle size={28} />
+                           </div>
+                           <div className="relative z-10">
+                              <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Depletion Alert</p>
+                              <p className="text-3xl font-black text-white tracking-tighter">{products.filter(p => p.type === 'physical' && (p.stock || 0) < 10).length}</p>
+                              <p className="text-[10px] text-orange-500 font-bold mt-1">Requires restock</p>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Asset Profile</th>
+                                    <th className="px-8 py-6">Classification</th>
+                                    <th className="px-8 py-6">Inventory Quant</th>
+                                    <th className="px-8 py-6">Market Value</th>
+                                    <th className="px-8 py-6">Channel Status</th>
+                                    <th className="px-8 py-6 text-right">Ops Control</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {(Array.isArray(products) ? [...products] : [])
+                                    .sort((a, b) => {
+                                       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                       return dateB - dateA;
+                                    })
+                                    .map((p) => (
+                                       <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 p-0.5">
+                                                   <img src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                   <div className="font-black text-white truncate max-w-[200px] group-hover:text-brand-purple transition-colors">{p.name}</div>
+                                                   <div className="flex items-center gap-2 mt-1">
+                                                      <span className={`text-[9px] px-2 py-0.5 rounded-md uppercase font-black tracking-widest border ${p.type === 'digital' ? 'bg-blue-500/5 text-blue-500 border-blue-500/10' : 'bg-orange-500/5 text-orange-500 border-orange-500/10'}`}>{p.type}</span>
+                                                      {p.os && p.os !== 'None' && <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">OS/ {p.os}</span>}
+                                                   </div>
+                                                </div>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[10px] border border-white/5 px-3 py-1 rounded-full">{p.category}</span>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className="text-white font-black text-base">
+                                                   {p.type === 'digital' ? <Infinity size={18} className="text-gray-600" /> : (
+                                                      (p.variantGroups && p.variantGroups.length > 0) ? (
+                                                         p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                                      ) : (p.stock || 0)
+                                                   )}
+                                                </span>
+                                                {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-orange-500 font-black uppercase tracking-[0.2em] mt-1">Low Buffer</span>}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex flex-col">
+                                                <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-600 line-through text-[10px] font-bold' : 'text-white font-black text-base'}>
+                                                   KES {(p.price || 0).toLocaleString()}
+                                                </span>
+                                                {p.discountPrice && p.discountPrice > 0 && (
+                                                   <span className="text-brand-cyan font-black text-base">
+                                                      KES {(p.discountPrice || 0).toLocaleString()}
+                                                   </span>
+                                                )}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${p.status === 'published' ? 'bg-green-500/5 text-green-500 border-green-500/20' :
+                                                p.status === 'hidden' ? 'bg-yellow-500/5 text-yellow-500 border-yellow-500/20' :
+                                                   'bg-white/5 text-gray-400 border-white/10'
+                                                }`}>
+                                                {p.status}
+                                             </span>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex justify-end gap-3">
+                                                <button onClick={() => openEditProduct(p)} className="p-3 text-gray-500 hover:text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
+                                                <button type="button" onClick={(e) => handleDeleteProduct(e, p)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  </div>
+               )}
                {activeTab === 'mixtapes' && (
                   <div className="animate-fade-in-up">
                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
