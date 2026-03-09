@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
-import { Package, Truck, Layers, Settings, X, Plus, Trash2, List } from 'lucide-react';
+import { Package, Truck, Layers, Settings, X, Plus, Trash2, List, Save, Upload, Info, CheckCircle2 } from 'lucide-react';
 
 interface AddProductFormProps {
   onSave: (formData: FormData) => Promise<void>;
@@ -23,290 +23,407 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     setVariants(variants.filter(v => v.id !== id));
   };
 
-  const updateVariant = (id: string, field: string, value: any) => {
-    setVariants(variants.map(v => v.id === id ? { ...v, [field]: value } : v));
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-
-    // Add variants as a JSON string to a hidden input or append to FormData
-    formData.append('variants_json', JSON.stringify(variants));
-
-    // Handle checkboxes explicitly as booleans if backend requires
-    const checkboxes = ['is_active', 'is_featured', 'is_free', 'whatsapp_enabled', 'is_digital'];
-    checkboxes.forEach(cb => {
-      const el = form.elements.namedItem(cb) as HTMLInputElement;
-      if (el) {
-        formData.set(cb, el.checked ? 'true' : 'false');
-      }
-    });
-
     try {
+      const formData = new FormData(e.currentTarget);
+      formData.append('variants', JSON.stringify(variants));
       await onSave(formData);
     } catch (err) {
-      console.error('Upload failed:', err);
-      alert('Failed to save product.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const TabButton = ({ id, label, icon: Icon }: { id: TabType, label: string, icon: any }) => (
-    <button
-      type="button"
-      onClick={() => setActiveTab(id)}
-      className={`flex items-center gap-2 px-4 py-2 border-b-2 transition ${activeTab === id
-          ? 'border-brand-purple text-brand-purple font-bold'
-          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
-        }`}
-    >
-      <Icon size={16} />
-      <span className="text-sm">{label}</span>
-    </button>
-  );
+  const tabClasses = (tab: TabType) => `
+    flex items-center gap-3 px-8 py-5 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative
+    ${activeTab === tab
+      ? 'text-brand-purple bg-brand-purple/5'
+      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}
+  `;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between border-b pb-4">
-        <h2 className="text-xl font-bold text-gray-900">{initialData ? 'Edit Product' : 'Add New Product'}</h2>
-        <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600 p-1">
-          <X size={20} />
-        </button>
-      </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={onCancel} />
 
-      <div className="flex gap-2 border-b overflow-x-auto no-scrollbar">
-        <TabButton id="basic" label="Basic Details" icon={Package} />
-        <TabButton id="variants" label="Variants & Stock" icon={Layers} />
-        <TabButton id="shipping" label="Shipping" icon={Truck} />
-        <TabButton id="advanced" label="Advanced" icon={Settings} />
-      </div>
-
-      <div className="min-h-[400px]">
-        {activeTab === 'basic' && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Product Name</label>
-                <input name="name" type="text" defaultValue={initialData?.name} required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="e.g. DJ Flowerz Custom Headphones" />
+      <form
+        onSubmit={handleSubmit}
+        className="relative w-full max-w-5xl bg-[#0B0B0F] rounded-[3rem] border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="px-10 py-8 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
+                <Package size={18} />
               </div>
-
-              <div className="col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Description</label>
-                <textarea name="description" defaultValue={initialData?.description} rows={4} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="Tell customers about your product..." />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
-                <select name="category" defaultValue={initialData?.category} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition">
-                  <option value="Audio">Audio</option>
-                  <option value="Lifestyle">Lifestyle</option>
-                  <option value="Merchandise">Merchandise</option>
-                  <option value="Software">Software</option>
-                  <option value="Hardware">Hardware</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Price (KES)</label>
-                <input name="price" type="number" step="0.01" defaultValue={initialData?.price} required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="0.00" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Discount Price (KES)</label>
-                <input name="discount_price" type="number" step="0.01" defaultValue={initialData?.discountPrice} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="Optional" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">SKU</label>
-                <input name="sku" type="text" defaultValue={initialData?.sku} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="DJF-PRD-001" />
-              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                {initialData ? 'Edit Product' : 'Create New Product'}
+              </h2>
             </div>
+            <p className="text-xs font-black text-gray-500 uppercase tracking-widest ml-11">Configure your store inventory</p>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-        {activeTab === 'variants' && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 italic">Add different versions of your product like size, color, or model.</p>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="flex items-center gap-1.5 text-xs font-bold bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white px-3 py-1.5 rounded-lg transition"
-              >
-                <Plus size={14} /> Add Variant
-              </button>
-            </div>
+        {/* Tabs */}
+        <div className="flex border-b border-white/5 bg-white/[0.01]">
+          <button type="button" onClick={() => setActiveTab('basic')} className={tabClasses('basic')}>
+            <Info size={14} /> Basic Info
+            {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
+          </button>
+          <button type="button" onClick={() => setActiveTab('variants')} className={tabClasses('variants')}>
+            <Layers size={14} /> Variants
+            {activeTab === 'variants' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
+          </button>
+          <button type="button" onClick={() => setActiveTab('shipping')} className={tabClasses('shipping')}>
+            <Truck size={14} /> Shipping
+            {activeTab === 'shipping' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
+          </button>
+          <button type="button" onClick={() => setActiveTab('advanced')} className={tabClasses('advanced')}>
+            <Settings size={14} /> Advanced
+            {activeTab === 'advanced' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
+          </button>
+        </div>
 
-            {variants.length > 0 ? (
-              <div className="space-y-3">
-                {variants.map((variant) => (
-                  <div key={variant.id} className="grid grid-cols-12 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100 items-end">
-                    <div className="col-span-12 md:col-span-5">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Variant Name (e.g. XL - Black)</label>
-                      <input
-                        value={variant.name}
-                        onChange={(e) => updateVariant(variant.id, 'name', e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-brand-purple outline-none"
-                      />
-                    </div>
-                    <div className="col-span-4 md:col-span-3">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Price</label>
-                      <input
-                        type="number"
-                        value={variant.price}
-                        onChange={(e) => updateVariant(variant.id, 'price', e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-brand-purple outline-none"
-                      />
-                    </div>
-                    <div className="col-span-4 md:col-span-3">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Stock</label>
-                      <input
-                        type="number"
-                        value={variant.stock}
-                        onChange={(e) => updateVariant(variant.id, 'stock', e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-brand-purple outline-none"
-                      />
-                    </div>
-                    <div className="col-span-4 md:col-span-1 flex justify-center pb-1">
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(variant.id)}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar text-white">
+          {activeTab === 'basic' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Product Name</label>
+                  <input
+                    name="name"
+                    required
+                    defaultValue={initialData?.name}
+                    placeholder="e.g., Premium Sample Pack Vol. 1"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Description</label>
+                  <textarea
+                    name="description"
+                    rows={4}
+                    defaultValue={initialData?.description}
+                    placeholder="Describe your product details..."
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Category</label>
+                    <select
+                      name="category"
+                      defaultValue={initialData?.category || 'Merch'}
+                      className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                    >
+                      <option value="Merch">Merch</option>
+                      <option value="Samples">Samples</option>
+                      <option value="Presets">Presets</option>
+                      <option value="Tickets">Tickets</option>
+                      <option value="Course">Course</option>
+                    </select>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
-                <List className="text-gray-300 mb-2" size={32} />
-                <p className="text-sm text-gray-400">No variants added yet.</p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Base Stock (if no variants)</label>
-              <input name="stock" type="number" defaultValue={initialData?.stock} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="0" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'shipping' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weight (kg)</label>
-                <input name="weight" type="number" step="0.01" defaultValue={initialData?.weight} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="0.00" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dimensions (LxWxH cm)</label>
-                <input name="dimensions" type="text" defaultValue={initialData?.dimensions} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition" placeholder="e.g. 10x10x5" />
-              </div>
-            </div>
-
-            <div className="bg-brand-purple/5 p-4 rounded-xl border border-brand-purple/10">
-              <h4 className="text-sm font-bold text-brand-purple mb-2 flex items-center gap-2">
-                <Truck size={14} /> Shipping Logic
-              </h4>
-              <p className="text-xs text-brand-purple/80 leading-relaxed">
-                Weight and dimensions are used to calculate shipping rates at checkout. Ensure these are accurate for physical products.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'advanced' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="space-y-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Product Images</label>
-              <div className="flex flex-wrap gap-3">
-                {initialData?.image_url && (
-                  <div className="relative group">
-                    <img src={initialData.image_url} alt="Current" className="h-20 w-20 object-cover rounded-xl border-2 border-brand-purple/20" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition rounded-xl flex items-center justify-center">
-                      <span className="text-[8px] font-bold text-white uppercase">Primary</span>
-                    </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Status</label>
+                    <select
+                      name="status"
+                      defaultValue={initialData?.is_active ? 'active' : 'draft'}
+                      className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                    >
+                      <option value="active">Active</option>
+                      <option value="draft">Draft</option>
+                    </select>
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Product Images</label>
+                  <div className="aspect-video bg-white/[0.02] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center group hover:border-brand-purple/30 transition-all cursor-pointer relative overflow-hidden">
+                    <input type="file" name="image" className="absolute inset-0 opacity-0 cursor-pointer" />
+                    {initialData?.image_url ? (
+                      <img src={initialData.image_url} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                    ) : (
+                      <>
+                        <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-gray-500 group-hover:text-brand-purple group-hover:bg-brand-purple/10 transition-all mb-4">
+                          <Upload size={28} />
+                        </div>
+                        <p className="text-sm font-black text-gray-400 tracking-tight">Upload Product Media</p>
+                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mt-2">Supports JPG, PNG, WEBP (Max 5MB)</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Price (KES)</label>
+                    <input
+                      type="number"
+                      name="price"
+                      required
+                      defaultValue={initialData?.price}
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Compare Price</label>
+                    <input
+                      type="number"
+                      name="compare_at_price"
+                      defaultValue={initialData?.compare_at_price}
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium placeholder:text-gray-700"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'variants' && (
+            <div className="space-y-8">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-lg font-black text-white tracking-tight">Product Variants</h3>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest mt-1">Manage sizes, colors, or file versions</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addVariant}
+                  className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-brand-purple text-white text-[11px] font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all active:scale-95"
+                >
+                  <Plus size={14} /> Add Variant
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {variants.length === 0 ? (
+                  <div className="py-20 bg-white/[0.01] border border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center opacity-50">
+                    <Layers size={40} className="text-gray-600 mb-4" />
+                    <p className="text-sm font-black text-gray-500 uppercase tracking-widest">No variants configured</p>
+                  </div>
+                ) : (
+                  variants.map((variant, idx) => (
+                    <div key={variant.id} className="grid grid-cols-12 gap-4 items-center bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.03] transition-all group">
+                      <div className="col-span-1">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-600 text-xs font-black">
+                          {idx + 1}
+                        </div>
+                      </div>
+                      <div className="col-span-4">
+                        <input
+                          placeholder="Variant Name"
+                          value={variant.name}
+                          onChange={(e) => {
+                            const newVariants = [...variants];
+                            newVariants[idx].name = e.target.value;
+                            setVariants(newVariants);
+                          }}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 text-sm font-medium"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-600 uppercase">KES</span>
+                          <input
+                            type="number"
+                            placeholder="Price"
+                            value={variant.price}
+                            onChange={(e) => {
+                              const newVariants = [...variants];
+                              newVariants[idx].price = Number(e.target.value);
+                              setVariants(newVariants);
+                            }}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 text-sm font-medium"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          placeholder="Stock"
+                          value={variant.stock}
+                          onChange={(e) => {
+                            const newVariants = [...variants];
+                            newVariants[idx].stock = Number(e.target.value);
+                            setVariants(newVariants);
+                          }}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 text-sm font-medium"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(variant.id)}
+                          className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-gray-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
                 )}
-                <label className="h-20 w-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-brand-purple/40 hover:bg-brand-purple/5 transition grayscale hover:grayscale-0">
-                  <Plus className="text-gray-400 group-hover:text-brand-purple" size={20} />
-                  <span className="text-[10px] text-gray-400 mt-1 uppercase font-bold text-center px-1">Upload New</span>
-                  <input name="image" type="file" accept="image/*" className="hidden" />
-                </label>
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-brand-purple/30 transition">
-                  <input name="is_active" type="checkbox" defaultChecked={initialData?.is_active ?? true} className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple h-4 w-4" />
+          {activeTab === 'shipping' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="bg-white/[0.01] border border-white/5 p-8 rounded-[2.5rem] space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <Truck className="text-brand-purple" size={20} />
+                  <h3 className="text-lg font-black text-white tracking-tight">Logistics Settings</h3>
                 </div>
                 <div>
-                  <span className="block text-sm font-bold text-gray-700">Active</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-medium">Available to customers</span>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Shipping Price (KES)</label>
+                  <input
+                    type="number"
+                    name="shipping_price"
+                    defaultValue={initialData?.shippingPrice || 0}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                  />
                 </div>
-              </label>
+                <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                  <CheckCircle2 size={16} className="text-emerald-500" />
+                  <p className="text-[11px] font-black text-emerald-500/80 uppercase tracking-widest">Free shipping threshold applies</p>
+                </div>
+              </div>
 
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-brand-purple/30 transition">
-                  <input name="is_featured" type="checkbox" defaultChecked={initialData?.is_featured} className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple h-4 w-4" />
+              <div className="bg-white/[0.01] border border-white/5 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-gray-500 mb-4">
+                  <Package size={28} />
                 </div>
-                <div>
-                  <span className="block text-sm font-bold text-gray-700">Featured</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-medium">Show in hero sections</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-brand-purple/30 transition">
-                  <input name="is_free" type="checkbox" defaultChecked={initialData?.is_free} className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple h-4 w-4" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-gray-700">Set Free</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-medium">KES 0.00 checkout</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-brand-purple/30 transition">
-                  <input name="whatsapp_enabled" type="checkbox" defaultChecked={initialData?.whatsapp_enabled} className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-gray-700">WhatsApp Buy</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-medium">Direct chat links</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-brand-purple/30 transition">
-                  <input name="is_digital" type="checkbox" defaultChecked={initialData?.category === 'Software' || initialData?.category === 'Samples'} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
-                </div>
-                <div>
-                  <span className="block text-sm font-bold text-gray-700">Digital Item</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-medium">No physical shipping</span>
-                </div>
-              </label>
+                <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2">Fulfillment Mode</h4>
+                <p className="text-xs text-gray-500 font-medium px-4">This product will be fulfilled manually from your central inventory.</p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      <div className="flex justify-end gap-3 pt-6 border-t">
-        <button type="button" onClick={onCancel} className="bg-gray-50 py-2.5 px-6 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition border border-gray-200">
-          Cancel
-        </button>
-        <button type="submit" disabled={loading} className="bg-brand-purple shadow-[0_4px_12px_rgba(168,85,247,0.3)] text-white font-bold py-2.5 px-8 rounded-xl hover:bg-brand-purple/90 transition disabled:opacity-50">
-          {loading ? 'Saving Change...' : (initialData ? 'Update Product' : 'Create Product')}
-        </button>
-      </div>
-    </form>
+          {activeTab === 'advanced' && (
+            <div className="space-y-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SEO Title</label>
+                  <input
+                    name="meta_title"
+                    defaultValue={initialData?.name}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SEO Slug</label>
+                  <input
+                    name="slug"
+                    defaultValue={initialData?.slug}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="p-8 bg-brand-purple/5 border border-brand-purple/10 rounded-[2.5rem] flex items-start gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple flex-shrink-0">
+                  <Settings size={22} />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-white tracking-tight mb-1">Advanced Automation</h4>
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed">Enable automatic stock deduction and email notifications for this specific product collection. Changes here affect global store behavior.</p>
+
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className="flex items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-2xl cursor-pointer hover:bg-white/[0.04] transition-all group">
+                      <input
+                        type="checkbox"
+                        name="is_featured"
+                        defaultChecked={initialData?.isFeatured}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-offset-0 focus:ring-brand-purple"
+                      />
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">Featured Product</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-2xl cursor-pointer hover:bg-white/[0.04] transition-all group">
+                      <input
+                        type="checkbox"
+                        name="is_free"
+                        defaultChecked={initialData?.isFree}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-offset-0 focus:ring-brand-purple"
+                      />
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">Free Product</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-2xl cursor-pointer hover:bg-white/[0.04] transition-all group">
+                      <input
+                        type="checkbox"
+                        name="whatsapp_enabled"
+                        defaultChecked={initialData?.whatsappEnabled !== false}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-offset-0 focus:ring-brand-purple"
+                      />
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">WhatsApp Order Enabled</span>
+                    </label>
+                  </div>
+
+                  <button type="button" className="mt-6 text-[11px] font-black text-brand-purple uppercase tracking-[0.2em] hover:text-white transition-colors">Configure Webhooks →</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-10 py-8 border-t border-white/5 bg-white/[0.01] flex items-center justify-between">
+          <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest max-w-sm">
+            All changes are permanent once published. Ensure all product data is accurate before saving.
+          </p>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-8 py-4 rounded-2xl border border-white/5 text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] hover:bg-white/5 hover:text-white transition-all"
+            >
+              Discard Changes
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-3 px-10 py-4 rounded-2xl bg-brand-purple text-white text-[11px] font-black uppercase tracking-[0.2em] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-all active:scale-95 disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : (
+                <>
+                  <Save size={16} />
+                  {initialData ? 'Update Product' : 'Publish Product'}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
+    </div>
   );
 };
 

@@ -112,6 +112,7 @@ export interface Product {
   allowRedownload?: boolean;
   isFree?: boolean;
   whatsappEnabled: boolean;
+  shippingPrice?: number;
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;

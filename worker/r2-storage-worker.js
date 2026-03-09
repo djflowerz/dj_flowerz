@@ -319,11 +319,11 @@ export default {
                 await env.DB.prepare(`
                     INSERT INTO products (
                         id, name, description, price, category, image, images, inventory, currency, 
-                        discount_price, compare_at_price, type, brand, release_date, status, 
+                        is_active, is_featured, discount_price, compare_at_price, type, brand, release_date, status, 
                         requires_shipping, weight, dimensions, sku, variant_groups, 
                         whatsapp_enabled, is_free, created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 `).bind(
                     productId,
                     name ?? null,
@@ -334,6 +334,8 @@ export default {
                     images ? JSON.stringify(images) : JSON.stringify([image ?? null]),
                     inventory ?? null,
                     currency,
+                    is_active !== undefined ? (is_active ? 1 : 0) : 1,
+                    is_featured ? 1 : 0,
                     discount_price ?? null,
                     compare_at_price ?? null,
                     type,
@@ -2080,6 +2082,57 @@ export default {
                 `).bind(limit, offset).all();
 
                 return Response.json(results, { headers: corsHeaders });
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // COMMUNITY DIRECTORY — PUT /api/admin/users/:id, DELETE /api/admin/users/:id
+            // ═══════════════════════════════════════════════════════════════════
+            if (path.startsWith("/api/admin/users/")) {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                const userId = path.split("/").pop();
+                if (!userId) return new Response("User ID required", { status: 400, headers: corsHeaders });
+
+                if (method === "PUT") {
+                    try {
+                        const updates = await request.json();
+
+                        // Dynamically build the UPDATE query based on provided fields
+                        const allowedFields = ['full_name', 'phone_number', 'is_subscriber', 'subscription_end_date', 'referral_balance_kes', 'referral_code'];
+                        const setClauses = [];
+                        const values = [];
+
+                        for (const field of allowedFields) {
+                            if (updates[field] !== undefined) {
+                                setClauses.push(`${field} = ?`);
+                                values.push(updates[field]);
+                            }
+                        }
+
+                        if (setClauses.length === 0) {
+                            return new Response("No valid fields to update", { status: 400, headers: corsHeaders });
+                        }
+
+                        values.push(userId); // for the WHERE id = ? clause
+
+                        const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`;
+                        await env.DB.prepare(query).bind(...values).run();
+
+                        return Response.json({ success: true, message: "User updated" }, { headers: corsHeaders });
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
+                }
+
+                if (method === "DELETE") {
+                    try {
+                        await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+                        return Response.json({ success: true, message: "User deleted" }, { headers: corsHeaders });
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
+                }
             }
 
             // ═══════════════════════════════════════════════════════════════════

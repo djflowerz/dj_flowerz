@@ -18,21 +18,24 @@ export default function AdminProductsTab() {
 
   const handleSave = async (formData: FormData) => {
     const data = Object.fromEntries(formData.entries());
+    const variants = data.variants ? JSON.parse(data.variants as string) : [];
 
     const productData: Partial<Product> = {
       name: data.name as string,
       description: data.description as string,
       price: parseFloat(data.price as string),
       category: data.category as string,
-      stock: parseInt(data.stock as string),
+      stock: parseInt(data.stock as string) || 0,
       sku: data.sku as string,
       weight: data.weight ? (data.weight as string) : undefined,
       dimensions: data.dimensions as string,
-      compareAtPrice: data.compareAtPrice ? parseFloat(data.compareAtPrice as string) : undefined,
-      isActive: data.isActive === 'on',
-      isFeatured: data.isFeatured === 'on',
-      isFree: data.isFree === 'on',
-      whatsappEnabled: data.whatsappEnabled === 'on'
+      compareAtPrice: data.compare_at_price ? parseFloat(data.compare_at_price as string) : undefined,
+      isActive: data.status === 'active',
+      isFeatured: data.is_featured === 'on',
+      isFree: data.is_free === 'on',
+      whatsappEnabled: data.whatsapp_enabled === 'on',
+      variants: variants,
+      shippingPrice: data.shipping_price ? parseFloat(data.shipping_price as string) : 0,
     };
 
     if (editingProduct && editingProduct.image) {

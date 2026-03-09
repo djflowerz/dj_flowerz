@@ -4,7 +4,7 @@ import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, Teleg
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1 } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL } from '../utils/r2';
 
 
 
@@ -617,22 +617,62 @@ const useCollection = <T extends { id: string }>(
   enabled: boolean = true,
   transform?: (data: any) => T,
   orderByField?: string,
-  orderDirection: 'asc' | 'desc' = 'desc'
+  orderDirection: 'asc' | 'desc' = 'desc',
+  source: 'R2' | 'D1' = 'R2'
 ) => {
   const tableName = getTableName(colName);
+  const [data, setData] = useState<T[]>(initialData);
+  const [isLoading, setIsLoading] = useState(enabled);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use R2 for ALL data (mixtapes, products, pool tracks, profiles, orders, etc.)
-  const [data, setData, isLoading, error, refresh] = useR2Collection<T>(
-    tableName,
-    initialData,
-    enabled,
-    transform,
-    orderByField,
-    orderDirection
-  );
+  const fetchData = async () => {
+    if (!enabled) return;
+    setIsLoading(true);
+    try {
+      let results: any[] = [];
+      if (source === 'D1') {
+        const authHeader = await getAuthHeader();
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/${tableName}`, {
+          headers: authHeader
+        });
+        if (response.ok) {
+          results = await response.json();
+        } else {
+          console.warn(`[D1] Fetch failed for ${tableName}, falling back to R2...`);
+          results = await fetchFromR2<any>(tableName);
+        }
+      } else {
+        results = await fetchFromR2<any>(tableName);
+      }
 
-  const loadMore = () => { console.warn("loadMore not implemented for static R2 source"); };
-  return [data, setData, isLoading, loadMore, error, refresh] as const;
+      let transformed = results.map(item => transform ? transform(item) : (item as unknown as T));
+
+      if (orderByField) {
+        transformed.sort((a: any, b: any) => {
+          const valA = a[orderByField];
+          const valB = b[orderByField];
+          if (valA < valB) return orderDirection === 'asc' ? -1 : 1;
+          if (valA > valB) return orderDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      setData(transformed.length === 0 && initialData.length > 0 ? initialData : transformed);
+      setError(null);
+    } catch (err: any) {
+      console.error(`${source} fetch error (${tableName}):`, err.message);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [colName, enabled, orderByField, orderDirection]);
+
+  const loadMore = () => { console.warn("loadMore not implemented"); };
+  return [data, setData, isLoading, loadMore, error, fetchData] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -669,7 +709,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // Public Collections (R2)
-  const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc');
+  // Public Collections
+  const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc', 'D1');
   const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc');
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc');
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapR2Generic, 'createdAt', 'desc');
