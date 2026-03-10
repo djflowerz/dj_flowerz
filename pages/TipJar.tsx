@@ -16,7 +16,7 @@ const TipJar: React.FC = () => {
     reference: `tip_${(new Date()).getTime()}`,
     email: user?.email || "guest_tipper@djflowerz.co.ke",
     amount: (Number(amount) || 0) * 100, // Amount in KES cents
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_fd545124e451381254315431543', // Fallback or throw error
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder', // Fallback
     currency: 'KES',
     metadata: {
       type: 'tip', // Added for webhook processing

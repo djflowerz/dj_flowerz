@@ -112,7 +112,12 @@ function cleanTrackTitle(raw = '') {
  * Tries to extract year and month from a URL path, folder name, or tag string.
  */
 function extractYearAndMonth(str = '') {
-    const decoded = decodeURIComponent(str);
+    let decoded = str;
+    try {
+        decoded = decodeURIComponent(str);
+    } catch (e) {
+        // Fallback to raw string if decode fails
+    }
     const yearMatch = decoded.match(YEAR_REGEX);
     const monthMatch = decoded.match(MONTH_REGEX);
     return {

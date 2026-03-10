@@ -144,7 +144,7 @@ const Home: React.FC = () => {
                         </div>
 
                         <div className="relative h-[280px] p-4 flex-shrink-0 bg-white border-b border-white/5 flex items-center justify-center">
-                           <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 transition duration-500 drop-shadow-sm" />
+                           <img src={product.image || product.image_url || 'https://via.placeholder.com/300'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 transition duration-500 drop-shadow-sm" />
                         </div>
 
                         <div className="p-5 flex flex-col flex-grow bg-[#15151A]">
@@ -209,7 +209,7 @@ const Home: React.FC = () => {
                                  </button>
                               </div>
                               <div className="relative z-10 w-full max-w-[280px] h-[280px] mt-8 sm:mt-0 flex items-center justify-center bg-white rounded-3xl p-6 shadow-2xl border border-white/10">
-                                 <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
+                                 <img src={product.image || product.image_url || 'https://via.placeholder.com/300'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
                               </div>
                            </Link>
                         );

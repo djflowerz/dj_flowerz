@@ -433,27 +433,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error("You have already used your free trial.");
       }
 
-      const updates = {
-        is_subscriber: true,
-        subscription_plan: 'trial',
-        subscription_expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        has_used_trial: true,
-        updated_at: new Date().toISOString()
-      };
-
       try {
-        await updateR2Item('profiles', user.id, updates);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error("Authentication session missing. Please log in again.");
+        }
+
+        const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+        const response = await fetch(`${WORKER_URL}/api/user/trial`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to activate trial on the server.");
+        }
+
+        const data = await response.json();
 
         setUser(prev => prev ? ({
           ...prev,
           isSubscriber: true,
           subscriptionPlan: 'trial',
-          subscriptionExpiry: updates.subscription_expiry,
+          subscriptionExpiry: data.updatedProfile.subscription_expiry,
           hasUsedTrial: true
         }) : null);
 
-      } catch (e) {
-        console.error("Failed to activate trial in R2:", e);
+      } catch (e: any) {
+        console.error("Failed to activate trial:", e);
         throw e;
       }
     }

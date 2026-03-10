@@ -52,7 +52,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
         toast.error('Payment cancelled.');
     };
 
-    const handleJoinNow = () => {
+    const handleJoinNow = async () => {
         if (!user) {
             toast.info("Please sign in or create an account to start your subscription.");
             navigate('/login', { state: { from: location } });
@@ -61,9 +61,16 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
 
         if (selectedPlan.price === 0) {
             // Free Trial
-            toast.success("Free trial selected! (Note: Trial logic requires backend assignment).");
-            if (onJoinSuccess) onJoinSuccess();
-            else window.location.reload();
+            const trialToast = toast.loading("Activating your free trial...");
+            try {
+                const { activateTrial } = useAuth();
+                await activateTrial();
+                toast.success("Free trial activated! Enjoy the Music Pool.", { id: trialToast });
+                if (onJoinSuccess) onJoinSuccess();
+                else window.location.reload();
+            } catch (error: any) {
+                toast.error(error.message || "Failed to activate trial", { id: trialToast });
+            }
             return;
         }
 

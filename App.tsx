@@ -29,7 +29,12 @@ import ErrorBoundary from './components/ErrorBoundary';
 import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Dashboard from './src/admin/pages/Dashboard';
+import AdminProducts from './src/admin/pages/Products';
+import AdminOrders from './src/admin/pages/Orders';
+import AdminMixtapes from './src/admin/pages/Mixtapes';
+import AdminCustomers from './src/admin/pages/Customers';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 
@@ -128,17 +133,44 @@ const App: React.FC = () => {
                   <Route path="/sessions" element={<Sessions />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/about" element={<About />} />
-                  <Route path="/tip-jar" element={<TipJar />} />
-                  <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+                  {/* Modular Admin (New) */}
                   <Route path="/admin" element={
                     <ErrorBoundary>
                       <ProtectedRoute adminOnly>
-                        <AdminDashboard />
+                        <Dashboard />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
+                  <Route path="/admin/products" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminProducts />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
+                  <Route path="/admin/orders" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminOrders />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
+                  <Route path="/admin/mixtapes" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminMixtapes />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
+                  <Route path="/admin/customers" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminCustomers />
                       </ProtectedRoute>
                     </ErrorBoundary>
                   } />

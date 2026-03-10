@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 
 const Login: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -13,6 +15,14 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    // Redirect if already logged in
+    if (user && !authLoading) {
+      const from = (location.state as any)?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [user, authLoading, navigate, location.state]);
 
   useEffect(() => {
     const state = location.state as any;

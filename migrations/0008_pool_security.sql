@@ -2,19 +2,13 @@
 -- Phase 9: Gatekeeper & Download Security
 -- 1. Ensure Users table has all required columns
 -- Adding missing columns one by one to avoid errors if some already exist
-ALTER TABLE users ADD COLUMN full_name TEXT;
-ALTER TABLE users ADD COLUMN phone_number TEXT;
-ALTER TABLE users ADD COLUMN is_subscriber BOOLEAN DEFAULT 0;
-ALTER TABLE users ADD COLUMN subscription_end_date DATETIME;
-ALTER TABLE users ADD COLUMN referral_balance_kes INTEGER DEFAULT 0;
-ALTER TABLE users ADD COLUMN referral_code TEXT;
-ALTER TABLE users ADD COLUMN referral_earned_days INTEGER DEFAULT 0;
+-- full_name, phone_number, is_subscriber, subscription_end_date, referral_balance_kes, referral_code, referral_earned_days are already in 0005
+-- full_name, phone_number, is_subscriber, subscription_end_date, referral_balance_kes, referral_code, referral_earned_days are already in 0005
 ALTER TABLE users ADD COLUMN current_plan TEXT DEFAULT 'none';
 ALTER TABLE users ADD COLUMN has_used_trial BOOLEAN DEFAULT 0;
 ALTER TABLE users ADD COLUMN daily_download_count INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN last_download_reset DATETIME DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE users ADD COLUMN last_ip TEXT;
-ALTER TABLE users ADD COLUMN device_fingerprint TEXT;
+-- last_ip and device_fingerprint are already in 0007
 
 -- 2. Grant Master Admin "Forever Pro" Access
 UPDATE users 

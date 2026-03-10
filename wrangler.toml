@@ -1,6 +1,5 @@
-
 name = "djflowerz-worker"
-main = "worker/r2-storage-worker.js"
+main = "worker/index.js"
 compatibility_date = "2024-03-04"
 
 # 1. KV (Config & Sessions)

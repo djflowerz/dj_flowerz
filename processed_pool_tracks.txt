@@ -1,41 +1,172 @@
-=== MUSIC POOL PROCESSING REPORT ===
+=== MUSIC POOL SIFTER REPORT (2026-03-10T06:41:32.639Z) ===
 
 
-[GENRE: Redrums Video Remixes]
-    - YEAR: Remix & Mashups Hub (506 tracks)
+[HUB: Redrums Video Remixes]
+  ▶ Redrums Video Remixes
+      2025: 55 tracks
+      General: 1206 tracks
 
-[GENRE: REMIXAH]
-    - YEAR: Remix & Mashups Hub (644 tracks)
+[HUB: Remix & Mashups Hub]
+  ▶ REMIXAH
+      2020: 2 tracks
+      2021: 5 tracks
+      2022: 1 tracks
+      2023: 3 tracks
+      2024: 1 tracks
+      2025: 3 tracks
+      General: 13712 tracks
 
-[GENRE: Reggae Fussion]
-    - YEAR: Remix & Mashups Hub (223 tracks)
+[HUB: Dancehall Edits]
+  ▶ Dancehall Edits
+      2020: 4 tracks
+      2022: 1 tracks
+      General: 2458 tracks
+  ▶ Dancehall Refix
+      General: 45 tracks
 
-[GENRE: Dancehall Edits]
-    - YEAR: Remix & Mashups Hub (873 tracks)
+[HUB: Riddimz F']
+  ▶ Riddimz F'
+      2025: 1 tracks
+      General: 6315 tracks
 
-[GENRE: Amapiano]
-    - YEAR: Remix & Mashups Hub (650 tracks)
+[HUB: Reggae Fussion]
+  ▶ Reggae Fussion
+      2020: 2 tracks
+      General: 6437 tracks
+  ▶ Reggae Covers
+      2020: 6 tracks
+      General: 67 tracks
 
-[GENRE: Riddimz F']
-  > SUBFOLDER: Audio Redrums
-    - YEAR: Remix & Mashups Hub (5 tracks)
-  > SUBFOLDER: Dancehall Remixes
-    - YEAR: Remix & Mashups Hub (50 tracks)
+[HUB: RnB Remixes]
+  ▶ RnB Remixes
+      2020: 3 tracks
+      2025: 2 tracks
+      General: 4035 tracks
 
-[GENRE: DANCEHALL REFIX]
-    - YEAR: Remix & Mashups Hub (45 tracks)
+[HUB: Amapiano]
+  ▶ Amapiano
+      General: 882 tracks
+  ▶ Afro Amapiano
+      General: 262 tracks
 
-[GENRE: Bongo Flava (TBT) Hype]
-    - YEAR: Remix & Mashups Hub (2 tracks)
+[HUB: Bongo Flava (TBT) Hype]
+  ▶ Bongo Flava (TBT)
+      2024: 1 tracks
+      2025: 1 tracks
+      General: 651 tracks
 
-[GENRE: RnB Remixes]
-    - YEAR: Remix & Mashups Hub (797 tracks)
+[HUB: Afrohouse]
+  ▶ Afrohouse
+      2024: 2 tracks
+      2025: 8 tracks
+      General: 708 tracks
 
-[GENRE: HYPE EDITS]
-    - YEAR: Remix & Mashups Hub (500 tracks)
+[HUB: 2026 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2026: 762 tracks
+  ▶ Dancehall Edits
+      2026: 1 tracks
+  ▶ Bongo Flava (TBT)
+      2026: 1 tracks
+  ▶ Riddimz F'
+      2026: 120 tracks
 
-[GENRE: Club Edits]
-    - YEAR: Remix & Mashups Hub (1698 tracks)
+[HUB: 3 Step Amapiano]
+  ▶ 3 Step Amapiano
+      General: 12 tracks
 
-[GENRE: Afrohouse]
-    - YEAR: Remix & Mashups Hub (718 tracks)
+[HUB: South Africa Amapiano]
+  ▶ South Africa Amapiano
+      General: 112 tracks
+
+[HUB: Kikuyu Gospel (Kigocco)]
+  ▶ Mugithi Covers (Kikuyu)
+      General: 380 tracks
+  ▶ Kikuyu Gospel (Kigocco)
+      General: 256 tracks
+
+[HUB: Taarabu]
+  ▶ Taarabu
+      General: 16 tracks
+
+[HUB: Soul]
+  ▶ Soul
+      General: 1703 tracks
+
+[HUB: 2025 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2025: 2155 tracks
+  ▶ Riddimz F'
+      2025: 26 tracks
+  ▶ Bongo Flava (TBT)
+      2025: 2 tracks
+  ▶ Reggae Fussion
+      2025: 2 tracks
+
+[HUB: 2020 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2020: 2880 tracks
+  ▶ Riddimz F'
+      2020: 161 tracks
+  ▶ Bongo Flava (TBT)
+      2020: 3 tracks
+
+[HUB: 2021 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2021: 1162 tracks
+  ▶ Riddimz F'
+      2021: 52 tracks
+  ▶ Amapiano
+      2021: 5 tracks
+
+[HUB: 2022 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2022: 1917 tracks
+  ▶ Riddimz F'
+      2022: 43 tracks
+  ▶ Reggae Fussion
+      2022: 12 tracks
+  ▶ Bongo Flava (TBT)
+      2022: 1 tracks
+  ▶ Amapiano
+      2022: 41 tracks
+  ▶ Dancehall Edits
+      2022: 2 tracks
+  ▶ Redrums Video Remixes
+      2022: 34 tracks
+
+[HUB: 2023 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2023: 1508 tracks
+  ▶ Riddimz F'
+      2023: 35 tracks
+  ▶ Redrums Video Remixes
+      2023: 20 tracks
+  ▶ Reggae Fussion
+      2023: 14 tracks
+  ▶ Amapiano
+      2023: 33 tracks
+  ▶ Dancehall Edits
+      2023: 3 tracks
+
+[HUB: 2024 VIDEO POOL EDITS]
+  ▶ REMIXAH
+      2024: 1304 tracks
+  ▶ Riddimz F'
+      2024: 21 tracks
+  ▶ Redrums Video Remixes
+      2024: 3 tracks
+  ▶ Amapiano
+      2024: 33 tracks
+  ▶ Reggae Fussion
+      2024: 1 tracks
+
+[HUB: Kenyan Love Songs Hype]
+  ▶ Kenyan Love Songs
+      General: 374 tracks
+
+[HUB: Kenyan Love Songs (Low Hype)]
+  ▶ Kenyan Love Songs
+      General: 106 tracks
+
+TOTAL: 52195 tracks

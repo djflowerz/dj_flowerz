@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 
 const Signup: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,6 +15,12 @@ const Signup: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
