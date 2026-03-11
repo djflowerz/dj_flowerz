@@ -63,7 +63,7 @@ const Navbar: React.FC = () => {
           </div>
         </div>
       )}
-      <nav className="fixed top-0 w-full z-50 bg-[#0B0B0F]/95 backdrop-blur-md border-b border-white/5 shadow-lg">
+      <nav className="fixed top-0 w-full z-50 glass-panel border-b border-white/5 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
 
@@ -99,7 +99,7 @@ const Navbar: React.FC = () => {
                 </div>
               )}
 
-              <Link to="/music-pool" className="text-xs font-bold text-brand-cyan border border-brand-cyan/30 px-3 py-1.5 rounded-full hover:bg-brand-cyan/10 transition">
+              <Link to="/music-pool" className="btn-cyber-outline px-5 py-2 text-[10px] font-black">
                 JOIN POOL
               </Link>
 
@@ -116,7 +116,7 @@ const Navbar: React.FC = () => {
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 mt-4 w-80 bg-[#15151A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute right-0 mt-6 w-80 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="p-4 border-b border-white/5 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-white">Notifications</h3>
                       <button className="text-[10px] text-brand-purple font-bold hover:underline">Mark all read</button>
@@ -166,7 +166,7 @@ const Navbar: React.FC = () => {
                 </button>
 
                 {showMessages && (
-                  <div className="absolute right-0 mt-4 w-80 bg-[#15151A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute right-0 mt-6 w-80 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="p-4 border-b border-white/5 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-white">Messages</h3>
                       <button className="text-[10px] text-brand-purple font-bold hover:underline">New Message</button>
@@ -206,7 +206,7 @@ const Navbar: React.FC = () => {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-4 w-48 bg-[#15151A] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 py-2">
+                    <div className="absolute right-0 mt-6 w-56 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 py-3">
                       <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <User size={16} /> My Profile
                       </Link>

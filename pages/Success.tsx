@@ -1,14 +1,11 @@
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, Link, Navigate, useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, ShoppingBag, Copy, CreditCard, Calendar, Loader2, ExternalLink, MessageCircle } from 'lucide-react';
+import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, ShoppingBag, Copy, CreditCard, Calendar, Loader2, ExternalLink, MessageCircle, Zap, ShieldCheck, Heart, Sparkles, Share2, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Order } from '../types';
-
-
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Success: React.FC = () => {
    const { clearCart } = useCart();
@@ -18,24 +15,19 @@ const Success: React.FC = () => {
    const navigate = useNavigate();
    const [loading, setLoading] = useState(!!id);
    const [orderData, setOrderData] = useState<any>(location.state);
+   const [copied, setCopied] = useState(false);
 
    useEffect(() => {
-      // Safety redirect if no order data and no recovery ref
       if (location.pathname.includes('/success') && !location.state && !id) {
          navigate('/store');
       }
    }, [location.pathname, location.state, id, navigate]);
 
    useEffect(() => {
-      // Clear cart if we just came from checkout
       if (location.state?.type === 'store' || location.state?.items) {
          clearCart();
       }
 
-      // Proactive persistence check: 
-      // If we have location.state (meaning we just finished payment) 
-      // but the data isn't in DB yet (because webhook is slow/dev),
-      // we attempt a client-side save.
       if (location.state && location.state.reference) {
          const syncToR2 = async () => {
             const { reference, type, amount, email, customerName, message, items } = location.state;
@@ -45,8 +37,6 @@ const Success: React.FC = () => {
                const existing = type === 'tip' ? tips.find(t => t.id === idToCheck) : orders.find(o => o.id === idToCheck);
 
                if (!existing) {
-                  console.log(`Syncing ${type} to R2...`);
-
                   if (type === 'tip') {
                      const tipObj = {
                         id: idToCheck,
@@ -57,7 +47,6 @@ const Success: React.FC = () => {
                         createdAt: new Date().toISOString()
                      };
                      await addTip(tipObj);
-
                      await addPayment({
                         amount: amount,
                         payment_ref: reference,
@@ -87,37 +76,7 @@ const Success: React.FC = () => {
                         updatedAt: new Date().toISOString()
                      };
                      await addOrder(orderObj);
-                  } else if (type === 'subscription') {
-                     // Handle Referral Reward (R2 for profiles)
-                     try {
-                        const { fetchFromR2 } = await import('../utils/r2');
-                        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
-                        const profile = profiles.find(p => p.email === email);
-                        if (profile) {
-                           const referrerId = profile.referred_by || profile.referredBy || location.state?.referrerId;
-
-                           if (referrerId) {
-                              const referralLogs = await fetchFromR2<any[]>('referral_logs').catch(() => []);
-                              const existingLog = referralLogs.find(l => (l.referee_id || l.refereeId) === profile.id);
-                              if (!existingLog) {
-                                 const referrer = profiles.find(p => p.id === referrerId);
-                                 await issueReferralReward({
-                                    referrerId: referrerId,
-                                    refereeId: profile.id,
-                                    referrerName: referrer?.name || 'User',
-                                    refereeName: profile.name,
-                                    planPurchased: location.state?.plan || 'Plan',
-                                    discountApplied: location.state?.discount || 0
-                                 });
-                              }
-                           }
-                        }
-                     } catch (refErr) {
-                        console.warn("Referral reward error:", refErr);
-                     }
                   }
-
-                  // Automatically add to newsletter subscribers if we have an email
                   if (email) {
                      await addSubscriber(email, `Customer (${type === 'store' ? 'Order' : type === 'tip' ? 'Tip' : 'Subscription'})`);
                   }
@@ -129,7 +88,6 @@ const Success: React.FC = () => {
          syncToR2();
       }
 
-      // Fetch order if ID is provided and we don't have state
       if (id && !location.state && !ordersLoading) {
          const foundOrder = orders.find(o => o.id === id);
          if (foundOrder) {
@@ -140,288 +98,265 @@ const Success: React.FC = () => {
             });
             setLoading(false);
          } else {
-            console.warn("Order not found in R2");
             setLoading(false);
          }
       }
    }, [id, location.state, clearCart, orders, ordersLoading, tips, payments]);
 
+   const copyRef = () => {
+      navigator.clipboard.writeText(ref);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+   };
+
    if (loading) {
       return (
-         <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center">
-            <Loader2 className="w-12 h-12 text-brand-purple animate-spin" />
+         <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center gap-6">
+            <div className="relative">
+               <Loader2 className="w-16 h-16 text-brand-purple animate-spin" />
+               <div className="absolute inset-0 bg-brand-purple/20 rounded-full blur-xl" />
+            </div>
+            <p className="text-[10px] font-black text-white uppercase tracking-[0.4em] animate-pulse">Initializing Receipt</p>
          </div>
       );
    }
 
    const state = orderData;
+   if (!state && !loading) return <Navigate to="/" replace />;
 
-   if (!state && !loading) {
-      return <Navigate to="/" replace />;
-   }
-
-   // Determine contents based on type
    const isTip = state.type === 'tip';
    const isSubscription = state.type === 'subscription';
    const isBooking = state.type === 'booking';
-   const isStore = state.type === 'store' || (!isTip && !isSubscription && !isBooking && state.items); // Default to store if items exist
+   const isStore = state.type === 'store' || (!isTip && !isSubscription && !isBooking && state.items);
 
    const totalAmount = state.total || state.amount || 0;
    const ref = state.orderId || state.reference || 'N/A';
    const dateStr = state.date || new Date().toLocaleDateString();
 
-   // WhatsApp Support Link
    const whatsappNumber = siteConfig.contact.whatsapp.replace(/\+/g, '').replace(/\s/g, '');
    const supportMessage = encodeURIComponent(`Hi DJ Flowerz, I'm reporting an issue with my order.\nOrder ID: ${ref}\nCustomer: ${state.customerName || state.email || 'N/A'}\nIssue: `);
    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${supportMessage}`;
 
    return (
-      <div className="relative pt-24 pb-20 min-h-screen bg-[#0B0B0F] overflow-hidden">
-         {/* Background Decorative Elements */}
-         <div className="absolute inset-0 z-0">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-purple/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2"></div>
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=2070')] bg-cover bg-center opacity-[0.03] scale-105"></div>
+      <div className="relative pt-24 pb-20 min-h-screen bg-[#050507] overflow-hidden scroll-smooth">
+         {/* Heavy Decoration */}
+         <div className="absolute inset-0 z-0 pointer-events-none">
+            <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-brand-purple/5 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-[800px] h-[800px] bg-brand-cyan/5 rounded-full blur-[150px] translate-y-1/2 -translate-x-1/2" />
          </div>
 
-         <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+         <div className="relative z-10 max-w-2xl mx-auto px-4">
+            {/* Main Ticket */}
+            <motion.div
+               initial={{ opacity: 0, y: 50, scale: 0.95 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+               className="relative group"
+            >
+               {/* Outer Ticket Shadow/Glow */}
+               <div className="absolute -inset-1 bg-gradient-to-b from-brand-purple/20 via-transparent to-brand-cyan/20 rounded-[3rem] blur-2xl opacity-50 transition duration-1000 group-hover:opacity-100" />
 
-            {/* Success Header */}
-            <div className="text-center mb-10 animate-fade-in-up">
-               <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/20 shadow-[0_0_40px_rgba(34,197,94,0.15)]">
-                  <CheckCircle size={40} className="text-green-500" />
-               </div>
-               <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-2 tracking-tight">
-                  Success!
-               </h1>
-               <p className="text-gray-400 text-lg max-w-md mx-auto">
-                  {isTip ? 'Thank you for your generous contribution.' :
-                     isSubscription ? 'Your account has been upgraded. Welcome!' :
-                        `Thank you, ${state.customerName || 'Customer'}. Your order is confirmed.`}
-               </p>
-               {state.email && <p className="text-sm text-gray-500 mt-3">A confirmation has been sent to <span className="text-white font-medium">{state.email}</span></p>}
-            </div>
+               <div className="relative bg-[#0B0B0F] rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl backdrop-blur-xl">
+                  {/* Header Section */}
+                  <div className="relative p-10 text-center border-b border-white/5 border-dashed">
+                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-purple via-brand-cyan to-brand-purple animate-gradient-x" />
 
-            {/* Main Receipt Container */}
-            <div className="bg-[#15151A]/80 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden mb-8">
+                     <motion.div
+                        initial={{ scale: 0 }} animate={{ scale: 1 }}
+                        transition={{ type: "spring", damping: 10, stiffness: 100, delay: 0.4 }}
+                        className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.2)]"
+                     >
+                        <CheckCircle size={40} className="text-emerald-500" />
+                     </motion.div>
 
-               {/* Reference Strip */}
-               <div className="px-6 py-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Order Info</span>
-                  <span className="text-sm font-bold text-white flex items-center gap-2">
-                     REF: <span className="text-brand-purple font-mono cursor-pointer hover:underline" onClick={() => navigator.clipboard.writeText(ref)}>{ref}</span>
-                     <Copy size={12} className="text-gray-600" />
-                  </span>
-               </div>
+                     <h1 className="text-4xl md:text-5xl font-black text-white mb-2 tracking-tighter uppercase italic">
+                        Transmission <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">Locked</span>
+                     </h1>
+                     <p className="text-gray-500 text-xs font-black uppercase tracking-[0.3em] mb-4">Frequency Response: 200 OK</p>
 
-               <div className="p-6 md:p-10 space-y-8">
-
-                  {/* Specific Content Types */}
-                  {isTip && (
-                     <div className="p-6 rounded-2xl bg-white/5 border border-white/5 text-center italic text-gray-300">
-                        "{state.message || 'Thank you for the support!'}"
+                     <div className="bg-white/5 border border-white/10 rounded-2xl py-3 px-6 inline-flex items-center gap-3">
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">ID:</span>
+                        <span className="text-sm font-black text-white font-mono tracking-tighter">{ref}</span>
+                        <button onClick={copyRef} className={`transition-colors ${copied ? 'text-emerald-500' : 'text-gray-600 hover:text-white'}`}>
+                           {copied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
                      </div>
-                  )}
+                  </div>
 
-                  {isSubscription && (
-                     <div className="flex items-center gap-5 p-6 rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-cyan/20 border border-white/10">
-                        <div className="w-16 h-16 bg-brand-purple rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand-purple/30">
-                           <CreditCard size={32} />
-                        </div>
-                        <div>
-                           <p className="text-white font-bold text-xl">{state.plan} Membership</p>
-                           <p className="text-sm text-gray-400">Your pro features are now active. Enjoy unlimited access!</p>
-                        </div>
+                  {/* Perforation Effect */}
+                  <div className="flex justify-between items-center -mx-4 -my-4 relative z-10">
+                     <div className="w-8 h-8 rounded-full bg-[#050507] -ml-4" />
+                     <div className="flex-1 h-[2px] border-b-2 border-dashed border-white/10 mx-2" />
+                     <div className="w-8 h-8 rounded-full bg-[#050507] -mr-4" />
+                  </div>
+
+                  <div className="p-8 md:p-12 space-y-12">
+                     {/* Core Status Message */}
+                     <div className="text-center">
+                        <p className="text-gray-400 text-lg font-medium leading-relaxed italic">
+                           {isTip ? 'Your support has been successfully transmitted to the DJ console.' :
+                              isSubscription ? 'Access granted. Your Premium ID is now broadcasting.' :
+                                 `Connection established. Processing shipment protocols for ${state.customerName || 'User'}.`}
+                        </p>
                      </div>
-                  )}
 
-                  {isBooking && (
-                     <div className="flex items-center gap-5 p-6 rounded-2xl bg-white/5 border border-white/10">
-                        <div className="w-16 h-16 bg-brand-cyan rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand-cyan/30">
-                           <Calendar size={32} />
-                        </div>
-                        <div>
-                           <p className="text-white font-bold text-xl">{state.serviceName || state.service || 'Studio Session'}</p>
-                           <p className="text-sm text-gray-400">{state.date} at {state.time}</p>
-                        </div>
-                     </div>
-                  )}
-
-                  {/* Digital Downloads Section - Primary for Digital Products */}
-                  {state.items && state.items.some((item: any) => item.type === 'digital') && (
-                     <div className="space-y-4">
-                        <div className="flex justify-between items-center px-1">
-                           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Digital Products</h3>
-                           <a
-                              href={whatsappUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-brand-cyan hover:underline flex items-center gap-1 uppercase font-black"
-                           >
-                              Download Issues? <ExternalLink size={10} />
-                           </a>
-                        </div>
-                        {state.items.filter((item: any) => item.type === 'digital').map((item: any, idx: number) => (
-                           <div key={idx} className="group flex flex-col items-center text-center gap-6 p-8 rounded-3xl bg-white/5 border border-white/10 hover:border-brand-purple/50 transition duration-300 shadow-xl">
-                              {/* Product Info */}
-                              <div className="flex flex-col items-center gap-4 w-full">
-                                 <div className="w-16 h-16 bg-gray-800/50 rounded-2xl flex items-center justify-center group-hover:bg-brand-purple/20 transition shadow-inner">
-                                    <Music size={32} className="text-brand-purple" />
-                                 </div>
-                                 <div className="space-y-1">
-                                    <h4 className="text-xl text-white font-bold leading-tight">{item.productName || item.name}</h4>
-                                    <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">qty: {item.quantity}</p>
-                                 </div>
-                              </div>
-
-                              {/* Actions */}
-                              <div className="flex flex-col items-center gap-5 w-full max-w-xs">
-                                 {item.downloadUrl || item.digitalFileUrl ? (
-                                    <>
-                                       <button
-                                          onClick={() => downloadFileSecurely(item.downloadUrl || item.digitalFileUrl, {
-                                             fileName: item.productName || 'download',
-                                             trackId: item.productId || item.id,
-                                             orderId: ref,
-                                             type: 'digital_product'
-                                          })}
-                                          className="w-full px-8 py-4 bg-brand-purple hover:bg-brand-purple/80 text-white font-bold rounded-2xl transition flex items-center justify-center gap-3 shadow-lg shadow-brand-purple/30 text-lg hover:-translate-y-0.5"
-                                       >
-                                          <Download size={22} />
-                                          Download Now
-                                       </button>
-
-                                       {item.downloadPassword && (
-                                          <div className="flex flex-col items-center gap-3 w-full">
-                                             <div className="flex items-center gap-2">
-                                                <div className="h-px w-8 bg-white/10" />
-                                                <span className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em]">Password</span>
-                                                <div className="h-px w-8 bg-white/10" />
-                                             </div>
-                                             <div className="flex items-center gap-3 px-5 py-3 bg-black/40 rounded-xl border border-white/5 transition hover:border-brand-cyan/30 group/key">
-                                                <code className="text-base text-brand-cyan font-mono font-bold tracking-widest">{item.downloadPassword}</code>
-                                                <button
-                                                   onClick={() => navigator.clipboard.writeText(item.downloadPassword)}
-                                                   className="p-1.5 hover:bg-white/10 rounded-lg transition text-gray-500 hover:text-white"
-                                                   title="Copy Password"
-                                                >
-                                                   <Copy size={14} />
-                                                </button>
-                                             </div>
-                                          </div>
-                                       )}
-                                    </>
-                                 ) : (
-                                    <div className="flex flex-col items-center gap-2 py-4 px-6 rounded-2xl bg-brand-purple/5 border border-brand-purple/10">
-                                       <span className="text-sm text-brand-purple font-black italic flex items-center gap-2 uppercase tracking-tight">
-                                          <FileText size={16} /> Link sent to your email
-                                       </span>
-                                       <p className="text-[10px] text-gray-500 uppercase font-bold">Check your inbox or spam folder</p>
-                                    </div>
-                                 )}
-                              </div>
+                     {/* Digital Download Hub */}
+                     {state.items && state.items.some((item: any) => item.type === 'digital') && (
+                        <div className="space-y-6">
+                           <div className="flex items-center gap-2 mb-4">
+                              <Zap size={16} className="text-brand-purple" />
+                              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Download Node Active</h3>
                            </div>
-                        ))}
-                     </div>
-                  )}
 
-                  {/* Order Summary & Physical Items */}
-                  {isStore && (
-                     <div className="pt-4 border-t border-white/5">
-                        <div className="flex flex-col gap-6">
-                           {state.items && state.items.filter((i: any) => i.type !== 'digital').length > 0 && (
-                              <div className="space-y-4">
-                                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest px-1">Items Summary</h3>
-                                 <div className="space-y-3">
-                                    {state.items.filter((i: any) => i.type !== 'digital').map((item: any, idx: number) => (
-                                       <div key={idx} className="flex justify-between items-center text-sm">
-                                          <span className="text-gray-300">{item.productName || item.name} <span className="text-gray-500 ml-1">x{item.quantity}</span></span>
-                                          <span className="text-white font-medium">KES {(item.price * item.quantity).toLocaleString()}</span>
+                           {state.items.filter((item: any) => item.type === 'digital').map((item: any, idx: number) => (
+                              <motion.div
+                                 key={idx}
+                                 whileHover={{ scale: 1.02, x: 5 }}
+                                 className="bg-white/5 border border-white/10 rounded-3xl p-6 relative overflow-hidden group/item shadow-xl"
+                              >
+                                 <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 rounded-full blur-3xl -translate-x-4 -translate-y-4" />
+
+                                 <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 bg-black/40 rounded-2xl flex items-center justify-center text-brand-purple border border-white/5 shadow-inner group-hover/item:border-brand-purple/30 transition-all duration-500">
+                                       <Music size={32} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                       <h4 className="text-lg font-black text-white uppercase italic tracking-tight truncate">{item.productName || item.name}</h4>
+                                       <div className="flex items-center gap-3 mt-1">
+                                          <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest leading-none">High Fidelity FLAC/MP3</span>
+                                          <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                                          <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest leading-none">Ready</span>
                                        </div>
-                                    ))}
+                                    </div>
                                  </div>
+
+                                 <div className="mt-6 flex flex-col gap-4">
+                                    {item.downloadUrl || item.digitalFileUrl ? (
+                                       <motion.button
+                                          whileHover={{ scale: 1.01 }}
+                                          whileTap={{ scale: 0.99 }}
+                                          onClick={() => downloadFileSecurely(item.downloadUrl || item.digitalFileUrl, {
+                                             fileName: item.productName || 'track',
+                                             trackId: item.productId || item.id, orderId: ref, type: 'digital_product'
+                                          })}
+                                          className="w-full py-5 bg-gradient-to-r from-brand-purple via-brand-cyan to-brand-purple bg-[length:200%_100%] animate-gradient-x text-white rounded-2xl font-black text-sm uppercase tracking-[0.2em] shadow-lg shadow-brand-purple/20 flex items-center justify-center gap-3"
+                                       >
+                                          <Download size={20} /> Transmit File
+                                       </motion.button>
+                                    ) : (
+                                       <div className="py-4 px-6 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center gap-3">
+                                          <div className="w-2 h-2 rounded-full bg-brand-purple animate-ping" />
+                                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Link Emailed to {state.email}</span>
+                                       </div>
+                                    )}
+
+                                    {item.downloadPassword && (
+                                       <div className="flex items-center justify-between p-4 bg-black/40 border border-white/5 rounded-2xl group/pass">
+                                          <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Access Key</span>
+                                          <div className="flex items-center gap-3">
+                                             <code className="text-sm font-black text-brand-cyan font-mono tracking-[0.2em]">{item.downloadPassword}</code>
+                                             <button onClick={() => navigator.clipboard.writeText(item.downloadPassword)} className="text-gray-700 hover:text-white transition-colors">
+                                                <Copy size={12} />
+                                             </button>
+                                          </div>
+                                       </div>
+                                    )}
+                                 </div>
+                              </motion.div>
+                           ))}
+                        </div>
+                     )}
+
+                     {/* Order Totals Container */}
+                     <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 space-y-6">
+                        <div className="flex items-center gap-2 mb-2">
+                           <ShieldCheck size={14} className="text-brand-cyan" />
+                           <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Ledger Record</h3>
+                        </div>
+
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 font-bold uppercase tracking-widest">Base Subtotal</span>
+                              <span className="text-white font-bold tracking-tight">KES {(state.subtotal || totalAmount).toLocaleString()}</span>
+                           </div>
+                           {state.shippingCost > 0 && (
+                              <div className="flex justify-between items-center text-xs">
+                                 <span className="text-gray-500 font-bold uppercase tracking-widest">Shipping Pulse</span>
+                                 <span className="text-white font-bold tracking-tight">+ KES {state.shippingCost.toLocaleString()}</span>
+                              </div>
+                           )}
+                           {state.discountAmount > 0 && (
+                              <div className="flex justify-between items-center text-xs">
+                                 <span className="text-gray-500 font-bold uppercase tracking-widest">Protocol Discount</span>
+                                 <span className="text-emerald-500 font-bold tracking-tight">- KES {state.discountAmount.toLocaleString()}</span>
                               </div>
                            )}
 
-                           {/* Financial Totals */}
-                           <div className="bg-black/20 p-6 rounded-2xl space-y-3 border border-white/5">
-                              <div className="flex justify-between text-sm">
-                                 <span className="text-gray-400">Subtotal</span>
-                                 <span className="text-white font-medium">KES {(state.subtotal || totalAmount).toLocaleString()}</span>
+                           <div className="pt-6 border-t border-white/5 flex justify-between items-end">
+                              <div>
+                                 <p className="text-[9px] font-black text-brand-purple uppercase tracking-[0.4em] mb-1">Total Settlement</p>
+                                 <p className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">KES {totalAmount.toLocaleString()}</p>
                               </div>
-                              {state.discountAmount > 0 && (
-                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Discount Applied {state.couponCode && `(${state.couponCode})`}</span>
-                                    <span className="text-green-500 font-medium">- KES {state.discountAmount.toLocaleString()}</span>
-                                 </div>
-                              )}
-                              {state.shippingCost > 0 && (
-                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Shipping {state.deliveryMethod === 'door' ? '(Home Delivery)' : '(Station Pickup)'}</span>
-                                    <span className="text-white font-medium">+ KES {state.shippingCost.toLocaleString()}</span>
-                                 </div>
-                              )}
-                              <div className="flex justify-between text-sm">
-                                 <span className="text-gray-400">Processing Fee</span>
-                                 <span className="text-white font-medium text-green-500">FREE</span>
-                              </div>
-                              <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-                                 <span className="text-lg font-bold text-white">Total Amount</span>
-                                 <span className="text-2xl font-bold bg-gradient-to-r from-brand-purple to-brand-cyan bg-clip-text text-transparent">
-                                    KES {totalAmount.toLocaleString()}
-                                 </span>
+                              <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                                 Confirmed
                               </div>
                            </div>
                         </div>
                      </div>
-                  )}
 
-                  {/* Receipt Footer Info */}
-                  <div className="text-center space-y-4 pt-4">
-                     <div className="flex items-center justify-center gap-3 text-sm text-gray-500">
-                        <span className="flex items-center gap-1.5"><FileText size={14} /> Receipt Emailed</span>
-                        <div className="w-1 h-1 bg-gray-700 rounded-full"></div>
-                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {dateStr}</span>
+                     {/* Action Grid */}
+                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-white/5 border-dashed">
+                        <Link to="/" className="flex flex-col items-center gap-3 p-5 bg-white/5 border border-white/5 rounded-3xl hover:bg-white/10 transition-all group">
+                           <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center text-gray-500 group-hover:text-white transition-colors">
+                              <ShoppingBag size={20} />
+                           </div>
+                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest group-hover:text-white">Base</span>
+                        </Link>
+                        <Link to="/store" className="flex flex-col items-center gap-3 p-5 bg-white/5 border border-white/5 rounded-3xl hover:bg-white/10 transition-all group">
+                           <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center text-gray-500 group-hover:text-white transition-colors">
+                              <Package size={20} />
+                           </div>
+                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest group-hover:text-white">Gear</span>
+                        </Link>
+                        <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-3 p-5 bg-white/5 border border-white/5 rounded-3xl hover:bg-white/10 transition-all group">
+                           <div className="w-10 h-10 rounded-2xl bg-[#25D366]/10 flex items-center justify-center text-[#25D366] group-hover:bg-[#25D366] group-hover:text-white transition-all">
+                              <MessageCircle size={20} />
+                           </div>
+                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest group-hover:text-[#25D366]">Support</span>
+                        </a>
                      </div>
-                     <p className="text-xs text-gray-600 leading-relaxed px-10">
-                        Your transaction was processed safely via Paystack. Digital download links are valid for 30 days. For support, reach out via WhatsApp at {siteConfig.contact.whatsapp}.
+                  </div>
+
+                  {/* Footer Strip */}
+                  <div className="px-10 py-8 bg-white/5 border-t border-white/5 text-center">
+                     <p className="text-[10px] font-medium text-gray-600 leading-relaxed uppercase tracking-widest mb-6">
+                        Your transaction was encrypted and processed via Paystack Secure Hub. Digital items are stored in your profile for 30 days. Enjoy the rhythm.
                      </p>
+                     <div className="flex items-center justify-center gap-6 grayscale opacity-30 group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-1000">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" alt="M-Pesa" className="h-6" />
+                        <div className="h-4 w-px bg-white/10" />
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-6" />
+                     </div>
                   </div>
                </div>
+            </motion.div>
 
-               {/* Actions Bottom Bar */}
-               <div className="px-6 py-6 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-4">
-                  <Link
-                     to="/"
-                     className="flex-1 py-3.5 text-center bg-transparent border border-white/10 rounded-2xl text-white hover:bg-white/5 transition font-bold text-sm"
-                  >
-                     Return to Home
-                  </Link>
-                  <a
-                     href={whatsappUrl}
-                     target="_blank"
-                     rel="noreferrer"
-                     className="flex-1 py-3.5 text-center bg-[#25D366] text-white rounded-2xl hover:bg-[#128C7E] transition font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
-                  >
-                     <MessageCircle size={18} />
-                     Report Issue
-                  </a>
-                  <Link
-                     to={isStore ? "/store" : isSubscription ? "/music-pool" : "/mixtapes"}
-                     className="flex-1 py-3.5 text-center bg-white text-black rounded-2xl hover:bg-gray-200 transition font-bold text-sm flex items-center justify-center gap-2"
-                  >
-                     {isStore ? 'Continue Shopping' : isSubscription ? 'Go to Music Pool' : 'Browse Mixtapes'}
-                     <ArrowRight size={18} />
-                  </Link>
+            {/* Post-Transmission Note */}
+            <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               transition={{ delay: 1.2 }}
+               className="mt-12 text-center space-y-4"
+            >
+               <div className="flex items-center justify-center gap-4 text-gray-700 font-black uppercase tracking-[0.3em] text-[10px]">
+                  <span>Receipt Synced</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Secure Logout Active</span>
                </div>
-            </div>
-
-            {/* Support Link */}
-            <div className="text-center">
-               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition text-xs font-bold uppercase tracking-widest">
-                  Need help with your order? <ExternalLink size={12} />
-               </a>
-            </div>
+               <p className="text-[10px] text-gray-600 max-w-sm mx-auto uppercase leading-relaxed font-bold">
+                  Thank you for being part of the DJ Flowerz network. Your support drives the future of Kenyas digital music scene.
+               </p>
+            </motion.div>
          </div>
       </div>
    );

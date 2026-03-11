@@ -47,18 +47,27 @@ const Hero: React.FC<HeroProps> = ({
     };
 
     return (
-        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-20">
+        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-20 bg-[#0B0B0F]">
             {/* Background with Dark Overlay */}
             <div
-                className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-[20s] hover:scale-110"
+                className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-[20s]"
                 style={{ backgroundImage: `url(${bgImage})` }}
             >
-                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-[#0B0B0F]/80 to-[#0B0B0F]" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-[#0B0B0F]/90 to-[#0B0B0F]" />
             </div>
 
-            {/* Decorative Circles */}
-            <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-purple/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none" />
-            <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-brand-cyan/10 rounded-full blur-[120px] animate-pulse-slow pointer-events-none" style={{ animationDelay: '2s' }} />
+            {/* Scanline Effect */}
+            <div className="scanline" />
+
+            {/* Decorative Elements */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-purple/20 rounded-full blur-[120px] animate-pulse-slow" />
+                <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-brand-cyan/10 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
+
+                {/* Orbital Rings / Particles */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-white/5 rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/5 rounded-full" />
+            </div>
 
             <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
                 {badge && (
@@ -66,18 +75,18 @@ const Hero: React.FC<HeroProps> = ({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6 }}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-brand-cyan font-bold text-xs uppercase tracking-widest mb-8 backdrop-blur-sm"
+                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-effect border border-white/10 text-brand-cyan font-bold text-[10px] uppercase tracking-[0.3em] mb-8"
                     >
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse" />
+                        <span className="w-1 h-1 rounded-full bg-brand-cyan animate-pulse" />
                         {badge}
                     </motion.div>
                 )}
 
                 <motion.h1
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.2 }}
-                    className="text-5xl md:text-8xl font-display font-black text-white mb-8 tracking-tighter leading-[0.95]"
+                    initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    transition={{ duration: 1, delay: 0.2 }}
+                    className="text-6xl md:text-9xl font-display font-black text-white mb-8 tracking-tighter leading-[0.85] uppercase"
                 >
                     {title}
                 </motion.h1>
@@ -86,7 +95,7 @@ const Hero: React.FC<HeroProps> = ({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.4 }}
-                    className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed font-medium"
+                    className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed font-medium tracking-tight"
                 >
                     {subtitle}
                 </motion.p>
@@ -95,26 +104,26 @@ const Hero: React.FC<HeroProps> = ({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.6 }}
-                    className="flex flex-wrap justify-center gap-4 mb-20"
+                    className="flex flex-wrap justify-center gap-6 mb-20"
                 >
                     {cta1Text && cta1Link ? (
                         cta1Link.startsWith('#') ? (
-                            <a href={cta1Link} className="px-8 py-4 rounded-full font-bold text-white bg-brand-purple hover:bg-[#8e48eb] transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(123,92,255,0.4)]">
+                            <a href={cta1Link} className="btn-premium px-10 py-5 text-sm uppercase tracking-widest min-w-[200px]">
                                 {cta1Text}
                             </a>
                         ) : (
-                            <Link to={cta1Link} className="px-8 py-4 rounded-full font-bold text-white bg-brand-purple hover:bg-[#8e48eb] transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(123,92,255,0.4)]">
+                            <Link to={cta1Link} className="btn-premium px-10 py-5 text-sm uppercase tracking-widest min-w-[200px]">
                                 {cta1Text}
                             </Link>
                         )
                     ) : null}
                     {cta2Text && cta2Link ? (
                         cta2Link.startsWith('#') ? (
-                            <a href={cta2Link} className="px-8 py-4 rounded-full font-bold text-black bg-brand-cyan hover:bg-[#15b5ad] hover:text-white transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(40,230,220,0.4)]">
+                            <a href={cta2Link} className="btn-cyber-outline px-10 py-5 text-sm min-w-[200px]">
                                 {cta2Text}
                             </a>
                         ) : (
-                            <Link to={cta2Link} className="px-8 py-4 rounded-full font-bold text-black bg-brand-cyan hover:bg-[#15b5ad] hover:text-white transition-all hover:-translate-y-1 shadow-[0_0_30px_rgba(40,230,220,0.4)]">
+                            <Link to={cta2Link} className="btn-cyber-outline px-10 py-5 text-sm min-w-[200px]">
                                 {cta2Text}
                             </Link>
                         )
@@ -128,39 +137,38 @@ const Hero: React.FC<HeroProps> = ({
                         transition={{ duration: 0.6, delay: 0.8 }}
                         className="max-w-md mx-auto"
                     >
-                        <div className="glass-effect p-2 rounded-2xl flex flex-col sm:flex-row gap-2 group focus-within:ring-2 focus-within:ring-brand-purple/50 transition-all">
+                        <div className="glass-panel p-2 rounded-2xl flex flex-col sm:row gap-2 border border-white/10 group focus-within:border-brand-purple/50 transition-all shadow-2xl">
                             <div className="flex-1 flex items-center px-4 gap-3">
                                 <Mail className="text-gray-500 group-focus-within:text-brand-purple transition-colors" size={18} />
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Join our newsletter..."
-                                    className="bg-transparent border-none focus:ring-0 text-white w-full placeholder:text-gray-600 outline-none"
+                                    placeholder="Enter terminal email..."
+                                    className="bg-transparent border-none focus:ring-0 text-white w-full placeholder:text-gray-600 outline-none text-sm font-medium"
                                 />
                             </div>
                             <button
-                                className="bg-white text-black font-bold px-6 py-2.5 rounded-xl hover:bg-brand-cyan transition-colors disabled:opacity-50"
+                                className="bg-white text-black font-black text-xs uppercase tracking-widest px-8 py-3 rounded-xl hover:bg-brand-cyan transition-all disabled:opacity-50"
                                 onClick={handleSubscribe}
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting ? 'Joining...' : 'Subscribe'}
+                                {isSubmitting ? 'Accessing...' : 'Join Pool'}
                             </button>
                         </div>
-                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-tighter font-medium shadow-sm">Join 5,000+ subscribers for weekly drops</p>
+                        <p className="text-[9px] text-gray-500 mt-3 uppercase tracking-[0.2em] font-black opacity-60">Verified portal access for 5,000+ elite members</p>
                     </motion.div>
                 )}
             </div>
-
 
             {/* Scroll Indicator */}
             <motion.div
                 animate={{ y: [0, 10, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-30"
+                className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50"
             >
-                <span className="text-[10px] uppercase tracking-[0.2em] font-black text-white">Scroll</span>
-                <div className="w-[1px] h-12 bg-gradient-to-b from-white to-transparent" />
+                <span className="text-[9px] uppercase tracking-[0.4em] font-black text-brand-cyan">Engage</span>
+                <div className="w-[1px] h-12 bg-gradient-to-b from-brand-cyan to-transparent" />
             </motion.div>
         </section>
     );

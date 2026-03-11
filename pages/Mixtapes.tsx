@@ -61,16 +61,16 @@ const Mixtapes: React.FC = () => {
 
 
             {/* Search & Filters */}
-            <div className="mb-12 space-y-8">
+            <div className="mb-12 space-y-8 glass-panel p-6 md:p-8 rounded-[32px]">
                {/* Search Bar */}
-               <div className="max-w-2xl mx-auto relative">
-                  <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+               <div className="max-w-3xl mx-auto relative">
+                  <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-cyan/50" />
                   <input
                      type="text"
-                     placeholder="Search mixtapes or DJs..."
+                     placeholder="SCAN MIXTAPES OR DJS..."
                      value={searchQuery}
                      onChange={(e) => setSearchQuery(e.target.value)}
-                     className="w-full bg-[#15151A] border border-white/10 rounded-full py-4 pl-12 pr-6 text-white text-lg focus:outline-none focus:border-brand-purple shadow-lg"
+                     className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 text-white focus:outline-none focus:bg-black/60 focus:border-brand-cyan/50 focus:ring-1 focus:ring-brand-cyan/20 transition-all font-mono tracking-widest uppercase placeholder:text-gray-600 shadow-inner"
                   />
                </div>
 
@@ -78,25 +78,25 @@ const Mixtapes: React.FC = () => {
                <div className="flex flex-wrap justify-center gap-4">
                   <button
                      onClick={() => setSelectedFormat('Audio')}
-                     className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold border transition ${selectedFormat === 'Audio' ? 'bg-brand-purple text-white border-brand-purple' : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'}`}
+                     className={`flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 border ${selectedFormat === 'Audio' ? 'bg-brand-purple/20 text-brand-purple border-brand-purple/50 shadow-[0_0_15px_rgba(157,78,221,0.2)] backdrop-blur-md' : 'bg-black/40 backdrop-blur-md border border-white/5 text-gray-400 hover:text-brand-purple hover:bg-brand-purple/10 hover:border-brand-purple/30 shadow-inner'}`}
                   >
-                     <Music size={18} /> Audio Mixes
+                     <Music size={16} /> AUDIO MIXES
                   </button>
                   <button
                      onClick={() => setSelectedFormat('Video')}
-                     className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold border transition ${selectedFormat === 'Video' ? 'bg-brand-purple text-white border-brand-purple' : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'}`}
+                     className={`flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all duration-300 border ${selectedFormat === 'Video' ? 'bg-brand-pink/20 text-brand-pink border-brand-pink/50 shadow-[0_0_15px_rgba(255,42,133,0.2)] backdrop-blur-md' : 'bg-black/40 backdrop-blur-md border border-white/5 text-gray-400 hover:text-brand-pink hover:bg-brand-pink/10 hover:border-brand-pink/30 shadow-inner'}`}
                   >
-                     <Video size={18} /> Video Mixes
+                     <Video size={16} /> VIDEO MIXES
                   </button>
                </div>
 
                {/* Genre Filters */}
-               <div className="flex flex-wrap justify-center gap-2">
+               <div className="flex flex-wrap justify-center gap-2 pt-4 border-t border-white/5">
                   {mixGenres.map(genre => (
                      <button
                         key={genre}
                         onClick={() => setSelectedGenre(genre)}
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${selectedGenre === genre ? 'bg-white text-black' : 'bg-[#15151A] text-gray-400 hover:text-white hover:bg-white/10'}`}
+                        className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 border ${selectedGenre === genre ? 'bg-brand-cyan/20 text-brand-cyan border-brand-cyan/50 shadow-[0_0_15px_rgba(40,230,220,0.2)] backdrop-blur-md' : 'bg-black/40 backdrop-blur-md border border-white/5 text-gray-400 hover:text-brand-cyan hover:bg-brand-cyan/10 hover:border-brand-cyan/30 shadow-inner'}`}
                      >
                         {genre}
                      </button>
@@ -108,12 +108,12 @@ const Mixtapes: React.FC = () => {
 
             {/* Grid */}
             {filteredMixtapes.length > 0 ? (
-               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {filteredMixtapes.map((mix, idx) => (
-                     <div key={`${mix.id}-${idx}`} className="bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-white/20 transition group flex flex-col shadow-lg">
-                        <div className="relative aspect-square">
-                           <img src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover" />
-                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-4">
+                     <div key={`${mix.id}-${idx}`} className="glass-card rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-cyan/30 transition duration-300 group flex flex-col hover:shadow-[0_8px_30px_rgba(40,230,220,0.1)] relative">
+                        <div className="relative aspect-[4/3] sm:aspect-square bg-black/40 border-b border-white/5 overflow-hidden">
+                           <img src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                           <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-4 z-20">
                               <button
                                  onClick={(e) => {
                                     e.preventDefault();
@@ -125,30 +125,38 @@ const Mixtapes: React.FC = () => {
                                        playTrack(mix);
                                     }
                                  }}
-                                 className="w-12 h-12 rounded-full bg-brand-purple text-white flex items-center justify-center hover:scale-110 transition shadow-lg"
+                                 className="w-14 h-14 rounded-full bg-brand-cyan text-black flex items-center justify-center hover:scale-110 transition-transform shadow-[0_0_20px_rgba(40,230,220,0.4)]"
                               >
                                  {currentTrack?.id === mix.id && isPlaying ? (
                                     <div className="flex items-center gap-0.5">
-                                       <div className="w-1 h-4 bg-white animate-bounce" style={{ animationDelay: '0.1s' }} />
-                                       <div className="w-1 h-6 bg-white animate-bounce" style={{ animationDelay: '0.2s' }} />
-                                       <div className="w-1 h-3 bg-white animate-bounce" style={{ animationDelay: '0.3s' }} />
+                                       <div className="w-1 h-5 bg-black animate-bounce" style={{ animationDelay: '0.1s' }} />
+                                       <div className="w-1 h-7 bg-black animate-bounce" style={{ animationDelay: '0.2s' }} />
+                                       <div className="w-1 h-4 bg-black animate-bounce" style={{ animationDelay: '0.3s' }} />
                                     </div>
-                                 ) : <Play size={20} fill="white" className="ml-1" />}
+                                 ) : <Play size={24} fill="currentColor" className="ml-1" />}
                               </button>
                            </div>
+                           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
                            {mix.isExclusive && (
-                              <span className="absolute top-2 right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow">PREMIUM</span>
+                              <span className="absolute top-3 right-3 bg-[#E8C053] text-black text-[9px] font-black px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(232,192,83,0.3)] uppercase tracking-widest z-20 backdrop-blur-md">
+                                 PREMIUM
+                              </span>
+                           )}
+                           {mix.videoDownloadUrl && (
+                              <span className="absolute top-3 left-3 bg-brand-pink/90 text-white text-[9px] font-black px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(255,42,133,0.3)] uppercase tracking-widest z-20 backdrop-blur-md flex items-center gap-1">
+                                 <Video size={10} /> VIDEO
+                              </span>
                            )}
                         </div>
-                        <div className="p-4 flex-1 flex flex-col">
-                           <Link to={`/mixtapes/${mix.id}`} className="block hover:text-brand-cyan transition">
-                              <h3 className="font-bold text-white truncate text-lg mb-1">{mix.title}</h3>
+                        <div className="p-5 flex-1 flex flex-col bg-gradient-to-b from-transparent to-black/20 z-10">
+                           <Link to={`/mixtapes/${mix.id}`} className="block hover:text-brand-cyan transition-colors mb-2">
+                              <h3 className="font-black text-white line-clamp-2 text-lg md:text-xl uppercase tracking-tight leading-tight">{mix.title}</h3>
                            </Link>
-                           <div className="flex justify-between items-center text-xs text-gray-400 mb-3">
-                              <span className="bg-white/5 px-2 py-0.5 rounded">{mix.genre}</span>
-                              <span className="flex items-center gap-1"><Calendar size={12} /> {mix.releaseDate ? new Date(mix.releaseDate).getFullYear() : (mix.date || '2023')}</span>
+                           <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-4">
+                              <span className="border border-white/10 px-2.5 py-1 rounded-full bg-white/5">{mix.genre}</span>
+                              <span className="flex items-center gap-1 text-gray-500"><Calendar size={12} /> {mix.releaseDate ? new Date(mix.releaseDate).getFullYear() : (mix.date || '2023')}</span>
                            </div>
-                           <div className="mt-auto pt-3 border-t border-white/5 flex justify-between items-center">
+                           <div className="mt-auto pt-4 border-t border-white/10 border-dashed flex justify-between items-center">
                               <button
                                  onClick={() => {
                                     if (currentTrack?.id === mix.id && isPlaying) {
@@ -159,9 +167,9 @@ const Mixtapes: React.FC = () => {
                                        playTrack(mix);
                                     }
                                  }}
-                                 className="text-xs font-bold text-brand-purple hover:text-white transition uppercase flex items-center gap-1"
+                                 className="text-[10px] font-black tracking-widest text-brand-cyan hover:text-white transition-colors uppercase flex items-center gap-1.5"
                               >
-                                 {currentTrack?.id === mix.id && isPlaying ? <>Pause</> : <><Play size={12} /> Play Now</>}
+                                 {currentTrack?.id === mix.id && isPlaying ? <><div className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse"></div> PAUSE</> : <><Play size={14} /> PLAY NOW</>}
                               </button>
 
                               {mix.youtubeUrl && (
@@ -169,9 +177,9 @@ const Mixtapes: React.FC = () => {
                                     href={mix.youtubeUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-xs font-bold text-red-500 hover:text-white transition uppercase flex items-center gap-1"
+                                    className="text-[10px] font-black tracking-widest text-[#FF0000] hover:text-white transition-colors uppercase flex items-center gap-1.5"
                                  >
-                                    <Youtube size={12} /> YouTube
+                                    <Youtube size={14} /> YOUTUBE
                                  </a>
                               )}
                            </div>

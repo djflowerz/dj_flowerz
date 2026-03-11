@@ -110,6 +110,11 @@ const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
 
    return (
       <div className={`mp-track-row${isActive ? ' mp-track-row--active' : ''}`} data-id={track.id}>
+         {/* Terminal ID / Indicator */}
+         <div className="mp-track-id font-mono text-[10px] opacity-30 select-none hidden sm:block">
+            {track.id.slice(0, 4).toUpperCase()}
+         </div>
+
          {/* Waveform / Play button */}
          <button
             className="mp-play-btn"
@@ -126,9 +131,9 @@ const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
 
          {/* Labels */}
          <div className="mp-track-info">
-            <span className="mp-track-title">{track.title}</span>
+            <span className="mp-track-title font-bold tracking-tight">{track.title}</span>
             <div className="flex items-center gap-3">
-               <span className="mp-track-artist">{track.artist}</span>
+               <span className="mp-track-artist font-mono text-[11px] uppercase tracking-wider text-brand-cyan/70">{track.artist}</span>
                {track.versions && track.versions.length > 1 && (
                   <div className="flex gap-1">
                      {track.versions.map(v => (
@@ -151,23 +156,20 @@ const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
             </div>
          </div>
 
-         <div className="mp-track-meta">
+         <div className="mp-track-meta hidden md:flex">
             {track.displayGenre && (
-               <span className="mp-badge mp-badge--genre">{track.displayGenre}</span>
+               <span className="mp-badge mp-badge--genre font-mono uppercase text-[9px]">{track.displayGenre}</span>
             )}
             {vibe && (
                <span
-                  className="mp-badge mp-badge--vibe"
+                  className="mp-badge mp-badge--vibe font-mono uppercase text-[9px]"
                   style={{ background: `${vibeColor}22`, color: vibeColor, borderColor: `${vibeColor}44` }}
                >
                   {vibe}
                </span>
             )}
             {yearLabel && (
-               <span className="mp-badge mp-badge--year">{yearLabel}</span>
-            )}
-            {track.releaseMonth && (
-               <span className="mp-badge mp-badge--month">{track.releaseMonth}</span>
+               <span className="mp-badge mp-badge--year font-mono text-[9px]">{yearLabel}</span>
             )}
          </div>
 
@@ -178,12 +180,13 @@ const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
 
          {/* Download */}
          <button
-            className="mp-dl-btn"
+            className="mp-dl-btn group relative"
             onClick={() => onDownload(track, selectedVersionId)}
             aria-label="Download"
             title={`Download: ${track.title}`}
          >
-            <Download size={15} />
+            <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
+            <div className="absolute inset-0 bg-brand-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
          </button>
       </div>
    );
@@ -380,6 +383,16 @@ export default function MusicPool() {
       <div className="mp-root">
          <style>{MUSIC_POOL_CSS}</style>
 
+         {/* ── Background Effects ── */}
+         <div className="fixed inset-0 pointer-events-none z-0">
+            <div className="absolute inset-0 bg-[#0B0B0F]" />
+            <div className="absolute inset-0 scanline opacity-20" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-purple/10 rounded-full blur-[120px] animate-pulse" />
+
+            <div className="orbital-ring w-[600px] h-[600px] border border-white/5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ animation: 'orbit 20s linear infinite' }} />
+            <div className="orbital-ring w-[900px] h-[900px] border border-white/5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ animation: 'orbit 35s linear infinite reverse' }} />
+         </div>
+
          {/* ── Gated Access Check ─────────────────────────────────────────────── */}
          {poolLoading ? (
             <div className="mp-loading">
@@ -393,28 +406,33 @@ export default function MusicPool() {
          ) : (
             <>
                {/* ── Header ─────────────────────────────────────────────────────────── */}
-               <header className="mp-header">
-                  <div className="mp-header__inner">
-                     <div className="mp-header__brand">
-                        <Music2 size={28} className="mp-header__icon text-gradient-cyan" />
-                        <div>
-                           <h1 className="mp-header__title">Music Pool</h1>
-                           <p className="mp-header__sub">
-                              {`${filtered.length.toLocaleString()} of ${poolTracks.length.toLocaleString()} tracks`}
-                           </p>
-                        </div>
+               <div className="mp-header__inner relative z-10 glass-panel border border-white/10 rounded-2xl p-6 mb-6">
+                  <div className="mp-header__brand">
+                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center shadow-lg shadow-brand-purple/20">
+                        <Music2 size={24} className="text-white animate-pulse" />
                      </div>
+                     <div>
+                        <h1 className="text-2xl font-black tracking-tight text-white uppercase italic">
+                           Track <span className="text-brand-cyan">Terminal</span>
+                        </h1>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold flex items-center gap-2">
+                           {`${filtered.length.toLocaleString()} Tracks Indexing...`}
+                           <span className="w-1 h-1 bg-brand-cyan rounded-full animate-ping" />
+                        </p>
+                     </div>
+                  </div>
 
+                  <div className="flex items-center gap-6">
                      {/* Download Fuel Tracker */}
                      {usage.limit > 0 && (
-                        <div className="mp-fuel">
-                           <div className="mp-fuel__label">
-                              <Fuel size={14} className="text-brand-pink" />
-                              <span>Download Fuel: {usage.limit - usage.count} left today</span>
+                        <div className="mp-fuel glass-card px-4 py-2 rounded-xl border border-white/5">
+                           <div className="mp-fuel__label flex items-center gap-2 mb-1.5">
+                              <Fuel size={12} className="text-brand-pink" />
+                              <span className="text-[10px] font-black tracking-wider uppercase">Fuel Level: {usage.limit - usage.count} Units</span>
                            </div>
-                           <div className="mp-fuel__bar-bg">
+                           <div className="mp-fuel__bar-bg h-1.5 w-32 bg-white/5 rounded-full overflow-hidden">
                               <div
-                                 className="mp-fuel__bar-fill"
+                                 className="mp-fuel__bar-fill h-full bg-gradient-to-r from-brand-pink to-brand-purple rounded-full"
                                  style={{ width: `${Math.max(0, Math.min(100, (1 - usage.count / usage.limit) * 100))}%` }}
                               />
                            </div>
@@ -423,92 +441,111 @@ export default function MusicPool() {
 
                      {/* Sort */}
                      <button
-                        className="mp-sort-btn"
+                        className="btn-cyber-outline px-4 py-2 text-[10px] font-black uppercase"
                         onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
-                        title="Toggle sort order"
                      >
-                        {sortDir === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
-                        <span>{sortDir === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                        {sortDir === 'desc' ? <SortDesc size={14} /> : <SortAsc size={14} />}
+                        <span className="ml-2">{sortDir === 'desc' ? 'Latest' : 'Oldest'}</span>
                      </button>
                   </div>
+               </div>
 
-                  {/* ── Search ──────────────────────────────────────────────────────── */}
-                  <div className="mp-search-bar">
-                     <Search size={17} className="mp-search-icon" />
+               {/* ── Search & Filters Grid ── */}
+               <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6 relative z-10">
+                  <div className="lg:col-span-2 relative">
+                     <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                        <Search size={16} className="text-brand-cyan opacity-50" />
+                     </div>
                      <input
-                        className="mp-search-input"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-brand-cyan/50 focus:ring-1 focus:ring-brand-cyan/20 transition-all font-medium"
                         type="search"
-                        placeholder="Search by title, artist, genre…"
+                        placeholder="SCAN DATABASE FOR TRACKS..."
                         value={filters.search}
                         onChange={e => setFilter('search', e.target.value)}
-                        aria-label="Search tracks"
                      />
-                     {filters.search && (
-                        <button className="mp-search-clear" onClick={() => setFilter('search', '')} aria-label="Clear search">
-                           <X size={14} />
+                  </div>
+                  <div className="lg:col-span-2 flex flex-wrap gap-2">
+                     {/* Filters are rendered as buttons/chips for cleaner UI */}
+                     {activeFilterCount > 0 && (
+                        <button className="px-4 py-2 rounded-xl bg-brand-pink/10 border border-brand-pink/20 text-brand-pink text-[10px] font-black uppercase hover:bg-brand-pink/20 transition-all" onClick={clearFilters}>
+                           RESET {activeFilterCount}
                         </button>
                      )}
                   </div>
+               </div>
 
-                  {/* ── Filters ─────────────────────────────────────────────────────── */}
-                  <div className="mp-filters">
-                     <div className="mp-filters__row">
-                        <FilterSelect
-                           value={filters.hub}
-                           onChange={v => setFilter('hub', v)}
-                           options={hubs}
-                           placeholder="All Hubs"
-                           icon={Radio}
-                        />
-                        <FilterSelect
-                           value={filters.displayGenre}
-                           onChange={v => setFilter('displayGenre', v)}
-                           options={displayGenres}
-                           placeholder="All Genres"
-                           icon={Music2}
-                        />
-                        <FilterSelect
-                           value={filters.year}
-                           onChange={v => setFilter('year', v)}
-                           options={years}
-                           placeholder="Any Year"
-                           icon={Clock}
-                        />
-                        <FilterSelect
-                           value={filters.month}
-                           onChange={v => setFilter('month', v)}
-                           options={months}
-                           placeholder="Any Month"
-                           icon={Filter}
-                        />
-                        <FilterSelect
-                           value={filters.vibe}
-                           onChange={v => setFilter('vibe', v)}
-                           options={VIBES}
-                           placeholder="Any Vibe"
-                           icon={Zap}
-                        />
-                        {activeFilterCount > 0 && (
-                           <button className="mp-clear-filters" onClick={clearFilters}>
-                              <X size={13} />
-                              Clear ({activeFilterCount})
-                           </button>
-                        )}
-                     </div>
+               {/* ── Filters ─────────────────────────────────────────────────────── */}
+               <div className="mp-filters px-6 py-2 relative z-10 glass-panel border border-white/5 mx-6 rounded-xl mb-6">
+                  <div className="mp-filters__row flex flex-wrap items-center gap-4 py-1">
+                     <FilterSelect
+                        value={filters.hub}
+                        onChange={v => setFilter('hub', v)}
+                        options={hubs}
+                        placeholder="All Hubs"
+                        icon={Radio}
+                     />
+                     <FilterSelect
+                        value={filters.displayGenre}
+                        onChange={v => setFilter('displayGenre', v)}
+                        options={displayGenres}
+                        placeholder="All Genres"
+                        icon={Music2}
+                     />
+                     <FilterSelect
+                        value={filters.year}
+                        onChange={v => setFilter('year', v)}
+                        options={years}
+                        placeholder="Any Year"
+                        icon={Clock}
+                     />
+                     <FilterSelect
+                        value={filters.month}
+                        onChange={v => setFilter('month', v)}
+                        options={months}
+                        placeholder="Any Month"
+                        icon={Filter}
+                     />
+                     <FilterSelect
+                        value={filters.vibe}
+                        onChange={v => setFilter('vibe', v)}
+                        options={VIBES}
+                        placeholder="Any Vibe"
+                        icon={Zap}
+                     />
+                     {activeFilterCount > 0 && (
+                        <button className="mp-clear-filters px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 border border-brand-pink/30 hover:bg-brand-pink/10 transition-colors text-brand-pink" onClick={clearFilters}>
+                           <X size={12} />
+                           CLEAR ALL
+                        </button>
+                     )}
                   </div>
-               </header>
+               </div>
 
                {/* ── Track List ─────────────────────────────────────────────────────── */}
-               <main className="mp-main">
+               <main className="mp-main relative z-10 mx-6 bg-black/20 rounded-t-2xl border-x border-t border-white/10 overflow-hidden">
+                  <div className="mp-terminal-header flex items-center gap-4 px-6 py-3 border-b border-white/10 bg-white/5">
+                     <div className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse" />
+                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Database Stream active // Port 8080</span>
+                     <div className="ml-auto flex gap-6">
+                        <span className="text-[10px] font-mono text-gray-500 hidden sm:block">INDEX_STATUS: OK</span>
+                        <span className="text-[10px] font-mono text-gray-500 hidden sm:block">CRYPT_LINK: SECURE</span>
+                     </div>
+                  </div>
+
                   {filtered.length === 0 ? (
-                     <div className="mp-empty">
-                        <Music2 size={48} opacity={0.25} />
-                        <p>No tracks match your filters.</p>
-                        <button className="mp-clear-filters" onClick={clearFilters}>Clear filters</button>
+                     <div className="mp-empty py-20">
+                        <div className="relative mb-6">
+                           <Music2 size={64} className="text-white/5" />
+                           <Search size={24} className="absolute bottom-0 right-0 text-brand-pink animate-bounce" />
+                        </div>
+                        <p className="text-gray-400 font-mono text-xs uppercase tracking-widest">No matching sectors found in database</p>
+                        <button className="mt-4 px-6 py-2 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-white" onClick={clearFilters}>
+                           Re-scan with zero filters
+                        </button>
                      </div>
                   ) : (
                      <Virtuoso<Track>
-                        style={{ height: '100%' }}
+                        style={{ height: 'calc(100dvh - 380px)' }}
                         data={filtered}
                         itemContent={(_, track) => (
                            <TrackRow

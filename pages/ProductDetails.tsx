@@ -302,42 +302,83 @@ export default function ProductDetails() {
               ) : null}
 
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <div className="flex items-center bg-[#15151A] rounded-2xl border border-white/5 p-1">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-12 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                {/* Quantity selector — hidden for free digital products */}
+                {!(product?.isFree && product?.type === 'digital') && (
+                  <div className="flex items-center bg-[#15151A] rounded-2xl border border-white/5 p-1">
+                    <button
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="w-12 h-12 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <span className="w-12 text-center font-black text-lg">{quantity}</span>
+                    <button
+                      onClick={() => setQuantity(quantity + 1)}
+                      className="w-12 h-12 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                )}
+
+                {/* CTA Button — adapts to product type */}
+                {product?.isFree && product?.type === 'digital' && product?.digitalFileUrl ? (
+                  <a
+                    href={product.digitalFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-brand-cyan hover:brightness-110 text-black rounded-2xl py-4 flex items-center justify-center text-lg font-black shadow-xl shadow-brand-cyan/20 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest gap-3"
                   >
-                    <Minus size={18} />
-                  </button>
-                  <span className="w-12 text-center font-black text-lg">{quantity}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    Free Download
+                  </a>
+                ) : (
                   <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-12 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                    onClick={handleAddToCart}
+                    className="flex-1 bg-brand-purple hover:bg-purple-600 text-white rounded-2xl py-4 flex items-center justify-center text-lg font-black shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest"
                   >
-                    <Plus size={18} />
+                    {product?.type === 'digital' ? 'Buy & Download' : 'Secure Order'}
                   </button>
-                </div>
-                <button
-                  onClick={handleAddToCart}
-                  className="flex-1 bg-brand-purple hover:bg-purple-600 text-white rounded-2xl py-4 flex items-center justify-center text-lg font-black shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest"
-                >
-                  Secure Order
-                </button>
+                )}
               </div>
+
+              {/* Digital product info badge */}
+              {product?.type === 'digital' && (
+                <div className="flex items-center gap-3 p-4 bg-brand-cyan/5 rounded-2xl border border-brand-cyan/10 mt-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-cyan flex-shrink-0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  <div>
+                    <p className="text-[10px] font-black text-brand-cyan uppercase tracking-widest">Digital Download</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {product.isFree ? 'Free — download instantly' : 'Download link delivered instantly after payment'}
+                      {product.downloadPassword ? ' · Password protected' : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-white/5">
                 <div className="flex flex-col items-center sm:items-start gap-2 group cursor-help">
                   <div className="w-10 h-10 rounded-2xl bg-brand-purple/10 flex items-center justify-center text-brand-purple group-hover:bg-brand-purple group-hover:text-white transition-all">
                     <ShieldCheck size={20} />
                   </div>
-                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Global Warranty</span>
+                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">100% Secure</span>
                 </div>
-                <div className="flex flex-col items-center sm:items-start gap-2 group cursor-help">
-                  <div className="w-10 h-10 rounded-2xl bg-brand-cyan/10 flex items-center justify-center text-brand-cyan group-hover:bg-brand-cyan group-hover:text-brand-dark transition-all">
-                    <Truck size={20} />
+                {product?.type !== 'digital' && (
+                  <div className="flex flex-col items-center sm:items-start gap-2 group cursor-help">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-cyan/10 flex items-center justify-center text-brand-cyan group-hover:bg-brand-cyan group-hover:text-brand-dark transition-all">
+                      <Truck size={20} />
+                    </div>
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Express Shipping</span>
                   </div>
-                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Express Shipping</span>
-                </div>
+                )}
+                {product?.type === 'digital' && (
+                  <div className="flex flex-col items-center sm:items-start gap-2 group cursor-help">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-cyan/10 flex items-center justify-center text-brand-cyan group-hover:bg-brand-cyan group-hover:text-brand-dark transition-all">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                    </div>
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Instant Access</span>
+                  </div>
+                )}
                 <div className="flex flex-col items-center sm:items-start gap-2 group cursor-help">
                   <div className="w-10 h-10 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
                     <RefreshCw size={20} />

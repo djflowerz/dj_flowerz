@@ -1,6 +1,6 @@
 import React from 'react';
 import { AdminSidebar } from './AdminSidebar';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, Users } from 'lucide-react';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
