@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             email: sbUser.email || '',
             role: profile.role || (isAdminEmail ? 'admin' : 'user'),
             isAdmin: (profile.role === 'admin') || isAdminEmail,
-            isSubscriber: profile.is_subscriber || profile.isSubscriber || false,
+            isSubscriber: (profile.role === 'admin') || isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
             subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
             subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
             avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
@@ -91,7 +91,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             phoneNumber: profile.phone_number || profile.phoneNumber || '',
             hasUsedTrial: profile.has_used_trial || profile.hasUsedTrial || false,
             createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
-            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString()
+            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
+            referralCount: profile.referral_count || profile.referralCount || 0,
+            downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0
           };
         } else {
           // Profile doesn't exist, create it in R2
@@ -137,7 +139,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             created_at: now,
             updated_at: now,
             last_seen: now,
-            presence_status: 'online'
+            presence_status: 'online',
+            referral_count: 0,
+            download_count_total: 0
           };
 
           // Save to local state
@@ -146,7 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             name: newProfile.name,
             email: newProfile.email,
             role: newProfile.role as any,
-            isSubscriber: newProfile.is_subscriber,
+            isSubscriber: (newProfile.role === 'admin') || newProfile.is_subscriber,
             subscriptionPlan: newProfile.subscription_plan as any,
             subscriptionExpiry: newProfile.subscription_expiry,
             avatarUrl: newProfile.avatar_url,
@@ -156,7 +160,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             auraPoints: newProfile.aura_points,
             auraLevel: newProfile.aura_level,
             createdAt: newProfile.created_at,
-            updatedAt: newProfile.updated_at
+            updatedAt: newProfile.updated_at,
+            referralCount: newProfile.referral_count,
+            downloadCountTotal: newProfile.download_count_total
           };
 
           // Save to R2

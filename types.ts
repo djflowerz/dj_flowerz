@@ -177,6 +177,8 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   presenceStatus?: 'online' | 'offline';
+  referralCount?: number;
+  downloadCountTotal?: number;
 }
 
 export interface Subscription {
