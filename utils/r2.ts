@@ -59,8 +59,8 @@ export async function fetchFromR2<T>(collection: string): Promise<T[]> {
 export async function saveToR2(collection: string, data: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
     const key = `data/${collection}.json`;
-    console.log(`[R2] Saving ${collection} to: /api/r2-sync`, { key });
-    const response = await fetch(`/api/r2-sync`, {
+    console.log(`[R2] Saving ${collection} to: ${STORAGE_WORKER_URL}/api/admin/r2-sync`, { key });
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, key, action: 'save', data }),
@@ -80,7 +80,7 @@ function resStatus(status: number) { return status; }
 export async function addR2Item(collection: string, item: any): Promise<boolean> {
     const authHeader = await getAuthHeader();
     const key = `data/${collection}.json`;
-    const response = await fetch(`/api/r2-sync`, {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, key, action: 'add', item }),
@@ -95,7 +95,7 @@ export async function addR2Item(collection: string, item: any): Promise<boolean>
 export async function updateR2Item(collection: string, id: string, item: any): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch(`/api/r2-sync`, {
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'update', id, item }),
@@ -107,7 +107,7 @@ export async function updateR2Item(collection: string, id: string, item: any): P
 export async function removeR2Item(collection: string, id: string): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const response = await fetch(`/api/r2-sync`, {
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ collection, action: 'delete', id }),
@@ -134,7 +134,14 @@ export async function addAdminNotification(title: string, message: string, type:
 export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DELETE', data?: any, id?: string): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
-        const endpoint = id ? `${STORAGE_WORKER_URL}/api/${collection}/${id}` : `${STORAGE_WORKER_URL}/api/${collection}`;
+
+        // Define collections that require /api/admin/ prefix for write operations
+        let basePath = '/api';
+        if (['POST', 'PUT', 'DELETE'].includes(method) && ['products', 'mixtapes', 'orders'].includes(collection)) {
+            basePath = '/api/admin';
+        }
+
+        const endpoint = id ? `${STORAGE_WORKER_URL}${basePath}/${collection}/${id}` : `${STORAGE_WORKER_URL}${basePath}/${collection}`;
 
         const response = await fetch(endpoint, {
             method,
@@ -144,7 +151,7 @@ export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DEL
 
         if (!response.ok) {
             const err = await response.text();
-            console.error(`[D1] ${method} failed for ${collection}:`, err);
+            console.error(`[D1] ${method} failed for ${collection} at ${endpoint}:`, err);
             return false;
         }
         return true;
@@ -188,7 +195,7 @@ export async function uploadFileToR2(file: File, folder: string = 'uploads'): Pr
 export async function addBatchR2Items(collection: string, items: any[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
     const key = `data/${collection}.json`;
-    const response = await fetch(`/api/r2-sync`, {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, key, action: 'addBatch', items }),
@@ -202,7 +209,7 @@ export async function addBatchR2Items(collection: string, items: any[]): Promise
 
 export async function removeBatchR2Items(collection: string, ids: string[]): Promise<boolean> {
     const authHeader = await getAuthHeader();
-    const response = await fetch(`/api/r2-sync`, {
+    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/r2-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ collection, action: 'deleteBatch', ids }),

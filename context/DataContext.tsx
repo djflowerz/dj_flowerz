@@ -1261,7 +1261,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProduct = { ...product, id: docId, createdAt: new Date().toISOString() };
       const newProducts = [newProduct, ...products];
       setProducts(newProducts);
-      await saveToD1('products', 'POST', newProduct);
+      console.log("Saving Product to API", newProduct);
+      const res = await saveToD1('products', 'POST', newProduct);
+      console.log("Save Product Response:", res);
       alert("Product added successfully!");
       if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
@@ -1273,7 +1275,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
       setProducts(newProducts);
-      await saveToD1('products', 'PUT', data, id);
+      console.log("Updating Product via API", id, data);
+      const res = await saveToD1('products', 'PUT', data, id);
+      console.log("Update Product Response:", res);
       alert("Product updated successfully!");
       if (typeof refreshProducts === 'function') refreshProducts();
     } catch (err: any) {
@@ -2039,6 +2043,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.error("Tracklist download failed:", err);
     }
+  };
+
+  const saveToD1 = async (collection: string, method: 'POST' | 'PUT' | 'DELETE', data?: any, id?: string) => {
+    let endpoint = `/api/${collection}`;
+    if (['POST', 'PUT', 'DELETE'].includes(method)) {
+      endpoint = `/api/admin/${collection}`;
+    }
+    const url = id ? `${STORAGE_URL}${endpoint}/${id}` : `${STORAGE_URL}${endpoint}`;
+
+    const sessionStr = localStorage.getItem('auth_session');
+    let token = '';
+    if (sessionStr) {
+      try {
+        const session = JSON.parse(sessionStr);
+        token = session?.access_token || '';
+      } catch (e) { }
+    }
+
+    console.log(`[saveToD1] calling ${method} ${url}`, data);
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: data ? JSON.stringify(data) : undefined
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`API Error ${res.status}: ${errText}`);
+    }
+    return res.json();
   };
 
   const updateUser = async (id: string, data: Partial<User>) => {

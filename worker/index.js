@@ -5,6 +5,8 @@ import { handleStorefrontOrders } from './api/storefront/orders.js';
 import { handleDashboardProducts } from './api/dashboard/products.js';
 import { handleDashboardOrders } from './api/dashboard/orders.js';
 import { handleDashboardUsers } from './api/dashboard/users.js';
+import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
+import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
 import { handleStorefrontPool } from './api/storefront/pool.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
@@ -31,6 +33,12 @@ router.get('/api/admin/orders/:id', handleDashboardOrders);
 router.put('/api/admin/orders/:id', handleDashboardOrders);
 router.delete('/api/admin/orders/:id', handleDashboardOrders);
 router.get('/api/admin/users', handleDashboardUsers);
+router.get('/api/admin/mixtapes', handleDashboardMixtapes);
+router.post('/api/admin/mixtapes', handleDashboardMixtapes);
+router.put('/api/admin/mixtapes/:id', handleDashboardMixtapes);
+router.delete('/api/admin/mixtapes/:id', handleDashboardMixtapes);
+router.get('/api/admin/subscriptions', handleDashboardSubscriptions);
+router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);

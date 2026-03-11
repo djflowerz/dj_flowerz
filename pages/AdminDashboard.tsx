@@ -1358,6 +1358,7 @@ const AdminDashboard: React.FC = () => {
          };
 
          if (isEditing) {
+            console.log("Saving Edited Product Payload:", productToSave);
             await updateProduct(newProduct.id, productToSave);
          } else {
             const finalProduct = {
@@ -1368,6 +1369,7 @@ const AdminDashboard: React.FC = () => {
                // image_url is managed by updateProduct/addProduct implementation internally or db triggers if needed,
                // but TS complains about it on the frontend Product interface. We'll leave it as `image` in `productToSave`.
             };
+            console.log("Saving New Product Payload:", finalProduct);
             await addProduct(finalProduct);
          }
          alert("Product successfully cataloged in matrix!");
