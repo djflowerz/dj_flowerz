@@ -2050,7 +2050,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (['POST', 'PUT', 'DELETE'].includes(method)) {
       endpoint = `/api/admin/${collection}`;
     }
-    const url = id ? `${STORAGE_URL}${endpoint}/${id}` : `${STORAGE_URL}${endpoint}`;
+    const url = id ? `${STORAGE_WORKER_URL}${endpoint}/${id}` : `${STORAGE_WORKER_URL}${endpoint}`;
 
     const sessionStr = localStorage.getItem('auth_session');
     let token = '';
