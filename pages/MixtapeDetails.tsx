@@ -212,85 +212,61 @@ const MixtapeDetails: React.FC = () => {
                   </div>
 
                   <div className="space-y-8">
-                     {mixtape.enableComments ? (
-                        <>
-                           {/* Comment Form */}
-                           <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5">
-                              <h3 className="font-bold text-white mb-4">Post a Comment</h3>
-                              {isAuthenticated ? (
-                                 <form onSubmit={handleSubmitComment} className="space-y-4">
-                                    <textarea
-                                       value={newComment}
-                                       onChange={(e) => setNewComment(e.target.value)}
-                                       placeholder="What do you think of this mix?"
-                                       className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-brand-purple outline-none min-h-[100px] transition-all"
-                                       required
-                                    ></textarea>
-                                    <div className="flex justify-end">
-                                       <button
-                                          type="submit"
-                                          disabled={isSubmitting || !newComment.trim()}
-                                          className="px-6 py-2.5 bg-brand-purple text-white font-bold rounded-xl hover:bg-purple-600 transition disabled:opacity-50 flex items-center gap-2"
-                                       >
-                                          {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
-                                          Post Comment
-                                       </button>
-                                    </div>
-                                 </form>
-                              ) : (
-                                 <div className="text-center py-6 bg-black/20 rounded-xl border border-dashed border-white/10">
-                                    <p className="text-gray-500 mb-4">Please log in to join the conversation.</p>
-                                    <Link to="/login" className="px-6 py-2 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition">Login</Link>
-                                 </div>
-                              )}
+                     {/* Comment Form */}
+                     <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5">
+                        <h3 className="font-bold text-white mb-4">Post a Comment</h3>
+                        {isAuthenticated ? (
+                           <form onSubmit={handleSubmitComment} className="space-y-4">
+                              <textarea
+                                 value={newComment}
+                                 onChange={(e) => setNewComment(e.target.value)}
+                                 placeholder="What do you think of this mix?"
+                                 className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-brand-purple outline-none min-h-[100px] transition-all"
+                                 required
+                              ></textarea>
+                              <div className="flex justify-end">
+                                 <button
+                                    type="submit"
+                                    disabled={isSubmitting || !newComment.trim()}
+                                    className="px-6 py-2.5 bg-brand-purple text-white font-bold rounded-xl hover:bg-purple-600 transition disabled:opacity-50 flex items-center gap-2"
+                                 >
+                                    {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
+                                    Post Comment
+                                 </button>
+                              </div>
+                           </form>
+                        ) : (
+                           <div className="text-center py-6 bg-black/20 rounded-xl border border-dashed border-white/10">
+                              <p className="text-gray-500 mb-4">Please log in to join the conversation.</p>
+                              <Link to="/login" className="px-6 py-2 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition">Login</Link>
                            </div>
+                        )}
+                     </div>
 
-                           {/* Comment List */}
-                           <div className="space-y-6">
-                              {mixtapeComments.length > 0 ? (
-                                 mixtapeComments.map((comment: any) => (
-                                    <div key={comment.id} className="bg-[#15151A] p-6 rounded-2xl border border-white/5 flex gap-4">
-                                       <div className="w-10 h-10 rounded-full bg-brand-purple/20 border border-brand-purple/30 flex items-center justify-center text-brand-purple font-bold shrink-0">
-                                          {comment.userName?.substring(0, 1).toUpperCase() || 'U'}
-                                       </div>
-                                       <div className="flex-1">
-                                          <div className="flex justify-between items-center mb-1">
-                                             <span className="font-bold text-white">{comment.userName}</span>
-                                             <span className="text-[10px] text-gray-500 uppercase tracking-widest">{new Date(comment.date).toLocaleDateString()}</span>
-                                          </div>
-                                          <p className="text-gray-400 text-sm leading-relaxed">{comment.text}</p>
-                                       </div>
-                                    </div>
-                                 ))
-                              ) : (
-                                 <div className="text-center py-12 text-gray-600">
-                                    <MessageSquare size={48} className="mx-auto mb-4 opacity-10" />
-                                    <p>No comments yet. Be the first to share your thoughts!</p>
+                     {/* Comment List */}
+                     <div className="space-y-6">
+                        {mixtapeComments.length > 0 ? (
+                           mixtapeComments.map((comment: any) => (
+                              <div key={comment.id} className="bg-[#15151A] p-6 rounded-2xl border border-white/5 flex gap-4">
+                                 <div className="w-10 h-10 rounded-full bg-brand-purple/20 border border-brand-purple/30 flex items-center justify-center text-brand-purple font-bold shrink-0">
+                                    {comment.userName?.substring(0, 1).toUpperCase() || 'U'}
                                  </div>
-                              )}
+                                 <div className="flex-1">
+                                    <div className="flex justify-between items-center mb-1">
+                                       <span className="font-bold text-white">{comment.userName}</span>
+                                       <span className="text-[10px] text-gray-500 uppercase tracking-widest">{new Date(comment.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <p className="text-gray-400 text-sm leading-relaxed">{comment.text}</p>
+                                 </div>
+                              </div>
+                           ))
+                        ) : (
+                           <div className="text-center py-12 text-gray-600">
+                              <MessageSquare size={48} className="mx-auto mb-4 opacity-10" />
+                              <p>No comments yet. Be the first to share your thoughts!</p>
                            </div>
-                        </>
-                     ) : (
-                        <div className="bg-[#15151A] p-10 rounded-2xl border border-white/5 text-center flex flex-col items-center">
-                           <MessageCircle size={48} className="text-brand-purple mb-4" />
-                           <h3 className="text-xl font-bold text-white mb-2">What do you think of this mix?</h3>
-                           <p className="text-gray-400 mb-8 max-w-md">
-                              Drop us a message directly on WhatsApp to let us know your thoughts, request similar tracks, or leave a review for DJ Flowerz.
-                           </p>
-
-                           <button
-                              onClick={() => {
-                                 const msg = encodeURIComponent(`Hi DJ Flowerz, I'm listening to your mix "${mixtape.title}".\n\nMy thoughts: `);
-                                 const whatsappNumber = mixtape.whatsappNumber || '254707173166';
-                                 window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, '_blank');
-                              }}
-                              className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-bold transition flex items-center justify-center gap-3 shadow-lg shadow-green-500/20"
-                           >
-                              <MessageCircle size={20} />
-                              Leave a Comment via WhatsApp
-                           </button>
-                        </div>
-                     )}
+                        )}
+                     </div>
                   </div>
                </div>
 

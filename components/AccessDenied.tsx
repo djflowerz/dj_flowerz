@@ -12,7 +12,7 @@ interface AccessDeniedProps {
 }
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
-    const { user } = useAuth() as any;
+    const { user, activateTrial } = useAuth() as any;
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -63,7 +63,6 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
             // Free Trial
             const trialToast = toast.loading("Activating your free trial...");
             try {
-                const { activateTrial } = useAuth();
                 await activateTrial();
                 toast.success("Free trial activated! Enjoy the Music Pool.", { id: trialToast });
                 if (onJoinSuccess) onJoinSuccess();

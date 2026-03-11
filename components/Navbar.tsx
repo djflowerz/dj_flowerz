@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, LogIn, ChevronRight, Bell, MessageCircle } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -9,7 +9,7 @@ import SubscriptionTimer from './SubscriptionTimer';
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { itemCount } = useCart();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { siteConfig, notifications, markNotificationAsRead } = useData();
   const location = useLocation();
 
@@ -31,9 +31,12 @@ const Navbar: React.FC = () => {
     { name: 'Contact', path: '/contact' },
   ];
 
-  // Close mobile menu when route changes
+  // Close mobile menu and dropdowns when route changes
   useEffect(() => {
     setIsOpen(false);
+    setShowNotifications(false);
+    setShowMessages(false);
+    setShowUserMenu(false);
   }, [location.pathname]);
 
   if (isAdminPage) return null;
@@ -217,10 +220,13 @@ const Navbar: React.FC = () => {
                       )}
                       <hr className="my-2 border-white/5" />
                       <button
-                        onClick={() => { /* Logout logic */ }}
+                        onClick={() => {
+                          logout();
+                          setShowUserMenu(false);
+                        }}
                         className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-white/5 transition"
                       >
-                        <X size={16} /> Logout
+                        <LogOut size={16} /> Logout
                       </button>
                     </div>
                   )}
