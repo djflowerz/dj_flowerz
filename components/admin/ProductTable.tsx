@@ -53,7 +53,7 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, onDelete,
                       <div className="relative group/img">
                         <div className="absolute -inset-2 bg-brand-purple/20 rounded-2xl blur-xl opacity-0 group-hover/img:opacity-100 transition-opacity" />
                         <img
-                          src={product.image_url || product.image || 'https://via.placeholder.com/64'}
+                          src={product.image_url || product.image || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
                           alt={product.name}
                           className="relative h-14 w-14 rounded-2xl object-cover bg-white/5 border border-white/10 ring-1 ring-white/5"
                         />

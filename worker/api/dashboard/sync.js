@@ -31,12 +31,14 @@ export async function handleR2Upload(request, env, ctx, params) {
     }
 }
 
-export async function handleR2Sync(request, env, ctx, params) {
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+export async function handleR2Sync(request, env, ctx, params) { // Verify admin authorization
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
-
     try {
         const bodyBytes = await request.text();
         // Ensure we handle huge JSON bodies safely

@@ -153,7 +153,7 @@ const Home: React.FC = () => {
 
                         <div className="relative h-[300px] p-8 flex-shrink-0 bg-white/5 flex items-center justify-center overflow-hidden">
                            <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/5 to-transparent pointer-events-none" />
-                           <img src={product.image || product.image_url || 'https://via.placeholder.com/300'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:rotate-3 transition duration-700 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]" />
+                           <img src={product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:rotate-3 transition duration-700 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]" />
                         </div>
 
                         <div className="p-6 flex flex-col flex-grow">
@@ -218,7 +218,7 @@ const Home: React.FC = () => {
                                  </button>
                               </div>
                               <div className="relative z-10 w-full max-w-[280px] h-[280px] mt-8 sm:mt-0 flex items-center justify-center bg-white rounded-3xl p-6 shadow-2xl border border-white/10">
-                                 <img src={product.image || product.image_url || 'https://via.placeholder.com/300'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
+                                 <img src={product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
                               </div>
                            </Link>
                         );

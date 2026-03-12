@@ -48,6 +48,7 @@ router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
 router.get('/api/admin/newsletter_subscribers', handleDashboardNewsletter);
 router.get('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
 router.delete('/api/admin/newsletter_subscribers/:id', handleDashboardNewsletter);
+router.post('/api/newsletter/subscribe', handleDashboardNewsletter);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);
@@ -90,6 +91,11 @@ export default {
 
         try {
             const response = await router.handle(request, env, ctx);
+
+            // Special handling for WebSockets: return the original response if status is 101
+            if (response.status === 101) {
+                return response;
+            }
 
             // Add CORS headers to all responses
             const newHeaders = new Headers(response.headers);

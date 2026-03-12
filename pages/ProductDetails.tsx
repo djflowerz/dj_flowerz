@@ -137,7 +137,7 @@ export default function ProductDetails() {
 
   const galleryImages = (product.images && product.images.length > 0)
     ? product.images
-    : [product.image || product.image_url || 'https://via.placeholder.com/300'].filter(Boolean);
+    : [product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'].filter(Boolean);
 
   return (
     <div className="bg-[#0B0B0F] min-h-screen text-white pb-20 pt-24">
@@ -162,7 +162,7 @@ export default function ProductDetails() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
-                src={selectedImage || 'https://via.placeholder.com/300'}
+                src={selectedImage || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
                 alt={product.name}
                 className="h-full w-full object-cover object-center transform transition-transform duration-700 group-hover:scale-110"
               />
@@ -565,7 +565,7 @@ export default function ProductDetails() {
               <Link key={related.id} to={`/store/${related.slug || related.id}`} className="group space-y-4">
                 <div className="w-full aspect-square bg-[#15151A] rounded-[2rem] overflow-hidden border border-white/5 relative shadow-xl">
                   <img
-                    src={related.image || related.image_url || 'https://via.placeholder.com/300'}
+                    src={related.image || related.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
                     alt={related.name}
                     className="w-full h-full object-center object-cover group-hover:scale-110 transition-transform duration-700"
                   />

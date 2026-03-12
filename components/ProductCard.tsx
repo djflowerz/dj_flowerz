@@ -20,7 +20,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     <div className="glass-card group relative border border-white/5 rounded-[24px] flex flex-col overflow-hidden hover:border-brand-cyan/30 hover:shadow-[0_8px_30px_rgba(40,230,220,0.1)] transition-all duration-300 h-full">
       <Link to={`/store/${product.slug || product.id}`} className="block relative aspect-w-1 aspect-h-1 bg-black/40 overflow-hidden sm:aspect-none sm:h-64 h-64 border-b border-white/5">
         <img
-          src={product.image || product.image_url || 'https://via.placeholder.com/300'}
+          src={product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
           alt={product.name}
           className="w-full h-full object-contain transform transition-transform duration-500 group-hover:scale-110 drop-shadow-2xl z-10 relative pl-4 pr-4 pt-4 pb-4"
         />
