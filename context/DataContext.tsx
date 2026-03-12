@@ -659,8 +659,8 @@ const useCollection = <T extends { id: string }>(
       let results: any[] = [];
       if (source === 'D1') {
         const authHeader = await getAuthHeader();
-        // Use /api/admin prefix for D1 collections and add timestamp to bypass cache
-        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/${tableName}?t=${Date.now()}`, {
+        // Use /api/ prefix for public D1 collections and add timestamp to bypass cache
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/${tableName}?t=${Date.now()}`, {
           headers: authHeader
         });
         if (response.ok) {
