@@ -28,10 +28,10 @@ export async function handleDashboardUsers(request, env) {
                 console.warn('[Users] D1 query failed:', e.message);
             }
 
-            // If D1 returns nothing, fall back to R2 bucket (profiles stored as JSON objects)
-            if (results.length === 0 && env.PROFILES_BUCKET) {
+            // If D1 returns nothing, fall back to R2 bucket (profiles synced by syncCollectionToR2)
+            if (results.length === 0 && env.R2_BUCKET) {
                 try {
-                    const r2Object = await env.PROFILES_BUCKET.get('data/profiles.json');
+                    const r2Object = await env.R2_BUCKET.get('data/profiles.json');
                     if (r2Object) {
                         const r2Data = await r2Object.json();
                         results = Array.isArray(r2Data) ? r2Data : [];
@@ -41,6 +41,7 @@ export async function handleDashboardUsers(request, env) {
                     console.warn('[Users] R2 fallback also failed:', r2Err.message);
                 }
             }
+
 
             return new Response(JSON.stringify(results), {
                 status: 200,
