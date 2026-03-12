@@ -921,7 +921,15 @@ export default {
                 `).bind(
                     prf.id, prf.email, prf.fullName || prf.full_name, prf.avatarUrl || prf.avatar_url, prf.role || 'user'
                 ).run();
-                await syncCollectionToR2(env, 'profiles', "SELECT * FROM profiles", res => res.map(p => ({ ...p, fullName: p.full_name, avatarUrl: p.avatar_url })));
+                await syncCollectionToR2(env, 'profiles', "SELECT * FROM profiles", res => res.map(p => ({
+                    ...p,
+                    fullName: p.full_name,
+                    avatarUrl: p.avatar_url,
+                    isSubscriber: Boolean(p.is_subscriber),
+                    subscriptionPlan: p.subscription_plan,
+                    subscriptionExpiry: p.subscription_expiry,
+                    hasUsedTrial: Boolean(p.has_used_trial)
+                })));
                 return Response.json({ success: true, id: prf.id }, { headers: corsHeaders });
             }
 
@@ -934,10 +942,32 @@ export default {
                         full_name = COALESCE(?, full_name),
                         avatar_url = COALESCE(?, avatar_url),
                         role = COALESCE(?, role),
+                        is_subscriber = COALESCE(?, is_subscriber),
+                        subscription_plan = COALESCE(?, subscription_plan),
+                        subscription_expiry = COALESCE(?, subscription_expiry),
+                        has_used_trial = COALESCE(?, has_used_trial),
                         updated_at = datetime('now')
                     WHERE id = ?
-                `).bind(data.email, data.fullName || data.full_name, data.avatarUrl || data.avatar_url, data.role, prfId).run();
-                await syncCollectionToR2(env, 'profiles', "SELECT * FROM profiles", res => res.map(p => ({ ...p, fullName: p.full_name, avatarUrl: p.avatar_url })));
+                `).bind(
+                    data.email,
+                    data.fullName || data.full_name,
+                    data.avatarUrl || data.avatar_url,
+                    data.role,
+                    data.is_subscriber !== undefined ? (data.is_subscriber ? 1 : 0) : null,
+                    data.subscription_plan || data.subscriptionPlan,
+                    data.subscription_expiry || data.subscriptionExpiry,
+                    data.has_used_trial !== undefined ? (data.has_used_trial ? 1 : 0) : null,
+                    prfId
+                ).run();
+                await syncCollectionToR2(env, 'profiles', "SELECT * FROM profiles", res => res.map(p => ({
+                    ...p,
+                    fullName: p.full_name,
+                    avatarUrl: p.avatar_url,
+                    isSubscriber: Boolean(p.is_subscriber),
+                    subscriptionPlan: p.subscription_plan,
+                    subscriptionExpiry: p.subscription_expiry,
+                    hasUsedTrial: Boolean(p.has_used_trial)
+                })));
                 return Response.json({ success: true }, { headers: corsHeaders });
             }
 
@@ -1949,11 +1979,23 @@ export default {
                             await env.DB.prepare(`
                                 UPDATE users SET 
                                     is_subscriber = 1, 
-                                    subscription_end_date = ?, 
-                                    current_plan = ?,
-                                    has_used_trial = CASE WHEN ? = 'trial' THEN 1 ELSE has_used_trial END
+                                    subscription_expiry = ?, 
+                                    subscription_plan = ?,
+                                    has_used_trial = CASE WHEN ? = 'trial' THEN 1 ELSE has_used_trial END,
+                                    updated_at = datetime('now')
                                 WHERE email = ?
                             `).bind(expiry.toISOString(), plan, plan, email).run();
+
+                            // Also sync profiles to R2 so frontend sees the change
+                            await syncCollectionToR2(env, 'profiles', "SELECT * FROM profiles", res => res.map(p => ({
+                                ...p,
+                                fullName: p.full_name,
+                                avatarUrl: p.avatar_url,
+                                isSubscriber: Boolean(p.is_subscriber),
+                                subscriptionPlan: p.subscription_plan,
+                                subscriptionExpiry: p.subscription_expiry,
+                                hasUsedTrial: Boolean(p.has_used_trial)
+                            })));
 
                             fulfillmentMsg = `Subscription Granted (${plan})`;
 

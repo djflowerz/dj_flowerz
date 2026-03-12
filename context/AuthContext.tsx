@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             auraPoints: profile.aura_points || profile.auraPoints || 0,
             auraLevel: profile.aura_level || profile.auraLevel || 1,
             phoneNumber: profile.phone_number || profile.phoneNumber || '',
-            hasUsedTrial: profile.has_used_trial || profile.hasUsedTrial || false,
+            hasUsedTrial: Boolean(profile.has_used_trial || profile.hasUsedTrial),
             createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
             updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
             referralCount: profile.referral_count || profile.referralCount || 0,
@@ -417,7 +417,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       try {
-        await updateR2Item('profiles', user.id, updates);
+        const { saveToD1 } = await import('../context/DataContext').then(m => ({ saveToD1: (m as any).saveToD1 }));
+        if (saveToD1) {
+          await saveToD1('profiles', 'PUT', updates, user.id);
+        } else {
+          await updateR2Item('profiles', user.id, updates);
+        }
 
         setUser(prev => prev ? ({
           ...prev,
@@ -427,8 +432,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }) : null);
 
       } catch (e) {
-        console.error("Failed to update subscription in R2:", e);
-        alert("Failed to update subscription. Check console.");
+        console.error("Failed to update subscription:", e);
+        alert("Failed to update subscription.");
       }
     }
   };

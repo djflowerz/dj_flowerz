@@ -463,6 +463,7 @@ const mapR2User = (u: any): User => ({
   isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
+  hasUsedTrial: Boolean(u.has_used_trial || u.hasUsedTrial),
   avatarUrl: u.avatar_url || u.avatarUrl,
   referralCode: u.referral_code || u.referralCode,
   lastLogin: u.last_login || u.lastLogin,
@@ -1649,7 +1650,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const isFirstTimeSubscriber = async (userId: string): Promise<boolean> => {
     try {
-      // Since subscriptions are in state, we can check synchronously
+      // Find user in local state
+      const u = users.find(user => user.id === userId);
+      if (u) return !u.hasUsedTrial;
+
+      // Fallback: Check subscriptions (legacy)
       const hasPastSubs = subscriptions.some(s => s.userId === userId);
       return !hasPastSubs;
     } catch (err) {
