@@ -129,43 +129,91 @@ export const PRODUCTS: Product[] = [];
 export const SUBSCRIPTION_PLANS = [
   {
     id: 'yearly',
-    name: '12 Months',
+    name: '👑 1 Year Ultimate DJ Pass',
     price: 6000,
     period: 'yr',
-    features: ['Unlimited Downloads', 'Priority Support', 'Exclusive Edits', 'Video Mixes'],
+    features: [
+      '12 months uninterrupted full access',
+      'Unlimited downloads for 1 full year',
+      'Access to all new & old music releases',
+      'Complete Redrum Packs included',
+      'Fully sorted music by genre & vibe',
+      'Weekly & monthly updates guaranteed',
+      'Access to mashups & exclusive DJ edits',
+      'High-quality, DJ-ready MP3 files',
+      'Save Ksh 2400 compared to shorter plans ✅',
+      'Best value for serious DJs building a long-term library'
+    ],
     isBestValue: true,
     active: true
   },
   {
     id: '6months',
-    name: '6 Months',
+    name: '🔥 6 Months Elite DJ Access',
     price: 3500,
     period: '6mo',
-    features: ['Unlimited Downloads', 'Exclusive Edits', 'Video Mixes'],
+    features: [
+      'Full 6 months unlimited access',
+      'Access to all new & old releases',
+      'Complete Redrum Packs included',
+      'Access to sorted music by genre & vibe',
+      'Monthly & weekly uploads included',
+      'Full access to mashups & exclusive edits',
+      'High-quality, DJ-ready downloads',
+      '200 downloads per day',
+      'Save Ksh 700 compared to monthly plans',
+      'Perfect for serious, consistent working DJs'
+    ],
+    isEliteChoice: true,
     active: true
   },
   {
     id: '3months',
-    name: '3 Months',
+    name: '🚀 3 Months Club Power Access',
     price: 1800,
     period: '3mo',
-    features: ['Unlimited Downloads', 'Exclusive Edits'],
+    features: [
+      '3 months full access to new & old releases',
+      'Access to all new music updates',
+      'Music sorted by genre for easy selection',
+      'Organized by energy level (Hype & Low Hype)',
+      'Full access to all redrums',
+      'Access to the complete Mashups folder',
+      'DJ-ready, high-quality downloads',
+      '200 downloads per day',
+      'Perfect for DJs who want to stay fully equipped long-term'
+    ],
     active: true
   },
   {
     id: 'monthly',
-    name: '1 Month',
+    name: '🔥 1 Month Pro DJ Access',
     price: 700,
     period: 'mo',
-    features: ['Unlimited Downloads'],
+    features: [
+      '30 days full access to new & old releases',
+      'Includes exclusive redrums & DJ edits',
+      'Music sorted by genre for easy crate digging',
+      'Organized by energy level (Hype & Low Hype)',
+      'DJ-ready, high-quality MP3 downloads',
+      '200 downloads per day',
+      'Perfect for fully equipped working DJs',
+      'Stay updated all month long'
+    ],
     active: true
   },
   {
     id: 'weekly',
-    name: '1 Week',
+    name: '🎧 1 Week Remix & Fresh Drops Access',
     price: 200,
     period: 'wk',
-    features: ['7 Days Access'],
+    features: [
+      '30 DJ-Ready Downloads Per Day',
+      'High Quality MP3 (Club Tested)',
+      'Instant Access to Fresh Drops',
+      'Perfect for Weekend Gigs',
+      'No Commitment – Plug & Play'
+    ],
     active: true
   },
   {
@@ -179,6 +227,7 @@ export const SUBSCRIPTION_PLANS = [
     promoExpiry: '2026-04-04'
   }
 ];
+
 
 export const YOUTUBE_VIDEOS = [];
 
