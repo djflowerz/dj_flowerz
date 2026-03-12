@@ -12,39 +12,39 @@ export async function handleDashboardUsers(request, env) {
         }
 
         if (request.method === 'GET') {
-            // Try D1 first
-            let results = [];
-            try {
-                const query = `
-                    SELECT 
-                        id, name, email, role, is_subscriber, subscription_plan, 
-                        subscription_expiry, created_at, last_seen, presence_status, has_used_trial
-                    FROM profiles
-                    ORDER BY created_at DESC
-                `;
-                const d1Result = await env.DB.prepare(query).all();
-                results = d1Result.results || [];
-            } catch (e) {
-                console.warn('[Users] D1 query failed:', e.message);
-            }
+            // Fetch directly from D1 (Bypass R2 for Admin as requested)
+            const query = `
+                SELECT 
+                    id, full_name, email, role, is_subscriber, subscription_plan, 
+                    subscription_expiry, created_at, last_seen, presence_status, has_used_trial,
+                    phone AS phone_number, referral_code, referral_balance_kes
+                FROM profiles
+                ORDER BY created_at DESC
+            `;
+            const { results } = await env.DB.prepare(query).all();
 
-            // If D1 returns nothing, fall back to R2 bucket (profiles synced by syncCollectionToR2)
-            if (results.length === 0 && env.R2_BUCKET) {
-                try {
-                    const r2Object = await env.R2_BUCKET.get('data/profiles.json');
-                    if (r2Object) {
-                        const r2Data = await r2Object.json();
-                        results = Array.isArray(r2Data) ? r2Data : [];
-                        console.log(`[Users] Loaded ${results.length} users from R2 fallback`);
-                    }
-                } catch (r2Err) {
-                    console.warn('[Users] R2 fallback also failed:', r2Err.message);
-                }
-            }
-
-
-            return new Response(JSON.stringify(results), {
+            return new Response(JSON.stringify(results || []), {
                 status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate'
+                }
+            });
+        }
+
+        // POST /api/admin/users — create a new user profile
+        if (request.method === 'POST') {
+            const body = await request.json();
+            const id = crypto.randomUUID();
+
+            await env.DB.prepare(`
+                INSERT INTO profiles (id, email, full_name, role, created_at, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).bind(id, body.email, body.full_name || body.name, body.role || 'user').run();
+
+            return new Response(JSON.stringify({ success: true, id }), {
+                status: 201,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
         }
@@ -59,9 +59,10 @@ export async function handleDashboardUsers(request, env) {
             const fields = [];
             const values = [];
             const fieldMap = {
-                full_name: 'name',
-                name: 'name',
+                full_name: 'full_name',
+                name: 'full_name',
                 phone_number: 'phone',
+                phone: 'phone',
                 is_subscriber: 'is_subscriber',
                 referral_balance_kes: 'referral_balance_kes',
                 referral_code: 'referral_code',
@@ -78,10 +79,28 @@ export async function handleDashboardUsers(request, env) {
             if (fields.length > 0) {
                 fields.push('updated_at = CURRENT_TIMESTAMP');
                 values.push(userId);
-                await env.DB.prepare(
+                const result = await env.DB.prepare(
                     `UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`
                 ).bind(...values).run();
+                console.log(`[Users] Update result for ${userId}:`, result);
             }
+
+            return new Response(JSON.stringify({ success: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+
+        // DELETE /api/admin/users/:id — remove a user profile
+        if (request.method === 'DELETE') {
+            const url = new URL(request.url);
+            const pathParts = url.pathname.split('/');
+            const userId = pathParts[pathParts.length - 1];
+
+            const result = await env.DB.prepare(
+                `DELETE FROM profiles WHERE id = ?`
+            ).bind(userId).run();
+            console.log(`[Users] Delete result for ${userId}:`, result);
 
             return new Response(JSON.stringify({ success: true }), {
                 status: 200,

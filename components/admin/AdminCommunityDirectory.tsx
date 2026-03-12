@@ -149,7 +149,7 @@ const AdminCommunityDirectory: React.FC = () => {
                 return;
             }
 
-            const res = await fetch(`${WORKER_URL}/api/admin/users`, {
+            const res = await fetch(`${WORKER_URL}/api/admin/users?t=${Date.now()}`, {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
             const data = await res.json();
@@ -193,7 +193,7 @@ const AdminCommunityDirectory: React.FC = () => {
 
             if (res.ok) {
                 setEditingUser(null);
-                fetchUsers();
+                setTimeout(() => fetchUsers(), 500);
             }
         } catch (e) {
             console.error('Update failed', e);
@@ -213,7 +213,7 @@ const AdminCommunityDirectory: React.FC = () => {
             });
 
             if (res.ok) {
-                fetchUsers();
+                setTimeout(() => fetchUsers(), 500);
             }
         } catch (e) {
             console.error('Delete failed', e);
@@ -234,7 +234,7 @@ const AdminCommunityDirectory: React.FC = () => {
                 body: JSON.stringify(payload)
             });
 
-            if (res.ok) fetchUsers();
+            if (res.ok) setTimeout(() => fetchUsers(), 500);
         } catch (e) {
             console.error('Toggle access failed', e);
         }
@@ -302,11 +302,13 @@ const AdminCommunityDirectory: React.FC = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/5 to-white/10 flex items-center justify-center text-gray-400 font-black text-xs uppercase border border-white/5">
-                                                    {u.full_name?.substring(0, 2) || 'DJ'}
+                                                    {(u.full_name || u.email || 'DJ').substring(0, 2)}
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="font-bold text-white group-hover:text-brand-purple transition-colors">{u.full_name || 'Anonymous DJ'}</div>
+                                                        <div className="font-bold text-white group-hover:text-brand-purple transition-colors">
+                                                            {u.full_name || u.email?.split('@')[0] || 'Anonymous DJ'}
+                                                        </div>
                                                         {u.role && (
                                                             <div className="px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple text-[8px] font-black uppercase tracking-tighter border border-brand-purple/20">
                                                                 {u.role}

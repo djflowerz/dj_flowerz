@@ -12,7 +12,7 @@ export async function handleLegacy(request, env, ctx, params) {
             if (collection === 'products') {
                 const { results: products } = await env.DB.prepare(`
                     SELECT p.*, v.price, v.compare_at_price, v.image_url
-                    FROM products_new p
+                    FROM products p
                     LEFT JOIN product_variants v ON p.id = v.product_id
                     WHERE p.is_active = 1
                     GROUP BY p.id

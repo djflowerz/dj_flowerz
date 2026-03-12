@@ -7,6 +7,7 @@ import { handleDashboardOrders } from './api/dashboard/orders.js';
 import { handleDashboardUsers } from './api/dashboard/users.js';
 import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
 import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
+import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
 import { handleStorefrontPool } from './api/storefront/pool.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
@@ -28,17 +29,23 @@ router.get('/api/admin/products', handleDashboardProducts);
 router.post('/api/admin/products', handleDashboardProducts);
 router.put('/api/admin/products/:id', handleDashboardProducts);
 router.delete('/api/admin/products/:id', handleDashboardProducts);
+router.post('/api/admin/r2-sync', handleLegacy); // Reusing handleLegacy or a new handler for sync
 router.get('/api/admin/orders', handleDashboardOrders);
 router.get('/api/admin/orders/:id', handleDashboardOrders);
 router.put('/api/admin/orders/:id', handleDashboardOrders);
 router.delete('/api/admin/orders/:id', handleDashboardOrders);
 router.get('/api/admin/users', handleDashboardUsers);
+router.put('/api/admin/users/:id', handleDashboardUsers);
+router.delete('/api/admin/users/:id', handleDashboardUsers);
 router.get('/api/admin/mixtapes', handleDashboardMixtapes);
 router.post('/api/admin/mixtapes', handleDashboardMixtapes);
 router.put('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.delete('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.get('/api/admin/subscriptions', handleDashboardSubscriptions);
 router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
+router.get('/api/admin/newsletter_subscribers', handleDashboardNewsletter);
+router.get('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
+router.delete('/api/admin/newsletter_subscribers/:id', handleDashboardNewsletter);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);

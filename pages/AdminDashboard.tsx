@@ -1372,9 +1372,13 @@ const AdminDashboard: React.FC = () => {
             console.log("Saving New Product Payload:", finalProduct);
             await addProduct(finalProduct);
          }
-         alert("Product successfully cataloged in matrix!");
+         toast.success(isEditing ? "Product successfully cataloged in matrix!" : "New product added to catalog!");
          setActiveModal(null);
-         if (refreshProducts) refreshProducts();
+
+         // CRITICAL: Wait 500ms for D1 to propagate across Cloudflare's network
+         setTimeout(async () => {
+            if (refreshProducts) await refreshProducts();
+         }, 500);
       } catch (error: any) {
          console.error("Error saving product:", error);
          alert("Failed to save product: " + error.message);

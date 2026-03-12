@@ -12,14 +12,17 @@ export async function handleDashboardProducts(request, env, ctx, params) {
         try {
             const { results } = await env.DB.prepare(`
                 SELECT p.*, COUNT(v.id) as variant_count, MIN(v.price) as min_price
-                FROM products_new p
+                FROM products p
                 LEFT JOIN product_variants v ON p.id = v.product_id
                 GROUP BY p.id
                 ORDER BY p.created_at DESC
             `).all();
 
             return new Response(JSON.stringify(results), {
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-store, no-cache, must-revalidate"
+                }
             });
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -32,8 +35,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
         const slug = body.slug || (body.name || 'unnamed-product').toLowerCase().replace(/[^a-z0-9]/g, '-');
 
         try {
-            await env.DB.prepare(`
-                INSERT INTO products_new (
+            const result = await env.DB.prepare(`
+                INSERT INTO products (
                     id, name, slug, description, short_description, 
                     category_id, product_type_id, is_active, brand, type, 
                     release_date, image_url, visibility, status, tag_list, os,
@@ -61,6 +64,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 body.trackStock !== undefined ? (body.trackStock ? 1 : 0) : (body.track_stock !== undefined ? (body.track_stock ? 1 : 0) : 1),
                 body.whatsappEnabled !== undefined ? (body.whatsappEnabled ? 1 : 0) : (body.whatsapp_enabled !== undefined ? (body.whatsapp_enabled ? 1 : 0) : 1)
             ).run();
+
+            console.log('D1 Result (Product INSERT):', result);
 
             // Ensure at least one variant exists so price/stock is captured
             let variants = body.variants || [];
@@ -109,8 +114,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
         if (!id) return new Response("Missing ID", { status: 400 });
 
         try {
-            await env.DB.prepare(`
-                UPDATE products_new 
+            const result = await env.DB.prepare(`
+                UPDATE products 
                 SET name = ?, slug = ?, description = ?, short_description = ?, 
                     category_id = ?, product_type_id = ?, is_active = ?, brand = ?, type = ?, 
                     release_date = ?, image_url = ?, visibility = ?, status = ?, tag_list = ?, os = ?,
@@ -138,6 +143,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 body.whatsappEnabled !== undefined ? (body.whatsappEnabled ? 1 : 0) : (body.whatsapp_enabled !== undefined ? (body.whatsapp_enabled ? 1 : 0) : 1),
                 id
             ).run();
+
+            console.log('D1 Result (Product UPDATE):', result);
 
             if (body.variants) {
                 await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
@@ -186,8 +193,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
         if (!id) return new Response("Missing ID", { status: 400 });
 
         try {
-            await env.DB.prepare("DELETE FROM products_new WHERE id = ?").bind(id).run();
-            await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
+            const result1 = await env.DB.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
+            const result2 = await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
+            console.log('D1 Result (Product DELETE):', result1, result2);
             return new Response(JSON.stringify({ message: "Product deleted" }));
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });

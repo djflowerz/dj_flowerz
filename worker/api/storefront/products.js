@@ -6,7 +6,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
 
     if (id) {
         try {
-            const product = await env.DB.prepare("SELECT * FROM products_new WHERE id = ? OR slug = ?")
+            const product = await env.DB.prepare("SELECT * FROM products WHERE id = ? OR slug = ?")
                 .bind(id, id)
                 .first();
 
@@ -28,7 +28,10 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             };
 
             return new Response(JSON.stringify(enrichedProduct), {
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-store, no-cache, must-revalidate"
+                }
             });
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -42,7 +45,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                     COALESCE(MIN(v.price), 0) as price,
                     COALESCE(MIN(v.compare_at_price), 0) as compare_at_price,
                     COALESCE(p.image_url, v.image_url) as image
-                FROM products_new p
+                FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN product_variants v ON p.id = v.product_id
                 WHERE p.is_active = 1
@@ -59,7 +62,10 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             }));
 
             return new Response(JSON.stringify(mappedResults), {
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-store, no-cache, must-revalidate"
+                }
             });
         } catch (e) {
             console.error("[Storefront Products GET Error]", e);

@@ -458,7 +458,9 @@ const mapR2Order = (o: any): Order => ({
 
 const mapR2User = (u: any): User => ({
   ...u,
-  isSubscriber: u.is_subscriber !== undefined ? u.is_subscriber : u.isSubscriber,
+  fullName: u.full_name || u.name || u.fullName,
+  full_name: u.full_name || u.name || u.fullName, // Keep both for safety
+  isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
   avatarUrl: u.avatar_url || u.avatarUrl,
@@ -656,11 +658,14 @@ const useCollection = <T extends { id: string }>(
       let results: any[] = [];
       if (source === 'D1') {
         const authHeader = await getAuthHeader();
-        const response = await fetch(`${STORAGE_WORKER_URL}/api/${tableName}`, {
+        // Use /api/admin prefix for D1 collections and add timestamp to bypass cache
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/${tableName}?t=${Date.now()}`, {
           headers: authHeader
         });
         if (response.ok) {
-          results = await response.json();
+          const rawData = await response.json();
+          // Handle both { results: [] } and raw array formats
+          results = Array.isArray(rawData) ? rawData : (rawData.results || []);
         } else {
           console.warn(`[D1] Fetch failed for ${tableName}, falling back to R2...`);
           results = await fetchFromR2<any>(tableName);
@@ -735,7 +740,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Public Collections (R2)
   // Public Collections
   const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc', 'D1');
-  const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc');
+  const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc', 'D1');
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc');
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapR2Generic, 'createdAt', 'desc');
   const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapR2Plan, 'price', 'asc');
@@ -808,8 +813,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, scannedTracks.length]);
 
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapR2Order, 'createdAt', 'desc');
-  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapR2User, 'createdAt', 'desc');
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapR2Order, 'createdAt', 'desc', 'D1');
+  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapR2User, 'createdAt', 'desc', 'D1');
 
   // Auto-deduplicate users by email
   useEffect(() => {
@@ -838,16 +843,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, users.length]);
 
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc');
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc', 'D1');
   const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc');
 
   const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapR2StudioRoom, 'createdAt', 'desc');
   const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapR2MaintenanceLog, 'createdAt', 'desc');
   const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc');
   const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc');
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc');
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1');
   const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc');
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc');
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1');
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc');
   const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc');
   const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc');
@@ -1293,8 +1298,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (res) {
         setProducts(prev => [newProduct as Product, ...prev]);
-        alert("Product cataloged successfully in matrix!");
-        if (typeof refreshProducts === 'function') refreshProducts();
+        console.log("[DataContext] Product cataloged successfully in matrix!");
         return true;
       }
       return false;
@@ -1316,8 +1320,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (res) {
         setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
-        alert("Product updated in matrix!");
-        if (typeof refreshProducts === 'function') refreshProducts();
+        console.log(`[DataContext] Product updated in matrix!`);
         return true;
       }
       return false;
@@ -1332,8 +1335,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
       await saveToD1('products', 'DELETE', undefined, id);
-      alert("Product deleted successfully!");
-      if (typeof refreshProducts === 'function') refreshProducts();
+      console.log(`[DataContext] Product deleted successfully!`);
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
       alert("Failed to delete product: " + err.message);

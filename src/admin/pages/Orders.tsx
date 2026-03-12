@@ -14,8 +14,10 @@ const Orders: React.FC = () => {
 
     const loadOrders = async () => {
         try {
-            const data = await request('/api/admin/orders');
-            setOrders(data);
+            // Add cache-busting timestamp
+            const data = await request(`/api/admin/orders?t=${Date.now()}`);
+            // Handle both array and result-wrapped responses
+            setOrders(Array.isArray(data) ? data : (data.results || []));
         } catch (e) { }
     };
 
@@ -106,8 +108,10 @@ const Orders: React.FC = () => {
                                 </td>
                                 <td className="px-8 py-8">
                                     <div>
-                                        <p className="text-sm font-black text-white tracking-tighter group-hover:translate-x-1 transition-transform">{order.customer_name || 'Anonymous'}</p>
-                                        <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">{order.customer_email}</p>
+                                        <p className="text-sm font-black text-white tracking-tighter group-hover:translate-x-1 transition-transform">
+                                            {order.customer_name || order.full_name || order.name || 'Anonymous'}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">{order.customer_email || order.email}</p>
                                     </div>
                                 </td>
                                 <td className="px-8 py-8">
