@@ -11,7 +11,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
     if (method === 'GET') {
         try {
             const { results } = await env.DB.prepare(`
-                SELECT p.*, COUNT(v.id) as variant_count, MIN(v.price) as min_price
+                SELECT p.*, COUNT(v.id) as variant_count, COALESCE(MIN(v.price), 0) as price
                 FROM products p
                 LEFT JOIN product_variants v ON p.id = v.product_id
                 GROUP BY p.id
