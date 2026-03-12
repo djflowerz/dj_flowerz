@@ -111,7 +111,7 @@ const Orders: React.FC = () => {
                                     </div>
                                 </td>
                                 <td className="px-8 py-8">
-                                    <p className="text-sm font-black text-brand-purple tracking-tighter">KSh {order.total_amount.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-brand-purple tracking-tighter">KSh {(order.total_amount || 0).toLocaleString()}</p>
                                     <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mt-1">{order.payment_status}</p>
                                 </td>
                                 <td className="px-8 py-8">
