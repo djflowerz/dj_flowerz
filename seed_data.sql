@@ -28,5 +28,5 @@ INSERT OR IGNORE INTO store_settings (key, value) VALUES
 
 -- 6. Mixtapes
 INSERT INTO mixtapes (id, title, slug, genre, description, status, cover_image) VALUES 
-('mix_1', 'The Flow Vol 1', 'the-flow-vol-1', 'Afrohouse', 'Energetic mix of latest afrohouse hits.', 'published', 'https://via.placeholder.com/600'),
-('mix_2', 'Redrum Sessions', 'redrum-sessions', 'Bongo', 'Exclusive bongo redrums and blends.', 'published', 'https://via.placeholder.com/600');
+('mix_1', 'The Flow Vol 1', 'the-flow-vol-1', 'Afrohouse', 'Energetic mix of latest afrohouse hits.', 'published', 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'),
+('mix_2', 'Redrum Sessions', 'redrum-sessions', 'Bongo', 'Exclusive bongo redrums and blends.', 'published', 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg');

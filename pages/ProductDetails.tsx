@@ -337,7 +337,7 @@ export default function ProductDetails() {
                     onClick={handleAddToCart}
                     className="flex-1 bg-brand-purple hover:bg-purple-600 text-white rounded-2xl py-4 flex items-center justify-center text-lg font-black shadow-xl shadow-brand-purple/20 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest"
                   >
-                    {product?.type === 'digital' ? 'Buy & Download' : 'Secure Order'}
+                    {product?.type === 'digital' ? 'Buy & Download' : 'Add to Cart'}
                   </button>
                 )}
               </div>

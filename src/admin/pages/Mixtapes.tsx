@@ -53,7 +53,7 @@ const Mixtapes: React.FC = () => {
                     <div key={mx.id} className="group bg-[#0B0B0F] border border-white/5 rounded-[3rem] overflow-hidden hover:border-brand-purple/30 transition-all duration-500 shadow-xl hover:shadow-brand-purple/5">
                         <div className="aspect-[16/10] relative overflow-hidden">
                             <img
-                                src={mx.coverUrl || 'https://via.placeholder.com/600x400?text=NO+IMAGE'}
+                                src={mx.coverUrl || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
                                 alt={mx.title}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60 group-hover:opacity-100"
                             />

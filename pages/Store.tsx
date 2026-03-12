@@ -461,7 +461,7 @@ export default function Products() {
                             }}
                             className="w-full flex items-center justify-center gap-2 py-3 bg-brand-purple text-white rounded-xl font-bold text-xs md:text-sm hover:bg-purple-600 transition shadow-lg hover:shadow-purple-500/25 active:scale-[0.98]"
                           >
-                            <ShoppingCart size={16} /> {product.price === 0 ? 'Download' : 'Add to Cart'}
+                            <ShoppingCart size={16} /> {(product.type === 'digital' && product.price === 0) ? 'Download' : 'Add to Cart'}
                           </button>
 
                           <div className="flex gap-2">
