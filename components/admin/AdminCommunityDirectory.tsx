@@ -349,7 +349,7 @@ const AdminCommunityDirectory: React.FC = () => {
                                                     {u.referral_code}
                                                 </div>
                                                 <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500/70">
-                                                    KES {u.referral_balance_kes.toLocaleString()}
+                                                    KES {(u.referral_balance_kes || 0).toLocaleString()}
                                                 </div>
                                             </div>
                                         </td>

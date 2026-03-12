@@ -122,8 +122,9 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                             )}
                             <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
                             <div className="flex items-baseline gap-1 border-b border-white/10 pb-4 mb-4">
-                                <span className="text-3xl font-black">KES {plan.price.toLocaleString()}</span>
-                                {plan.price > 0 && <span className="text-gray-500 text-sm">/{plan.period}</span>}
+                                <span className="text-3xl font-black">KES {(plan.price ?? 0).toLocaleString()}</span>
+                                {(plan.price ?? 0) > 0 && <span className="text-gray-500 text-sm">/{plan.period}</span>}
+
                             </div>
                             <ul className="space-y-3 mb-6 flex-1">
                                 {plan.features.map((feature, i) => (

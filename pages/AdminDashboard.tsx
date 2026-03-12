@@ -1923,10 +1923,10 @@ const AdminDashboard: React.FC = () => {
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard label="Net Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="12.5%" trendUp={true} subtext={`${salesRange.replace('-', ' ')} earnings`} />
+                        <StatCard label="Net Revenue" value={`KES ${(totalRevenue || 0).toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="12.5%" trendUp={true} subtext={`${salesRange.replace('-', ' ')} earnings`} />
                         <StatCard label="Sales Volume" value={filteredTransactions.length.toString()} icon={ShoppingBag} color="text-brand-cyan" trend="5.2%" trendUp={true} subtext={`${salesRange.replace('-', ' ')} cycles`} />
                         <StatCard label="VIP Access" value={activeSubs.toString()} icon={Users} color="text-blue-500" trend="1.1%" trendUp={false} subtext="Active pool members" />
-                        <StatCard label="Referrals" value={`KES ${referralStatsSummary.payouts.toLocaleString()}`} icon={Gift} color="text-yellow-500" subtext="Reward payouts" />
+                        <StatCard label="Referrals" value={`KES ${(referralStatsSummary?.payouts || 0).toLocaleString()}`} icon={Gift} color="text-yellow-500" subtext="Reward payouts" />
                      </div>
 
                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2044,7 +2044,7 @@ const AdminDashboard: React.FC = () => {
                                           <div className="text-[10px] text-gray-600 font-bold uppercase tracking-wider mt-0.5">{tx.date}</div>
                                        </td>
                                        <td className="px-8 py-5">
-                                          <div className="text-white font-black">KES {tx.amount.toLocaleString()}</div>
+                                          <div className="text-white font-black">KES {(tx.amount || 0).toLocaleString()}</div>
                                        </td>
                                        <td className="px-8 py-5 text-right">
                                           <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active'
@@ -2209,7 +2209,7 @@ const AdminDashboard: React.FC = () => {
                                  <div className="relative z-10">
                                     <h3 className="text-2xl font-black text-white mb-2 tracking-tight">{plan.name}</h3>
                                     <div className="flex items-baseline gap-1 mb-6">
-                                       <span className="text-3xl font-black text-brand-cyan">KES {plan.price.toLocaleString()}</span>
+                                       <span className="text-3xl font-black text-brand-cyan">KES {(plan.price ?? plan.price_kes ?? 0).toLocaleString()}</span>
                                        <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">/{plan.period}</span>
                                     </div>
                                     <div className="space-y-4 mb-8">
@@ -2318,11 +2318,11 @@ const AdminDashboard: React.FC = () => {
                                        <div className="flex gap-4">
                                           <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
                                              <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Success</p>
-                                             <p className="text-sm font-black text-green-500">{seedProgress.uploadedTracks.toLocaleString()}</p>
+                                             <p className="text-sm font-black text-green-500">{(seedProgress?.uploadedTracks || 0).toLocaleString()}</p>
                                           </div>
                                           <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
                                              <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Skipped</p>
-                                             <p className="text-sm font-black text-yellow-500">{seedProgress.skippedTracks.toLocaleString()}</p>
+                                             <p className="text-sm font-black text-yellow-500">{(seedProgress?.skippedTracks || 0).toLocaleString()}</p>
                                           </div>
                                           <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-center">
                                              <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">Protocol</p>
@@ -3294,7 +3294,7 @@ const AdminDashboard: React.FC = () => {
                                                 <span className="font-mono text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 text-[11px] font-black uppercase tracking-[0.1em]">{c.code}</span>
                                              </td>
                                              <td className="px-8 py-6">
-                                                <span className="text-brand-cyan font-black text-base">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${c.discountValue.toLocaleString()}`}</span>
+                                                <span className="text-brand-cyan font-black text-base">{c.discountType === 'percentage' ? `${c.discountValue}%` : `KES ${(c.discountValue || 0).toLocaleString()}`}</span>
                                              </td>
                                              <td className="px-8 py-6">
                                                 <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full capitalize">{c.appliesTo}</span>
@@ -3530,7 +3530,7 @@ const AdminDashboard: React.FC = () => {
                                              </span>
                                           </td>
                                           <td className="px-8 py-6 text-right">
-                                             <span className="text-white font-black">KES {Number(s.total_price_kes).toLocaleString()}</span>
+                                             <span className="text-white font-black">KES {(Number(s.total_price_kes) || 0).toLocaleString()}</span>
                                           </td>
                                        </tr>
                                     ))}
@@ -3676,7 +3676,7 @@ const AdminDashboard: React.FC = () => {
                               </div>
                            </div>
                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Room Yield</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">KES {Math.round(studioStats.revenuePerRoom).toLocaleString()}</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">KES {(Math.round(studioStats?.revenuePerRoom || 0)).toLocaleString()}</p>
                            <p className="text-[10px] text-brand-purple font-bold mt-1">Avg per unit</p>
                         </div>
                         <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
@@ -3728,7 +3728,7 @@ const AdminDashboard: React.FC = () => {
                                     <div className="flex justify-between items-center relative z-10">
                                        <div className="px-4 py-2 bg-brand-purple/5 border border-brand-purple/10 rounded-2xl">
                                           <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-1">MAGNITUDE</p>
-                                          <p className="font-black text-brand-purple text-lg">KES {st.price.toLocaleString()}</p>
+                                          <p className="font-black text-brand-purple text-lg">KES {(st.price || 0).toLocaleString()}</p>
                                        </div>
                                        <div className="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center text-gray-700 group-hover:border-brand-purple/20 group-hover:text-brand-purple transition-all">
                                           <ExternalLink size={20} />
@@ -3882,7 +3882,7 @@ const AdminDashboard: React.FC = () => {
                               <Gift size={24} />
                            </div>
                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Settled Assets</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">KES {referralStatsSummary.payouts.toLocaleString()}</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">KES {(referralStatsSummary?.payouts || 0).toLocaleString()}</p>
                            <p className="text-[10px] text-yellow-500 font-bold mt-1">Cumulative payouts</p>
                         </div>
                         <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
@@ -5858,7 +5858,7 @@ const AdminDashboard: React.FC = () => {
                      </div>
                      <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-white/5">
                         <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2 pl-1">Payment Snapshot</p>
-                        <p className="text-white font-bold text-brand-purple">KES {selectedOrder?.total.toLocaleString()}</p>
+                        <p className="text-white font-bold text-brand-purple">KES {(selectedOrder?.total || 0).toLocaleString()}</p>
                         <p className="text-[10px] text-brand-cyan uppercase font-bold">{selectedOrder?.paymentStatus}</p>
                      </div>
                   </div>
@@ -5878,7 +5878,7 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <p className="text-white font-bold text-sm">KES {item.price.toLocaleString()}</p>
+                                 <p className="text-white font-bold text-sm">KES {(item.price || 0).toLocaleString()}</p>
                                  <p className="text-[10px] text-gray-600 font-bold">QTY: {item.quantity}</p>
                               </div>
                            </div>
@@ -5892,13 +5892,13 @@ const AdminDashboard: React.FC = () => {
                         {selectedOrder?.discountAmount ? (
                            <div className="flex justify-between text-xs">
                               <span className="text-gray-500 font-medium whitespace-nowrap">Discount {selectedOrder?.couponCode ? `(${selectedOrder.couponCode})` : ''}</span>
-                              <span className="text-red-500 font-bold">- KES {selectedOrder.discountAmount.toLocaleString()}</span>
+                              <span className="text-red-500 font-bold">- KES {(selectedOrder?.discountAmount || 0).toLocaleString()}</span>
                            </div>
                         ) : null}
                         {selectedOrder?.shippingCost ? (
                            <div className="flex justify-between text-xs">
                               <span className="text-gray-500 font-medium">Shipping Fee</span>
-                              <span className="text-white font-bold">KES {selectedOrder.shippingCost.toLocaleString()}</span>
+                              <span className="text-white font-bold">KES {(selectedOrder?.shippingCost || 0).toLocaleString()}</span>
                            </div>
                         ) : null}
                         <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-4">
