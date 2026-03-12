@@ -18,7 +18,16 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 .bind(product.id)
                 .all();
 
-            return new Response(JSON.stringify({ ...product, variants }), {
+            // Support both old and new field names for frontend compatibility
+            const enrichedProduct = {
+                ...product,
+                isActive: product.is_active === 1,
+                image: product.image_url || null,
+                shortDescription: product.short_description || null,
+                variants: variants || []
+            };
+
+            return new Response(JSON.stringify(enrichedProduct), {
                 headers: { "Content-Type": "application/json" }
             });
         } catch (e) {
@@ -30,20 +39,30 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 SELECT 
                     p.*, 
                     c.name as category_name,
-                    v.price,
+                    MIN(v.price) as price,
                     v.compare_at_price,
-                    v.image_url
+                    COALESCE(p.image_url, v.image_url) as image
                 FROM products_new p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN product_variants v ON p.id = v.product_id
                 WHERE p.is_active = 1
                 GROUP BY p.id
+                ORDER BY p.created_at DESC
             `).all();
 
-            return new Response(JSON.stringify(results), {
+            // Ensure booleans are mapped correctly for the frontend
+            const mappedResults = results.map(p => ({
+                ...p,
+                isActive: p.is_active === 1,
+                isFeatured: p.is_featured === 1,
+                image: p.image || p.image_url || null
+            }));
+
+            return new Response(JSON.stringify(mappedResults), {
                 headers: { "Content-Type": "application/json" }
             });
         } catch (e) {
+            console.error("[Storefront Products GET Error]", e);
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
         }
     }

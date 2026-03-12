@@ -1255,34 +1255,55 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
 
-  const addProduct = async (product: Omit<Product, 'id'>) => {
+  const addProduct = async (product: Partial<Product>) => {
     try {
-      const docId = `prod_${Date.now()}`;
-      const newProduct = { ...product, id: docId, createdAt: new Date().toISOString() };
-      const newProducts = [newProduct, ...products];
-      setProducts(newProducts);
-      console.log("Saving Product to API", newProduct);
+      // Respect existing ID/Slug if provided, otherwise generate
+      const newProduct = {
+        ...product,
+        id: product.id || `p${Date.now()}`,
+        slug: product.slug || (product.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isActive: product.isActive ?? true
+      };
+
+      console.log("[DataContext] Adding product to DB:", newProduct);
       const res = await saveToD1('products', 'POST', newProduct);
-      console.log("Save Product Response:", res);
-      alert("Product added successfully!");
-      if (typeof refreshProducts === 'function') refreshProducts();
+
+      if (res) {
+        setProducts(prev => [newProduct as Product, ...prev]);
+        alert("Product cataloged successfully in matrix!");
+        if (typeof refreshProducts === 'function') refreshProducts();
+        return true;
+      }
+      return false;
     } catch (err: any) {
       console.error("Add product failed:", err.message);
       alert("Failed to add product: " + err.message);
+      return false;
     }
   };
   const updateProduct = async (id: string, data: Partial<Product>) => {
     try {
-      const newProducts = products.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
-      setProducts(newProducts);
-      console.log("Updating Product via API", id, data);
-      const res = await saveToD1('products', 'PUT', data, id);
-      console.log("Update Product Response:", res);
-      alert("Product updated successfully!");
-      if (typeof refreshProducts === 'function') refreshProducts();
+      const updatedData = {
+        ...data,
+        updatedAt: new Date().toISOString()
+      };
+      console.log(`[DataContext] Updating product ${id} via API:`, updatedData);
+
+      const res = await saveToD1('products', 'PUT', updatedData, id);
+
+      if (res) {
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
+        alert("Product updated in matrix!");
+        if (typeof refreshProducts === 'function') refreshProducts();
+        return true;
+      }
+      return false;
     } catch (err: any) {
       console.error("Update product failed:", err.message);
       alert("Failed to update product: " + err.message);
+      return false;
     }
   };
   const deleteProduct = async (id: string) => {
