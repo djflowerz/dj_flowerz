@@ -3055,6 +3055,7 @@ const AdminDashboard: React.FC = () => {
                                     <th className="px-8 py-6">Classification</th>
                                     <th className="px-8 py-6">Inventory Quant</th>
                                     <th className="px-8 py-6">Market Value</th>
+                                    <th className="px-8 py-6 text-center">Visibility</th>
                                     <th className="px-8 py-6">Channel Status</th>
                                     <th className="px-8 py-6 text-right">Ops Control</th>
                                  </tr>
@@ -3108,6 +3109,11 @@ const AdminDashboard: React.FC = () => {
                                                    </span>
                                                 )}
                                              </div>
+                                          </td>
+                                          <td className="px-8 py-6 text-center">
+                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${p.is_active ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-500/5 text-red-500 border-red-500/20'}`}>
+                                                {p.is_active ? 'Active' : 'Hidden'}
+                                             </span>
                                           </td>
                                           <td className="px-8 py-6">
                                              <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${p.status === 'published' ? 'bg-green-500/5 text-green-500 border-green-500/20' :

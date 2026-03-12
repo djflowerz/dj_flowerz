@@ -28,7 +28,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
 
     if (method === 'POST') {
         const body = await request.json();
-        const id = crypto.randomUUID();
+        const id = body.id || crypto.randomUUID();
 
         try {
             await env.DB.prepare(`

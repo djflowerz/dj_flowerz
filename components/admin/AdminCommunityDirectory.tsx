@@ -305,7 +305,14 @@ const AdminCommunityDirectory: React.FC = () => {
                                                     {u.full_name?.substring(0, 2) || 'DJ'}
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-white group-hover:text-brand-purple transition-colors">{u.full_name || 'Anonymous DJ'}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="font-bold text-white group-hover:text-brand-purple transition-colors">{u.full_name || 'Anonymous DJ'}</div>
+                                                        {u.role && (
+                                                            <div className="px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple text-[8px] font-black uppercase tracking-tighter border border-brand-purple/20">
+                                                                {u.role}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-1 text-[10px] text-gray-500 lowercase font-medium">
                                                         <Mail size={10} /> {u.email}
                                                     </div>

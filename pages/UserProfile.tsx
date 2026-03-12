@@ -162,7 +162,14 @@ const UserProfile: React.FC = () => {
                                     </div>
                                     <div>
                                         <h2 className="text-4xl font-black tracking-tight mb-1">{user.name || 'Anonymous DJ'}</h2>
-                                        <p className="text-blue-400 font-mono text-xs uppercase tracking-widest">{user.email}</p>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <p className="text-blue-400 font-mono text-xs uppercase tracking-widest">{user.email}</p>
+                                            {user.role && (
+                                                <span className="px-2 py-0.5 rounded-lg bg-brand-purple/20 text-brand-purple text-[9px] font-black uppercase tracking-widest border border-brand-purple/30">
+                                                    {user.role}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

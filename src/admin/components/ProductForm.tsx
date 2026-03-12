@@ -9,6 +9,15 @@ interface ProductFormProps {
     onSuccess: () => void;
 }
 
+const generateSlug = (name: string) => {
+    return name
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
 const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }) => {
     const { request, loading } = useAdminApi();
     const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'shipping' | 'media'>('basic');
@@ -90,6 +99,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
             // Ensure first variant gets the global image URL if not set
             const payload = {
                 ...formData,
+                id: product ? product.id : (formData.slug || generateSlug(formData.name)),
                 variants: formData.variants.map((v, i) => ({
                     ...v,
                     image_url: v.image_url || (i === 0 ? formData.image_url : null)
@@ -144,8 +154,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={`flex items-center gap-2 py-4 border-b-2 transition-all ${activeTab === tab.id
-                                    ? 'border-brand-purple text-brand-purple'
-                                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                                ? 'border-brand-purple text-brand-purple'
+                                : 'border-transparent text-gray-500 hover:text-gray-300'
                                 }`}
                         >
                             <tab.icon size={16} />
@@ -167,7 +177,14 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             type="text"
                                             required
                                             value={formData.name}
-                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            onChange={e => {
+                                                const name = e.target.value;
+                                                const updates: any = { name };
+                                                if (!product) {
+                                                    updates.slug = generateSlug(name);
+                                                }
+                                                setFormData({ ...formData, ...updates });
+                                            }}
                                             className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
                                             placeholder="Product Name"
                                         />
@@ -189,7 +206,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-8">
+                            <div className="grid grid-cols-4 gap-8">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Data Slug</label>
                                     <input
@@ -223,6 +240,22 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                         <option value="physical">Physical Product</option>
                                         <option value="digital">Digital Product</option>
                                     </select>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Status</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                                        className={`w-full border rounded-2xl py-5 px-8 flex items-center justify-between transition-all ${formData.is_active
+                                                ? 'bg-brand-purple/10 border-brand-purple/50 text-brand-purple'
+                                                : 'bg-white/[0.03] border-white/10 text-gray-500'
+                                            }`}
+                                    >
+                                        <span className="text-[10px] font-black uppercase tracking-widest">
+                                            {formData.is_active ? 'Active' : 'Hidden'}
+                                        </span>
+                                        <div className={`w-2 h-2 rounded-full ${formData.is_active ? 'bg-brand-purple animate-pulse' : 'bg-gray-600'}`} />
+                                    </button>
                                 </div>
                             </div>
 
