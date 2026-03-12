@@ -64,6 +64,61 @@ function getUnique<T>(arr: T[], fn: (item: T) => string | undefined): string[] {
    return result.sort();
 }
 
+function groupTracks(tracks: Track[]): Track[] {
+   const map = new Map<string, Track>();
+   tracks.forEach(t => {
+      let baseTitle = t.title.trim();
+      let extractedVersion = t.displayGenre || t.vibe || t.genre || 'Main';
+
+      // Extract common DJ naming patterns (e.g. "Title - Remix", "Title (Club Edit)")
+      const dashMatch = baseTitle.match(/(.*?)\s+-\s+(.*)$/);
+      if (dashMatch) {
+         baseTitle = dashMatch[1].trim();
+         extractedVersion = dashMatch[2].trim();
+      } else {
+         const parenMatch = baseTitle.match(/(.*?)\s+\((.*)\)$/);
+         if (parenMatch) {
+            baseTitle = parenMatch[1].trim();
+            extractedVersion = parenMatch[2].trim();
+         }
+      }
+
+      const key = `${t.artist.trim().toLowerCase()}::${baseTitle.toLowerCase()}`;
+      const trackVersions = (t.versions || []).filter(v => v && v.id);
+
+      if (!map.has(key)) {
+         if (trackVersions.length === 0) {
+            trackVersions.push({
+               id: t.id,
+               type: extractedVersion,
+               previewUrl: t.previewUrl,
+               downloadUrl: t.downloadUrl || t.previewUrl
+            });
+         }
+         map.set(key, { ...t, title: baseTitle, versions: trackVersions });
+      } else {
+         const existing = map.get(key)!;
+         if (trackVersions.length === 0) {
+            trackVersions.push({
+               id: t.id,
+               type: extractedVersion,
+               previewUrl: t.previewUrl,
+               downloadUrl: t.downloadUrl || t.previewUrl
+            });
+         }
+
+         // Append and deduplicate versions
+         trackVersions.forEach(nv => {
+            if (!existing.versions!.some(ev => ev.id === nv.id || ev.previewUrl === nv.previewUrl)) {
+               existing.versions!.push(nv);
+            }
+         });
+      }
+   });
+
+   return Array.from(map.values());
+}
+
 // ─── Select Component ─────────────────────────────────────────────────────────
 function FilterSelect({
    value, onChange, options, placeholder, icon: Icon
@@ -179,15 +234,34 @@ const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
          )}
 
          {/* Download */}
-         <button
-            className="mp-dl-btn group relative"
-            onClick={() => onDownload(track, selectedVersionId)}
-            aria-label="Download"
-            title={`Download: ${track.title}`}
-         >
-            <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
-            <div className="absolute inset-0 bg-brand-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
-         </button>
+         {track.versions && track.versions.length > 1 ? (
+            <div className="flex items-center gap-1">
+               <button
+                  className="mp-dl-btn group relative"
+                  onClick={(e) => { e.stopPropagation(); onDownload(track, selectedVersionId || track.versions![0].id); }}
+                  title="Download selected version"
+               >
+                  <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
+               </button>
+               <button
+                  className="mp-dl-btn group relative text-[10px] font-bold text-brand-pink hover:bg-brand-pink/10 transition-colors bg-brand-pink/5"
+                  onClick={(e) => { e.stopPropagation(); onDownload(track, 'ALL'); }}
+                  title="Download all versions"
+               >
+                  ALL
+               </button>
+            </div>
+         ) : (
+            <button
+               className="mp-dl-btn group relative"
+               onClick={(e) => { e.stopPropagation(); onDownload(track, track.versions?.[0]?.id); }}
+               aria-label="Download"
+               title={`Download: ${track.title}`}
+            >
+               <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
+               <div className="absolute inset-0 bg-brand-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
+            </button>
+         )}
       </div>
    );
 });
@@ -257,7 +331,7 @@ export default function MusicPool() {
 
       setIsAuthorized(poolResult.isAuthorized);
       if (poolResult.isAuthorized) {
-         setPoolTracks(poolResult.tracks);
+         setPoolTracks(groupTracks(poolResult.tracks));
          setUsage({ limit: poolResult.downloadLimit || 0, count: poolResult.downloadsCount || 0 });
       }
       setFilterMetadata(filtersResult);
@@ -343,10 +417,41 @@ export default function MusicPool() {
          return;
       }
 
+      if (versionId === 'ALL') {
+         if (!track.versions || track.versions.length === 0) return;
+         if (usage.limit > 0 && usage.count + track.versions.length > usage.limit) {
+            toast.error(`Not enough fuel to download all ${track.versions.length} versions. Upgrade required.`);
+            return;
+         }
+
+         toast.success(`Downloading all ${track.versions.length} versions of ${track.title}...`);
+         track.versions.forEach((v, idx) => {
+            setTimeout(async () => {
+               const url = v.downloadUrl || v.previewUrl;
+               if (!url) return;
+               try {
+                  await trackPoolDownload(track.id);
+                  setUsage(u => ({ ...u, count: u.count + 1 }));
+               } catch (e) { }
+               const a = document.createElement('a');
+               a.href = url;
+               a.download = `${track.artist} - ${track.title} (${v.type}).mp3`.replace(/[/\\?%*:|"<>]/g, '_');
+               a.target = '_blank';
+               document.body.appendChild(a);
+               a.click();
+               document.body.removeChild(a);
+            }, idx * 1000); // Stagger by 1s to prevent browser popup block
+         });
+         return;
+      }
+
       const version = versionId ? track.versions?.find(v => v.id === versionId) : track.versions?.[0];
       const url = version?.downloadUrl || track.downloadUrl || track.previewUrl;
 
-      if (!url) return;
+      if (!url) {
+         toast.error(`Download not available for ${track.title}`);
+         return;
+      }
 
       // Track download on server
       const ok = await trackPoolDownload(track.id);
@@ -851,6 +956,27 @@ const MUSIC_POOL_CSS = `
 .mp-track-artist {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+/* Version chips */
+.mp-version-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.mp-version-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+.mp-version-chip.active {
+  background: rgba(40, 230, 220, 0.15);
+  color: var(--accent);
+  border-color: rgba(40, 230, 220, 0.3);
 }
 
 /* Meta badges */

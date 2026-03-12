@@ -40,14 +40,16 @@ export async function handleStorefrontPool(request, env) {
                 SELECT 
                     t.*,
                     json_group_array(
-                        json_object(
-                            'id', v.id,
-                            'version_name', v.version_name,
-                            'preview_url', v.preview_url,
-                            'download_url', v.download_url,
-                            'is_main_version', v.is_main_version
-                        )
-                    ) as versions
+                        CASE WHEN v.id IS NOT NULL THEN
+                            json_object(
+                                'id', v.id,
+                                'type', v.version_type,
+                                'previewUrl', v.preview_url,
+                                'downloadUrl', v.download_url,
+                                'isMainVersion', v.is_main_version
+                            )
+                        ELSE NULL END
+                    ) as versions_json
                 FROM tracks t
                 LEFT JOIN track_versions v ON t.id = v.track_id
                 WHERE t.is_active = 1
@@ -64,7 +66,7 @@ export async function handleStorefrontPool(request, env) {
                 params.push(`%${search}%`, `%${search}%`);
             }
 
-            query += " GROUP BY t.id ORDER BY t.created_at DESC LIMIT 500";
+            query += " GROUP BY t.id ORDER BY t.created_at DESC LIMIT 15000";
 
             const { results } = await env.DB.prepare(query).bind(...params).all();
 
@@ -80,10 +82,19 @@ export async function handleStorefrontPool(request, env) {
             const dailyLimit = isMaster ? 9999 : (DOWNLOAD_LIMITS[userPlan] || 0);
 
             const responsePayload = {
-                tracks: results.map(r => ({
-                    ...r,
-                    versions: r.versions && r.versions !== '[{}]' ? JSON.parse(r.versions) : []
-                })),
+                tracks: results.map(r => {
+                    let parsedVersions = [];
+                    if (r.versions_json && r.versions_json !== '[null]' && r.versions_json !== '[]') {
+                        try {
+                            parsedVersions = JSON.parse(r.versions_json).filter(Boolean);
+                        } catch (e) { }
+                    }
+                    delete r.versions_json;
+                    return {
+                        ...r,
+                        versions: parsedVersions
+                    };
+                }),
                 isAuthorized: true,
                 downloadLimit: dailyLimit,
                 downloadsCount: user?.daily_download_count || 0

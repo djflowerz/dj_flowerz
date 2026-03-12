@@ -8,6 +8,7 @@ import { handleDashboardUsers } from './api/dashboard/users.js';
 import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
 import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
 import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
+import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
 import { handleStorefrontPool } from './api/storefront/pool.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
@@ -29,7 +30,8 @@ router.get('/api/admin/products', handleDashboardProducts);
 router.post('/api/admin/products', handleDashboardProducts);
 router.put('/api/admin/products/:id', handleDashboardProducts);
 router.delete('/api/admin/products/:id', handleDashboardProducts);
-router.post('/api/admin/r2-sync', handleLegacy); // Reusing handleLegacy or a new handler for sync
+router.post('/api/admin/r2-sync', handleR2Sync);
+router.post('/api/admin/r2-upload', handleR2Upload);
 router.get('/api/admin/orders', handleDashboardOrders);
 router.get('/api/admin/orders/:id', handleDashboardOrders);
 router.put('/api/admin/orders/:id', handleDashboardOrders);
