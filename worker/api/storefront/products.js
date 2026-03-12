@@ -39,8 +39,8 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 SELECT 
                     p.*, 
                     c.name as category_name,
-                    MIN(v.price) as price,
-                    v.compare_at_price,
+                    COALESCE(MIN(v.price), 0) as price,
+                    COALESCE(MIN(v.compare_at_price), 0) as compare_at_price,
                     COALESCE(p.image_url, v.image_url) as image
                 FROM products_new p
                 LEFT JOIN categories c ON p.category_id = c.id

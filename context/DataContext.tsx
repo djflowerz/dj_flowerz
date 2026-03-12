@@ -345,68 +345,89 @@ const mapR2Generic = (item: any): any => ({
 });
 
 const mapR2Product = (p: any): Product => {
-  const images = p.images || (p.image ? [p.image] : []);
-  const mainImage = p.image || images[0] || '';
+  try {
+    const images = Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []);
+    const mainImage = p.image || images[0] || '';
 
-  return {
-    ...p,
-    image: mainImage,
-    images: images,
-    isActive: p.is_active !== undefined ? p.is_active : (p.isActive !== undefined ? p.isActive : true),
-    isHot: p.is_featured !== undefined ? p.is_featured : (p.isHot !== undefined ? p.isHot : false),
-    discountPrice: p.discount_price !== undefined ? p.discount_price : p.discountPrice,
-    compareAtPrice: p.sale_price !== undefined ? p.sale_price : p.compareAtPrice,
-    variantGroups: p.variant_groups || p.variantGroups || [],
-    variantOptions: p.variants || p.variantOptions || [],
-    variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : v.name) : (Array.isArray(p.variantOptions) ? p.variantOptions : []),
-    stock: p.inventory !== undefined ? p.inventory : (p.stock !== undefined ? p.stock : 0),
-    createdAt: p.created_at || p.createdAt,
-    updatedAt: p.updated_at || p.updatedAt,
-    digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
-    downloadPassword: p.download_password || p.downloadPassword || '',
-    secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
-    meta_title: p.meta_title || p.metaTitle || '',
-    meta_description: p.meta_description || p.metaDescription || '',
-    meta_keywords: p.meta_keywords || '',
-  };
+    return {
+      ...p,
+      id: String(p.id || ''),
+      name: String(p.name || 'Untitled Product'),
+      slug: String(p.slug || ''),
+      image: mainImage,
+      images: images,
+      isActive: Boolean(p.is_active !== undefined ? p.is_active : (p.isActive !== undefined ? p.isActive : true)),
+      isHot: Boolean(p.is_featured !== undefined ? p.is_featured : (p.isHot !== undefined ? p.isHot : false)),
+      isFeatured: Boolean(p.is_featured !== undefined ? p.is_featured : (p.isFeatured !== undefined ? p.isFeatured : false)),
+      price: Number(p.price !== undefined ? p.price : 0),
+      discountPrice: p.discount_price !== undefined ? Number(p.discount_price) : (p.discountPrice !== undefined ? Number(p.discountPrice) : undefined),
+      compareAtPrice: p.compare_at_price !== undefined ? Number(p.compare_at_price) : (p.compareAtPrice !== undefined ? Number(p.compareAtPrice) : undefined),
+      variantGroups: p.variant_groups || p.variantGroups || [],
+      variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : (v?.name || '')) : [],
+      stock: Number(p.inventory !== undefined ? p.inventory : (p.stock !== undefined ? p.stock : 0)),
+      tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()) : (p.tag_list ? String(p.tag_list).split(',').map((t: string) => t.trim()) : [])),
+      createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+      updatedAt: p.updated_at || p.updatedAt || new Date().toISOString(),
+      digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
+      downloadPassword: p.download_password || p.downloadPassword || '',
+      secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
+      meta_title: p.meta_title || p.metaTitle || '',
+      meta_description: p.meta_description || p.metaDescription || '',
+      meta_keywords: p.meta_keywords || '',
+      whatsappEnabled: Boolean(p.whatsapp_enabled !== undefined ? p.whatsapp_enabled : (p.whatsappEnabled !== undefined ? p.whatsappEnabled : true)),
+      requiresShipping: Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : false))
+    };
+  } catch (err) {
+    console.error("[DataContext] Error mapping product:", p, err);
+    // Return a minimal valid product to avoid crashing the whole list
+    return { ...p, id: p.id || 'error', name: p.name || 'Error Loading', price: 0, isActive: false } as Product;
+  }
 };
 
 const mapR2Mixtape = (m: any): Mixtape => {
-  const ytUrl = m.youtube_url || m.youtubeUrl;
-  const ytId = getYoutubeId(ytUrl);
-  const ytFallback = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '';
+  try {
+    const ytUrl = m.youtube_url || m.youtubeUrl;
+    const ytId = getYoutubeId(ytUrl);
+    const ytFallback = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '';
 
-  return {
-    ...m,
-    coverUrl: m.cover_url || m.coverUrl || m.cover_image || ytFallback || '',
-    audioUrl: m.audio_url || m.audioUrl,
-    duration: m.duration,
-    releaseDate: m.release_date || m.releaseDate,
-    previewStartTime: m.preview_start_time || m.previewStartTime,
-    allowFullStream: m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream,
-    allowDownload: m.allow_download !== undefined ? m.allow_download : m.allowDownload,
-    downloadType: m.download_type || m.downloadType,
-    streamQuality: m.stream_quality || m.streamQuality,
-    isFeatured: m.is_featured !== undefined ? m.is_featured : m.isFeatured,
-    showInGallery: m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery,
-    showInMusicPool: m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool,
-    enableComments: m.enable_comments !== undefined ? m.enable_comments : m.enableComments,
-    requireLoginToComment: m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment,
-    moderateComments: m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments,
-    downloadUrl: m.download_url || m.downloadUrl,
-    videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
-    downloadLimit: m.download_limit !== undefined ? m.download_limit : m.downloadLimit,
-    downloadExpiryDays: m.download_expiry_days !== undefined ? m.download_expiry_days : m.downloadExpiryDays,
-    requiredTier: m.required_tier || m.requiredTier,
-    youtubeUrl: m.youtube_url || m.youtubeUrl,
-    soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
-    metaTitle: m.meta_title || m.metaTitle,
-    metaDescription: m.meta_description || m.metaDescription,
-    ogImage: m.og_image || m.ogImage,
-    isExclusive: m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive,
-    createdAt: m.created_at || m.createdAt,
-    updatedAt: m.updated_at || m.updatedAt
-  };
+    return {
+      ...m,
+      id: String(m.id || ''),
+      title: String(m.title || 'Untitled Mixtape'),
+      coverUrl: m.cover_url || m.coverUrl || m.cover_image || ytFallback || '',
+      audioUrl: m.audio_url || m.audioUrl || '',
+      duration: String(m.duration || '0:00'),
+      releaseDate: m.release_date || m.releaseDate || new Date().toISOString(),
+      previewStartTime: m.preview_start_time || m.previewStartTime,
+      allowFullStream: Boolean(m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream),
+      allowDownload: Boolean(m.allow_download !== undefined ? m.allow_download : m.allowDownload),
+      downloadType: m.download_type || m.downloadType || 'free',
+      streamQuality: m.stream_quality || m.streamQuality || 'standard',
+      isFeatured: Boolean(m.is_featured !== undefined ? m.is_featured : m.isFeatured),
+      showInGallery: Boolean(m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery),
+      showInMusicPool: Boolean(m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool),
+      enableComments: Boolean(m.enable_comments !== undefined ? m.enable_comments : m.enableComments),
+      requireLoginToComment: Boolean(m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment),
+      moderateComments: Boolean(m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments),
+      downloadUrl: m.download_url || m.downloadUrl,
+      videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
+      downloadLimit: m.download_limit !== undefined ? Number(m.download_limit) : undefined,
+      downloadExpiryDays: m.download_expiry_days !== undefined ? Number(m.download_expiry_days) : undefined,
+      requiredTier: m.required_tier || m.requiredTier,
+      youtubeUrl: m.youtube_url || m.youtubeUrl,
+      soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
+      metaTitle: m.meta_title || m.metaTitle,
+      metaDescription: m.meta_description || m.metaDescription,
+      ogImage: m.og_image || m.ogImage,
+      isExclusive: Boolean(m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive),
+      createdAt: m.created_at || m.createdAt,
+      updatedAt: m.updated_at || m.updatedAt,
+      tags: Array.isArray(m.tags) ? m.tags : (typeof m.tags === 'string' ? m.tags.split(',').map((t: string) => t.trim()) : [])
+    };
+  } catch (err) {
+    console.error("[DataContext] Error mapping mixtape:", m, err);
+    return { ...m, id: m.id || 'error', title: m.title || 'Error Loading' } as Mixtape;
+  }
 };
 
 const mapR2Order = (o: any): Order => ({

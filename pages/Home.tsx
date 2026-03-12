@@ -169,10 +169,10 @@ const Home: React.FC = () => {
                               <div className="flex items-center justify-between mb-5">
                                  <div className="flex flex-col">
                                     <span className="text-brand-cyan font-black text-2xl tracking-tighter">
-                                       {product.discountPrice && product.discountPrice > 0 ? `KES ${product.discountPrice.toLocaleString()}` : (product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`)}
+                                       {product.discountPrice && product.discountPrice > 0 ? `KES ${(product.discountPrice || 0).toLocaleString()}` : (product.price === 0 ? 'Free' : `KES ${(product.price || 0).toLocaleString()}`)}
                                     </span>
                                     {product.discountPrice && product.discountPrice > 0 && (
-                                       <span className="text-gray-500 line-through text-[10px] font-bold">KES {product.price.toLocaleString()}</span>
+                                       <span className="text-gray-500 line-through text-[10px] font-bold">KES {(product.price || 0).toLocaleString()}</span>
                                     )}
                                  </div>
                                  <ShoppingBag size={20} className="text-gray-500 group-hover:text-brand-purple transition-colors" />

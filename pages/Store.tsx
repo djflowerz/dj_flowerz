@@ -438,15 +438,15 @@ export default function Products() {
                           {product.discountPrice && product.discountPrice > 0 ? (
                             <>
                               <span className="text-gray-500 line-through text-[10px] md:text-xs font-medium leading-none mb-1">
-                                KES {product.price.toLocaleString()}
+                                KES {(product.price || 0).toLocaleString()}
                               </span>
                               <span className="text-brand-cyan font-black text-lg md:text-xl leading-none">
-                                KES {product.discountPrice.toLocaleString()}
+                                KES {(product.discountPrice || 0).toLocaleString()}
                               </span>
                             </>
                           ) : (
                             <span className="text-brand-cyan font-black text-lg md:text-xl leading-none">
-                              {product.price === 0 ? 'Free' : `KES ${product.price.toLocaleString()}`}
+                              {product.price === 0 ? 'Free' : `KES ${(product.price || 0).toLocaleString()}`}
                             </span>
                           )}
                         </div>
