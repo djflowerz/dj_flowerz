@@ -24,6 +24,7 @@ export const COUNTY_TO_ZONE_MAP: Record<string, string> = {
 };
 
 // --- MUSIC POOL DATA ---
+export const POSTER_URL = 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=1600&h=600&fit=crop&q=80';
 
 export const POOL_HUBS = [
   'New Uploads',

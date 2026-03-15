@@ -45,22 +45,20 @@ const ScrollToTop = () => {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
-  // Music Pool has its own fullscreen layout (height:100dvh) — skip global padding/footer/player
   const isMusicPool = location.pathname === '/music-pool';
+  const isProductDetails = location.pathname.startsWith('/store/') && location.pathname !== '/store' && location.pathname !== '/store/';
+  const hideChrome = isAdmin;
 
   return (
     <>
       <Navbar />
       <main
-        className={`flex-grow bg-[#0B0B0F] text-white ${isMusicPool
-          ? 'flex flex-col overflow-hidden mt-20'    // bare container, offset for fixed navbar
-          : 'min-h-screen pt-20 pb-24'               // normal pages
-          }`}
+        className="flex-grow bg-[#0B0B0F] text-white min-h-screen pt-20 pb-24"
       >
         {children}
       </main>
-      {!isAdmin && !isMusicPool && <AudioPlayer />}
-      {!isAdmin && !isMusicPool && <Footer />}
+      {!hideChrome && <AudioPlayer />}
+      {!hideChrome && <Footer />}
     </>
   );
 };
