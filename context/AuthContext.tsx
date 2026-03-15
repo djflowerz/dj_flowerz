@@ -57,7 +57,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const sbUser = session.user;
-      const isAdminEmail = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || sbUser.email === 'testadmin@example.com';
+      const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
+      const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim();
+      const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv || normalizeEmail(sbUser.email) === 'testadmin@example.com';
 
       try {
         // Fetch Profiles from R2
@@ -152,7 +154,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: newProfile.role as any,
             isSubscriber: (newProfile.role === 'admin') || newProfile.is_subscriber,
             subscriptionPlan: newProfile.subscription_plan as any,
-            subscriptionExpiry: newProfile.subscription_expiry,
+            subscriptionExpiry: newProfile.subscription_expiry as string,
             avatarUrl: newProfile.avatar_url,
             phoneNumber: newProfile.phone_number,
             referralCode: newProfile.referral_code,
@@ -184,8 +186,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: newProfile.role as any,
             isAdmin: newProfile.role === 'admin',
             isSubscriber: newProfile.is_subscriber,
-            subscriptionPlan: newProfile.subscription_plan,
-            subscriptionExpiry: newProfile.subscription_expiry,
+            subscriptionPlan: newProfile.subscription_plan as any,
+            subscriptionExpiry: newProfile.subscription_expiry as string,
             avatarUrl: newProfile.avatar_url,
             referralCode: newProfile.referral_code,
             balance: 0,
@@ -205,7 +207,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Auth sync error:", err);
         // Even if R2 profile fetch fails, keep user logged in with minimal data from session
         if (mounted && sbUser) {
-          const isAdminEmail2 = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com');
+          const isAdminEmail2 = normalizeEmail(sbUser.email) === adminEmailFromEnv;
           setUser({
             id: sbUser.id,
             name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',

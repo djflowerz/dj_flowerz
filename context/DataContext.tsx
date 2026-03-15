@@ -4,7 +4,7 @@ import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, Teleg
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
 
 
 
@@ -156,6 +156,7 @@ interface DataContextType {
   updatePoolTrack: (id: string, data: Partial<Track>) => Promise<void>;
   deletePoolTrack: (id: string) => void;
   loadMorePoolTracks: (count?: number) => void;
+  deployPoolToStorefront: () => Promise<void>;
 
   updateGenre: (id: string, data: Partial<Genre>) => void;
 
@@ -364,7 +365,7 @@ const mapR2Product = (p: any): Product => {
       compareAtPrice: p.compare_at_price !== undefined ? Number(p.compare_at_price) : (p.compareAtPrice !== undefined ? Number(p.compareAtPrice) : undefined),
       variantGroups: p.variant_groups || p.variantGroups || [],
       variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : (v?.name || '')) : [],
-      stock: Number(p.inventory !== undefined ? p.inventory : (p.stock !== undefined ? p.stock : 0)),
+      stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
       tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()) : (p.tag_list ? String(p.tag_list).split(',').map((t: string) => t.trim()) : [])),
       createdAt: p.created_at || p.createdAt || new Date().toISOString(),
       updatedAt: p.updated_at || p.updatedAt || new Date().toISOString(),
@@ -631,7 +632,9 @@ const getTableName = (colName: string): string => {
     'payments': 'payments',
     'tips': 'tips',
     'scannedTracks': 'scanned_tracks',
-    'notifications': 'notifications'
+    'notifications': 'notifications',
+    'reviews': 'interactions',
+    'comments': 'interactions'
   };
   return mapping[colName] || colName;
 };
@@ -685,6 +688,13 @@ const useCollection = <T extends { id: string }>(
           if (valA > valB) return orderDirection === 'asc' ? 1 : -1;
           return 0;
         });
+      }
+
+      // If we already have data and the new fetch is empty, it might be a temporary error or propagation lag
+      // Don't revert to initialData if we've successfully loaded items before.
+      if (transformed.length === 0 && data.length > 0) {
+        console.warn(`[useCollection] Fetch for ${tableName} returned 0 items, keeping current state of ${data.length} items to avoid flickering.`);
+        return;
       }
 
       setData(transformed.length === 0 && initialData.length > 0 ? initialData : transformed);
@@ -1300,6 +1310,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res) {
         setProducts(prev => [newProduct as Product, ...prev]);
         console.log("[DataContext] Product cataloged successfully in matrix!");
+        refreshProducts();
         return true;
       }
       return false;
@@ -1322,6 +1333,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res) {
         setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
         console.log(`[DataContext] Product updated in matrix!`);
+        refreshProducts();
         return true;
       }
       return false;
@@ -1353,23 +1365,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         createdAt: mixtape.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      const updatedMixtapes = [mapped, ...mixtapes.filter(m => m.id !== finalId)];
-      setMixtapes(updatedMixtapes);
-      await saveToD1('mixtapes', 'POST', mapped);
+
+      // Optimistic update using functional state to avoid closure staleness
+      setMixtapes(prev => [mapped, ...prev.filter(m => m.id !== finalId)]);
+
+      const ok = await saveToD1('mixtapes', 'POST', mapped);
+      if (!ok) throw new Error("Database insertion failed");
+
       alert("Mixtape added successfully!");
-      if (typeof refreshMixtapes === 'function') refreshMixtapes();
+      refreshMixtapes();
     } catch (err: any) {
       console.error("Add mixtape failed:", err.message);
       alert("Failed to add mixtape: " + err.message);
+      // Revert if fetch is desired, but usually silence is better for UX if it's intermittent
     }
   };
   const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
     try {
-      const updatedMixtapes = mixtapes.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m);
-      setMixtapes(updatedMixtapes);
-      await saveToD1('mixtapes', 'PUT', data, id);
+      setMixtapes(prev => prev.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m));
+      const ok = await saveToD1('mixtapes', 'PUT', data, id);
+      if (!ok) throw new Error("Database update failed");
+
       alert("Mixtape updated successfully!");
-      if (typeof refreshMixtapes === 'function') refreshMixtapes();
+      refreshMixtapes();
     } catch (err: any) {
       console.error("Update mixtape failed:", err.message);
       alert("Failed to update mixtape: " + err.message);
@@ -1392,6 +1410,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addPoolTrack = async (track: Track) => {
     try {
       await addR2Item('pool_tracks', track);
+      await syncPoolTrackToD1(track);
       refreshPoolTracks();
     } catch (error: any) {
       console.error("Add track failed:", error.message);
@@ -1404,20 +1423,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 1. Send the new tracks in an addBatch request
       await addBatchR2Items('pool_tracks', newTracks);
 
-      // 2. Update local poolTracks state by prepending the new items (same as R2 logic)
+      // 2. Sync to D1
+      for (const track of newTracks) {
+        await syncPoolTrackToD1(track);
+      }
+
+      // 3. Update local poolTracks state
       setPoolTracks(prev => [...newTracks, ...(prev || [])]);
 
-      // 3. Remove promoted tracks from scanned_tracks via batch delete in R2
+      // 4. Remove promoted tracks from scanned_tracks
       if (idsToRemoveFromScanned.length > 0) {
         await removeBatchR2Items('scanned_tracks', idsToRemoveFromScanned);
       }
 
-      // 4. Update local scannedTracks state
+      // 5. Update local scannedTracks state
       setScannedTracks(prev => (prev || []).filter(t => !idsToRemoveFromScanned.includes(t.id)));
 
     } catch (error: any) {
       console.error("Bulk add pool tracks failed:", error.message);
-      // Refresh from R2 on failure to ensure UI consistency
       refreshPoolTracks();
       refreshScannedTracks();
       throw error;
@@ -1496,6 +1519,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updatePoolTrack = async (id: string, data: Partial<Track>) => {
     try {
       await updateR2Item('pool_tracks', id, data);
+      
+      const existingTrack = poolTracks.find(t => t.id === id);
+      if (existingTrack) {
+        await syncPoolTrackToD1({ ...existingTrack, ...data });
+      }
+      
       refreshPoolTracks();
     } catch (error: any) {
       console.error("Update track failed:", error.message);
@@ -1505,9 +1534,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deletePoolTrack = async (id: string) => {
     try {
       await removeR2Item('pool_tracks', id);
+      await deletePoolTrackFromD1(id);
       refreshPoolTracks();
     } catch (err: any) {
       console.error("Delete track failed:", err.message);
+    }
+  };
+
+  const deployPoolToStorefront = async () => {
+    try {
+      setPoolLoading(true);
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/migrate-pool-json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ tracks: poolTracks })
+      });
+      
+      if (!response.ok) throw new Error("Migration failed");
+      
+      const result = await response.json();
+      alert(`Successfully deployed ${result.inserted} tracks to storefront!`);
+    } catch (err: any) {
+      console.error("Deploy failed:", err.message);
+      alert("Failed to deploy to storefront: " + err.message);
+    } finally {
+      setPoolLoading(false);
     }
   };
 
@@ -1516,7 +1568,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedGenres = genres.map(g => g.id === id ? { ...g, ...data, updatedAt: new Date().toISOString() } : g);
       setGenres(updatedGenres);
       await saveToR2('genres', updatedGenres);
-      console.log("Genre updated on R2");
+      
+      // Sync to D1
+      await syncGenresToD1(updatedGenres);
+      
+      console.log("Genre updated on R2 & D1");
     } catch (err: any) {
       console.error("Update genre failed:", err.message);
     }
@@ -2150,10 +2206,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addReview = async (productId: string, rating: number, comment: string) => {
     try {
       if (!user) throw new Error('Must be logged in to review');
-      const docId = `rev_${Date.now()}`;
-      const newReview = { id: docId, productId, userId: user.id, userName: user.name || 'User', rating, comment, date: new Date().toISOString(), status: 'pending' };
-      const newReviews = [newReview, ...(reviews || [])];
-      await saveToR2('reviews', newReviews);
+
+      const payload = {
+        userId: user.id,
+        userName: user.full_name || user.name || 'User',
+        type: 'review',
+        targetId: productId,
+        targetType: 'product',
+        content: comment,
+        rating: rating,
+        status: 'approved'
+      };
+
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/interactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error('Failed to save review');
+
       refreshReviews();
 
       // Award 5 Aura Points for a review
@@ -2168,10 +2241,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addComment = async (mixtapeId: string, text: string) => {
     try {
       if (!user) throw new Error('Must be logged in to comment');
-      const docId = `com_${Date.now()}`;
-      const newComment = { id: docId, mixtapeId, userId: user.id, userName: user.name || 'User', text, date: new Date().toISOString(), status: 'pending' };
-      const newComments = [newComment, ...(comments || [])];
-      await saveToR2('comments', newComments);
+
+      const payload = {
+        userId: user.id,
+        userName: user.full_name || user.name || 'User',
+        type: 'comment',
+        targetId: mixtapeId,
+        targetType: 'mixtape',
+        content: text,
+        status: 'approved'
+      };
+
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/interactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error('Failed to save comment');
+
       refreshComments();
 
       // Award 5 Aura Points for a comment
@@ -2316,6 +2405,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updatePoolTrack,
     deletePoolTrack,
     loadMorePoolTracks,
+    deployPoolToStorefront,
     updateGenre,
     addBooking,
     updateBooking,

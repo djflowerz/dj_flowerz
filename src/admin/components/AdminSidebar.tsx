@@ -13,6 +13,7 @@ const navItems = [
     { icon: MessageSquare, label: 'Messages', path: '/admin/messages' },
     { icon: Users, label: 'Customers', path: '/admin/customers' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
+    { icon: Music, label: 'Music Pool', path: '/admin/pool' },
 ];
 
 export const AdminSidebar: React.FC = () => {
@@ -38,8 +39,8 @@ export const AdminSidebar: React.FC = () => {
                             key={item.path}
                             to={item.path}
                             className={`flex items-center gap-4 px-6 py-4 rounded-3xl transition-all duration-300 group ${isActive
-                                    ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
-                                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                                : 'text-gray-500 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             <item.icon size={22} className={isActive ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />

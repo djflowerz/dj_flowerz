@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { Track, Genre } from '../types';
 
 /**
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
@@ -135,11 +136,9 @@ export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DEL
     try {
         const authHeader = await getAuthHeader();
 
-        // Define collections that require /api/admin/ prefix for write operations
-        let basePath = '/api';
-        if (['POST', 'PUT', 'DELETE'].includes(method) && ['products', 'mixtapes', 'orders'].includes(collection)) {
-            basePath = '/api/admin';
-        }
+        // All write operations go to /api/ — the worker handles products/mixtapes at these routes.
+        // NOTE: Previously this used /api/admin/ for products/mixtapes but those handlers don't exist.
+        const basePath = '/api';
 
         const endpoint = id ? `${STORAGE_WORKER_URL}${basePath}/${collection}/${id}` : `${STORAGE_WORKER_URL}${basePath}/${collection}`;
 
@@ -279,5 +278,49 @@ export async function fetchPoolFilters(): Promise<{ genres: string[]; years: str
     } catch (error) {
         console.error("[R2] Filter fetch error:", error);
         return { genres: [], years: [], months: [] };
+    }
+}
+
+export async function syncPoolTrackToD1(track: Track): Promise<boolean> {
+    try {
+        const authHeader = await getAuthHeader();
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/sync-track`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify(track),
+        });
+        return response.ok;
+    } catch (e) {
+        console.error("[R2] Sync to D1 error:", e);
+        return false;
+    }
+}
+
+export async function deletePoolTrackFromD1(id: string): Promise<boolean> {
+    try {
+        const authHeader = await getAuthHeader();
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/track?id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+        });
+        return response.ok;
+    } catch (e) {
+        console.error("[R2] Delete from D1 error:", e);
+        return false;
+    }
+}
+
+export async function syncGenresToD1(genres: Genre[]): Promise<boolean> {
+    try {
+        const authHeader = await getAuthHeader();
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/sync-genres`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify({ genres }),
+        });
+        return response.ok;
+    } catch (e) {
+        console.error("[R2] Sync genres to D1 error:", e);
+        return false;
     }
 }

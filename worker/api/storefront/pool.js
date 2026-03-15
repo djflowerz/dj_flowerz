@@ -1,4 +1,4 @@
-import { getAuthorizedUser } from '../../utils/auth.js';
+import { getAuthorizedUser, isAdminEmail } from '../../utils/auth.js';
 
 export async function handleStorefrontPool(request, env) {
     const url = new URL(request.url);
@@ -19,8 +19,8 @@ export async function handleStorefrontPool(request, env) {
         if (method === "GET" && path === "/api/pool/tracks") {
             const user = await getAuthorizedUser(request, env);
 
-            // 1. GATEKEEPER CHECK (Master Email Bypass)
-            const isMaster = user?.email === 'ianmuriithiflowerz@gmail.com';
+            // 1. GATEKEEPER CHECK (Master/Admin Bypass)
+            const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
             const now = new Date().getTime();
             const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
             const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
@@ -107,7 +107,7 @@ export async function handleStorefrontPool(request, env) {
             const user = await getAuthorizedUser(request, env);
             if (!user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
-            const isMaster = user?.email === 'ianmuriithiflowerz@gmail.com';
+            const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
             const now = new Date().getTime();
             const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
             const isSubscribed = (user?.is_subscriber === 1 && expiry > now);

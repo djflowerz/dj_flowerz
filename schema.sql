@@ -95,6 +95,10 @@ CREATE TABLE products (
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
     currency TEXT DEFAULT 'KES',
+    technical_details TEXT,
+    hotspots TEXT,
+    use_cases TEXT,
+    variant_groups TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

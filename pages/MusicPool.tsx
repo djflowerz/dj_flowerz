@@ -1,1170 +1,639 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import {
-   Search, Download, Play, Pause, X, ChevronDown,
-   Music2, Radio, Filter, Zap, CheckCircle2, AlertCircle,
-   Clock, SortAsc, SortDesc, Disc3, Fuel
+  Search, Download, Play, Pause, X, ChevronDown,
+  Music2, Radio, Filter, Zap, CheckCircle2, AlertCircle,
+  Clock, SortAsc, SortDesc, Disc3, Fuel, ChevronRight,
+  Star, Lock, Check, Crown, Flame, Rocket, Zap as ZapIcon,
+  PlayCircle, Package
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Track } from '../types';
-import { POOL_HUBS, POOL_YEARS, MONTHS, GENRE_NAMES } from '../constants';
+import { MONTHS } from '../constants';
+import { useAuth } from '../context/AuthContext';
 import { fetchPoolTracks, trackPoolDownload, fetchPoolFilters } from '../utils/r2';
 import AccessDenied from '../components/AccessDenied';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Mini Audio Player State ──────────────────────────────────────────────────
+// --- Types ---
 interface PlayerState {
-   track: Track | null;
-   versionId?: string;
-   isPlaying: boolean;
+  track: Track | null;
+  versionId?: string;
+  isPlaying: boolean;
 }
 
-// ─── Filter State ─────────────────────────────────────────────────────────────
 interface Filters {
-   search: string;
-   hub: string;
-   displayGenre: string;
-   year: string;
-   month: string;
-   vibe: string;
+  search: string;
+  hub: string;
+  genre: string;
+  year: string;
+  vibe: string;
 }
 
 const DEFAULT_FILTERS: Filters = {
-   search: '',
-   hub: '',
-   displayGenre: '',
-   year: '',
-   month: '',
-   vibe: '',
+  search: '',
+  hub: '',
+  genre: '',
+  year: '',
+  vibe: '',
 };
 
-// ─── Vibe Colours ─────────────────────────────────────────────────────────────
-const VIBE_COLORS: Record<string, string> = {
-   'Hype': 'hsl(25 95% 55%)',
-   'Low Hype': 'hsl(205 85% 55%)',
-   'Chill': 'hsl(160 60% 45%)',
-   'Energetic': 'hsl(300 80% 55%)',
-};
+const GENRES = ['Afrobeats', 'Amapiano', 'Hip Hop', 'R&B', 'Dancehall', 'Drill', 'Gengetone', 'House', 'Edits / Mashups'];
+const HUBS = ['All Hubs', 'Remix & Mashups Hub', 'Amapiano', 'Hype Edits', 'Kenyan Love Songs Hype', 'Bongo Flava (TBT) Hype', "Riddimz F'"];
 
-const VIBES = ['Hype', 'Low Hype', 'Chill', 'Energetic'];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ---
 const normalise = (s: string) => s.toLowerCase().trim();
 
-function getUnique<T>(arr: T[], fn: (item: T) => string | undefined): string[] {
-   const seen = new Set<string>();
-   const result: string[] = [];
-   for (const item of arr) {
-      const val = fn(item);
-      if (val && !seen.has(val)) {
-         seen.add(val);
-         result.push(val);
-      }
-   }
-   return result.sort();
-}
-
 function groupTracks(tracks: Track[]): Track[] {
-   const map = new Map<string, Track>();
-   tracks.forEach(t => {
-      let baseTitle = t.title.trim();
-      let extractedVersion = t.displayGenre || t.vibe || t.genre || 'Main';
+  const map = new Map<string, Track>();
+  tracks.forEach(t => {
+    let baseTitle = t.title.trim();
+    const versionRegex = /[\(\[]?(Remix|Club|Edit|Radio|Intro|Clean|Dirty|Hype|Acapella|Instrumental|Main|Extended|Dub|Refix|Bootleg|Mashup|VIP)[\)\]]?/i;
+    let matchedVersion = '';
+    const vMatch = baseTitle.match(versionRegex);
+    if (vMatch) {
+      matchedVersion = vMatch[0].replace(/[\(\)\[\]]/g, '').trim();
+      baseTitle = baseTitle.replace(vMatch[0], '').replace(/\s+-\s*$/, '').replace(/\(\s*\)$/, '').trim();
+    }
 
-      // Extract common DJ naming patterns (e.g. "Title - Remix", "Title (Club Edit)")
-      const dashMatch = baseTitle.match(/(.*?)\s+-\s+(.*)$/);
-      if (dashMatch) {
-         baseTitle = dashMatch[1].trim();
-         extractedVersion = dashMatch[2].trim();
-      } else {
-         const parenMatch = baseTitle.match(/(.*?)\s+\((.*)\)$/);
-         if (parenMatch) {
-            baseTitle = parenMatch[1].trim();
-            extractedVersion = parenMatch[2].trim();
-         }
-      }
+    const key = `${t.artist.trim().toLowerCase()}::${baseTitle.toLowerCase()}`;
+    const trackVersions = [...(t.versions || [])].filter(v => v && v.id);
 
-      const key = `${t.artist.trim().toLowerCase()}::${baseTitle.toLowerCase()}`;
-      const trackVersions = (t.versions || []).filter(v => v && v.id);
+    if (trackVersions.length === 0) {
+      trackVersions.push({
+        id: t.id,
+        type: matchedVersion || t.displayGenre || 'Main',
+        previewUrl: t.previewUrl,
+        downloadUrl: t.downloadUrl || t.previewUrl,
+        label: matchedVersion || 'Main'
+      });
+    }
 
-      if (!map.has(key)) {
-         if (trackVersions.length === 0) {
-            trackVersions.push({
-               id: t.id,
-               type: extractedVersion,
-               previewUrl: t.previewUrl,
-               downloadUrl: t.downloadUrl || t.previewUrl
-            });
-         }
-         map.set(key, { ...t, title: baseTitle, versions: trackVersions });
-      } else {
-         const existing = map.get(key)!;
-         if (trackVersions.length === 0) {
-            trackVersions.push({
-               id: t.id,
-               type: extractedVersion,
-               previewUrl: t.previewUrl,
-               downloadUrl: t.downloadUrl || t.previewUrl
-            });
-         }
-
-         // Append and deduplicate versions
-         trackVersions.forEach(nv => {
-            if (!existing.versions!.some(ev => ev.id === nv.id || ev.previewUrl === nv.previewUrl)) {
-               existing.versions!.push(nv);
-            }
-         });
-      }
-   });
-
-   return Array.from(map.values());
+    if (!map.has(key)) {
+      map.set(key, { ...t, title: baseTitle, versions: trackVersions });
+    } else {
+      const existing = map.get(key)!;
+      trackVersions.forEach(nv => {
+        if (!existing.versions!.some(ev => ev.id === nv.id || ev.previewUrl === nv.previewUrl)) {
+          existing.versions!.push(nv);
+        }
+      });
+    }
+  });
+  return Array.from(map.values());
 }
 
-// ─── Select Component ─────────────────────────────────────────────────────────
-function FilterSelect({
-   value, onChange, options, placeholder, icon: Icon
-}: {
-   value: string;
-   onChange: (v: string) => void;
-   options: string[];
-   placeholder: string;
-   icon: React.ElementType;
-}) {
-   return (
-      <div className="mp-select-wrapper">
-         <Icon size={15} className="mp-select-icon" />
-         <select
-            className="mp-select"
-            value={value}
-            onChange={e => onChange(e.target.value)}
-         >
-            <option value="">{placeholder}</option>
-            {options.map(o => (
-               <option key={o} value={o}>{o}</option>
-            ))}
-         </select>
-         <ChevronDown size={13} className="mp-select-chevron" />
+// --- Components ---
+
+const SubscriptionPlan = ({ 
+  icon: Icon, 
+  title, 
+  price, 
+  period, 
+  savings, 
+  features, 
+  highlight, 
+  onSelect 
+}: any) => (
+  <div className={`relative p-8 rounded-[2rem] border transition-all duration-500 group hover:shadow-2xl ${highlight ? 'bg-gradient-to-br from-[#15151A] to-[#1a1a22] border-brand-purple/50 shadow-brand-purple/10' : 'bg-white/[0.02] border-white/5 hover:border-brand-purple/30'}`}>
+    {highlight && (
+      <div className="absolute top-0 right-0 bg-brand-purple text-white text-[10px] uppercase font-bold px-4 py-1 rounded-bl-xl tracking-widest">
+        Best Value
       </div>
-   );
-}
+    )}
+    <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-500">{Icon}</div>
+    <h3 className="font-display font-bold text-xl text-white mb-2">{title}</h3>
+    <div className="flex items-baseline gap-1 mb-1">
+      <span className="text-3xl font-bold text-white">KES {price.toLocaleString()}</span>
+      <span className="text-gray-500 text-sm">/{period}</span>
+    </div>
+    {savings && <p className={`text-xs font-bold mb-6 ${highlight ? 'text-green-400' : 'text-brand-purple italic'}`}>{savings}</p>}
+    <ul className="text-sm text-gray-400 space-y-3 mb-8">
+      {features.map((f: string, i: number) => (
+        <li key={i} className="flex items-center gap-2">
+          <Check size={14} className="text-brand-cyan" />
+          {f}
+        </li>
+      ))}
+    </ul>
+    <button 
+      onClick={onSelect}
+      className={`w-full py-4 rounded-xl font-bold transition-all duration-300 ${highlight ? 'bg-brand-purple text-white hover:shadow-[0_10px_30px_rgba(123,92,255,0.4)] hover:-translate-y-1' : 'border border-brand-purple/50 text-brand-purple hover:bg-brand-purple/10'}`}
+    >
+      Select Plan
+    </button>
+  </div>
+);
 
-// ─── Track Row ────────────────────────────────────────────────────────────────
-const TrackRow = React.memo(({ track, player, onPlay, onDownload }: {
-   track: Track;
-   player: PlayerState;
-   onPlay: (t: Track, versionId?: string) => void;
-   onDownload: (t: Track, versionId?: string) => void;
-}) => {
-   const [selectedVersionId, setSelectedVersionId] = useState(track.versions?.[0]?.id);
-   const isActive = player.track?.id === track.id;
-   const isPlaying = isActive && player.isPlaying;
-   const vibe = track.vibe || 'Hype';
-   const vibeColor = VIBE_COLORS[vibe] || VIBE_COLORS['Hype'];
-   const yearLabel = track.releaseYear || track.year;
+const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: any) => {
+  const [selectedVersionIdx, setSelectedVersionIdx] = useState(0);
+  const isActive = player.track?.id === track.id;
+  const isPlaying = isActive && player.isPlaying;
+  const currentVersion = track.versions[selectedVersionIdx] || track.versions[0];
 
-   const activeVersionId = isActive ? player.versionId : selectedVersionId;
-
-   return (
-      <div className={`mp-track-row${isActive ? ' mp-track-row--active' : ''}`} data-id={track.id}>
-         {/* Terminal ID / Indicator */}
-         <div className="mp-track-id font-mono text-[10px] opacity-30 select-none hidden sm:block">
-            {track.id.slice(0, 4).toUpperCase()}
-         </div>
-
-         {/* Waveform / Play button */}
-         <button
-            className="mp-play-btn"
-            onClick={() => onPlay(track, selectedVersionId)}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-            style={{ '--vibe': vibeColor } as React.CSSProperties}
-         >
-            {isPlaying
-               ? <Pause size={16} />
-               : <Play size={16} />
-            }
-            {isActive && <span className="mp-play-pulse" />}
-         </button>
-
-         {/* Labels */}
-         <div className="mp-track-info">
-            <span className="mp-track-title font-bold tracking-tight">{track.title}</span>
-            <div className="flex items-center gap-3">
-               <span className="mp-track-artist font-mono text-[11px] uppercase tracking-wider text-brand-cyan/70">{track.artist}</span>
-               {track.versions && track.versions.length > 1 && (
-                  <div className="flex gap-1">
-                     {track.versions.map(v => (
-                        <button
-                           key={v.id}
-                           onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedVersionId(v.id);
-                              if (isActive && player.versionId !== v.id) {
-                                 onPlay(track, v.id);
-                              }
-                           }}
-                           className={`mp-version-chip ${selectedVersionId === v.id ? 'active' : ''}`}
-                        >
-                           {v.type}
-                        </button>
-                     ))}
-                  </div>
-               )}
+  return (
+    <div className={`group relative transition-all duration-300 ${isLocked ? 'opacity-75' : ''}`}>
+      <div className="bg-[#15151A] border border-white/5 rounded-3xl p-6 flex flex-col lg:flex-row lg:items-center gap-6 hover:border-white/10 hover:bg-[#1a1a22] transition-all">
+        {/* Track Main Info */}
+        <div className="flex items-center gap-5 flex-1 min-w-0">
+          <div 
+            className={`relative group shrink-0 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            onClick={() => !isLocked && onPlay(track, currentVersion.id)}
+          >
+            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors">
+              <img src={track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className={`w-full h-full object-cover transition-transform duration-700 ${!isLocked && 'group-hover:scale-110'} ${isLocked ? 'grayscale' : ''}`} alt={track.title} />
             </div>
-         </div>
-
-         <div className="mp-track-meta hidden md:flex">
-            {track.displayGenre && (
-               <span className="mp-badge mp-badge--genre font-mono uppercase text-[9px]">{track.displayGenre}</span>
-            )}
-            {vibe && (
-               <span
-                  className="mp-badge mp-badge--vibe font-mono uppercase text-[9px]"
-                  style={{ background: `${vibeColor}22`, color: vibeColor, borderColor: `${vibeColor}44` }}
-               >
-                  {vibe}
-               </span>
-            )}
-            {yearLabel && (
-               <span className="mp-badge mp-badge--year font-mono text-[9px]">{yearLabel}</span>
-            )}
-         </div>
-
-         {/* Link health */}
-         {track.linkStatus === 'broken' && (
-            <AlertCircle size={14} className="mp-link-broken" title="Broken link" />
-         )}
-
-         {/* Download */}
-         {track.versions && track.versions.length > 1 ? (
-            <div className="flex items-center gap-1">
-               <button
-                  className="mp-dl-btn group relative"
-                  onClick={(e) => { e.stopPropagation(); onDownload(track, selectedVersionId || track.versions![0].id); }}
-                  title="Download selected version"
-               >
-                  <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
-               </button>
-               <button
-                  className="mp-dl-btn group relative text-[10px] font-bold text-brand-pink hover:bg-brand-pink/10 transition-colors bg-brand-pink/5"
-                  onClick={(e) => { e.stopPropagation(); onDownload(track, 'ALL'); }}
-                  title="Download all versions"
-               >
-                  ALL
-               </button>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl backdrop-blur-[2px]">
+              {isLocked ? <Lock size={20} className="text-gray-400" /> : isPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white fill-current" />}
             </div>
-         ) : (
-            <button
-               className="mp-dl-btn group relative"
-               onClick={(e) => { e.stopPropagation(); onDownload(track, track.versions?.[0]?.id); }}
-               aria-label="Download"
-               title={`Download: ${track.title}`}
-            >
-               <Download size={15} className="group-hover:text-brand-cyan transition-colors" />
-               <div className="absolute inset-0 bg-brand-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
-            </button>
-         )}
+          </div>
+          
+          <div className="min-w-0">
+            <h3 className="text-white font-bold text-lg truncate uppercase tracking-tight group-hover:text-brand-purple transition-colors">{track.title}</h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-gray-400 text-sm font-medium">{track.artist}</span>
+              <span className="text-brand-cyan text-[10px] font-black px-2 py-0.5 bg-brand-cyan/5 rounded-full border border-brand-cyan/20 uppercase tracking-widest leading-none">
+                {track.displayGenre || track.genre}
+              </span>
+              <span className="text-brand-purple text-[10px] font-black px-2 py-0.5 bg-brand-purple/5 rounded-full border border-brand-purple/20 uppercase tracking-widest leading-none">
+                {track.vibe || 'Hype'}
+              </span>
+              <span className="text-gray-600 text-[10px] font-black uppercase tracking-widest border border-white/5 px-2 py-0.5 rounded-full leading-none">
+                {track.releaseYear || track.year}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-4">
+          {isLocked ? (
+            <div className="bg-brand-purple/10 border border-brand-purple/20 px-6 py-3 rounded-2xl flex flex-col items-center">
+              <p className="text-[10px] font-black text-brand-purple uppercase tracking-[0.2em]">Subscriber Area</p>
+              <p className="text-[9px] text-gray-500 mt-1 uppercase font-bold">Upgrade for Access</p>
+            </div>
+          ) : (
+            <>
+              {/* Version Selector */}
+              {track.versions && track.versions.length > 1 && (
+                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 self-center">
+                  {track.versions.map((v: any, idx: number) => (
+                    <button
+                      key={v.id}
+                      onClick={() => setSelectedVersionIdx(idx)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${idx === selectedVersionIdx ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      {v.type || v.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Download Buttons */}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => onDownload(track, currentVersion.id)}
+                  className="bg-brand-purple text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                >
+                  Download {currentVersion.type || currentVersion.label}
+                </button>
+                <button 
+                  onClick={() => onDownload(track, 'ALL')}
+                  className="bg-white/5 hover:bg-white/10 p-3 rounded-2xl border border-white/10 transition-all group/bulk"
+                  title="Download All Versions"
+                >
+                  <Package size={18} className="text-gray-400 group-hover/bulk:text-brand-cyan transition-colors" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-   );
+    </div>
+  );
 });
 
-// ─── Mini Player Bar ──────────────────────────────────────────────────────────
-function MiniPlayer({ player, audioRef, onClose }: {
-   player: PlayerState;
-   audioRef: React.RefObject<HTMLAudioElement | null>;
-   onClose: () => void;
-}) {
-   if (!player.track) return null;
-   const t = player.track;
-   const vibeColor = VIBE_COLORS[t.vibe || 'Hype'];
-
-   return (
-      <div className="mp-mini-player" style={{ '--vibe': vibeColor } as React.CSSProperties}>
-         <div className="mp-mini-player__bar" />
-         <Disc3 size={22} className={`mp-mini-player__disc${player.isPlaying ? ' spinning' : ''}`} />
-         <div className="mp-mini-player__info">
-            <span className="mp-mini-player__title">{t.title}</span>
-            <div className="flex items-center gap-2">
-               <span className="mp-mini-player__artist">{t.artist}</span>
-               {player.versionId && (
-                  <span className="mp-mini-player__version">
-                     {t.versions.find(v => v.id === player.versionId)?.type}
-                  </span>
-               )}
-            </div>
-         </div>
-         <audio
-            ref={audioRef}
-            src={t.versions.find(v => v.id === player.versionId)?.previewUrl || t.previewUrl}
-            autoPlay
-         />
-         <button className="mp-mini-player__close" onClick={onClose} aria-label="Close player">
-            <X size={16} />
-         </button>
-      </div>
-   );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function MusicPool() {
-   // -- Gated Access & Limits --
-   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-   const [usage, setUsage] = useState({ limit: 0, count: 0 });
-   const [poolTracks, setPoolTracks] = useState<Track[]>([]);
-   const [poolLoading, setPoolLoading] = useState(true);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isSubscriber = !!user?.publicMetadata?.subscriptionPlan || isAdmin;
 
-   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-   const [filterMetadata, setFilterMetadata] = useState<{
-      genres: string[];
-      years: string[];
-      months: string[];
-   }>({ genres: [], years: [], months: [] });
+  const [poolTracks, setPoolTracks] = useState<Track[]>([]);
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [usage, setUsage] = useState({ limit: 0, count: 0 });
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [activeHub, setActiveHub] = useState('All Hubs');
+  const [activeGenre, setActiveGenre] = useState('All Genres');
+  
+  const [player, setPlayer] = useState<PlayerState>({ track: null, isPlaying: false });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-   const [player, setPlayer] = useState<PlayerState>({ track: null, isPlaying: false });
-   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-   const fetchGatedPool = useCallback(async () => {
-      setPoolLoading(true);
-      const [poolResult, filtersResult] = await Promise.all([
-         fetchPoolTracks(),
-         fetchPoolFilters()
-      ]);
-
-      setIsAuthorized(poolResult.isAuthorized);
-      if (poolResult.isAuthorized) {
-         setPoolTracks(groupTracks(poolResult.tracks));
-         setUsage({ limit: poolResult.downloadLimit || 0, count: poolResult.downloadsCount || 0 });
-      }
-      setFilterMetadata(filtersResult);
-      setPoolLoading(false);
-   }, []);
-
-   useEffect(() => {
-      fetchGatedPool();
-   }, [fetchGatedPool]);
-
-   // ── Derived filter options (prioritize API, fallback to derived) ────────────
-   const hubs = useMemo(() => getUnique(poolTracks as Track[], (t: Track) => t.collectionHub), [poolTracks]);
-   const displayGenres = useMemo(() =>
-      filterMetadata.genres.length > 0 ? filterMetadata.genres : getUnique(poolTracks as Track[], (t: Track) => t.displayGenre),
-      [poolTracks, filterMetadata]);
-   const years = useMemo(() =>
-      filterMetadata.years.length > 0 ? filterMetadata.years : getUnique(poolTracks as Track[], (t: Track) => t.releaseYear?.toString()),
-      [poolTracks, filterMetadata]);
-   const months = useMemo(() =>
-      filterMetadata.months.length > 0 ? filterMetadata.months : MONTHS.filter(m => poolTracks.some((t: Track) => t.releaseMonth === m)),
-      [poolTracks, filterMetadata]);
-
-   // ── Filtered & sorted tracks ───────────────────────────────────────────────
-   const filtered = useMemo(() => {
-      let list: Track[] = poolTracks;
-
-      if (filters.search) {
-         const q = normalise(filters.search);
-         list = list.filter(t =>
-            normalise(t.title).includes(q) ||
-            normalise(t.artist).includes(q) ||
-            normalise(t.genre).includes(q) ||
-            normalise(t.displayGenre || '').includes(q)
-         );
-      }
-      if (filters.hub) list = list.filter(t => t.collectionHub === filters.hub);
-      if (filters.displayGenre) list = list.filter(t => t.displayGenre === filters.displayGenre);
-      if (filters.year) list = list.filter(t => String(t.releaseYear || t.year) === filters.year);
-      if (filters.month) list = list.filter(t => t.releaseMonth === filters.month);
-      if (filters.vibe) list = list.filter(t => t.vibe === filters.vibe);
-
-      list = [...list].sort((a, b) => {
-         const da = new Date(a.dateAdded || a.createdAt || 0).getTime();
-         const db = new Date(b.dateAdded || b.createdAt || 0).getTime();
-         return sortDir === 'desc' ? db - da : da - db;
+  const fetchGatedPool = useCallback(async () => {
+    setPoolLoading(true);
+    const poolResult = await fetchPoolTracks();
+    if (poolResult.isAuthorized || isAdmin) {
+      setPoolTracks(groupTracks(poolResult.tracks));
+      setUsage({
+        limit: isAdmin ? 999999 : (poolResult.downloadLimit || 0),
+        count: poolResult.downloadsCount || 0
       });
+    } else {
+      // If not authorized, we still want to show a preview if possible
+      // But the groupTracks logic expects authenticated data
+      setPoolTracks(groupTracks(poolResult.tracks || []));
+    }
+    setPoolLoading(false);
+  }, [isAdmin]);
 
-      return list;
-   }, [poolTracks, filters, sortDir]);
+  useEffect(() => {
+    fetchGatedPool();
+  }, [fetchGatedPool]);
 
-   // ── Active filter count ────────────────────────────────────────────────────
-   const activeFilterCount = useMemo(() =>
-      Object.entries(filters).filter(([k, v]) => k !== 'search' && v !== '').length,
-      [filters]);
+  // Derived filtered tracks
+  const filteredTracks = useMemo(() => {
+    let list = poolTracks;
+    
+    if (filters.search) {
+      const q = normalise(filters.search);
+      list = list.filter(t => 
+        normalise(t.title).includes(q) || 
+        normalise(t.artist).includes(q)
+      );
+    }
 
-   const setFilter = useCallback((key: keyof Filters, val: string) =>
-      setFilters(f => ({ ...f, [key]: val })), []);
+    if (activeHub !== 'All Hubs') {
+      list = list.filter(t => t.collectionHub === activeHub);
+    }
 
-   const clearFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
+    if (activeGenre !== 'All Genres') {
+      list = list.filter(t => t.displayGenre === activeGenre || t.genre === activeGenre);
+    }
+    
+    return list;
+  }, [poolTracks, filters.search, activeHub, activeGenre]);
 
-   // ── Player controls ────────────────────────────────────────────────────────
-   const handlePlay = useCallback((track: Track, versionId?: string) => {
-      setPlayer(prev => {
-         if (prev.track?.id === track.id && (versionId === undefined || prev.versionId === versionId)) {
-            // Toggle
-            if (prev.isPlaying) audioRef.current?.pause();
-            else audioRef.current?.play();
-            return { ...prev, isPlaying: !prev.isPlaying };
-         }
-         return { track, versionId: versionId || track.versions?.[0]?.id, isPlaying: true };
+  const handlePlay = useCallback((track: Track, versionId?: string) => {
+    setPlayer(prev => {
+      const vid = versionId || track.versions?.[0]?.id;
+      if (prev.track?.id === track.id && prev.versionId === vid) {
+        if (prev.isPlaying) audioRef.current?.pause();
+        else audioRef.current?.play();
+        return { ...prev, isPlaying: !prev.isPlaying };
+      }
+      return { track, versionId: vid, isPlaying: true };
+    });
+  }, []);
+
+  const handleDownload = useCallback(async (track: Track, versionId?: string) => {
+    if (!user) {
+      toast.error("Please login to download tracks.");
+      return;
+    }
+
+    if (!isSubscriber) {
+      toast.error("Subscription required for downloads.");
+      return;
+    }
+
+    if (versionId === 'ALL') {
+      toast.success(`Broadcasting bulk download for ${track.title}...`);
+      track.versions?.forEach((v, i) => {
+        setTimeout(async () => {
+          const url = v.downloadUrl || v.previewUrl;
+          if (url) {
+            if (!isAdmin) await trackPoolDownload(track.id);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${track.artist} - ${track.title} (${v.type}).mp3`;
+            a.click();
+          }
+        }, i * 1500);
       });
-   }, []);
+      return;
+    }
 
-   const closePlayer = useCallback(() => {
-      audioRef.current?.pause();
-      setPlayer({ track: null, isPlaying: false });
-   }, []);
-
-   // ── Download handler ───────────────────────────────────────────────────────
-   const handleDownload = useCallback(async (track: Track, versionId?: string) => {
-      if (usage.limit > 0 && usage.count >= usage.limit) {
-         toast.error("Daily download limit reached. Upgrade for more fuel!");
-         return;
+    const version = track.versions?.find(v => v.id === versionId);
+    const url = version?.downloadUrl || track.downloadUrl || track.previewUrl;
+    
+    if (url) {
+      if (!isAdmin) {
+        const ok = await trackPoolDownload(track.id);
+        if (!ok) return;
+        setUsage(u => ({ ...u, count: u.count + 1 }));
       }
-
-      if (versionId === 'ALL') {
-         if (!track.versions || track.versions.length === 0) return;
-         if (usage.limit > 0 && usage.count + track.versions.length > usage.limit) {
-            toast.error(`Not enough fuel to download all ${track.versions.length} versions. Upgrade required.`);
-            return;
-         }
-
-         toast.success(`Downloading all ${track.versions.length} versions of ${track.title}...`);
-         track.versions.forEach((v, idx) => {
-            setTimeout(async () => {
-               const url = v.downloadUrl || v.previewUrl;
-               if (!url) return;
-               try {
-                  await trackPoolDownload(track.id);
-                  setUsage(u => ({ ...u, count: u.count + 1 }));
-               } catch (e) { }
-               const a = document.createElement('a');
-               a.href = url;
-               a.download = `${track.artist} - ${track.title} (${v.type}).mp3`.replace(/[/\\?%*:|"<>]/g, '_');
-               a.target = '_blank';
-               document.body.appendChild(a);
-               a.click();
-               document.body.removeChild(a);
-            }, idx * 1000); // Stagger by 1s to prevent browser popup block
-         });
-         return;
-      }
-
-      const version = versionId ? track.versions?.find(v => v.id === versionId) : track.versions?.[0];
-      const url = version?.downloadUrl || track.downloadUrl || track.previewUrl;
-
-      if (!url) {
-         toast.error(`Download not available for ${track.title}`);
-         return;
-      }
-
-      // Track download on server
-      const ok = await trackPoolDownload(track.id);
-      if (!ok) {
-         toast.error("Access denied or limit reached.");
-         return;
-      }
-
-      // Increment local count
-      setUsage(u => ({ ...u, count: u.count + 1 }));
-
       const a = document.createElement('a');
       a.href = url;
-      const fileName = `${track.artist} - ${track.title}${version ? ` (${version.type})` : ''}`.replace(/[/\\?%*:|"<>]/g, '_');
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
+      a.download = `${track.artist} - ${track.title} (${version?.type || 'Edit'}).mp3`;
       a.click();
-      document.body.removeChild(a);
+      toast.success(`Downloading ${track.title}`);
+    }
+  }, [user, isSubscriber, isAdmin]);
 
-      toast.success(`Downloading ${track.title}${version ? ` (${version.type})` : ''}`);
-   }, [usage]);
+  return (
+    <div className="bg-[#0B0B0F] min-h-screen">
+      <main className="max-w-7xl mx-auto px-6 py-12">
+        {/* Hero Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative rounded-[3rem] overflow-hidden mb-16 border border-white/10 group min-h-[450px]"
+        >
+          <div className="absolute inset-0 bg-[#0A0A0F]/60 z-10 transition-colors group-hover:bg-[#0A0A0F]/50"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0B0B0F] via-[#0B0B0F]/80 to-transparent z-10"></div>
+          <img 
+            src="https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=1600&h=600&fit=crop&q=80" 
+            alt="Music Pool Hero" 
+            className="w-full h-full object-cover absolute inset-0 opacity-40 group-hover:scale-105 transition-transform duration-1000"
+          />
+          <div className="relative z-20 p-12 md:p-24 flex flex-col justify-center min-h-[450px]">
+             <span className="text-brand-cyan font-bold uppercase tracking-[0.4em] text-[10px] mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse"></span>
+                Fresh Selection Updated Weekly
+             </span>
+             <h1 className="font-display font-black text-6xl md:text-8xl text-white mb-6 leading-[0.9] tracking-tighter uppercase">
+               The Tech <br/><span className="bg-gradient-to-r from-brand-purple to-brand-cyan bg-clip-text text-transparent">DJ Hub</span>
+             </h1>
+             <p className="text-gray-300 text-lg md:text-xl max-w-xl mb-10 leading-relaxed font-light">
+               The most powerful curated library for modern DJs. Exclusive edits, technical redrums, and high-fidelity mashups.
+             </p>
+             <div className="flex flex-wrap gap-4">
+               <a href="#plans" className="bg-brand-purple px-10 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-xs shadow-[0_10px_40px_rgba(123,92,255,0.4)] hover:shadow-[0_15px_60px_rgba(123,92,255,0.6)] hover:-translate-y-1 transition-all">
+                 View Access Plans
+               </a>
+             </div>
+          </div>
+        </motion.div>
 
-   // ── Handle audio end ───────────────────────────────────────────────────────
-   useEffect(() => {
-      const el = audioRef.current;
-      if (!el) return;
-      const onEnd = () => setPlayer(p => ({ ...p, isPlaying: false }));
-      el.addEventListener('ended', onEnd);
-      return () => el.removeEventListener('ended', onEnd);
-   }, [player.track]);
+        {/* Genre Filters Row */}
+        <div className="flex flex-wrap items-center gap-3 mb-16 px-2 overflow-x-auto pb-4 scrollbar-hide">
+          <button 
+            onClick={() => setActiveGenre('All Genres')}
+            className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeGenre === 'All Genres' ? 'bg-brand-purple text-white shadow-[0_5px_20px_rgba(123,92,255,0.4)]' : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'}`}
+          >
+            All Genres
+          </button>
+          {GENRES.map(genre => (
+            <button
+              key={genre}
+              onClick={() => setActiveGenre(genre)}
+              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${activeGenre === genre ? 'bg-brand-purple text-white shadow-[0_5px_20px_rgba(123,92,255,0.4)]' : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'}`}
+            >
+              {genre}
+            </button>
+          ))}
+        </div>
 
-   return (
-      <div className="mp-root">
-         <style>{MUSIC_POOL_CSS}</style>
-
-         {/* ── Background Effects ── */}
-         <div className="fixed inset-0 pointer-events-none z-0">
-            <div className="absolute inset-0 bg-[#0B0B0F]" />
-            <div className="absolute inset-0 scanline opacity-20" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-purple/10 rounded-full blur-[120px] animate-pulse" />
-
-            <div className="orbital-ring w-[600px] h-[600px] border border-white/5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ animation: 'orbit 20s linear infinite' }} />
-            <div className="orbital-ring w-[900px] h-[900px] border border-white/5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ animation: 'orbit 35s linear infinite reverse' }} />
-         </div>
-
-         {/* ── Gated Access Check ─────────────────────────────────────────────── */}
-         {poolLoading ? (
-            <div className="mp-loading">
-               <div className="mp-spinner" />
-               <span>Loading your music library…</span>
+        {/* Tracks Area */}
+        <section className="mb-24 px-2">
+          <div className="flex justify-between items-center mb-10">
+            <div>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Stream Preview</h2>
+              <div className="flex items-center gap-2 text-brand-cyan text-[10px] font-bold uppercase tracking-widest">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan"></span>
+                Database Sync: Active
+              </div>
             </div>
-         ) : isAuthorized === false ? (
-            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-               <AccessDenied />
+            
+            <div className="relative group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={18} />
+               <input 
+                  type="text" 
+                  placeholder="SEARCH ARCHIVES..."
+                  value={filters.search}
+                  onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+                  className="bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all min-w-[300px] uppercase font-bold tracking-widest"
+               />
             </div>
-         ) : (
-            <>
-               {/* ── Header ─────────────────────────────────────────────────────────── */}
-               <div className="mp-header__inner relative z-10 glass-panel border border-white/10 rounded-2xl p-6 mb-6">
-                  <div className="mp-header__brand">
-                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center shadow-lg shadow-brand-purple/20">
-                        <Music2 size={24} className="text-white animate-pulse" />
-                     </div>
-                     <div>
-                        <h1 className="text-2xl font-black tracking-tight text-white uppercase italic">
-                           Track <span className="text-brand-cyan">Terminal</span>
-                        </h1>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold flex items-center gap-2">
-                           {`${filtered.length.toLocaleString()} Tracks Indexing...`}
-                           <span className="w-1 h-1 bg-brand-cyan rounded-full animate-ping" />
-                        </p>
-                     </div>
+          </div>
+
+          <div className="relative">
+            {!isSubscriber && poolTracks.length > 0 && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0B0B0F]/40 backdrop-blur-[2px] rounded-[2.5rem]">
+                <div className="bg-[#15151A] p-8 md:p-12 rounded-[2.5rem] border border-brand-purple/30 shadow-2xl flex flex-col items-center text-center max-w-lg mx-6 group/lock">
+                  <div className="w-20 h-20 rounded-3xl bg-brand-purple/10 flex items-center justify-center mb-6 border border-brand-purple/20 group-hover/lock:scale-110 transition-transform duration-500">
+                    <Lock size={36} className="text-brand-purple" />
                   </div>
+                  <h4 className="text-white font-black text-2xl mb-4 uppercase tracking-tighter">Terminal Locked</h4>
+                  <p className="text-gray-400 text-sm mb-8 leading-relaxed">Unlock full access to browse, preview, and download from the industry's most advanced DJ arsenal.</p>
+                  <a href="#plans" className="bg-brand-purple text-white px-10 py-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-brand-purple/30 hover:shadow-brand-purple/50 hover:-translate-y-1 transition-all">
+                    Unlock Unlimited Access
+                  </a>
+                </div>
+              </div>
+            )}
 
-                  <div className="flex items-center gap-6">
-                     {/* Download Fuel Tracker */}
-                     {usage.limit > 0 && (
-                        <div className="mp-fuel glass-card px-4 py-2 rounded-xl border border-white/5">
-                           <div className="mp-fuel__label flex items-center gap-2 mb-1.5">
-                              <Fuel size={12} className="text-brand-pink" />
-                              <span className="text-[10px] font-black tracking-wider uppercase">Fuel Level: {usage.limit - usage.count} Units</span>
-                           </div>
-                           <div className="mp-fuel__bar-bg h-1.5 w-32 bg-white/5 rounded-full overflow-hidden">
-                              <div
-                                 className="mp-fuel__bar-fill h-full bg-gradient-to-r from-brand-pink to-brand-purple rounded-full"
-                                 style={{ width: `${Math.max(0, Math.min(100, (1 - usage.count / usage.limit) * 100))}%` }}
-                              />
-                           </div>
-                        </div>
-                     )}
+            <div className={`space-y-4 ${!isSubscriber ? 'blur-[8px] pointer-events-none select-none' : ''}`}>
+               {poolLoading ? (
+                 <div className="py-32 flex flex-col items-center justify-center text-gray-500">
+                   <div className="w-16 h-16 border-4 border-brand-purple border-t-transparent rounded-full animate-spin mb-8"></div>
+                   <p className="text-[10px] uppercase tracking-[0.4em] font-black animate-pulse">Scanning Hubs...</p>
+                 </div>
+               ) : (
+                 <Virtuoso
+                    useWindowScroll
+                    data={filteredTracks}
+                    style={{ height: 'auto' }}
+                    itemContent={(index, track) => (
+                      <div className="mb-4">
+                        <TrackItem 
+                           track={track} 
+                           player={player} 
+                           onPlay={handlePlay} 
+                           onDownload={handleDownload}
+                           isLocked={!isSubscriber}
+                        />
+                      </div>
+                    )}
+                 />
+               )}
+            </div>
+          </div>
+        </section>
 
-                     {/* Sort */}
-                     <button
-                        className="btn-cyber-outline px-4 py-2 text-[10px] font-black uppercase"
-                        onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
-                     >
-                        {sortDir === 'desc' ? <SortDesc size={14} /> : <SortAsc size={14} />}
-                        <span className="ml-2">{sortDir === 'desc' ? 'Latest' : 'Oldest'}</span>
-                     </button>
+        {/* Subscription Plans Section */}
+        <section id="plans" className="mb-32">
+          <div className="text-center mb-16">
+            <h2 className="font-display font-black text-4xl md:text-5xl text-white mb-4 uppercase tracking-tighter">Choose Your <span className="text-brand-purple">Frequency</span></h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">Select the plan that matches your performance schedule. Every tier includes access to premium edits and mashups.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <SubscriptionPlan 
+              icon={<Crown className="text-yellow-500" />}
+              title="1 Year Ultimate"
+              price={6000}
+              period="yr"
+              savings="SAVE KSH 2,400 ✅"
+              highlight
+              features={[
+                '12 months full access',
+                'Unlimited downloads',
+                'All old & new releases',
+                'Complete Redrum Packs',
+                'Weekly updates'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=year_ultimate')}
+            />
+            <SubscriptionPlan 
+              icon={<Flame className="text-orange-500" />}
+              title="6 Months Elite"
+              price={3500}
+              period="6mo"
+              savings="SAVE KSH 700"
+              features={[
+                '6 months unlimited access',
+                '200 downloads per day',
+                'All releases & Redrums',
+                'Mashups & Exclusive edits'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=six_months_elite')}
+            />
+            <SubscriptionPlan 
+              icon={<Rocket className="text-blue-500" />}
+              title="3 Months Club"
+              price={1800}
+              period="3mo"
+              features={[
+                '3 months full access',
+                '200 downloads per day',
+                'All new music updates',
+                'Secure high-speed mirrors'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=three_months_club')}
+            />
+            <SubscriptionPlan 
+              icon={<ZapIcon className="text-brand-purple" />}
+              title="1 Month Pro"
+              price={700}
+              period="mo"
+              features={[
+                'Full 30 days access',
+                '100 downloads per day',
+                'High-quality 320kbps MP3s',
+                'Advanced filtering'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=one_month_pro')}
+            />
+            <SubscriptionPlan 
+              icon={<Music2 className="text-brand-cyan" />}
+              title="1 Week Remix"
+              price={200}
+              period="wk"
+              features={[
+                '7 days full access',
+                '50 downloads per day',
+                'All remix packs included',
+                'Mobile friendly downloads'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=one_week_remix')}
+            />
+             <SubscriptionPlan 
+              icon={<Package className="text-gray-400" />}
+              title="1 Week Free Trial"
+              price={0}
+              period="7days"
+              features={[
+                '7 days preview access',
+                '5 downloads total',
+                'Try library before you buy',
+                'No card required'
+              ]}
+              onSelect={() => (window.location.href = '/signup/?plan=free_trial')}
+            />
+          </div>
+        </section>
+
+        {/* Hub Filters (Sub-Navigation) */}
+        <section className="mb-24 px-2">
+           <div className="flex justify-between items-end mb-10">
+              <div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Hub Explorer</h3>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Sectorized library access</p>
+              </div>
+           </div>
+           
+           <div className="overflow-x-auto pb-6 -mx-2 px-2 scrollbar-hide">
+              <div className="flex gap-3 min-w-max">
+                {HUBS.map(hub => (
+                  <button
+                    key={hub}
+                    onClick={() => setActiveHub(hub)}
+                    className={`px-8 py-3.5 rounded-full text-[10px] font-black tracking-[0.2em] uppercase transition-all duration-300 ${activeHub === hub ? 'bg-brand-purple text-white shadow-lg border border-brand-purple' : 'bg-white/5 text-gray-500 border border-white/5 hover:border-brand-purple/30'}`}
+                  >
+                    {hub}
+                  </button>
+                ))}
+              </div>
+           </div>
+        </section>
+
+      </main>
+
+      {/* Mini Player */}
+      <AnimatePresence>
+        {player.track && (
+          <motion.div 
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="fixed bottom-0 left-0 right-0 z-[100] bg-black/40 backdrop-blur-3xl border-t border-white/10"
+          >
+            <div className="max-w-7xl mx-auto px-6 h-24 flex items-center gap-6">
+               <div className="relative group shrink-0">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors">
+                    <img src={player.track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className={`w-full h-full object-cover transition-transform duration-700 ${player.isPlaying && 'animate-[spin_10s_linear_infinite]'}`} alt={player.track.title} />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                    <div className="w-2 h-2 rounded-full bg-brand-purple animate-ping"></div>
                   </div>
                </div>
 
-               {/* ── Search & Filters Grid ── */}
-               <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6 relative z-10">
-                  <div className="lg:col-span-2 relative">
-                     <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                        <Search size={16} className="text-brand-cyan opacity-50" />
-                     </div>
-                     <input
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-brand-cyan/50 focus:ring-1 focus:ring-brand-cyan/20 transition-all font-medium"
-                        type="search"
-                        placeholder="SCAN DATABASE FOR TRACKS..."
-                        value={filters.search}
-                        onChange={e => setFilter('search', e.target.value)}
-                     />
-                  </div>
-                  <div className="lg:col-span-2 flex flex-wrap gap-2">
-                     {/* Filters are rendered as buttons/chips for cleaner UI */}
-                     {activeFilterCount > 0 && (
-                        <button className="px-4 py-2 rounded-xl bg-brand-pink/10 border border-brand-pink/20 text-brand-pink text-[10px] font-black uppercase hover:bg-brand-pink/20 transition-all" onClick={clearFilters}>
-                           RESET {activeFilterCount}
-                        </button>
-                     )}
+               <div className="flex-1 min-w-0">
+                  <h4 className="text-white font-bold text-sm truncate uppercase tracking-tight">{player.track.title}</h4>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400 text-[10px] font-medium uppercase tracking-widest">{player.track.artist}</span>
+                    <span className="text-brand-purple text-[9px] font-black bg-brand-purple/10 border border-brand-purple/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                      {player.track.versions?.find(v => v.id === player.versionId)?.type || 'Main Edit'}
+                    </span>
                   </div>
                </div>
 
-               {/* ── Filters ─────────────────────────────────────────────────────── */}
-               <div className="mp-filters px-6 py-2 relative z-10 glass-panel border border-white/5 mx-6 rounded-xl mb-6">
-                  <div className="mp-filters__row flex flex-wrap items-center gap-4 py-1">
-                     <FilterSelect
-                        value={filters.hub}
-                        onChange={v => setFilter('hub', v)}
-                        options={hubs}
-                        placeholder="All Hubs"
-                        icon={Radio}
-                     />
-                     <FilterSelect
-                        value={filters.displayGenre}
-                        onChange={v => setFilter('displayGenre', v)}
-                        options={displayGenres}
-                        placeholder="All Genres"
-                        icon={Music2}
-                     />
-                     <FilterSelect
-                        value={filters.year}
-                        onChange={v => setFilter('year', v)}
-                        options={years}
-                        placeholder="Any Year"
-                        icon={Clock}
-                     />
-                     <FilterSelect
-                        value={filters.month}
-                        onChange={v => setFilter('month', v)}
-                        options={months}
-                        placeholder="Any Month"
-                        icon={Filter}
-                     />
-                     <FilterSelect
-                        value={filters.vibe}
-                        onChange={v => setFilter('vibe', v)}
-                        options={VIBES}
-                        placeholder="Any Vibe"
-                        icon={Zap}
-                     />
-                     {activeFilterCount > 0 && (
-                        <button className="mp-clear-filters px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 border border-brand-pink/30 hover:bg-brand-pink/10 transition-colors text-brand-pink" onClick={clearFilters}>
-                           <X size={12} />
-                           CLEAR ALL
-                        </button>
-                     )}
-                  </div>
+               <div className="flex items-center gap-6">
+                 <button 
+                   onClick={() => setPlayer(p => ({ ...p, isPlaying: !p.isPlaying }))}
+                   className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+                 >
+                   {player.isPlaying ? <Pause size={20} fill="black" /> : <Play size={20} className="ml-1" fill="black" />}
+                 </button>
+                 <button 
+                    onClick={() => setPlayer({ track: null, isPlaying: false })} 
+                    className="p-2 text-gray-500 hover:text-white transition-colors"
+                 >
+                   <X size={20} />
+                 </button>
                </div>
-
-               {/* ── Track List ─────────────────────────────────────────────────────── */}
-               <main className="mp-main relative z-10 mx-6 bg-black/20 rounded-t-2xl border-x border-t border-white/10 overflow-hidden">
-                  <div className="mp-terminal-header flex items-center gap-4 px-6 py-3 border-b border-white/10 bg-white/5">
-                     <div className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse" />
-                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Database Stream active // Port 8080</span>
-                     <div className="ml-auto flex gap-6">
-                        <span className="text-[10px] font-mono text-gray-500 hidden sm:block">INDEX_STATUS: OK</span>
-                        <span className="text-[10px] font-mono text-gray-500 hidden sm:block">CRYPT_LINK: SECURE</span>
-                     </div>
-                  </div>
-
-                  {filtered.length === 0 ? (
-                     <div className="mp-empty py-20">
-                        <div className="relative mb-6">
-                           <Music2 size={64} className="text-white/5" />
-                           <Search size={24} className="absolute bottom-0 right-0 text-brand-pink animate-bounce" />
-                        </div>
-                        <p className="text-gray-400 font-mono text-xs uppercase tracking-widest">No matching sectors found in database</p>
-                        <button className="mt-4 px-6 py-2 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-white" onClick={clearFilters}>
-                           Re-scan with zero filters
-                        </button>
-                     </div>
-                  ) : (
-                     <Virtuoso<Track>
-                        style={{ height: 'calc(100dvh - 380px)' }}
-                        data={filtered}
-                        itemContent={(_, track) => (
-                           <TrackRow
-                              key={track.id}
-                              track={track}
-                              player={player}
-                              onPlay={handlePlay}
-                              onDownload={handleDownload}
-                           />
-                        )}
-                     />
-                  )}
-               </main>
-
-               {/* ── Mini Player ────────────────────────────────────────────────────── */}
-               <MiniPlayer player={player} audioRef={audioRef} onClose={closePlayer} />
-            </>
-         )}
-      </div>
-   );
+               
+               <audio
+                  ref={audioRef}
+                  src={player.track.versions?.find(v => v.id === player.versionId)?.previewUrl || player.track.previewUrl}
+                  autoPlay={player.isPlaying}
+                  onEnded={() => setPlayer(p => ({ ...p, isPlaying: false }))}
+                  onPlay={() => setPlayer(p => ({ ...p, isPlaying: true }))}
+                  onPause={() => setPlayer(p => ({ ...p, isPlaying: false }))}
+               />
+            </div>
+            {/* Progress Bar Mock */}
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5">
+               <motion.div 
+                 className="h-full bg-brand-purple"
+                 animate={{ width: player.isPlaying ? '100%' : '0%' }}
+                 transition={{ duration: 30, ease: 'linear' }}
+               />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const MUSIC_POOL_CSS = `
-.mp-root {
-  --accent:    var(--brand-cyan, #28E6DC);
-  --accent-2:  var(--brand-purple, #7B5CFF);
-  --accent-3:  var(--brand-pink, #FF287E);
-  --bg:        var(--bg-dark, #0B0B0F);
-  --surface:   var(--bg-card, #15151A);
-  --surface-2: rgba(255, 255, 255, 0.05);
-  --border:    var(--glass-border, rgba(255, 255, 255, 0.08));
-  --text:      #ffffff;
-  --muted:     #9ca3af;
-  --radius:    12px;
-  
-  display: flex;
-  flex-direction: column;
-  /* 80px = Navbar h-20. Music Pool fills remaining viewport below the fixed nav. */
-  height: calc(100dvh - 80px);
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-}
-
-/* ── Header ─────────────────────────────────────────────────────────────── */
-.mp-header {
-  padding: 20px 24px 0;
-  background: var(--glass-bg, rgba(255, 255, 255, 0.03));
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  flex-shrink: 0;
-}
-.mp-header__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.mp-header__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.mp-header__title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--text);
-  margin: 0;
-}
-.mp-header__sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin: 2px 0 0;
-}
-
-/* Sort */
-.mp-sort-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 7px 12px;
-  transition: all 0.2s;
-  backdrop-filter: blur(4px);
-}
-.mp-sort-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-
-/* Fuel Tracker */
-.mp-fuel {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-right: 16px;
-  min-width: 150px;
-}
-.mp-fuel__label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.text-brand-pink { color: var(--accent-3); }
-.mp-fuel__bar-bg {
-  height: 4px;
-  background: var(--surface-2);
-  border-radius: 99px;
-  overflow: hidden;
-}
-.mp-fuel__bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-3), var(--accent-2));
-  box-shadow: 0 0 10px rgba(255, 40, 126, 0.4);
-  transition: width 0.3s ease;
-}
-
-/* ── Search ─────────────────────────────────────────────────────────────── */
-.mp-search-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0 14px;
-  margin-bottom: 14px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  backdrop-filter: blur(4px);
-}
-.mp-search-bar:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(40, 230, 220, 0.15);
-}
-.mp-search-icon { color: var(--muted); flex-shrink: 0; }
-.mp-search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-size: 0.9rem;
-  padding: 12px 0;
-  font-family: inherit;
-}
-.mp-search-input::placeholder { color: var(--muted); }
-.mp-search-clear {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  border-radius: 50%;
-  transition: color 0.15s;
-}
-.mp-search-clear:hover { color: var(--text); }
-
-/* ── Filters ─────────────────────────────────────────────────────────────── */
-.mp-filters { margin-bottom: 14px; }
-.mp-filters__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-/* Select */
-.mp-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.mp-select-icon {
-  position: absolute;
-  left: 10px;
-  color: var(--muted);
-  pointer-events: none;
-}
-.mp-select {
-  appearance: none;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 0.8rem;
-  padding: 7px 30px 7px 30px;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 130px;
-  max-width: 190px;
-  backdrop-filter: blur(4px);
-}
-.mp-select:hover { border-color: var(--accent); }
-.mp-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(40, 230, 220, 0.15); }
-.mp-select option { background: var(--bg); color: var(--text); }
-.mp-select-chevron {
-  position: absolute;
-  right: 9px;
-  color: var(--muted);
-  pointer-events: none;
-}
-
-/* Clear filters */
-.mp-clear-filters {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(255, 40, 126, 0.1);
-  border: 1px solid rgba(255, 40, 126, 0.3);
-  border-radius: 8px;
-  color: var(--accent-3);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 6px 11px;
-  transition: all 0.2s;
-}
-.mp-clear-filters:hover { background: rgba(255, 40, 126, 0.2); }
-
-/* ── Main list ──────────────────────────────────────────────────────────── */
-.mp-main {
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* ── Track row ──────────────────────────────────────────────────────────── */
-.mp-track-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.15s;
-  position: relative;
-}
-.mp-track-row:hover { background: var(--surface-2); }
-.mp-track-row--active {
-  background: rgba(40, 230, 220, 0.08);
-  border-left: 3px solid var(--accent);
-}
-
-/* Play button */
-.mp-play-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border: none;
-  flex-shrink: 0;
-  position: relative;
-  background: var(--vibe, var(--accent));
-  color: white;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.mp-play-btn:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(40, 230, 220, 0.4); }
-
-.mp-play-pulse {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 2px solid var(--vibe, var(--accent));
-  animation: mp-pulse 1.4s ease-out infinite;
-  pointer-events: none;
-}
-@keyframes mp-pulse {
-  0%   { transform: scale(1); opacity: 0.7; }
-  100% { transform: scale(1.55); opacity: 0; }
-}
-
-/* Track info */
-.mp-track-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.mp-track-title {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mp-track-artist {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-/* Version chips */
-.mp-version-chip {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  transition: all 0.2s;
-}
-.mp-version-chip:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-.mp-version-chip.active {
-  background: rgba(40, 230, 220, 0.15);
-  color: var(--accent);
-  border-color: rgba(40, 230, 220, 0.3);
-}
-
-/* Meta badges */
-.mp-track-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  flex-shrink: 0;
-  max-width: 280px;
-}
-.mp-badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 99px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-.mp-badge--genre {
-  background: rgba(40, 230, 220, 0.1);
-  color: var(--accent);
-  border-color: rgba(40, 230, 220, 0.25);
-}
-.mp-badge--vibe {
-  /* set dynamically via inline style */
-}
-.mp-badge--year {
-  background: rgba(123, 92, 255, 0.1);
-  color: var(--accent-2);
-  border-color: rgba(123, 92, 255, 0.25);
-}
-.mp-badge--month {
-  background: rgba(255, 40, 126, 0.1);
-  color: var(--accent-3);
-  border-color: rgba(255, 40, 126, 0.25);
-}
-
-/* Link broken indicator */
-.mp-link-broken {
-  color: var(--accent-3);
-  flex-shrink: 0;
-}
-
-/* Download button */
-.mp-dl-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s;
-}
-.mp-dl-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: translateY(-1px);
-}
-
-/* ── Loading / Empty ─────────────────────────────────────────────────────── */
-.mp-loading, .mp-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  height: 100%;
-  color: var(--muted);
-}
-.mp-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Mini Player ─────────────────────────────────────────────────────────── */
-.mp-mini-player {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 24px 12px;
-  z-index: 200;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.25s ease;
-}
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
-}
-.mp-mini-player__bar {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--vibe, var(--accent)), transparent);
-}
-.mp-mini-player__disc {
-  color: var(--vibe, var(--accent));
-  flex-shrink: 0;
-}
-.mp-mini-player__disc.spinning { animation: spin 3s linear infinite; }
-.mp-mini-player__info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.mp-mini-player__title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mp-mini-player__artist { font-size: 0.75rem; color: var(--muted); }
-.mp-mini-player__version {
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: var(--accent-2);
-  color: white;
-  padding: 1px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  margin-left: 8px;
-}
-.mp-mini-player__close {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  backdrop-filter: blur(4px);
-}
-.mp-mini-player__close:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-
-/* Version selection chips */
-.mp-version-chip {
-  font-size: 0.65rem;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-transform: uppercase;
-  backdrop-filter: blur(4px);
-}
-.mp-version-chip:hover { border-color: var(--accent); color: var(--text); }
-.mp-version-chip.active {
-  background: linear-gradient(to right, var(--accent-2), var(--accent));
-  border-color: transparent;
-  color: white;
-  box-shadow: 0 0 10px rgba(40, 230, 220, 0.3);
-}
-
-/* ── Responsive ─────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .mp-header { padding: 14px 16px 0; }
-  .mp-track-row { padding: 10px 16px; }
-  .mp-track-meta { display: none; }
-  .mp-filters__row { gap: 6px; }
-  .mp-select { min-width: 100px; font-size: 0.75rem; padding: 6px 26px 6px 28px; }
-  .mp-mini-player { padding: 10px 16px 12px; }
-}
-`;

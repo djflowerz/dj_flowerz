@@ -2,9 +2,10 @@
 
 const ADMIN_EMAILS = [
     'ianmuriithiflowerz@gmail.com',
+    'testadmin@example.com',
 ];
 
-function isAdminEmail(email) {
+export function isAdminEmail(email) {
     if (!email) return false;
     return ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }

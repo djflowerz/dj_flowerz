@@ -20,7 +20,7 @@ const generateSlug = (name: string) => {
 
 const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }) => {
     const { request, loading } = useAdminApi();
-    const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'shipping' | 'media'>('basic');
+    const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'shipping' | 'media' | 'specs' | 'interactive'>('basic');
     const [formData, setFormData] = useState({
         name: '',
         slug: '',
@@ -31,6 +31,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         is_active: true,
         release_date: new Date().toISOString().split('T')[0],
         image_url: '',
+        technicalDetails: [] as { title: string; description: string }[],
+        hotspots: [] as { x: number; y: number; title: string; description: string }[],
+        useCases: [] as { title: string; description: string; icon?: string }[],
+        variantGroups: [] as any[],
         variants: [
             { id: crypto.randomUUID(), name: 'Default', sku: '', price: 0, compare_at_price: 0, stock_quantity: 10, weight: 0 }
         ],
@@ -53,6 +57,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 is_active: product.is_active === 1 || product.is_active === true,
                 release_date: (product.release_date || '').split('T')[0] || new Date().toISOString().split('T')[0],
                 image_url: product.image_url || product.variants?.[0]?.image_url || '',
+                technicalDetails: product.technicalDetails || [],
+                hotspots: product.hotspots || [],
+                useCases: product.useCases || [],
+                variantGroups: product.variantGroups || [],
                 variants: product.variants?.length > 0 ? product.variants : [
                     { id: crypto.randomUUID(), name: 'Default', sku: '', price: 0, compare_at_price: 0, stock_quantity: 10, weight: 0 }
                 ],
@@ -121,9 +129,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
 
     const tabs = [
         { id: 'basic', label: 'Basic Info', icon: Info },
+        { id: 'specs', label: 'Specs & Details', icon: Layers },
+        { id: 'interactive', label: 'Interactive', icon: ImageIcon },
         { id: 'pricing', label: 'Pricing & Variants', icon: Tag },
         { id: 'shipping', label: 'Shipping & Dimensions', icon: Truck },
-        { id: 'media', label: 'Media', icon: ImageIcon }
+        { id: 'media', label: 'Media Highlights', icon: ImageIcon }
     ];
 
     return (
@@ -272,89 +282,415 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                         </div>
                     )}
 
-                    {activeTab === 'pricing' && (
-                        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-4 text-brand-purple">
-                                    <Layers size={20} />
-                                    <h3 className="text-xs font-black uppercase tracking-[0.2em]">Variant Schema matrix</h3>
+                    {activeTab === 'specs' && (
+                        <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-300">
+                            {/* Technical Details */}
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <Layers size={18} />
+                                        Technical Specifications
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({
+                                            ...prev,
+                                            technicalDetails: [...prev.technicalDetails, { title: '', description: '' }]
+                                        }))}
+                                        className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus size={14} /> Add Spec
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleAddVariant}
-                                    className="bg-white/5 border border-white/10 px-6 py-3 rounded-full flex items-center gap-2 hover:bg-brand-purple hover:border-brand-purple transition-all group"
-                                >
-                                    <Plus size={16} className="text-gray-400 group-hover:text-white" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">Add Variant</span>
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                {formData.variants.map((variant, index) => (
-                                    <div key={variant.id} className="grid grid-cols-12 gap-4 items-end bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                                        <div className="col-span-3 space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Variation Name</label>
+                                <div className="grid gap-4">
+                                    {formData.technicalDetails.map((spec, idx) => (
+                                        <div key={idx} className="flex gap-4 items-start group">
                                             <input
                                                 type="text"
-                                                value={variant.name}
-                                                onChange={e => handleVariantChange(variant.id, 'name', e.target.value)}
-                                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
-                                                placeholder="Default / Red"
+                                                value={spec.title}
+                                                onChange={e => {
+                                                    const newSpecs = [...formData.technicalDetails];
+                                                    newSpecs[idx].title = e.target.value;
+                                                    setFormData({ ...formData, technicalDetails: newSpecs });
+                                                }}
+                                                placeholder="Title (e.g. Engine)"
+                                                className="flex-[1] bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
                                             />
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Base Price</label>
-                                            <div className="relative group">
-                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
-                                                <input
-                                                    type="number"
-                                                    value={variant.price}
-                                                    onChange={e => handleVariantChange(variant.id, 'price', parseFloat(e.target.value))}
-                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Old Price (Disc.)</label>
-                                            <div className="relative group">
-                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
-                                                <input
-                                                    type="number"
-                                                    value={variant.compare_at_price}
-                                                    onChange={e => handleVariantChange(variant.id, 'compare_at_price', parseFloat(e.target.value))}
-                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Stock</label>
-                                            <input
-                                                type="number"
-                                                value={variant.stock_quantity}
-                                                onChange={e => handleVariantChange(variant.id, 'stock_quantity', parseInt(e.target.value))}
-                                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
-                                            />
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">SKU</label>
                                             <input
                                                 type="text"
-                                                value={variant.sku}
-                                                onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
-                                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                value={spec.description}
+                                                onChange={e => {
+                                                    const newSpecs = [...formData.technicalDetails];
+                                                    newSpecs[idx].description = e.target.value;
+                                                    setFormData({ ...formData, technicalDetails: newSpecs });
+                                                }}
+                                                placeholder="Description / Value"
+                                                className="flex-[2] bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
                                             />
-                                        </div>
-                                        <div className="col-span-1 flex justify-center pb-2">
                                             <button
                                                 type="button"
-                                                onClick={() => handleRemoveVariant(variant.id)}
-                                                className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all transition-all"
+                                                onClick={() => {
+                                                    const newSpecs = formData.technicalDetails.filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, technicalDetails: newSpecs });
+                                                }}
+                                                className="p-3 text-gray-600 hover:text-red-500 transition-colors"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
+                                    ))}
+                                    {formData.technicalDetails.length === 0 && (
+                                        <div className="text-center py-8 border border-dashed border-white/10 rounded-2xl text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                                            No technical specifications defined
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Use Cases */}
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <Info size={18} />
+                                        Primary Use Cases
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({
+                                            ...prev,
+                                            useCases: [...prev.useCases, { title: '', description: '' }]
+                                        }))}
+                                        className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus size={14} /> Add Use Case
+                                    </button>
+                                </div>
+                                <div className="grid gap-4">
+                                    {formData.useCases.map((uc, idx) => (
+                                        <div key={idx} className="flex gap-4 items-start group">
+                                            <input
+                                                type="text"
+                                                value={uc.title}
+                                                onChange={e => {
+                                                    const newUC = [...formData.useCases];
+                                                    newUC[idx].title = e.target.value;
+                                                    setFormData({ ...formData, useCases: newUC });
+                                                }}
+                                                placeholder="Title (e.g. Studio)"
+                                                className="flex-[1] bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                            />
+                                            <textarea
+                                                rows={2}
+                                                value={uc.description}
+                                                onChange={e => {
+                                                    const newUC = [...formData.useCases];
+                                                    newUC[idx].description = e.target.value;
+                                                    setFormData({ ...formData, useCases: newUC });
+                                                }}
+                                                placeholder="Description of the use case..."
+                                                className="flex-[2] bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newUC = formData.useCases.filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, useCases: newUC });
+                                                }}
+                                                className="p-3 text-gray-600 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {formData.useCases.length === 0 && (
+                                        <div className="text-center py-8 border border-dashed border-white/10 rounded-2xl text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                                            No use cases defined
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'interactive' && (
+                        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <ImageIcon size={18} />
+                                        Interactive Hotspots
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({
+                                            ...prev,
+                                            hotspots: [...prev.hotspots, { x: 50, y: 50, title: '', description: '' }]
+                                        }))}
+                                        className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus size={14} /> Add Hotspot
+                                    </button>
+                                </div>
+
+                                <div className="grid gap-6">
+                                    {formData.hotspots.map((hs, idx) => (
+                                        <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Hotspot #{idx + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newHS = formData.hotspots.filter((_, i) => i !== idx);
+                                                        setFormData({ ...formData, hotspots: newHS });
+                                                    }}
+                                                    className="p-1 text-gray-600 hover:text-red-500 transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">X Position (%)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={hs.x}
+                                                        onChange={e => {
+                                                            const newHS = [...formData.hotspots];
+                                                            newHS[idx].x = Number(e.target.value);
+                                                            setFormData({ ...formData, hotspots: newHS });
+                                                        }}
+                                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-mono"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Y Position (%)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={hs.y}
+                                                        onChange={e => {
+                                                            const newHS = [...formData.hotspots];
+                                                            newHS[idx].y = Number(e.target.value);
+                                                            setFormData({ ...formData, hotspots: newHS });
+                                                        }}
+                                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Title</label>
+                                                <input
+                                                    type="text"
+                                                    value={hs.title}
+                                                    onChange={e => {
+                                                        const newHS = [...formData.hotspots];
+                                                        newHS[idx].title = e.target.value;
+                                                        setFormData({ ...formData, hotspots: newHS });
+                                                    }}
+                                                    placeholder="e.g. Premium Leather"
+                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Description</label>
+                                                <textarea
+                                                    rows={2}
+                                                    value={hs.description}
+                                                    onChange={e => {
+                                                        const newHS = [...formData.hotspots];
+                                                        newHS[idx].description = e.target.value;
+                                                        setFormData({ ...formData, hotspots: newHS });
+                                                    }}
+                                                    placeholder="Detailed description of this feature..."
+                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {formData.hotspots.length === 0 && (
+                                        <div className="text-center py-12 border border-dashed border-white/10 rounded-3xl text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em]">
+                                            No hotspots defined.<br/>Use hotspots to highlight key features visually.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'pricing' && (
+                        <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-300">
+                            {/* Variant Groups Definition */}
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <Layers size={18} />
+                                        Configuration Groups
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({
+                                            ...prev,
+                                            variantGroups: [...prev.variantGroups, { name: '', options: [] }]
+                                        }))}
+                                        className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus size={14} /> Add Group
+                                    </button>
+                                </div>
+                                <div className="grid gap-4">
+                                    {formData.variantGroups.map((group, gIdx) => (
+                                        <div key={gIdx} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 space-y-4">
+                                            <div className="flex gap-4 items-center">
+                                                <input
+                                                    type="text"
+                                                    value={group.name}
+                                                    onChange={e => {
+                                                        const newGroups = [...formData.variantGroups];
+                                                        newGroups[gIdx].name = e.target.value;
+                                                        setFormData({ ...formData, variantGroups: newGroups });
+                                                    }}
+                                                    placeholder="Group Name (e.g. Color)"
+                                                    className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newGroups = formData.variantGroups.filter((_, i) => i !== gIdx);
+                                                        setFormData({ ...formData, variantGroups: newGroups });
+                                                    }}
+                                                    className="p-2 text-gray-600 hover:text-red-500 transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {group.options.map((opt: string, oIdx: number) => (
+                                                    <div key={oIdx} className="bg-brand-purple/20 border border-brand-purple/30 px-3 py-1 rounded-full flex items-center gap-2 group/opt">
+                                                        <span className="text-[10px] font-bold text-brand-purple uppercase tracking-wider">{opt}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newGroups = [...formData.variantGroups];
+                                                                newGroups[gIdx].options = newGroups[gIdx].options.filter((_: any, i: number) => i !== oIdx);
+                                                                setFormData({ ...formData, variantGroups: newGroups });
+                                                            }}
+                                                            className="text-brand-purple/50 hover:text-brand-purple transition-colors"
+                                                        >
+                                                            <Plus size={12} className="rotate-45" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add option..."
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            const val = (e.target as HTMLInputElement).value.trim();
+                                                            if (val) {
+                                                                const newGroups = [...formData.variantGroups];
+                                                                newGroups[gIdx].options = [...newGroups[gIdx].options, val];
+                                                                setFormData({ ...formData, variantGroups: newGroups });
+                                                                (e.target as HTMLInputElement).value = '';
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="bg-transparent border-none text-[10px] font-bold uppercase tracking-widest text-gray-500 focus:outline-none placeholder:text-gray-700 w-24"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {formData.variantGroups.length === 0 && (
+                                        <div className="text-center py-6 border border-dashed border-white/5 rounded-2xl text-[10px] font-bold text-gray-700 uppercase tracking-widest">
+                                            No configuration groups (optional)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Existing Variants List */}
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-4 text-brand-purple">
+                                        <Tag size={20} />
+                                        <h3 className="text-xs font-black uppercase tracking-[0.2em]">Product Variants</h3>
                                     </div>
-                                ))}
+                                    <button
+                                        type="button"
+                                        onClick={handleAddVariant}
+                                        className="bg-white/5 border border-white/10 px-6 py-3 rounded-full flex items-center gap-2 hover:bg-brand-purple hover:border-brand-purple transition-all group"
+                                    >
+                                        <Plus size={16} className="text-gray-400 group-hover:text-white" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">Add Variant</span>
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {formData.variants.map((variant, index) => (
+                                        <div key={variant.id} className="grid grid-cols-12 gap-4 items-end bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
+                                            <div className="col-span-3 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Variation Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={variant.name}
+                                                    onChange={e => handleVariantChange(variant.id, 'name', e.target.value)}
+                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                                    placeholder="Default / Red"
+                                                />
+                                            </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Base Price</label>
+                                                <div className="relative group">
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
+                                                    <input
+                                                        type="number"
+                                                        value={variant.price}
+                                                        onChange={e => handleVariantChange(variant.id, 'price', parseFloat(e.target.value))}
+                                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Old Price (Disc.)</label>
+                                                <div className="relative group">
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
+                                                    <input
+                                                        type="number"
+                                                        value={variant.compare_at_price}
+                                                        onChange={e => handleVariantChange(variant.id, 'compare_at_price', parseFloat(e.target.value))}
+                                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Stock</label>
+                                                <input
+                                                    type="number"
+                                                    value={variant.stock_quantity}
+                                                    onChange={e => handleVariantChange(variant.id, 'stock_quantity', parseInt(e.target.value))}
+                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                />
+                                            </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">SKU</label>
+                                                <input
+                                                    type="text"
+                                                    value={variant.sku}
+                                                    onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
+                                                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-mono"
+                                                />
+                                            </div>
+                                            <div className="col-span-1 flex justify-center pb-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveVariant(variant.id)}
+                                                    className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}

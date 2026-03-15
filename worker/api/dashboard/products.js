@@ -11,97 +11,101 @@ export async function handleDashboardProducts(request, env, ctx, params) {
     if (method === 'GET') {
         try {
             const { results } = await env.DB.prepare(`
-                SELECT p.*, COUNT(v.id) as variant_count, COALESCE(MIN(v.price), 0) as price
-                FROM products p
-                LEFT JOIN product_variants v ON p.id = v.product_id
-                GROUP BY p.id
-                ORDER BY p.created_at DESC
+                SELECT * FROM products ORDER BY createdAt DESC
             `).all();
 
-            return new Response(JSON.stringify(results), {
+            // Fetch variants for each product and parse JSON fields
+            const productsWithVariants = await Promise.all(results.map(async (p) => {
+                const { results: variants } = await env.DB.prepare("SELECT * FROM product_variants WHERE product_id = ?")
+                    .bind(p.id)
+                    .all();
+                
+                return { 
+                    ...p, 
+                    variants: variants || [],
+                    technicalDetails: p.technical_details ? JSON.parse(p.technical_details) : [],
+                    hotspots: p.hotspots ? JSON.parse(p.hotspots) : [],
+                    useCases: p.use_cases ? JSON.parse(p.use_cases) : [],
+                    variantGroups: p.variant_groups ? JSON.parse(p.variant_groups) : []
+                };
+            }));
+
+            return new Response(JSON.stringify(productsWithVariants), {
                 headers: {
                     "Content-Type": "application/json",
                     "Cache-Control": "no-store, no-cache, must-revalidate"
                 }
             });
         } catch (e) {
+            console.error("[Dashboard Products GET Error]", e);
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
         }
     }
 
     if (method === 'POST') {
-        const body = await request.json();
-        const id = body.id || crypto.randomUUID();
-        const slug = body.slug || (body.name || 'unnamed-product').toLowerCase().replace(/[^a-z0-9]/g, '-');
-
         try {
-            const result = await env.DB.prepare(`
-                INSERT INTO products (
-                    id, name, slug, description, short_description, 
-                    category_id, product_type_id, is_active, brand, type, 
-                    release_date, image_url, visibility, status, tag_list, os,
-                    requires_shipping, track_stock, whatsapp_enabled
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            const body = await request.json();
+            const id = body.id || `p${Date.now()}`;
+            
+            // Map frontend fields to D1 schema
+            const status = body.status || (body.isActive === false || body.is_active === false ? 'draft' : 'active');
+            const compareAtPrice = body.compare_at_price || body.compareAtPrice || body.discount_price || body.discountPrice || null;
+            const releaseDate = body.release_date || body.releaseDate || null;
+            const logistics = body.logistics || body.standard_logistics || null;
+            const description = body.description || body.short_description || null;
+            const image = body.image || body.image_url || null;
+            const category = body.category || body.category_id || 'Uncategorized';
+            const inventory = body.inventory || body.stock_quantity || body.stock || 0;
+            const technicalDetails = body.technicalDetails || body.technical_details ? JSON.stringify(body.technicalDetails || body.technical_details) : null;
+            const hotspots = body.hotspots ? JSON.stringify(body.hotspots) : null;
+            const useCases = body.useCases || body.use_cases ? JSON.stringify(body.useCases || body.use_cases) : null;
+            const variantGroups = body.variantGroups || body.variant_groups ? JSON.stringify(body.variantGroups || body.variant_groups) : null;
+
+            await env.DB.prepare(`
+                INSERT INTO products (id, name, description, price, image, category, inventory, createdAt, brand, compare_at_price, status, release_date, logistics, slug, technical_details, hotspots, use_cases, variant_groups)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
-                body.name,
-                slug,
-                body.description || null,
-                body.shortDescription || body.short_description || null,
-                body.category_id || body.category || null,
-                body.product_type_id || null,
-                body.isActive !== undefined ? (body.isActive ? 1 : 0) : (body.is_active ? 1 : 0),
+                body.name || 'Unnamed Product',
+                description,
+                body.price || 0,
+                image,
+                category,
+                inventory,
+                new Date().toISOString(),
                 body.brand || null,
-                body.type || 'physical',
-                body.releaseDate || body.release_date || new Date().toISOString(),
-                body.image || body.image_url || null,
-                body.visibility || 'public',
-                body.status || 'published',
-                body.tags ? body.tags.join(',') : (body.tag_list || null),
-                body.os || null,
-                body.requiresShipping !== undefined ? (body.requiresShipping ? 1 : 0) : (body.requires_shipping !== undefined ? (body.requires_shipping ? 1 : 0) : 1),
-                body.trackStock !== undefined ? (body.trackStock ? 1 : 0) : (body.track_stock !== undefined ? (body.track_stock ? 1 : 0) : 1),
-                body.whatsappEnabled !== undefined ? (body.whatsappEnabled ? 1 : 0) : (body.whatsapp_enabled !== undefined ? (body.whatsapp_enabled ? 1 : 0) : 1)
+                compareAtPrice,
+                status,
+                releaseDate,
+                logistics,
+                body.slug || (body.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                technicalDetails,
+                hotspots,
+                useCases,
+                variantGroups
             ).run();
 
-            console.log('D1 Result (Product INSERT):', result);
-
-            // Ensure at least one variant exists so price/stock is captured
-            let variants = body.variants || [];
-
-            // If it's a legacy or simple product without variants array, use top-level fields
-            if (variants.length === 0) {
-                variants = [{
-                    id: crypto.randomUUID(),
-                    name: 'Default',
-                    price: body.price || 0,
-                    compare_at_price: body.compareAtPrice || body.compare_at_price || null,
-                    stock_quantity: body.stock !== undefined ? body.stock : (body.inventory !== undefined ? body.inventory : 0),
-                    sku: body.sku || null,
-                    image_url: body.image || body.image_url || null
-                }];
+            // Handle variants
+            if (body.variants && Array.isArray(body.variants)) {
+                for (const v of body.variants) {
+                    const vCompareAt = v.compare_at_price || v.compareAtPrice || v.discount_price || v.discountPrice || null;
+                    await env.DB.prepare(`
+                        INSERT INTO product_variants (id, product_id, name, price, compare_at_price, inventory, image_url, sku)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(
+                        v.id || `v${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        id,
+                        v.name || 'Default',
+                        v.price || 0,
+                        vCompareAt,
+                        v.inventory || v.stock_quantity || v.stock || 0,
+                        v.image_url || v.image || null,
+                        v.sku || null
+                    ).run();
+                }
             }
 
-            for (const v of variants) {
-                await env.DB.prepare(`
-                    INSERT INTO product_variants (id, product_id, name, sku, price, compare_at_price, stock_quantity, image_url, weight, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `).bind(
-                    v.id || crypto.randomUUID(),
-                    id,
-                    v.name || 'Default',
-                    v.sku || null,
-                    v.price || 0,
-                    v.compare_at_price || null,
-                    v.stock_quantity || 0,
-                    v.image_url || body.image || body.image_url || null,
-                    v.weight || null,
-                    JSON.stringify(v.metadata || {})
-                ).run();
-            }
-
-            return new Response(JSON.stringify({ id, slug, message: "Product created" }), { status: 201 });
+            return new Response(JSON.stringify({ id, message: "Product created" }), { status: 201 });
         } catch (e) {
             console.error("[Dashboard Products POST Error]", e);
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -110,75 +114,71 @@ export async function handleDashboardProducts(request, env, ctx, params) {
 
     if (method === 'PUT') {
         const id = params.id;
-        const body = await request.json();
         if (!id) return new Response("Missing ID", { status: 400 });
-
+        
         try {
-            const result = await env.DB.prepare(`
+            const body = await request.json();
+            
+            // Map frontend fields to D1 schema
+            const status = body.status || (body.isActive === false || body.is_active === false ? 'draft' : 'active');
+            const compareAtPrice = body.compare_at_price || body.compareAtPrice || body.discount_price || body.discountPrice || null;
+            const releaseDate = body.release_date || body.releaseDate || null;
+            const logistics = body.logistics || body.standard_logistics || null;
+            const description = body.description || body.short_description || null;
+            const image = body.image || body.image_url || null;
+            const category = body.category || body.category_id || 'Uncategorized';
+            const inventory = body.inventory || body.stock_quantity || body.stock || 0;
+            const technicalDetails = body.technicalDetails || body.technical_details ? JSON.stringify(body.technicalDetails || body.technical_details) : null;
+            const hotspots = body.hotspots ? JSON.stringify(body.hotspots) : null;
+            const useCases = body.useCases || body.use_cases ? JSON.stringify(body.useCases || body.use_cases) : null;
+            const variantGroups = body.variantGroups || body.variant_groups ? JSON.stringify(body.variantGroups || body.variant_groups) : null;
+
+            await env.DB.prepare(`
                 UPDATE products 
-                SET name = ?, slug = ?, description = ?, short_description = ?, 
-                    category_id = ?, product_type_id = ?, is_active = ?, brand = ?, type = ?, 
-                    release_date = ?, image_url = ?, visibility = ?, status = ?, tag_list = ?, os = ?,
-                    requires_shipping = ?, track_stock = ?, whatsapp_enabled = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
+                    brand = ?, compare_at_price = ?, status = ?, release_date = ?, logistics = ?, slug = ?,
+                    technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?
                 WHERE id = ?
             `).bind(
                 body.name,
-                body.slug,
-                body.description || null,
-                body.shortDescription || body.short_description || null,
-                body.category_id || body.category || null,
-                body.product_type_id || null,
-                body.isActive !== undefined ? (body.isActive ? 1 : 0) : (body.is_active ? 1 : 0),
+                description,
+                body.price || 0,
+                image,
+                category,
+                inventory,
                 body.brand || null,
-                body.type || 'physical',
-                body.releaseDate || body.release_date || null,
-                body.image || body.image_url || null,
-                body.visibility || 'public',
-                body.status || 'published',
-                body.tags ? body.tags.join(',') : (body.tag_list || null),
-                body.os || null,
-                body.requiresShipping !== undefined ? (body.requiresShipping ? 1 : 0) : (body.requires_shipping !== undefined ? (body.requires_shipping ? 1 : 0) : 1),
-                body.trackStock !== undefined ? (body.trackStock ? 1 : 0) : (body.track_stock !== undefined ? (body.track_stock ? 1 : 0) : 1),
-                body.whatsappEnabled !== undefined ? (body.whatsappEnabled ? 1 : 0) : (body.whatsapp_enabled !== undefined ? (body.whatsapp_enabled ? 1 : 0) : 1),
+                compareAtPrice,
+                status,
+                releaseDate,
+                logistics,
+                body.slug || (body.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                technicalDetails,
+                hotspots,
+                useCases,
+                variantGroups,
                 id
             ).run();
 
-            console.log('D1 Result (Product UPDATE):', result);
-
-            if (body.variants) {
-                await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
+            // Refresh variants: Delete and Re-insert
+            await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
+            
+            if (body.variants && Array.isArray(body.variants)) {
                 for (const v of body.variants) {
+                    const vCompareAt = v.compare_at_price || v.compareAtPrice || v.discount_price || v.discountPrice || null;
                     await env.DB.prepare(`
-                        INSERT INTO product_variants (id, product_id, name, sku, price, compare_at_price, stock_quantity, currency, image_url, weight, metadata)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO product_variants (id, product_id, name, price, compare_at_price, inventory, image_url, sku)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     `).bind(
-                        v.id || crypto.randomUUID(),
+                        v.id || `v${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         id,
                         v.name || 'Default',
-                        v.sku || null,
                         v.price || 0,
-                        v.compare_at_price || null,
-                        v.stock_quantity || 0,
-                        v.currency || 'KES',
-                        v.image_url || body.image || body.image_url || null,
-                        v.weight || null,
-                        JSON.stringify(v.metadata || {})
+                        vCompareAt,
+                        v.inventory || v.stock_quantity || v.stock || 0,
+                        v.image_url || v.image || null,
+                        v.sku || null
                     ).run();
                 }
-            } else if (body.price !== undefined) {
-                // If it's a simple update without a variants array but has price/stock, update the default variant
-                await env.DB.prepare(`
-                    UPDATE product_variants 
-                    SET price = ?, compare_at_price = ?, stock_quantity = ?, image_url = ?
-                    WHERE product_id = ? AND name = 'Default'
-                `).bind(
-                    body.price,
-                    body.compareAtPrice || body.compare_at_price || null,
-                    body.stock !== undefined ? body.stock : (body.inventory !== undefined ? body.inventory : 0),
-                    body.image || body.image_url || null,
-                    id
-                ).run();
             }
 
             return new Response(JSON.stringify({ message: "Product updated" }));
@@ -193,9 +193,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
         if (!id) return new Response("Missing ID", { status: 400 });
 
         try {
-            const result1 = await env.DB.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
-            const result2 = await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
-            console.log('D1 Result (Product DELETE):', result1, result2);
+            await env.DB.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
+            await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();
             return new Response(JSON.stringify({ message: "Product deleted" }));
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });

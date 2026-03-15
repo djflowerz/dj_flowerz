@@ -57,14 +57,17 @@ export interface ProductVariant {
   price: number;
   discountPrice?: number;
   compareAtPrice?: number;
-  stock: number;
+  stock?: number;
+  stock_quantity?: number; // DB field name
   sku?: string;
   image?: string;
+  image_url?: string; // DB field name
+  weight?: number;
 }
 
 export interface ProductVariantGroup {
   name: string; // e.g. "Storage", "Color", "Size"
-  variants: ProductVariant[];
+  options: string[];
 }
 
 export interface Product {
@@ -93,7 +96,7 @@ export interface Product {
   imageAlt?: string;
   hasVariants: boolean;
   variantGroups?: ProductVariantGroup[]; // New structure
-  variants?: string[]; // Legacy support
+  variants?: ProductVariant[];
   trackStock: boolean;
   stock: number; // Total stock if no variants, or sum of variant stocks
   inventory?: number;
@@ -112,6 +115,9 @@ export interface Product {
   allowRedownload?: boolean;
   isFree?: boolean;
   whatsappEnabled: boolean;
+  technicalDetails?: { title: string; description: string }[];
+  hotspots?: { x: number; y: number; title: string; description: string }[];
+  useCases?: { title: string; description: string; icon?: string }[];
   shippingPrice?: number;
   meta_title?: string;
   meta_description?: string;

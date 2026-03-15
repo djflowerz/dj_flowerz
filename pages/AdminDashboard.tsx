@@ -9,10 +9,10 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,7 +30,7 @@ import AdminOrdersTab from '../components/admin/AdminOrdersTab';
 import SubscriptionTab from '../components/admin/SubscriptionTab';
 import AnalyticsTab from '../components/admin/AnalyticsTab';
 import NewsletterTab from '../components/admin/NewsletterTab';
-import MessagesTab from '../components/admin/MessagesTab';
+import InteractionsTab from '../components/admin/InteractionsTab';
 import AdminPaymentListener from '../components/admin/AdminPaymentListener';
 import AdminPaymentsTab from '../components/admin/AdminPaymentsTab';
 import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
@@ -520,6 +520,30 @@ const AdminDashboard: React.FC = () => {
       return <div className="p-10 text-white">Critical Error: Data Context Missing. Contact Support.</div>;
    }
 
+   const tabs = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'orders', label: 'Orders', icon: Package },
+      { id: 'subscriptions', label: 'Subscriptions', icon: Timer },
+      { id: 'expiry-watch', label: 'Expiry Watch', icon: Clock },
+      { id: 'pool', label: 'Music Pool', icon: Headphones },
+      { id: 'bookings', label: 'Studio Bookings', icon: Calendar },
+      { id: 'gigs', label: 'Gig Manager', icon: MapPin },
+      { id: 'studio', label: 'Studio Manager', icon: Mic },
+      { id: 'store', label: 'Store', icon: ShoppingBag },
+      { id: 'mixtapes', label: 'Mixtapes', icon: Music },
+      { id: 'marketing', label: 'Marketing', icon: Tag },
+      { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
+      { id: 'content', label: 'Site Content', icon: Globe },
+      { id: 'users', label: 'Users', icon: Users },
+      { id: 'referrals', label: 'Referrals', icon: Gift },
+      { id: 'payments', label: 'Payments', icon: CreditCard },
+      { id: 'shipping', label: 'Shipping', icon: Truck },
+      { id: 'newsletters', label: 'Newsletters', icon: Mail },
+      { id: 'interactions', label: 'Interactions', icon: MessageSquare },
+      { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+      { id: 'system', label: 'System', icon: Database },
+   ];
+
    const [activeTab, setActiveTab] = useState('dashboard');
    const [liveSales, setLiveSales] = useState<any[]>([]);
    const [contentSubTab, setContentSubTab] = useState('home');
@@ -577,6 +601,19 @@ const AdminDashboard: React.FC = () => {
    const [newBooking, setNewBooking] = useState<Partial<Booking>>(INITIAL_BOOKING_STATE);
    const [newSessionType, setNewSessionType] = useState<SessionType>(INITIAL_SESSION_TYPE);
    const [newEquipment, setNewEquipment] = useState<StudioEquipment>(INITIAL_EQUIPMENT_STATE);
+
+   const location = useLocation();
+
+   useEffect(() => {
+      const path = location.pathname;
+      const tabFromPath = path.split('/').pop();
+      if (tabFromPath && tabs.some(t => t.id === tabFromPath)) {
+         setActiveTab(tabFromPath);
+      } else if (path === '/admin') {
+         setActiveTab('dashboard');
+      }
+   }, [location.pathname]);
+
 
    const [newPoolTrack, setNewPoolTrack] = useState<Track>(INITIAL_POOL_TRACK_STATE);
    const [editingGenre, setEditingGenre] = useState<Genre>({ id: '', name: '', coverUrl: '' });
@@ -941,6 +978,12 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
+   const handleDeployToStorefront = async () => {
+      if (window.confirm("This will overwrite the storefront (D1) music library with the current Admin (R2) JSON data. Continue?")) {
+         await dataContext.deployPoolToStorefront();
+      }
+   };
+
    const handleBroadcast = async () => {
       if (!emailSubject || !emailBody || !emailHeader) {
          alert("Please provide a name, subject, and message body for your broadcast.");
@@ -1171,29 +1214,7 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
-   const tabs = [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'orders', label: 'Orders', icon: Package },
-      { id: 'subscriptions', label: 'Subscriptions', icon: Timer },
-      { id: 'expiry-watch', label: 'Expiry Watch', icon: Clock },
-      { id: 'pool', label: 'Music Pool', icon: Headphones },
-      { id: 'bookings', label: 'Studio Bookings', icon: Calendar },
-      { id: 'gigs', label: 'Gig Manager', icon: MapPin },
-      { id: 'studio', label: 'Studio Manager', icon: Mic },
-      { id: 'store', label: 'Store', icon: ShoppingBag },
-      { id: 'mixtapes', label: 'Mixtapes', icon: Music },
-      { id: 'marketing', label: 'Marketing', icon: Tag },
-      { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
-      { id: 'content', label: 'Site Content', icon: Globe },
-      { id: 'users', label: 'Users', icon: Users },
-      { id: 'referrals', label: 'Referrals', icon: Gift },
-      { id: 'payments', label: 'Payments', icon: CreditCard },
-      { id: 'shipping', label: 'Shipping', icon: Truck },
-      { id: 'newsletters', label: 'Newsletters', icon: Mail },
-      { id: 'messages', label: 'Messages', icon: MessageSquare },
-      { id: 'analytics', label: 'Analytics', icon: BarChart2 },
-      { id: 'system', label: 'System', icon: Database },
-   ];
+
 
    const handleSaveConfig = async () => {
       try {
@@ -1393,17 +1414,24 @@ const AdminDashboard: React.FC = () => {
       try {
          const now = new Date().toISOString();
          const isExclusive = newMixtape.downloadType === 'music_pool' || newMixtape.showInMusicPool;
-         const finalMixtape = { ...newMixtape, isExclusive, date: newMixtape.releaseDate, updatedAt: now };
+         const finalMixtape = { ...newMixtape, isExclusive, date: newMixtape.releaseDate || now, updatedAt: now };
+
          if (isEditing) {
             await updateMixtape(finalMixtape.id, finalMixtape);
          } else {
-            await addMixtape({ ...finalMixtape, id: `m${Date.now()}`, slug: newMixtape.slug || newMixtape.title.toLowerCase().replace(/[^a-z0-9]/g, '-'), createdAt: now });
+            const tempId = `m${Date.now()}`;
+            await addMixtape({
+               ...finalMixtape,
+               id: tempId,
+               slug: newMixtape.slug || newMixtape.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+               createdAt: now
+            });
          }
-         alert("Mixtape saved successfully!");
+         // DataContext handles the success alert
          setActiveModal(null);
       } catch (error: any) {
          console.error("Error saving mixtape:", error);
-         alert("Failed to save mixtape. Please check your permissions or console for details.\nError: " + error.message);
+         alert("Failed to save mixtape: " + error.message);
       }
    };
 
@@ -2098,7 +2126,7 @@ const AdminDashboard: React.FC = () => {
                )}
 
                {activeTab === 'newsletters' && <NewsletterTab />}
-               {activeTab === 'messages' && <MessagesTab />}
+               {activeTab === 'interactions' && <InteractionsTab />}
                {activeTab === 'analytics' && <AnalyticsTab />}
 
                {activeTab === 'orders' && <AdminOrdersTab />}
@@ -2290,6 +2318,14 @@ const AdminDashboard: React.FC = () => {
                                  >
                                     <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
                                     {isSyncing ? 'Syncing...' : 'Force Sync'}
+                                 </button>
+                                 <button
+                                    onClick={handleDeployToStorefront}
+                                    disabled={dataContext.poolLoading}
+                                    className="px-6 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple/80 transition-all flex items-center gap-2 disabled:opacity-50 shadow-xl shadow-brand-purple/20"
+                                 >
+                                    <CloudUpload size={16} className={dataContext.poolLoading ? "animate-pulse" : ""} />
+                                    {dataContext.poolLoading ? 'Deploying...' : 'Deploy to Storefront'}
                                  </button>
                                  <button onClick={openAddPoolTrack} className="px-6 py-3 bg-white text-[#0B0B0F] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all shadow-xl shadow-brand-purple/10 flex items-center gap-2">
                                     <Plus size={16} /> Upload Track
