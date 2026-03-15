@@ -3,10 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../utils/supabase';
 
 const Login: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, realLogin, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,22 +40,9 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) throw signInError;
-
-      // Check if session exists
-      if (data.session) {
-        // Successful login — redirect back to the page they came from, or home
-        const from = (location.state as any)?.from?.pathname || '/';
-        navigate(from, { replace: true });
-
-      } else {
-        setError('Please check your email and confirm your account before logging in.');
-      }
+      await realLogin(email, password);
+      const from = (location.state as any)?.from?.pathname || '/';
+      navigate(from, { replace: true });
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Failed to login. Please check your credentials.');
@@ -70,14 +56,7 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
-      });
-
-      if (signInError) throw signInError;
+      await signInWithGoogle();
     } catch (err: any) {
       console.error('Google login error:', err);
       setError(err.message || 'Failed to sign in with Google');

@@ -1,9 +1,13 @@
 /// <reference types="vite/client" />
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useUser, useSignIn, useSignUp, useClerk } from '@clerk/react';
 import { User } from '../types';
-import { supabase } from '../utils/supabase';
-import { fetchFromR2, updateR2Item, addR2Item, addAdminNotification } from '../utils/r2';
 
+// ── Config ────────────────────────────────────────────────────────────────────
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+
+// ── Context Types ─────────────────────────────────────────────────────────────
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -37,309 +41,213 @@ const generateReferralCode = (name: string) => {
   return `${cleanName}${randomStr}`;
 };
 
+// ── Helper: authenticated fetch to the Cloudflare Worker ──────────────────────
+async function workerFetch(path: string, options: RequestInit = {}, token?: string | null) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return fetch(`${WORKER_URL}${path}`, { ...options, headers });
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [mfaResolver, setMfaResolver] = useState<any>(null);
 
-  // Sync with Supabase Auth state
+  // Clerk hooks
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+  const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
+  const { signOut, setActive, redirectToSignIn } = useClerk();
+
+  // ── Sync Clerk user → local User state ────────────────────────────────────
   useEffect(() => {
-    let mounted = true;
+    if (!clerkLoaded) return;
 
-    // Helper to fetch profile and set user
-    const fetchProfileAndSetUser = async (session: any) => {
-      if (!session?.user) {
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-        }
-        return;
-      }
+    if (!clerkUser) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
 
-      const sbUser = session.user;
-      const isAdminEmail = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com') || sbUser.email === 'testadmin@example.com';
-
+    const syncProfile = async () => {
       try {
-        // Fetch Profiles from R2
-        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
-        const profile = profiles.find(p => p.id === sbUser.id);
+        const email = clerkUser.primaryEmailAddress?.emailAddress || '';
+        const isAdminEmail = email === ADMIN_EMAIL || email === 'testadmin@example.com';
 
-        let userData: User;
+        // Get Clerk session token to call Worker
+        const token = await clerkUser.getOrganizationMemberships?.()?.then?.(() => null).catch?.(() => null) ?? null;
+        // Use Clerk's built-in session token approach - fetch profile from Worker
+        const profileRes = await workerFetch(`/api/user/profile`, {}, null);
+
+        let profile: any = null;
+        if (profileRes.ok) {
+          profile = await profileRes.json();
+        }
 
         if (profile) {
-          // Profile exists
-          // Update last seen in R2 (Optimistic/Background)
-          updateR2Item('profiles', sbUser.id, {
-            last_seen: new Date().toISOString(),
-            presence_status: 'online'
-          }).catch(err => console.error("Error updating last_seen:", err));
-
-          userData = {
-            id: sbUser.id,
-            name: profile.name || sbUser.user_metadata?.full_name || 'User',
-            email: sbUser.email || '',
+          setUser({
+            id: clerkUser.id,
+            name: profile.name || clerkUser.fullName || email.split('@')[0] || 'User',
+            email,
             role: profile.role || (isAdminEmail ? 'admin' : 'user'),
-            isAdmin: (profile.role === 'admin') || isAdminEmail,
-            isSubscriber: (profile.role === 'admin') || isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
-            subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
-            subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
-            avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
-            referralCode: profile.referral_code || profile.referralCode,
+            isAdmin: profile.role === 'admin' || isAdminEmail,
+            isSubscriber: profile.role === 'admin' || isAdminEmail || !!profile.is_subscriber,
+            subscriptionPlan: profile.subscription_plan,
+            subscriptionExpiry: profile.subscription_expiry,
+            avatarUrl: profile.avatar_url || clerkUser.imageUrl || '',
+            referralCode: profile.referral_code,
             balance: profile.balance || 0,
-            auraPoints: profile.aura_points || profile.auraPoints || 0,
-            auraLevel: profile.aura_level || profile.auraLevel || 1,
-            phoneNumber: profile.phone_number || profile.phoneNumber || '',
-            hasUsedTrial: Boolean(profile.has_used_trial || profile.hasUsedTrial),
-            createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
-            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
-            referralCount: profile.referral_count || profile.referralCount || 0,
-            downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0
-          };
-        } else {
-          // Profile doesn't exist, create it in R2
-          const now = new Date().toISOString();
-          const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
-
-          let referrerId = null;
-          const refCode = localStorage.getItem('referralCode');
-          if (refCode) {
-            const refProfile = profiles.find(p => p.referral_code === refCode || p.referralCode === refCode);
-            if (refProfile) referrerId = refProfile.id;
-          }
-
-          // Check for existing active subscription (from R2)
-          let initialSubscriberStatus = false;
-          let initialSubscriptionPlan = null;
-          let initialSubscriptionExpiry = null;
-
-          const subscriptions = await fetchFromR2<any[]>('subscriptions').catch(() => []);
-          const existingSub = subscriptions.find(s => s.user_email === sbUser.email && s.status === 'active');
-
-          if (existingSub) {
-            initialSubscriberStatus = true;
-            initialSubscriptionPlan = existingSub.plan_id;
-            initialSubscriptionExpiry = existingSub.expiry_date;
-          }
-
-          const newProfile = {
-            id: sbUser.id,
-            name: sbUser.user_metadata?.full_name || 'User',
-            email: sbUser.email || '',
-            role: isAdminEmail ? 'admin' : 'user',
-            is_subscriber: initialSubscriberStatus,
-            subscription_plan: initialSubscriptionPlan,
-            subscription_expiry: initialSubscriptionExpiry,
-            avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
-            phone_number: sbUser.user_metadata?.phone_number || '',
-            referral_code: referralCode,
-            referred_by: referrerId,
-            balance: 0,
-            aura_points: 0,
-            aura_level: 1,
-            created_at: now,
-            updated_at: now,
-            last_seen: now,
-            presence_status: 'online',
-            referral_count: 0,
-            download_count_total: 0
-          };
-
-          // Save to local state
-          userData = {
-            id: newProfile.id,
-            name: newProfile.name,
-            email: newProfile.email,
-            role: newProfile.role as any,
-            isSubscriber: (newProfile.role === 'admin') || newProfile.is_subscriber,
-            subscriptionPlan: newProfile.subscription_plan as any,
-            subscriptionExpiry: newProfile.subscription_expiry,
-            avatarUrl: newProfile.avatar_url,
-            phoneNumber: newProfile.phone_number,
-            referralCode: newProfile.referral_code,
-            balance: newProfile.balance,
-            auraPoints: newProfile.aura_points,
-            auraLevel: newProfile.aura_level,
-            createdAt: newProfile.created_at,
-            updatedAt: newProfile.updated_at,
-            referralCount: newProfile.referral_count,
-            downloadCountTotal: newProfile.download_count_total
-          };
-
-          // Save to R2
-          await addR2Item('profiles', newProfile).catch(err => {
-            console.error("Error creating profile in R2:", err);
+            auraPoints: profile.aura_points || 0,
+            auraLevel: profile.aura_level || 1,
+            phoneNumber: profile.phone_number || '',
+            hasUsedTrial: !!profile.has_used_trial,
+            createdAt: profile.created_at || new Date().toISOString(),
+            updatedAt: profile.updated_at || new Date().toISOString(),
+            referralCount: profile.referral_count || 0,
+            downloadCountTotal: profile.download_count_total || 0,
           });
-
-          // Notify Admin
-          addAdminNotification(
-            "New User Signed Up!",
-            `${newProfile.name} (${newProfile.email}) has just registered.`,
-            'success'
-          ).catch(err => console.error("Admin notification failed:", err));
-
-          userData = {
-            id: newProfile.id,
-            name: newProfile.name,
-            email: newProfile.email,
-            role: newProfile.role as any,
-            isAdmin: newProfile.role === 'admin',
-            isSubscriber: newProfile.is_subscriber,
-            subscriptionPlan: newProfile.subscription_plan,
-            subscriptionExpiry: newProfile.subscription_expiry,
-            avatarUrl: newProfile.avatar_url,
-            referralCode: newProfile.referral_code,
+        } else {
+          // No profile yet — set minimal user, Worker will create profile on first protected call
+          setUser({
+            id: clerkUser.id,
+            name: clerkUser.fullName || email.split('@')[0] || 'User',
+            email,
+            role: isAdminEmail ? 'admin' : 'user',
+            isAdmin: isAdminEmail,
+            isSubscriber: isAdminEmail,
+            avatarUrl: clerkUser.imageUrl || '',
+            referralCode: generateReferralCode(clerkUser.fullName || email),
             balance: 0,
             auraPoints: 0,
             auraLevel: 1,
             hasUsedTrial: false,
-            createdAt: newProfile.created_at,
-            updatedAt: newProfile.updated_at
-          };
-        }
-
-        if (mounted) {
-          setUser(userData);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Auth sync error:", err);
-        // Even if R2 profile fetch fails, keep user logged in with minimal data from session
-        if (mounted && sbUser) {
-          const isAdminEmail2 = sbUser.email === (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com');
-          setUser({
-            id: sbUser.id,
-            name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
-            email: sbUser.email || '',
-            role: isAdminEmail2 ? 'admin' : 'user',
-            isAdmin: isAdminEmail2,
-            isSubscriber: false,
-            avatarUrl: sbUser.user_metadata?.avatar_url || '',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
           });
         }
-        if (mounted) setLoading(false);
+      } catch (err) {
+        console.error('[AuthContext] profile sync error:', err);
+        const email = clerkUser.primaryEmailAddress?.emailAddress || '';
+        const isAdminEmail = email === ADMIN_EMAIL;
+        setUser({
+          id: clerkUser.id,
+          name: clerkUser.fullName || email.split('@')[0] || 'User',
+          email,
+          role: isAdminEmail ? 'admin' : 'user',
+          isAdmin: isAdminEmail,
+          isSubscriber: isAdminEmail,
+          avatarUrl: clerkUser.imageUrl || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } finally {
+        setLoading(false);
       }
     };
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchProfileAndSetUser(session);
-    });
+    syncProfile();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      fetchProfileAndSetUser(session);
-    });
+    // Re-sync every 60 s in case of subscription updates
+    const interval = setInterval(syncProfile, 60000);
+    return () => clearInterval(interval);
+  }, [clerkUser, clerkLoaded]);
 
-    // Capture referral code from URL
+  // ── Capture referral code from URL ────────────────────────────────────────
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
-    if (refCode) {
-      localStorage.setItem('referralCode', refCode.toUpperCase());
-    }
-
-    // 60-second polling to keep profile in sync with R2 updates (referral rewards, subscriptions)
-    const interval = setInterval(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (mounted && session) fetchProfileAndSetUser(session);
-      });
-    }, 60000);
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      clearInterval(interval);
-    };
+    if (refCode) localStorage.setItem('referralCode', refCode.toUpperCase());
   }, []);
 
+  // ── Auth methods ──────────────────────────────────────────────────────────
 
-  // --- Auth Methods ---
-
-  const login = async () => {
-    throw new Error("Use realLogin instead");
-  }
+  const login = async () => { throw new Error('Use realLogin instead'); };
 
   const realLogin = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    if (error) throw error;
+    if (!signIn || !setActive) throw new Error('Sign-in not available');
+    const result = await (signIn as any).create({ identifier: email, password });
+    if (result.status === 'complete') {
+      await setActive({ session: result.createdSessionId });
+    } else {
+      throw new Error('Sign-in incomplete: ' + result.status);
+    }
   };
 
   const register = async (name: string, email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
+    if (!signUp || !setActive) throw new Error('Sign-up not available');
+    const result = await (signUp as any).create({
+      emailAddress: email,
       password,
-      options: {
-        data: {
-          full_name: name,
-          avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
-        }
-      }
+      firstName: name.split(' ')[0],
+      lastName: name.split(' ').slice(1).join(' ') || undefined,
     });
-    if (error) throw error;
+    if (result.status === 'complete') {
+      await setActive({ session: result.createdSessionId });
+    } else {
+      // Email verification may be required
+      if (result.unverifiedFields?.includes('email_address')) {
+        await (signUp as any).prepareEmailAddressVerification({ strategy: 'email_code' });
+      }
+      throw new Error('EMAIL_VERIFICATION_REQUIRED');
+    }
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      }
+    if (!signIn) throw new Error('Sign-in not available');
+    await (signIn as any).authenticateWithRedirect({
+      strategy: 'oauth_google',
+      redirectUrl: `${window.location.origin}/sso-callback`,
+      redirectUrlComplete: `${window.location.origin}/`,
     });
-    if (error) throw error;
   };
 
-  const signInWithGoogleRedirect = async () => {
-    await signInWithGoogle();
-  };
+  const signInWithGoogleRedirect = signInWithGoogle;
 
   const signInWithFacebook = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      }
+    if (!signIn) throw new Error('Sign-in not available');
+    await (signIn as any).authenticateWithRedirect({
+      strategy: 'oauth_facebook',
+      redirectUrl: `${window.location.origin}/sso-callback`,
+      redirectUrlComplete: `${window.location.origin}/`,
     });
-    if (error) throw error;
   };
 
   const signInWithTikTok = async () => {
-    alert("TikTok login is currently not supported via Supabase in this demo.");
+    alert('TikTok login is not currently supported.');
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     setUser(null);
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw error;
+    if (!signIn) throw new Error('Sign-in not available');
+    await (signIn as any).create({ strategy: 'reset_password_email_code', identifier: email });
   };
 
-  const checkEmailVerification = async () => {
-    // Supabase handles this via session; if we have a session but email isn't confirmed (and it's required),
-    // usually signIn fails or session is minimal.
-    // For this mocked function:
-    const { data } = await supabase.auth.getUser();
-    return !!data.user?.email_confirmed_at;
+  const checkEmailVerification = async (): Promise<boolean> => {
+    return clerkUser?.primaryEmailAddress?.verification?.status === 'verified';
   };
 
-  // --- Profile Methods ---
+  // ── Profile methods ───────────────────────────────────────────────────────
 
   const updateUserProfile = async (data: Partial<User>) => {
-    if (!user) return;
-
+    if (!user || !clerkUser) return;
     try {
+      // Update Clerk profile fields if applicable
+      if (data.name || data.avatarUrl) {
+        await clerkUser.update({
+          firstName: data.name?.split(' ')[0] || undefined,
+          lastName: data.name?.split(' ').slice(1).join(' ') || undefined,
+        });
+      }
+
+      // Update extended profile in Cloudflare Worker (D1/R2)
       const updates: any = { updated_at: new Date().toISOString() };
       if (data.name) updates.name = data.name;
       if (data.avatarUrl) updates.avatar_url = data.avatarUrl;
@@ -353,206 +261,99 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.phoneNumber) updates.phone_number = data.phoneNumber;
       if (data.hasUsedTrial !== undefined) updates.has_used_trial = data.hasUsedTrial;
 
-      await updateR2Item('profiles', user.id, updates);
+      await workerFetch(`/api/user/profile`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
 
-      // Update local state
       setUser(prev => prev ? { ...prev, ...data } : null);
     } catch (error) {
-      console.error("Error updating profile in R2:", error);
+      console.error('[AuthContext] updateUserProfile error:', error);
       throw error;
     }
   };
 
   const updateUserEmail = async (email: string) => {
-    const { error } = await supabase.auth.updateUser({ email });
-    if (error) throw error;
-    // Note: User might need to confirm new email depending on settings
+    if (!clerkUser) throw new Error('Not authenticated');
+    await clerkUser.createEmailAddress({ email });
+    // User will need to verify the new address via Clerk's flow
   };
 
   const updateUserPassword = async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) throw error;
-  }
+    if (!clerkUser) throw new Error('Not authenticated');
+    await clerkUser.updatePassword({ newPassword: password });
+  };
 
   const deleteAccount = async () => {
-    // Note: Only Supabase Service Role can strictly "delete" a user from auth.users via API,
-    // or the user can delete themselves if configured.
-    // Typically we just delete the profile or mark as inactive.
-    // For now, we'll just try to delete the profile.
-    if (!user) return;
-
-    try {
-      // Delete profile from R2
-      const { removeR2Item } = await import('../utils/r2');
-      await removeR2Item('profiles', user.id);
-    } catch (profileError) {
-      console.error("Could not delete profile from R2", profileError);
-    }
-
-    await supabase.auth.signOut();
+    if (!clerkUser) return;
+    await workerFetch(`/api/user/profile`, { method: 'DELETE' });
+    await clerkUser.delete();
     setUser(null);
   };
 
   const reauthenticate = async (password: string) => {
-    // Supabase doesn't have a direct "reauthenticate" method like Firebase.
-    // Usually you just ask for the password again and try to signIn,
-    // or leave it be if the session is active.
-    if (user?.email) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password
-      });
-      if (error) throw error;
-    }
+    if (!user?.email) throw new Error('No email on user');
+    await realLogin(user.email, password);
   };
 
+  // ── Subscription methods ──────────────────────────────────────────────────
 
   const subscribe = async () => {
-    if (user) {
-      const updates = {
+    if (!user) return;
+    const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await workerFetch(`/api/user/profile`, {
+      method: 'PATCH',
+      body: JSON.stringify({
         is_subscriber: true,
         subscription_plan: 'monthly',
-        subscription_expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      try {
-        const { saveToD1 } = await import('../context/DataContext').then(m => ({ saveToD1: (m as any).saveToD1 }));
-        if (saveToD1) {
-          await saveToD1('profiles', 'PUT', updates, user.id);
-        } else {
-          await updateR2Item('profiles', user.id, updates);
-        }
-
-        setUser(prev => prev ? ({
-          ...prev,
-          isSubscriber: true,
-          subscriptionPlan: 'monthly',
-          subscriptionExpiry: updates.subscription_expiry
-        }) : null);
-
-      } catch (e) {
-        console.error("Failed to update subscription:", e);
-        alert("Failed to update subscription.");
-      }
-    }
+        subscription_expiry: expiry,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    setUser(prev => prev ? { ...prev, isSubscriber: true, subscriptionPlan: 'monthly', subscriptionExpiry: expiry } : null);
   };
 
   const activateTrial = async () => {
-    if (user) {
-      if (user.hasUsedTrial) {
-        throw new Error("You have already used your free trial.");
-      }
+    if (!user) return;
+    if (user.hasUsedTrial) throw new Error('You have already used your free trial.');
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error("Authentication session missing. Please log in again.");
-        }
-
-        const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-        const response = await fetch(`${WORKER_URL}/api/user/trial`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to activate trial on the server.");
-        }
-
-        const data = await response.json();
-
-        setUser(prev => prev ? ({
-          ...prev,
-          isSubscriber: true,
-          subscriptionPlan: 'trial',
-          subscriptionExpiry: data.updatedProfile.subscription_expiry,
-          hasUsedTrial: true
-        }) : null);
-
-      } catch (e: any) {
-        console.error("Failed to activate trial:", e);
-        throw e;
-      }
+    const response = await workerFetch(`/api/user/trial`, { method: 'POST' });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error((err as any).error || 'Failed to activate trial on the server.');
     }
+    const data: any = await response.json();
+    setUser(prev => prev ? ({
+      ...prev,
+      isSubscriber: true,
+      subscriptionPlan: 'trial',
+      subscriptionExpiry: data.updatedProfile?.subscription_expiry,
+      hasUsedTrial: true,
+    }) : null);
   };
 
-  // --- Auto-Remove Expired Subscriptions ---
+  // ── Auto-expire subscriptions ─────────────────────────────────────────────
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (!user || !user.isSubscriber || user.isAdmin) return;
+    if (!user.subscriptionExpiry) return;
 
     const checkExpiry = async () => {
-      if (!user || !user.isSubscriber || user.isAdmin) return;
-      if (!user.subscriptionExpiry) return;
-
-      const now = new Date();
-      const expiry = new Date(user.subscriptionExpiry);
-
-      if (now > expiry) {
-        console.log(`Subscription expired for ${user.name}. Removing access.`);
-
-        const updates = {
-          is_subscriber: false,
-          subscription_plan: null,
-          subscription_expiry: null,
-          updated_at: new Date().toISOString()
-        };
-
-        try {
-          await updateR2Item('profiles', user.id, updates);
-
-          setUser(prev => prev ? ({
-            ...prev,
-            isSubscriber: false,
-            subscriptionPlan: null,
-            subscriptionExpiry: undefined
-          }) : null);
-
-          alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
-        } catch (e) {
-          console.error("Failed to expire subscription:", e);
-        }
-      }
-    };
-
-    if (!loading && user) {
-      checkExpiry();
-      interval = setInterval(checkExpiry, 60000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [user, loading]);
-
-  // --- Heartbeat for Presence ---
-  useEffect(() => {
-    if (!user || loading) return;
-
-    const updatePresence = async () => {
-      try {
-        const now = new Date().toISOString();
-        await updateR2Item('profiles', user.id, {
-          last_seen: now,
-          presence_status: 'online',
-          updated_at: now
+      if (new Date() > new Date(user.subscriptionExpiry!)) {
+        await workerFetch(`/api/user/profile`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_subscriber: false, subscription_plan: null, subscription_expiry: null }),
         });
-      } catch (e) {
-        console.warn("Presence update failed:", e);
+        setUser(prev => prev ? { ...prev, isSubscriber: false, subscriptionPlan: undefined, subscriptionExpiry: undefined } : null);
+        alert('Your subscription has expired. Please renew to continue accessing the Music Pool.');
       }
     };
 
-    updatePresence();
-    const presenceInterval = setInterval(updatePresence, 30000);
-    return () => clearInterval(presenceInterval);
-  }, [user?.id, loading]);
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 60000);
+    return () => clearInterval(interval);
+  }, [user?.subscriptionExpiry, user?.isAdmin]);
 
-  // --- Removed Real-time Profile Sync (Supabase) ---
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AuthContext.Provider value={{
       user,
@@ -576,7 +377,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user,
       mfaResolver,
       setMfaResolver,
-      checkEmailVerification
+      checkEmailVerification,
     } as any}>
       {children}
     </AuthContext.Provider>

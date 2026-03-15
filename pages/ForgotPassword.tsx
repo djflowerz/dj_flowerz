@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Send, AlertCircle, CheckCircle } from 'lucide-react';
-import { supabase } from '../utils/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const ForgotPassword: React.FC = () => {
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -17,12 +18,7 @@ const ForgotPassword: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (resetError) throw resetError;
-
+      await resetPassword(email);
       setMessage('Password reset link has been sent to your email. Please check your inbox.');
       setEmail('');
     } catch (err: any) {
