@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../utils/supabase';
 
 const Signup: React.FC = () => {
-  const { user, loading: authLoading, register, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,10 +40,40 @@ const Signup: React.FC = () => {
     setLoading(true);
 
     try {
-      await register(name, email, password);
-      navigate('/login', {
-        state: { email, message: 'Account created successfully! Please sign in.' }
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+          },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
       });
+
+      if (signUpError) throw signUpError;
+
+      if (signUpError) throw signUpError;
+
+      // Check if session exists (auto-confirm is enabled) or email confirmation is required
+      if (data.session) {
+        // User requested no auto-login. Sign out immediately.
+        await supabase.auth.signOut();
+        navigate('/login', {
+          state: {
+            email,
+            message: "Account created successfully! Please sign in."
+          }
+        });
+      } else {
+        // Email confirmation required
+        navigate('/login', {
+          state: {
+            email,
+            message: "Account created! Please check your email to confirm."
+          }
+        });
+      }
     } catch (err: any) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create account.');
@@ -56,7 +87,14 @@ const Signup: React.FC = () => {
     setLoading(true);
 
     try {
-      await signInWithGoogle();
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (signInError) throw signInError;
     } catch (err: any) {
       console.error('Google signup error:', err);
       setError(err.message || 'Failed to sign up with Google');

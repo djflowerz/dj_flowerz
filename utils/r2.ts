@@ -1,17 +1,14 @@
+import { supabase } from './supabase';
+
 /**
- * Utility for fetching and syncing data from Cloudflare R2 via Workers.
- * Auth is now handled by Clerk — see setClerkToken() below.
+ * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
 export const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev').trim();
 const VITE_R2_URL = (import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL).trim();
 
-// Module-level Clerk token slot. AuthContext sets this after sign-in.
-let _clerkToken: string | null = null;
-export function setClerkToken(token: string | null) { _clerkToken = token; }
-
-export async function getAuthHeader(): Promise<Record<string, string>> {
-    if (_clerkToken) return { 'Authorization': `Bearer ${_clerkToken}` };
-    return {};
+export async function getAuthHeader() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
 }
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {

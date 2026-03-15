@@ -29,16 +29,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
-import { ClerkProvider } from '@clerk/react';
-
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing Publishable Key");
-}
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -111,54 +104,52 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <AuthProvider>
-        <DataProvider>
-          <CartProvider>
-            <PlayerProvider>
-              <Router>
-                <ScrollToTop />
-                <Toaster position="top-right" richColors closeButton theme="dark" />
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/mixtapes" element={<Mixtapes />} />
-                    <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
-                    <Route path="/music-pool" element={<MusicPool />} />
-                    <Route path="/store" element={<Store />} />
-                    <Route path="/store/:slug" element={<ProductDetails />} />
-                    <Route path="/cart" element={<Cart />} />
-                    <Route path="/checkout" element={<Checkout />} />
-                    <Route path="/success" element={<Success />} />
-                    <Route path="/success/:id" element={<Success />} />
-                    <Route path="/bookings" element={<Bookings />} />
-                    <Route path="/recording-sessions" element={<RecordingSessions />} />
-                    <Route path="/sessions" element={<Sessions />} />
-                    <Route path="/tip-jar" element={<TipJar />} />
-                    <Route path="/contact" element={<Contact />} />
-                    <Route path="/about" element={<About />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/signup" element={<Signup />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/verify-email" element={<VerifyEmail />} />
-                    <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-                    {/* Admin — single page with tabs */}
-                    <Route path="/admin/*" element={
-                      <ErrorBoundary>
-                        <ProtectedRoute adminOnly>
-                          <AdminDashboard />
-                        </ProtectedRoute>
-                      </ErrorBoundary>
-                    } />
-                  </Routes>
-                </Layout>
-              </Router>
-            </PlayerProvider>
-          </CartProvider>
-        </DataProvider>
-      </AuthProvider>
-    </ClerkProvider>
+    <AuthProvider>
+      <DataProvider>
+        <CartProvider>
+          <PlayerProvider>
+            <Router>
+              <ScrollToTop />
+              <Toaster position="top-right" richColors closeButton theme="dark" />
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/mixtapes" element={<Mixtapes />} />
+                  <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
+                  <Route path="/music-pool" element={<MusicPool />} />
+                  <Route path="/store" element={<Store />} />
+                  <Route path="/store/:slug" element={<ProductDetails />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/success" element={<Success />} />
+                  <Route path="/success/:id" element={<Success />} />
+                  <Route path="/bookings" element={<Bookings />} />
+                  <Route path="/recording-sessions" element={<RecordingSessions />} />
+                  <Route path="/sessions" element={<Sessions />} />
+                  <Route path="/tip-jar" element={<TipJar />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+                  {/* Admin — single page with tabs */}
+                  <Route path="/admin/*" element={
+                    <ErrorBoundary>
+                      <ProtectedRoute adminOnly>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    </ErrorBoundary>
+                  } />
+                </Routes>
+              </Layout>
+            </Router>
+          </PlayerProvider>
+        </CartProvider>
+      </DataProvider>
+    </AuthProvider>
   );
 };
 
