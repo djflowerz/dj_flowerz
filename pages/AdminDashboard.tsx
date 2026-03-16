@@ -3131,7 +3131,9 @@ const AdminDashboard: React.FC = () => {
                                                 <span className="text-white font-black text-base">
                                                    {p.type === 'digital' ? <Infinity size={18} className="text-gray-600" /> : (
                                                       (p.variantGroups && p.variantGroups.length > 0) ? (
-                                                         p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                                         (p.variantGroups && Array.isArray(p.variantGroups)) 
+                                                            ? p.variantGroups.reduce((acc, g) => acc + (g.variants || []).reduce((vAcc, v) => vAcc + (v.stock || 0), 0), 0)
+                                                            : 0
                                                       ) : (p.stock || 0)
                                                    )}
                                                 </span>

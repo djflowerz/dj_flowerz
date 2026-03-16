@@ -345,6 +345,17 @@ const mapR2Generic = (item: any): any => ({
   updatedAt: item.updatedAt || item.updated_at
 });
 
+const safeJsonParse = (val: any, fallback: any = []) => {
+  if (!val) return fallback;
+  if (typeof val !== 'string') return Array.isArray(val) ? val : fallback;
+  try {
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 const mapR2Product = (p: any): Product => {
   try {
     const images = Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []);
@@ -363,7 +374,7 @@ const mapR2Product = (p: any): Product => {
       price: Number(p.price !== undefined ? p.price : 0),
       discountPrice: p.discount_price !== undefined ? Number(p.discount_price) : (p.discountPrice !== undefined ? Number(p.discountPrice) : undefined),
       compareAtPrice: p.compare_at_price !== undefined ? Number(p.compare_at_price) : (p.compareAtPrice !== undefined ? Number(p.compareAtPrice) : undefined),
-      variantGroups: p.variant_groups || p.variantGroups || [],
+      variantGroups: safeJsonParse(p.variant_groups || p.variantGroups),
       variants: Array.isArray(p.variants) ? p.variants.map((v: any) => typeof v === 'string' ? v : (v?.name || '')) : [],
       stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
       tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()) : (p.tag_list ? String(p.tag_list).split(',').map((t: string) => t.trim()) : [])),
@@ -376,7 +387,10 @@ const mapR2Product = (p: any): Product => {
       meta_description: p.meta_description || p.metaDescription || '',
       meta_keywords: p.meta_keywords || '',
       whatsappEnabled: Boolean(p.whatsapp_enabled !== undefined ? p.whatsapp_enabled : (p.whatsappEnabled !== undefined ? p.whatsappEnabled : true)),
-      requiresShipping: Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : false))
+      requiresShipping: Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : false)),
+      technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails),
+      hotspots: safeJsonParse(p.hotspots),
+      useCases: safeJsonParse(p.use_cases || p.useCases)
     };
   } catch (err) {
     console.error("[DataContext] Error mapping product:", p, err);
