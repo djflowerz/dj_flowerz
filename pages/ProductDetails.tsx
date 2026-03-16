@@ -41,10 +41,10 @@ export default function ProductDetails() {
       setSelectedImage(foundProduct.image || foundProduct.image_url);
 
       // Initialize variant selection
-      if (foundProduct.variantGroups?.length) {
+      if (foundProduct.variantGroups && Array.isArray(foundProduct.variantGroups)) {
         const initialVariants: Record<string, string> = {};
         foundProduct.variantGroups.forEach(group => {
-          if (group.options?.length) {
+          if (group && group.options && Array.isArray(group.options) && group.options.length > 0) {
             initialVariants[group.name] = group.options[0];
           }
         });
@@ -167,9 +167,14 @@ export default function ProductDetails() {
   }
 
   const activePriceVar = currentVariant || product;
+  const displayPrice = (activePriceVar.discountPrice || activePriceVar.price || product.price) || 0;
   const originalPrice = activePriceVar.compareAtPrice || (activePriceVar.discountPrice ? activePriceVar.price : product.compareAtPrice);
-  const displayPrice = activePriceVar.discountPrice || activePriceVar.price || product.price;
   const hasDiscount = !!(activePriceVar.discountPrice || activePriceVar.compareAtPrice);
+
+  const formatPrice = (p: any) => {
+    if (p === undefined || p === null) return '0';
+    return Number(p).toLocaleString();
+  };
 
   const galleryImages = (product.images && product.images.length > 0)
     ? product.images
@@ -251,9 +256,9 @@ export default function ProductDetails() {
                 <div className="flex flex-col pt-4">
                   <span className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Current Valuation</span>
                   <div className="flex items-baseline gap-4">
-                    <span className="text-5xl text-white font-black tracking-tighter">KSh {displayPrice.toLocaleString()}</span>
+                    <span className="text-5xl text-white font-black tracking-tighter">KSh {formatPrice(displayPrice)}</span>
                     {originalPrice && originalPrice > displayPrice && (
-                      <span className="text-xl text-gray-700 line-through font-bold">KSh {originalPrice.toLocaleString()}</span>
+                      <span className="text-xl text-gray-700 line-through font-bold">KSh {formatPrice(originalPrice)}</span>
                     )}
                   </div>
                 </div>
@@ -386,7 +391,7 @@ export default function ProductDetails() {
               <div className="grid md:grid-cols-3 gap-8 md:gap-12 items-center">
                 <div className="text-center p-8 bg-white/[0.02] rounded-3xl opacity-40 border border-white/5 transition-all hover:opacity-100">
                   <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">Lite Variant</h4>
-                  <div className="text-2xl text-white font-black mb-6">KSh {(displayPrice * 0.7).toLocaleString()}</div>
+                  <div className="text-2xl text-white font-black mb-6">KSh {formatPrice(displayPrice * 0.7)}</div>
                   <div className="space-y-3 text-[10px] text-gray-500 uppercase font-black tracking-widest">
                     <p>Standard Core</p>
                     <p>Basic Finish</p>
@@ -396,7 +401,7 @@ export default function ProductDetails() {
                 <div className="text-center p-12 bg-brand-purple/10 rounded-[2.5rem] border border-brand-purple/40 ring-1 ring-brand-purple/30 relative scale-105 md:scale-110 shadow-2xl backdrop-blur-md">
                   <span className="absolute -top-4 left-1/2 -translate-x-1/2 bg-brand-purple text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest whitespace-nowrap">Master Selection</span>
                   <h4 className="text-brand-purple uppercase tracking-widest text-[10px] mb-4 font-black">{product.name}</h4>
-                  <div className="text-4xl text-white font-black mb-8">KSh {displayPrice.toLocaleString()}</div>
+                  <div className="text-4xl text-white font-black mb-8">KSh {formatPrice(displayPrice)}</div>
                   <div className="space-y-4 text-xs text-white font-bold uppercase tracking-widest leading-relaxed">
                     <p>Pro-Series Core</p>
                     <p>Ultra-Fast Performance</p>
@@ -406,7 +411,7 @@ export default function ProductDetails() {
                 </div>
                 <div className="text-center p-8 bg-white/[0.02] rounded-3xl opacity-40 border border-white/5 transition-all hover:opacity-100">
                   <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">Elite Edition</h4>
-                  <div className="text-2xl text-white font-black mb-6">KSh {(displayPrice * 1.5).toLocaleString()}</div>
+                  <div className="text-2xl text-white font-black mb-6">KSh {formatPrice(displayPrice * 1.5)}</div>
                   <div className="space-y-3 text-[10px] text-gray-500 uppercase font-black tracking-widest">
                     <p>Elite Max Core</p>
                     <p>Liquid Nitro Cooling</p>
@@ -498,7 +503,7 @@ export default function ProductDetails() {
                   </div>
                   <h4 className="text-white text-sm font-black uppercase tracking-widest mb-3 line-clamp-1 group-hover:text-brand-purple transition-colors">{related.name}</h4>
                   <div className="flex justify-between items-center">
-                    <p className="text-brand-purple font-black text-lg">KSh {related.price.toLocaleString()}</p>
+                    <p className="text-brand-purple font-black text-lg">KSh {formatPrice(related.price)}</p>
                     <Plus className="w-5 h-5 text-gray-500 group-hover:text-brand-purple group-hover:rotate-90 transition-all" />
                   </div>
                 </Link>

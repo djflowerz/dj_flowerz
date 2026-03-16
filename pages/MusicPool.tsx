@@ -133,19 +133,19 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
   const currentVersion = track.versions[selectedVersionIdx] || track.versions[0];
 
   return (
-    <div className={`group relative transition-all duration-300 ${isLocked ? 'opacity-75' : ''}`}>
+    <div className="group relative transition-all duration-300">
       <div className="bg-[#15151A] border border-white/5 rounded-3xl p-6 flex flex-col lg:flex-row lg:items-center gap-6 hover:border-white/10 hover:bg-[#1a1a22] transition-all">
         {/* Track Main Info */}
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <div 
-            className={`relative group shrink-0 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-            onClick={() => !isLocked && onPlay(track, currentVersion.id)}
+            className="relative group shrink-0 cursor-pointer"
+            onClick={() => onPlay(track, currentVersion.id)}
           >
-            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors">
-              <img src={track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className={`w-full h-full object-cover transition-transform duration-700 ${!isLocked && 'group-hover:scale-110'} ${isLocked ? 'grayscale' : ''}`} alt={track.title} />
+            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors text-white">
+              <img src={track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={track.title} />
             </div>
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl backdrop-blur-[2px]">
-              {isLocked ? <Lock size={20} className="text-gray-400" /> : isPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white fill-current" />}
+              {isPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white fill-current" />}
             </div>
           </div>
           
@@ -168,30 +168,33 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-4">
-          {isLocked ? (
-            <div className="bg-brand-purple/10 border border-brand-purple/20 px-6 py-3 rounded-2xl flex flex-col items-center">
-              <p className="text-[10px] font-black text-brand-purple uppercase tracking-[0.2em]">Subscriber Area</p>
-              <p className="text-[9px] text-gray-500 mt-1 uppercase font-bold">Upgrade for Access</p>
+          {/* Version Selector */}
+          {track.versions && track.versions.length > 1 && (
+            <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 self-center">
+              {track.versions.map((v: any, idx: number) => (
+                <button
+                  key={v.id}
+                  onClick={() => setSelectedVersionIdx(idx)}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${idx === selectedVersionIdx ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                >
+                  {v.type || v.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <>
-              {/* Version Selector */}
-              {track.versions && track.versions.length > 1 && (
-                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 self-center">
-                  {track.versions.map((v: any, idx: number) => (
-                    <button
-                      key={v.id}
-                      onClick={() => setSelectedVersionIdx(idx)}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${idx === selectedVersionIdx ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      {v.type || v.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+          )}
 
-              {/* Download Buttons */}
-              <div className="flex items-center gap-2">
+          {/* Download Buttons */}
+          <div className="flex items-center gap-2">
+            {isLocked ? (
+              <a 
+                href="#plans"
+                className="bg-white/5 hover:bg-white/10 text-brand-purple px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-brand-purple/30 transition-all flex items-center gap-2"
+              >
+                <Lock size={14} />
+                Join to Download
+              </a>
+            ) : (
+              <>
                 <button 
                   onClick={() => onDownload(track, currentVersion.id)}
                   className="bg-brand-purple text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
@@ -205,9 +208,9 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
                 >
                   <Package size={18} className="text-gray-400 group-hover/bulk:text-brand-cyan transition-colors" />
                 </button>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -216,11 +219,10 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
 
 export default function MusicPool() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const isSubscriber = !!user?.publicMetadata?.subscriptionPlan || isAdmin;
+  const isAdmin = user?.role === 'admin' || user?.isAdmin;
+  const isSubscriber = user?.isSubscriber || isAdmin;
 
-  const [poolTracks, setPoolTracks] = useState<Track[]>([]);
-  const [poolLoading, setPoolLoading] = useState(true);
+  const { poolTracks, poolLoading } = useData();
   const [usage, setUsage] = useState({ limit: 0, count: 0 });
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeHub, setActiveHub] = useState('All Hubs');
@@ -229,36 +231,45 @@ export default function MusicPool() {
   const [player, setPlayer] = useState<PlayerState>({ track: null, isPlaying: false });
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const fetchGatedPool = useCallback(async () => {
-    setPoolLoading(true);
-    const poolResult = await fetchPoolTracks();
-    if (poolResult.isAuthorized || isAdmin) {
-      setPoolTracks(groupTracks(poolResult.tracks));
-      setUsage({
-        limit: isAdmin ? 999999 : (poolResult.downloadLimit || 0),
-        count: poolResult.downloadsCount || 0
-      });
-    } else {
-      // If not authorized, we still want to show a preview if possible
-      // But the groupTracks logic expects authenticated data
-      setPoolTracks(groupTracks(poolResult.tracks || []));
-    }
-    setPoolLoading(false);
-  }, [isAdmin]);
-
+  // Sync usage stats if available
   useEffect(() => {
-    fetchGatedPool();
-  }, [fetchGatedPool]);
+    if (user) {
+      const getLimit = (plan?: string) => {
+        if (isAdmin) return 999999;
+        switch (plan) {
+          case 'yearly':
+          case '6months':
+          case '3months':
+            return 200;
+          case 'monthly':
+            return 100;
+          case 'weekly':
+            return 50;
+          case 'trial':
+            return 5;
+          default:
+            return 0;
+        }
+      };
 
-  // Derived filtered tracks
+      setUsage({
+        limit: getLimit(user.subscriptionPlan as string),
+        count: user.subscriptionPlan === 'trial' ? (user.downloadCountTotal || 0) : (user.downloadsToday || 0)
+      });
+    }
+  }, [user, isAdmin]);
+
+  // Derived tracks - poolTracks from useData is already mapped/grouped by groupTracks or mapR2Track
   const filteredTracks = useMemo(() => {
-    let list = poolTracks;
+    if (!poolTracks) return [];
+    
+    let list = [...poolTracks];
     
     if (filters.search) {
       const q = normalise(filters.search);
       list = list.filter(t => 
-        normalise(t.title).includes(q) || 
-        normalise(t.artist).includes(q)
+        (t.title && normalise(t.title).includes(q)) || 
+        (t.artist && normalise(t.artist).includes(q))
       );
     }
 
@@ -318,6 +329,10 @@ export default function MusicPool() {
     
     if (url) {
       if (!isAdmin) {
+        if (usage.count >= usage.limit) {
+          toast.error(`Daily download limit reached (${usage.limit}). Please upgrade or wait for refresh.`);
+          return;
+        }
         const ok = await trackPoolDownload(track.id);
         if (!ok) return;
         setUsage(u => ({ ...u, count: u.count + 1 }));
@@ -328,7 +343,7 @@ export default function MusicPool() {
       a.click();
       toast.success(`Downloading ${track.title}`);
     }
-  }, [user, isSubscriber, isAdmin]);
+  }, [user, isSubscriber, isAdmin, usage]);
 
   return (
     <div className="bg-[#0B0B0F] min-h-screen">
@@ -408,22 +423,51 @@ export default function MusicPool() {
           </div>
 
           <div className="relative">
-            {!isSubscriber && poolTracks.length > 0 && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#0B0B0F]/40 backdrop-blur-[2px] rounded-[2.5rem]">
-                <div className="bg-[#15151A] p-8 md:p-12 rounded-[2.5rem] border border-brand-purple/30 shadow-2xl flex flex-col items-center text-center max-w-lg mx-6 group/lock">
-                  <div className="w-20 h-20 rounded-3xl bg-brand-purple/10 flex items-center justify-center mb-6 border border-brand-purple/20 group-hover/lock:scale-110 transition-transform duration-500">
-                    <Lock size={36} className="text-brand-purple" />
-                  </div>
-                  <h4 className="text-white font-black text-2xl mb-4 uppercase tracking-tighter">Terminal Locked</h4>
-                  <p className="text-gray-400 text-sm mb-8 leading-relaxed">Unlock full access to browse, preview, and download from the industry's most advanced DJ arsenal.</p>
-                  <a href="#plans" className="bg-brand-purple text-white px-10 py-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-brand-purple/30 hover:shadow-brand-purple/50 hover:-translate-y-1 transition-all">
-                    Unlock Unlimited Access
-                  </a>
-                </div>
-              </div>
+            {!isSubscriber && (
+               <div className="mb-10 bg-brand-purple/10 border border-brand-purple/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-brand-purple/20 flex items-center justify-center">
+                       <Lock size={20} className="text-brand-purple" />
+                    </div>
+                    <div className="text-left">
+                       <h4 className="text-white font-bold text-sm uppercase tracking-tight">Browse Mode Active</h4>
+                       <p className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Subscribe to download from the full arsenal</p>
+                    </div>
+                 </div>
+                 <a href="#plans" className="bg-brand-purple text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition-all">
+                   Unlock Full Access
+                 </a>
+               </div>
             )}
 
-            <div className={`space-y-4 ${!isSubscriber ? 'blur-[8px] pointer-events-none select-none' : ''}`}>
+            {isSubscriber && !isAdmin && (
+               <div className="mb-10 flex flex-wrap items-center justify-between gap-6 px-2">
+                 <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl border ${usage.count >= usage.limit ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
+                       <Fuel size={20} />
+                    </div>
+                    <div>
+                       <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Usage Status</p>
+                       <div className="flex items-baseline gap-2">
+                          <span className="text-white font-black text-xl">{usage.count}</span>
+                          <span className="text-gray-600 text-sm font-bold">/ {usage.limit}</span>
+                       </div>
+                    </div>
+                 </div>
+                 
+                 <div className="flex-1 max-w-[400px]">
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                       <motion.div 
+                          className={`h-full ${usage.count >= usage.limit ? 'bg-red-500' : 'bg-brand-purple'}`}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min((usage.count / usage.limit) * 100, 100)}%` }}
+                       />
+                    </div>
+                 </div>
+               </div>
+            )}
+
+            <div className="space-y-4">
                {poolLoading ? (
                  <div className="py-32 flex flex-col items-center justify-center text-gray-500">
                    <div className="w-16 h-16 border-4 border-brand-purple border-t-transparent rounded-full animate-spin mb-8"></div>

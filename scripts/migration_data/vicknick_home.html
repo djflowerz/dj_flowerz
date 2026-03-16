@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Video Pool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root { --sidebar-width: 260px; }
+html, body {
+  margin:0;
+  height:100%;
+  background:#0b0b0b;
+  color:#fff;
+  font-family:system-ui;
+  overflow:hidden;
+}
+.sidebar {
+  position:fixed;
+  top:0;
+  left:0;
+  width:var(--sidebar-width);
+  height:100vh;
+  background:#111;
+  padding:20px;
+  border-right:1px solid #222;
+  overflow-y:auto;
+  box-sizing:border-box;
+  z-index:10;
+}
+.sidebar select {
+  width:100%;
+  padding:10px;
+  margin-bottom:12px;
+  border-radius:6px;
+  border:none;
+}
+.content {
+  margin-left:var(--sidebar-width);
+  height:100vh;
+  overflow-y:auto;
+  padding:20px;
+  box-sizing:border-box;
+}
+h1 { text-align:center; margin-bottom:20px; }
+.search { max-width:420px; margin:0 auto 20px; display:block; padding:12px; border-radius:6px; border:none; }
+.track { background:#151515; border-radius:8px; padding:12px; margin-bottom:12px; transition:.2s; }
+.title { font-weight:bold; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.badge { background:#1e90ff; font-size:10px; padding:2px 6px; border-radius:4px; }
+.meta { font-size:12px; opacity:.7; margin-bottom:6px; }
+.versions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+button.play, button.download, button.downloadAll {
+  background:#1e90ff;
+  color:#fff;
+  border:none;
+  padding:6px 10px;
+  border-radius:5px;
+  cursor:pointer;
+  font-weight:bold;
+}
+button.downloadAll { background:#ff9800; }
+.player video, .player audio {
+  width:100%;
+  max-width:360px;
+  margin-top:8px;
+}
+.pagination {
+  text-align:center;
+  margin:20px 0;
+  font-size:13px;
+  opacity:.8;
+}
+.pagination button {
+  background:#1e90ff;
+  border:none;
+  color:#fff;
+  padding:6px 10px;
+  margin:0 6px;
+  border-radius:5px;
+  cursor:pointer;
+}
+.pagination button:disabled {
+  opacity:.4;
+  cursor:not-allowed;
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <select id="yearFilter">
+    <option value="">Select Folder</option>
+  </select>
+  <select id="monthFilter" disabled>
+    <option value="">Select Subfolder</option>
+  </select>
+</div>
+
+<div class="content">
+  <h1>New Releases · Old Releases · Genre Sorted Music</h1>
+  <input id="search" class="search" placeholder="Search tracks…" />
+  <div id="list"></div>
+  <div class="pagination">
+    <span id="pageInfo"></span><br>
+    <button id="prevBtn">Prev</button>
+    <button id="nextBtn">Next</button>
+  </div>
+</div>
+
+<script>
+const R2_BASE = "https://cdn.vicknickvideopool.com";
+const ALL_TRACKS = [{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Platform - Ushanitoka","version":"Single","normalizedTitle":"platform ushanitoka","fileName":"Platform - Ushanitoka (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Platform - Ushanitoka (Single).mp4","uploaded":"2026-03-15T22:51:00.412Z","uploadedTime":1773615060412,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Peter Miracle Baby - Void","version":"Single","normalizedTitle":"peter miracle baby void","fileName":"Peter Miracle Baby - Void (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Peter Miracle Baby - Void (Single).mp4","uploaded":"2026-03-15T22:50:59.346Z","uploadedTime":1773615059346,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Platform - Banga","version":"Single","normalizedTitle":"platform banga","fileName":"Platform - Banga (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Platform - Banga (Single).mp4","uploaded":"2026-03-15T22:50:55.198Z","uploadedTime":1773615055198,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Rachael Ngigi - Tharuti","version":"Single","normalizedTitle":"rachael ngigi tharuti","fileName":"Rachael Ngigi - Tharuti (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Rachael Ngigi - Tharuti (Single).mp4","uploaded":"2026-03-15T22:50:53.731Z","uploadedTime":1773615053731,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Ni Ciumburane - Folk Fusion (Visualizer)","version":"Single","normalizedTitle":"ni ciumburane folk fusion","fileName":"Ni Ciumburane - Folk Fusion (Visualizer) (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Ni Ciumburane - Folk Fusion (Visualizer) (Single).mp4","uploaded":"2026-03-15T22:50:16.698Z","uploadedTime":1773615016698,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Patoranking & Buju Banton - African Soldier","version":"Single","normalizedTitle":"patoranking buju banton african soldier","fileName":"Patoranking & Buju Banton - African Soldier (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Patoranking & Buju Banton - African Soldier (Single).mp4","uploaded":"2026-03-15T22:49:40.671Z","uploadedTime":1773614980671,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Omarion - Fantasy","version":"Single","normalizedTitle":"omarion fantasy","fileName":"Omarion - Fantasy (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Omarion - Fantasy (Single).mp4","uploaded":"2026-03-15T22:49:25.239Z","uploadedTime":1773614965239,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Njerae - Ingia Ndani","version":"Single","normalizedTitle":"njerae ingia ndani","fileName":"Njerae - Ingia Ndani (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Njerae - Ingia Ndani (Single).mp4","uploaded":"2026-03-15T22:49:00.085Z","uploadedTime":1773614940085,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Otile Brown - Miss The Water","version":"Single","normalizedTitle":"otile brown miss the water","fileName":"Otile Brown - Miss The Water (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Otile Brown - Miss The Water (Single).mp4","uploaded":"2026-03-15T22:48:54.473Z","uploadedTime":1773614934473,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Nay Wa Mitego -  Watu","version":"Single","normalizedTitle":"nay wa mitego watu","fileName":"Nay Wa Mitego -  Watu (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Nay Wa Mitego -  Watu (Single).mp4","uploaded":"2026-03-15T22:48:04.541Z","uploadedTime":1773614884541,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Mr. Vee (The Spice) - Soldier","version":"Single","normalizedTitle":"mr vee soldier","fileName":"Mr. Vee (The Spice) - Soldier (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Mr. Vee (The Spice) - Soldier (Single).mp4","uploaded":"2026-03-15T22:47:36.150Z","uploadedTime":1773614856150,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Moji Shortbabaa - Ebeneza","version":"Single","normalizedTitle":"moji shortbabaa ebeneza","fileName":"Moji Shortbabaa - Ebeneza (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Moji Shortbabaa - Ebeneza (Single).mp4","uploaded":"2026-03-15T22:46:41.320Z","uploadedTime":1773614801320,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Mr. Vee [The Spice] - Soldier (Acoustic Version)","version":"Single","normalizedTitle":"mr vee soldier","fileName":"Mr. Vee [The Spice] - Soldier (Acoustic Version) (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Mr. Vee [The Spice] - Soldier (Acoustic Version) (Single).mp4","uploaded":"2026-03-15T22:46:37.773Z","uploadedTime":1773614797773,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Muringi - Maya Mothe","version":"Single","normalizedTitle":"muringi maya mothe","fileName":"Muringi - Maya Mothe (Single).mp4","key":"2026 VIDEO POOL EDITS/March 2026 Edits/Muringi - Maya Mothe (Single).mp4","uploaded":"2026-03-15T22:46:33.344Z","uploadedTime":1773614793344,"type":"video"},{"year":"2026 VIDEO POOL EDITS","month":"March 2026 Edits","baseTitle":"Likkle Addi & Vybz Kartel - Black Card","version":"Single","normalizedTitle":"likkle addi vybz kartel black card","fileName":"

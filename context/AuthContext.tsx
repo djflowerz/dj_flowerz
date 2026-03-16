@@ -95,7 +95,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
             updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
             referralCount: profile.referral_count || profile.referralCount || 0,
-            downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0
+            downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0,
+            downloadsToday: profile.downloads_today || profile.downloadsToday || 0,
+            lastDownloadDate: profile.last_download_date || profile.lastDownloadDate
           };
         } else {
           // Profile doesn't exist, create it in R2
