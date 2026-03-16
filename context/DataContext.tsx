@@ -648,7 +648,8 @@ const useCollection = <T extends { id: string }>(
   transform?: (data: any) => T,
   orderByField?: string,
   orderDirection: 'asc' | 'desc' = 'desc',
-  source: 'R2' | 'D1' = 'R2'
+  source: 'R2' | 'D1' = 'R2',
+  useAdminPath: boolean = false
 ) => {
   const tableName = getTableName(colName);
   const [data, setData] = useState<T[]>(initialData);
@@ -662,9 +663,11 @@ const useCollection = <T extends { id: string }>(
       let results: any[] = [];
       if (source === 'D1') {
         const authHeader = await getAuthHeader();
-        // Use /api/ prefix for public D1 collections and add timestamp to bypass cache
-        const response = await fetch(`${STORAGE_WORKER_URL}/api/${tableName}?t=${Date.now()}`, {
-          headers: authHeader
+        // Use /api/admin for dashboard/admin collections to bypass public cache/filters
+        const apiPrefix = useAdminPath ? '/api/admin' : '/api';
+        const response = await fetch(`${STORAGE_WORKER_URL}${apiPrefix}/${tableName}?t=${Date.now()}`, {
+          headers: authHeader,
+          cache: 'no-store'
         });
         if (response.ok) {
           const rawData = await response.json();
@@ -709,7 +712,7 @@ const useCollection = <T extends { id: string }>(
 
   useEffect(() => {
     fetchData();
-  }, [colName, enabled, orderByField, orderDirection]);
+  }, [colName, enabled, orderByField, orderDirection, useAdminPath]);
 
   const loadMore = () => { console.warn("loadMore not implemented"); };
   return [data, setData, isLoading, loadMore, error, fetchData] as const;
@@ -750,8 +753,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Public Collections (R2)
   // Public Collections
-  const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc', 'D1');
-  const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc', 'D1');
+  const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc', 'D1', isAdmin);
+  const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc', 'D1', isAdmin);
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc');
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapR2Generic, 'createdAt', 'desc');
   const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapR2Plan, 'price', 'asc');
@@ -824,8 +827,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, scannedTracks.length]);
 
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapR2Order, 'createdAt', 'desc', 'D1');
-  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapR2User, 'createdAt', 'desc', 'D1');
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapR2Order, 'createdAt', 'desc', 'D1', isAdmin);
+  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapR2User, 'createdAt', 'desc', 'D1', isAdmin);
 
   // Auto-deduplicate users by email
   useEffect(() => {
@@ -854,32 +857,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, users.length]);
 
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc', 'D1');
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc');
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc', 'D1', isAdmin);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc', 'R2', isAdmin);
 
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapR2StudioRoom, 'createdAt', 'desc');
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapR2MaintenanceLog, 'createdAt', 'desc');
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc');
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc');
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1');
-  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc');
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1');
-  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc');
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc');
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc');
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapR2StudioRoom, 'createdAt', 'desc', 'R2', isAdmin);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapR2MaintenanceLog, 'createdAt', 'desc', 'R2', isAdmin);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc', 'R2', isAdmin);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc', 'R2', isAdmin);
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
+  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
+  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
 
   // NEW collections for Admin Dashboard
-  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc');
-  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc');
+  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc', 'R2', isAdmin);
+  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc', 'R2', isAdmin);
 
-  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc');
-  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc');
-  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc');
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapR2Generic, 'createdAt', 'desc');
+  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc', 'R2', isAdmin);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
 
-  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc');
-  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc');
-  const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc');
+  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'R2', isAdmin);
+  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'R2', isAdmin);
+  const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });

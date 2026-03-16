@@ -489,7 +489,7 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Accessories', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false
+   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Accessories', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false, technicalDetails: [], hotspots: [], useCases: []
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -5263,6 +5263,9 @@ const AdminDashboard: React.FC = () => {
                      )}
                      <button onClick={() => setProductFormTab('images')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'images' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                         <ImageIcon size={14} /> Images
+                     </button>
+                     <button onClick={() => setProductFormTab('advanced')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'advanced' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <Settings size={14} /> Advanced
                      </button>
                   </div>
 

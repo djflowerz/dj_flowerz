@@ -136,9 +136,8 @@ export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DEL
     try {
         const authHeader = await getAuthHeader();
 
-        // All write operations go to /api/ — the worker handles products/mixtapes at these routes.
-        // NOTE: Previously this used /api/admin/ for products/mixtapes but those handlers don't exist.
-        const basePath = '/api';
+        // All write operations go to /api/admin — the worker handles products/mixtapes at these routes.
+        const basePath = '/api/admin';
 
         const endpoint = id ? `${STORAGE_WORKER_URL}${basePath}/${collection}/${id}` : `${STORAGE_WORKER_URL}${basePath}/${collection}`;
 

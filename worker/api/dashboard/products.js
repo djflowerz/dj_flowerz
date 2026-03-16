@@ -49,9 +49,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             
             // Map frontend fields to D1 schema
             const status = body.status || (body.isActive === false || body.is_active === false ? 'draft' : 'active');
-            const compareAtPrice = body.compare_at_price || body.compareAtPrice || body.discount_price || body.discountPrice || null;
-            const releaseDate = body.release_date || body.releaseDate || null;
-            const logistics = body.logistics || body.standard_logistics || null;
+            const compareAtPrice = body.compareAtPrice || body.compare_at_price || body.discountPrice || body.discount_price || null;
+            const releaseDate = body.releaseDate || body.release_date || null;
+            const logistics = body.logistics || body.standard_logistics || (body.requiresShipping ? 'Standard Logistics' : null);
             const description = body.description || body.short_description || null;
             const image = body.image || body.image_url || null;
             const category = body.category || body.category_id || 'Uncategorized';
