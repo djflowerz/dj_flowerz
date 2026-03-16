@@ -312,9 +312,12 @@ const mapR2Track = (t: any): Track => {
     return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
   };
 
-  const versions = (t.versions || []).map((v: any) => ({
+  const versions = safeJsonParse(t.versions, []).map((v: any) => ({
     ...v,
-    downloadUrl: ensureAbsolute(v.downloadUrl || v.download_url)
+    id: String(v.id || Math.random().toString(36).substr(2, 9)),
+    type: String(v.type || v.label || 'Main'),
+    label: String(v.label || v.type || 'Main'),
+    downloadUrl: ensureAbsolute(v.previewUrl || v.preview_url || v.downloadUrl || v.download_url)
   }));
 
   // Robustly handle URLs - prioritizing streamable content
@@ -448,6 +451,7 @@ const mapR2Mixtape = (m: any): Mixtape => {
       isExclusive: Boolean(m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive),
       createdAt: m.created_at || m.createdAt,
       updatedAt: m.updated_at || m.updatedAt,
+      tracklist: safeJsonParse(m.tracklist || m.track_list, []),
       tags: Array.isArray(m.tags) ? m.tags : (typeof m.tags === 'string' ? m.tags.split(',').map((t: string) => t.trim()) : [])
     };
   } catch (err) {
