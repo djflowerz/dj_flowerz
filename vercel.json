@@ -66,7 +66,7 @@
         },
         {
             "source": "/api/(.*)",
-            "destination": "/api/$1"
+            "destination": "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/$1"
         },
         {
             "source": "/(.*)",
