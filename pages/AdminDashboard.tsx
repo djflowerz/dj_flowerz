@@ -507,7 +507,7 @@ const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, descript
 
 
 
-const WORKER_URL = 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
 
 const AdminDashboard: React.FC = () => {
    const { user, loading, logout } = useAuth();

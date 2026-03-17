@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
 
 export function useAdminApi() {
     const { user } = useAuth();

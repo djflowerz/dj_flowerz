@@ -15,7 +15,7 @@ export async function handleStorefrontOrders(request, env) {
             INSERT INTO orders (
                 id, customer_email, customer_name, 
                 total_amount, status, payment_status, payment_method,
-                items, shipping_address, phone_number, created_at, updated_at
+                items, address, customer_phone, created_at, updated_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
