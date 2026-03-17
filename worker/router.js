@@ -17,6 +17,7 @@ export class Router {
     get(path, handler) { this.add('GET', path, handler); }
     post(path, handler) { this.add('POST', path, handler); }
     put(path, handler) { this.add('PUT', path, handler); }
+    patch(path, handler) { this.add('PATCH', path, handler); }
     delete(path, handler) { this.add('DELETE', path, handler); }
 
     async handle(request, env, ctx) {
