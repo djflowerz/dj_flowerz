@@ -40,7 +40,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             const { results } = await env.DB.prepare(`
                 SELECT * FROM products 
                 WHERE status = 'active'
-                ORDER BY createdAt DESC
+                ORDER BY created_at DESC
             `).all();
 
             const mappedResults = await Promise.all(results.map(async (p) => {

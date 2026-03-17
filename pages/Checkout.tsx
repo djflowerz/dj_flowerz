@@ -148,10 +148,20 @@ export default function Checkout() {
         created_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from('orders').insert([orderData]);
+      const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      });
 
-      if (error) {
-        toast.error('Failed to place order: ' + error.message);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to place order');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        toast.error('Failed to place order: ' + (result.error || 'Unknown error'));
         return;
       }
 

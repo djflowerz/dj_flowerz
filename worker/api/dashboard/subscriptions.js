@@ -100,6 +100,51 @@ export async function handleDashboardSubscriptions(request, env) {
             });
         }
 
+        // --- Subscription Plans ---
+        if (url.pathname === '/api/admin/subscription_plans') {
+            if (method === 'GET') {
+                const { results } = await env.DB.prepare(
+                    `SELECT * FROM subscription_plans ORDER BY price ASC`
+                ).all();
+                const formatted = results.map(p => ({
+                    ...p,
+                    features: p.features ? JSON.parse(p.features) : []
+                }));
+                return Response.json(formatted);
+            }
+            if (method === 'POST') {
+                const data = await request.json();
+                const id = data.id || `plan_${Date.now()}`;
+                await env.DB.prepare(`
+                    INSERT INTO subscription_plans (id, name, price, period, features, link, active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, data.name, data.price, data.period, JSON.stringify(data.features || []), data.link, data.active !== false ? 1 : 0).run();
+                return Response.json({ success: true, id });
+            }
+        }
+
+        if (url.pathname.startsWith('/api/admin/subscription_plans/')) {
+            const id = url.pathname.split('/').pop();
+            if (method === 'PATCH' || method === 'PUT') {
+                const data = await request.json();
+                await env.DB.prepare(`
+                    UPDATE subscription_plans 
+                    SET name = COALESCE(?, name), 
+                        price = COALESCE(?, price), 
+                        period = COALESCE(?, period), 
+                        features = COALESCE(?, features), 
+                        link = COALESCE(?, link), 
+                        active = COALESCE(?, active)
+                    WHERE id = ?
+                `).bind(data.name, data.price, data.period, data.features ? JSON.stringify(data.features) : null, data.link, data.active !== undefined ? (data.active ? 1 : 0) : null, id).run();
+                return Response.json({ success: true });
+            }
+            if (method === 'DELETE') {
+                await env.DB.prepare(`DELETE FROM subscription_plans WHERE id = ?`).bind(id).run();
+                return Response.json({ success: true });
+            }
+        }
+
         return new Response(JSON.stringify({ error: 'Not found' }), {
             status: 404,
             headers: { 'Content-Type': 'application/json' }

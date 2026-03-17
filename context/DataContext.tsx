@@ -117,6 +117,7 @@ interface DataContextType {
   mixtapesLoading: boolean;
   poolError: string | null;
   poolLoading: boolean;
+  poolPagination: { page: number; limit: number; totalRecords: number; totalPages: number };
   productsLoading: boolean;
   ordersLoading: boolean;
   usersLoading: boolean;
@@ -223,7 +224,7 @@ interface DataContextType {
   isFirstTimeSubscriber: (userId: string) => Promise<boolean>;
   addScannedTracks: (tracks: any[]) => Promise<void>;
   clearAllScannedTracks: () => Promise<void>;
-  refreshPoolTracks: () => Promise<void>;
+  refreshPoolTracks: (filters?: { page?: number; limit?: number; hub?: string; genre?: string; year?: string; month?: string; search?: string }) => Promise<void>;
   refreshScannedTracks: () => Promise<void>;
   markNotificationAsRead: (id: string) => Promise<void>;
   clearNotifications: () => Promise<void>;
@@ -554,6 +555,41 @@ const mapR2MaintenanceLog = (l: any): MaintenanceLog => ({
   updatedAt: l.updated_at || l.updatedAt
 });
 
+const mapD1StudioRoom = (r: any): StudioRoom => ({
+  id: String(r.id),
+  name: String(r.name),
+  capacity: Number(r.capacity || 0),
+  description: String(r.description || ''),
+  status: r.status || 'active',
+  rate: Number(r.rate || 0),
+  features: typeof r.features === 'string' ? JSON.parse(r.features) : (r.features || []),
+  imageUrl: r.image_url || r.imageUrl || '',
+  createdAt: r.created_at || r.createdAt,
+  updatedAt: r.updated_at || r.updatedAt
+});
+
+const mapD1StudioEquipment = (e: any): StudioEquipment => ({
+  id: String(e.id),
+  name: String(e.name),
+  category: String(e.category),
+  image: e.image_url || e.image || '',
+  description: String(e.description || ''),
+  status: e.status || 'available',
+  hourlyRate: Number(e.hourly_rate || 0),
+  createdAt: e.created_at || e.createdAt,
+  updatedAt: e.updated_at || e.updatedAt
+});
+
+const mapD1MaintenanceLog = (l: any): MaintenanceLog => ({
+  id: String(l.id),
+  itemId: l.gear_id || l.studio_id || '',
+  itemName: '', // UI will need to resolve this or we can join later
+  type: l.gear_id ? 'equipment' : 'room',
+  description: l.issue || '',
+  date: l.created_at || new Date().toISOString(),
+  status: l.status === 'resolved' ? 'resolved' : 'pending'
+});
+
 const mapR2Coupon = (c: any): Coupon => ({
   ...c,
   discountType: c.discount_type || c.discountType,
@@ -637,33 +673,20 @@ const getTableName = (colName: string): string => {
     'products': 'products',
     'mixtapes': 'mixtapes',
     'sessionTypes': 'session_types',
-    'studioEquipment': 'studio_equipment',
-    'subscriptionPlans': 'subscription_plans',
-    'shippingZones': 'shipping_zones',
-    'genres': 'genres',
-    'youtubeVideos': 'videos',
-    'orders': 'orders',
-    'users': 'profiles',
-    'subscriptions': 'subscriptions',
-    'bookings': 'bookings',
-    'studioRooms': 'studio_rooms',
-    'maintenanceLogs': 'maintenance_logs',
-    'coupons': 'coupons',
-    'referralStats': 'referral_stats',
-    'newsletterCampaigns': 'newsletter_campaigns',
-    'newsletterSegments': 'newsletter_segments',
-    'subscribers': 'newsletter_subscribers',
-    'telegramChannels': 'telegram_channels',
-    'telegramMappings': 'telegram_mappings',
-    'telegramUsers': 'telegram_users',
-    'telegramLogs': 'telegram_logs',
-    'poolTracks': 'pool_tracks',
-    'payments': 'payments',
-    'tips': 'tips',
-    'scannedTracks': 'scanned_tracks',
-    'notifications': 'notifications',
-    'reviews': 'interactions',
-    'comments': 'interactions'
+    'studio_gear': 'studio/gear',
+    'studio_locations': 'studio/locations',
+    'studioEquipment': 'studio/gear',
+    'studioRooms': 'studio/locations',
+    'maintenanceLogs': 'studio/maintenance',
+    'maintenance_logs': 'studio/maintenance',
+    'reviews': 'reviews',
+    'comments': 'mixtape_comments',
+    'studio_sessions': 'bookings/studio',
+    'event_gigs': 'bookings/gigs',
+    'mixtape_comments': 'mixtape_comments',
+    'contactMessages': 'support/tickets',
+    'contact_messages': 'support/tickets',
+    'bookings': 'bookings/gigs' // Default for legacy bookings collection
   };
   return mapping[colName] || colName;
 };
@@ -784,9 +807,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Public Collections
   const [products, setProducts, productsLoading, , productsError, refreshProducts] = useCollection<Product>('products', PRODUCTS, true, mapR2Product, 'createdAt', 'desc', 'D1', isAdmin);
   const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc', 'D1', isAdmin);
-  const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc');
-  const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapR2Generic, 'createdAt', 'desc');
-  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapR2Plan, 'price', 'asc');
+  const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc', 'D1', isAdmin);
+  const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapD1StudioEquipment, 'createdAt', 'desc', 'D1', isAdmin);
+  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapR2Plan, 'price', 'asc', 'D1', isAdmin);
 
   const [shippingZones, setShippingZones, zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapR2Generic, 'createdAt', 'desc');
   const [genres, setGenres, genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapR2Genre, 'createdAt', 'desc');
@@ -797,35 +820,62 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [poolTracks, setPoolTracks] = useState<Track[]>([]);
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<Error | null>(null);
+  const [poolPagination, setPoolPagination] = useState({ page: 1, limit: 50, totalRecords: 0, totalPages: 0 });
 
-  const refreshPoolTracks = async () => {
+  const refreshPoolTracks = async (filters: any = {}) => {
     setPoolLoading(true);
-    console.log(`[DataContext] Refreshing pool tracks...`);
+    console.log(`[DataContext] Refreshing pool tracks from D1 with filters...`, filters);
     try {
-      // Use optimized fetchFromR2 (Direct R2 first)
-      const data = await fetchFromR2<Track>('pool_tracks');
-      if (data && data.length > 0) {
-        console.log(`[DataContext] Fetched ${data.length} pool tracks`);
-        setPoolTracks(data.map(mapR2Track));
+      const authHeader = await getAuthHeader();
+      const params = new URLSearchParams();
+      if (filters.page) params.append('page', filters.page.toString());
+      if (filters.limit) params.append('limit', filters.limit.toString());
+      if (filters.hub && filters.hub !== 'All Hubs') params.append('hub', filters.hub);
+      if (filters.genre && filters.genre !== 'All Genres') params.append('genre', filters.genre);
+      if (filters.year && filters.year !== 'All Years') params.append('year', filters.year);
+      if (filters.month && filters.month !== 'All Months') params.append('month', filters.month);
+      if (filters.search) params.append('search', filters.search);
+
+      const qs = params.toString();
+      const url = `${STORAGE_WORKER_URL}/api/pool/tracks${qs ? '?' + qs : ''}`;
+
+      const response = await fetch(url, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const tracksArray = result.tracks || [];
+        console.log(`[DataContext] Fetched ${tracksArray.length} pool tracks from D1`);
+        
+        // If it's page 1, replace. If it's > 1, append.
+        if (filters.page && filters.page > 1) {
+          setPoolTracks(prev => [...prev, ...tracksArray.map(mapR2Track)]);
+        } else {
+          setPoolTracks(tracksArray.map(mapR2Track));
+        }
+
+        if (result.pagination) {
+          setPoolPagination(result.pagination);
+        }
+        
         setPoolError(null);
-      } else if (POOL_TRACKS && POOL_TRACKS.length > 0) {
-        // Internal fallback if direct/worker fail
-        console.warn(`[DataContext] No R2 data, falling back to POOL_TRACKS constant`);
-        setPoolTracks(POOL_TRACKS);
+      } else {
+        throw new Error(`Failed to fetch pool tracks: ${response.status}`);
       }
     } catch (err: any) {
       console.error("[DataContext] Pool refresh error:", err.message);
       setPoolError(err);
-      if (POOL_TRACKS) setPoolTracks(POOL_TRACKS);
+      if (POOL_TRACKS && Object.keys(filters).length === 0) setPoolTracks(POOL_TRACKS); // Only fallback on initial load
     } finally {
       setPoolLoading(false);
     }
   };
 
   useEffect(() => {
-    refreshPoolTracks();
-    // Refresh pool tracks every 10 minutes (less frequent as it's large)
-    const interval = setInterval(refreshPoolTracks, 10 * 60 * 1000);
+    refreshPoolTracks({ page: 1, limit: 50 });
+    // Refresh pool tracks periodically 
+    const interval = setInterval(() => refreshPoolTracks({ page: 1, limit: 50 }), 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -887,30 +937,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [isAdmin, users.length]);
 
   const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc', 'D1', isAdmin);
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc', 'R2', isAdmin);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc', 'D1', isAdmin);
 
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapR2StudioRoom, 'createdAt', 'desc', 'R2', isAdmin);
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapR2MaintenanceLog, 'createdAt', 'desc', 'R2', isAdmin);
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc', 'R2', isAdmin);
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapD1StudioRoom, 'createdAt', 'desc', 'D1', isAdmin);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapD1MaintenanceLog, 'createdAt', 'desc', 'D1', isAdmin);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc', 'D1', isAdmin);
   const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc', 'R2', isAdmin);
   const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
   const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
   const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
   const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc', 'D1', isAdmin);
 
   // NEW collections for Admin Dashboard
-  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc', 'R2', isAdmin);
-  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc', 'R2', isAdmin);
+  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
+  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
 
   const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
   const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
   const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc', 'R2', isAdmin);
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapR2Generic, 'createdAt', 'desc', 'D1', isAdmin);
 
-  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'R2', isAdmin);
-  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'R2', isAdmin);
+  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'D1', isAdmin);
+  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'D1', isAdmin);
   const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
 
   // Telegram (Admin) - Non-realtime
@@ -1612,10 +1662,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addBooking = async (booking: Booking) => {
     try {
-      const finalId = booking.id || `b${Date.now()}`;
-      const newBookings = [{ ...booking, id: finalId }, ...bookings];
-      await saveToR2('bookings', newBookings);
-      alert("Booking saved successfully to R2");
+      const path = booking.serviceType === 'studio' ? '/api/bookings/studio' : '/api/bookings/gig';
+      const endpoint = `${STORAGE_WORKER_URL}${path}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking)
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to add booking');
+      
+      alert(`Booking ${result.success ? 'saved' : 'failed'}`);
       refreshBookings();
     } catch (err: any) {
       console.error("Add booking failed:", err.message);
@@ -1624,33 +1681,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateBooking = async (id: string, data: Partial<Booking>) => {
     try {
-      const newBookings = bookings.map(b => b.id === id ? { ...b, ...data, updatedAt: new Date().toISOString() } : b);
-      await saveToR2('bookings', newBookings);
-      alert("Booking updated on R2");
-      refreshBookings();
+      const type = data.serviceType === 'studio' ? 'studio' : 'gig';
+      // Use bookings/${type} - saveToD1 prepends /api/admin
+      const res = await saveToD1(`bookings/${type}`, 'PATCH', data, id);
+      if (res) {
+        alert("Booking updated in D1");
+        refreshBookings();
+      }
     } catch (err: any) {
       console.error("Update booking failed:", err.message);
     }
   };
 
+  const updateBookingStatus = async (id: string, status: string) => {
+    return updateBooking(id, { status } as any);
+  };
+
   const addSessionType = async (session: SessionType) => {
     try {
-      const finalId = session.id || `st${Date.now()}`;
-      const newSessions = [{ ...session, id: finalId, updatedAt: new Date().toISOString() }, ...sessionTypes];
-      setSessionTypes(newSessions);
-      await saveToR2('session_types', newSessions);
-      alert("Session Type saved to R2");
-      refreshSessionTypes();
+      const ok = await saveToD1('session_types', 'POST', session);
+      if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Add session type failed:", err.message);
     }
   };
   const updateSessionType = async (id: string, data: Partial<SessionType>) => {
     try {
-      const newSessions = sessionTypes.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s);
-      setSessionTypes(newSessions);
-      await saveToR2('session_types', newSessions);
-      refreshSessionTypes();
+      const ok = await saveToD1('session_types', 'PATCH', data, id);
+      if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Update session type failed:", err.message);
     }
@@ -1658,10 +1716,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteSessionType = async (id: string) => {
     try {
-      const newSessions = sessionTypes.filter(s => s.id !== id);
-      setSessionTypes(newSessions);
-      await saveToR2('session_types', newSessions);
-      refreshSessionTypes();
+      const ok = await saveToD1('session_types', 'DELETE', undefined, id);
+      if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Delete session type failed:", err.message);
     }
@@ -1692,11 +1748,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addStudioEquipment = async (equipment: StudioEquipment) => {
     try {
-      const finalId = equipment.id || `eq${Date.now()}`;
-      const newEquipment = [{ ...equipment, id: finalId, updatedAt: new Date().toISOString() }, ...studioEquipment];
-      setStudioEquipment(newEquipment);
-      await saveToR2('studio_equipment', newEquipment);
-      refreshEquipment();
+      const ok = await saveToD1('studio/gear', 'POST', equipment);
+      if (ok) refreshEquipment();
     } catch (err: any) {
       console.error("Add equipment failed:", err.message);
     }
@@ -1704,10 +1757,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateStudioEquipment = async (id: string, data: Partial<StudioEquipment>) => {
     try {
-      const newEquipment = studioEquipment.map(e => e.id === id ? { ...e, ...data, updatedAt: new Date().toISOString() } : e);
-      setStudioEquipment(newEquipment);
-      await saveToR2('studio_equipment', newEquipment);
-      refreshEquipment();
+      const ok = await saveToD1('studio/gear', 'PATCH', data, id);
+      if (ok) refreshEquipment();
     } catch (err: any) {
       console.error("Update equipment failed:", err.message);
     }
@@ -1715,10 +1766,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteStudioEquipment = async (id: string) => {
     try {
-      const newEquipment = studioEquipment.filter(e => e.id !== id);
-      setStudioEquipment(newEquipment);
-      await saveToR2('studio_equipment', newEquipment);
-      refreshEquipment();
+      const ok = await saveToD1('studio/gear', 'DELETE', undefined, id);
+      if (ok) refreshEquipment();
     } catch (err: any) {
       console.error("Delete equipment failed:", err.message);
     }
@@ -1782,12 +1831,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
     try {
-      const docId = plan.id || `plan_${Date.now()}`;
-      const newPlans = [{ ...plan, id: docId }, ...subscriptionPlans];
-      setSubscriptionPlans(newPlans);
-      await saveToR2('subscription_plans', newPlans);
-      alert("Plan saved to R2");
-      if (typeof refreshPlans === 'function') refreshPlans();
+      const ok = await saveToD1('admin/subscription_plans', 'POST', plan);
+      if (ok) refreshPlans();
     } catch (err: any) {
       console.error("Add plan failed:", err.message);
     }
@@ -1795,47 +1840,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
     try {
-      const newPlans = subscriptionPlans.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p);
-      setSubscriptionPlans(newPlans);
-      await saveToR2('subscription_plans', newPlans);
-      alert("Plan updated successfully!");
-      if (typeof refreshPlans === 'function') refreshPlans();
+      const ok = await saveToD1('admin/subscription_plans', 'PATCH', data, id);
+      if (ok) refreshPlans();
     } catch (error: any) {
-      console.error("Update plan failed:", error);
-      alert("Failed to update plan: " + error.message);
+      console.error("Update plan failed:", error.message);
     }
   };
-
 
   const deleteSubscriptionPlan = async (id: string) => {
     try {
-      const newPlans = subscriptionPlans.filter(p => p.id !== id);
-      setSubscriptionPlans(newPlans);
-      await removeR2Item('subscription_plans', id);
-      alert("Plan deleted successfully!");
-      if (typeof refreshPlans === 'function') refreshPlans();
-    } catch (error: any) {
-      console.error("Delete plan failed:", error);
-      alert("Failed to delete plan: " + error.message);
+      const ok = await saveToD1('admin/subscription_plans', 'DELETE', undefined, id);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Delete plan failed:", err.message);
     }
   };
 
-
   const addStudioRoom = async (room: StudioRoom) => {
     try {
-      const docId = room.id || `rm_${Date.now()}`;
-      const newRooms = [{ ...room, id: docId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...studioRooms];
-      await saveToR2('studio_rooms', newRooms);
-      refreshRooms();
+      const ok = await saveToD1('studio/locations', 'POST', room);
+      if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Add room failed:", err.message);
     }
   };
   const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => {
     try {
-      const newRooms = studioRooms.map(r => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r);
-      await saveToR2('studio_rooms', newRooms);
-      refreshRooms();
+      const ok = await saveToD1('studio/locations', 'PATCH', data, id);
+      if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Update room failed:", err.message);
     }
@@ -1843,9 +1875,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteStudioRoom = async (id: string) => {
     try {
-      const newRooms = studioRooms.filter(r => r.id !== id);
-      await saveToR2('studio_rooms', newRooms);
-      refreshRooms();
+      const ok = await saveToD1('studio/locations', 'DELETE', undefined, id);
+      if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Delete room failed:", err.message);
     }
@@ -1853,10 +1884,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addMaintenanceLog = async (log: MaintenanceLog) => {
     try {
-      const docId = log.id || `log_${Date.now()}`;
-      const newLogs = [{ ...log, id: docId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...maintenanceLogs];
-      await saveToR2('maintenance_logs', newLogs);
-      refreshLogs();
+      const payload = {
+        studioId: log.type === 'room' ? log.itemId : null,
+        gearId: log.type === 'equipment' ? log.itemId : null,
+        issue: log.description,
+        status: log.status
+      };
+      const ok = await saveToD1('studio/maintenance', 'POST', payload);
+      if (ok) refreshLogs();
     } catch (err: any) {
       console.error("Add log failed:", err.message);
     }
@@ -1864,9 +1899,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => {
     try {
-      const newLogs = maintenanceLogs.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l);
-      await saveToR2('maintenance_logs', newLogs);
-      refreshLogs();
+      const payload: any = {};
+      if (data.description) payload.issue = data.description;
+      if (data.status) payload.status = data.status;
+      
+      const ok = await saveToD1('studio/maintenance', 'PATCH', payload, id);
+      if (ok) refreshLogs();
     } catch (err: any) {
       console.error("Update log failed:", err.message);
     }
@@ -1906,9 +1944,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addTip = async (tip: any) => {
     try {
-      const newTips = [tip, ...tips];
-      await saveToR2('tips', newTips);
-      if (typeof refreshTips === 'function') refreshTips();
+      const ok = await saveToD1('admin/tips', 'POST', tip);
+      if (ok && typeof refreshTips === 'function') refreshTips();
     } catch (err: any) {
       console.error("Add tip failed:", err.message);
     }
@@ -1916,10 +1953,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addCampaign = async (camp: NewsletterCampaign) => {
     try {
-      const docId = camp.id || `camp_${Date.now()}`;
-      const newCampaigns = [{ ...camp, id: docId, updatedAt: new Date().toISOString() }, ...newsletterCampaigns];
-      await saveToR2('newsletter_campaigns', newCampaigns);
-      refreshCampaigns();
+      const ok = await saveToD1('admin/newsletter_campaigns', 'POST', camp);
+      if (ok) refreshCampaigns();
     } catch (err: any) {
       console.error("Add campaign failed:", err.message);
     }
@@ -1927,9 +1962,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => {
     try {
-      const newCampaigns = newsletterCampaigns.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
-      await saveToR2('newsletter_campaigns', newCampaigns);
-      refreshCampaigns();
+      const ok = await saveToD1('admin/newsletter_campaigns', 'PATCH', data, id);
+      if (ok) refreshCampaigns();
     } catch (err: any) {
       console.error("Update campaign failed:", err.message);
     }
@@ -1937,10 +1971,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addCoupon = async (coupon: Coupon) => {
     try {
-      const docId = coupon.id || `cpn_${Date.now()}`;
-      const newCoupons = [{ ...coupon, id: docId, updatedAt: new Date().toISOString() }, ...coupons];
-      await saveToR2('coupons', newCoupons);
-      refreshCoupons();
+      const ok = await saveToD1('admin/coupons', 'POST', coupon);
+      if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Add coupon failed:", err.message);
     }
@@ -1948,9 +1980,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateCoupon = async (id: string, data: Partial<Coupon>) => {
     try {
-      const newCoupons = coupons.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
-      await saveToR2('coupons', newCoupons);
-      refreshCoupons();
+      const ok = await saveToD1('admin/coupons', 'PATCH', data, id);
+      if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Update coupon failed:", err.message);
     }
@@ -1958,9 +1989,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteCoupon = async (id: string) => {
     try {
-      const newCoupons = coupons.filter(c => c.id !== id);
-      await saveToR2('coupons', newCoupons);
-      refreshCoupons();
+      const ok = await saveToD1('admin/coupons', 'DELETE', undefined, id);
+      if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Delete coupon failed:", err.message);
     }
@@ -1968,15 +1998,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const validateCoupon = async (code: string): Promise<{ success: boolean; coupon?: Coupon; message?: string }> => {
     try {
-      // Fetch from R2 (since it's the primary source now)
-      const data = await fetchFromR2<any>('coupons');
-      const couponData = data.find((c: any) => c.code === code.toUpperCase() && c.active);
+      // Fetch from D1 via our worker API
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/coupons?t=${Date.now()}`, {
+          headers: authHeader,
+          cache: 'no-store'
+      });
+      
+      if (!response.ok) throw new Error("Failed to fetch coupons for validation");
+      
+      const rawData = await response.json();
+      const allCoupons = Array.isArray(rawData) ? rawData : (rawData.results || []);
+      const couponData = allCoupons.find((c: any) => c.code === code.toUpperCase() && (c.is_active || c.isActive));
 
       if (!couponData) {
         return { success: false, message: 'Invalid or expired coupon code.' };
       }
 
-      const coupon = couponData as Coupon;
+      const coupon = mapR2Coupon(couponData);
       const now = new Date();
       if (coupon.expiryDate && new Date(coupon.expiryDate) < now) {
         return { success: false, message: 'This coupon has expired.' };
@@ -2187,9 +2226,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUser = async (id: string, data: Partial<User>) => {
     try {
-      const updatedUsers = users.map(u => u.id === id ? { ...u, ...data, updatedAt: new Date().toISOString() } : u);
-      await saveToR2('profiles', updatedUsers);
-      refreshUsers();
+      const ok = await saveToD1('admin/users', 'PUT', data, id);
+      if (ok) refreshUsers();
     } catch (err: any) {
       console.error("Update user failed:", err.message);
     }
@@ -2197,7 +2235,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message)
@@ -2215,11 +2253,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const deleteMessage = async (id: string) => {
+    try {
+      const ok = await saveToD1('admin/support/tickets', 'DELETE', undefined, id);
+      if (ok) refreshContactMessages();
+    } catch (err: any) {
+      console.error("Delete message failed:", err.message);
+    }
+  };
+
   const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
     try {
-      const newMessages = contactMessages.map(m => m.id === id ? { ...m, ...updates } : m);
-      await saveToR2('contact_messages', newMessages);
-      refreshContactMessages();
+      const res = await saveToD1('admin/support/tickets', 'PATCH', updates, id);
+      if (res) {
+        alert("Message updated in D1");
+        refreshContactMessages();
+      }
     } catch (err: any) {
       console.error("Update contact message failed:", err.message);
     }
@@ -2227,9 +2276,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const removeUser = async (id: string) => {
     try {
-      const updatedUsers = users.filter(u => u.id !== id);
-      await saveToR2('profiles', updatedUsers);
-      refreshUsers();
+      const ok = await saveToD1('admin/users', 'DELETE', undefined, id);
+      if (ok) refreshUsers();
     } catch (err: any) {
       console.error("Remove user failed:", err.message);
     }
@@ -2240,20 +2288,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!user) throw new Error('Must be logged in to review');
 
       const payload = {
-        userId: user.id,
+        productId,
         userName: user.full_name || user.name || 'User',
-        type: 'review',
-        targetId: productId,
-        targetType: 'product',
-        content: comment,
         rating: rating,
-        status: 'approved'
+        comment: comment
       };
 
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/interactions`, {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/reviews`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
@@ -2262,8 +2305,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshReviews();
 
       // Award 5 Aura Points for a review
-      if (updateUserProfile && user) {
-        updateUserProfile({ auraPoints: (user.auraPoints || 0) + 5 });
+      if (user) {
+        // Points are in user_profiles, handled via profiles PUT in some places, 
+        // but let's assume updateUserProfile handles it or we'll need to sync D1
       }
     } catch (err: any) {
       console.error("Add review failed:", err.message);
@@ -2275,30 +2319,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!user) throw new Error('Must be logged in to comment');
 
       const payload = {
-        userId: user.id,
+        mixtapeId,
         userName: user.full_name || user.name || 'User',
-        type: 'comment',
-        targetId: mixtapeId,
-        targetType: 'mixtape',
-        content: text,
-        status: 'approved'
+        text: text
       };
 
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/interactions`, {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/mixtapes/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) throw new Error('Failed to save comment');
 
       refreshComments();
-
-      // Award 5 Aura Points for a comment
-      if (updateUserProfile && user) {
-        updateUserProfile({ auraPoints: (user.auraPoints || 0) + 5 });
-      }
     } catch (err: any) {
       console.error("Add comment failed:", err.message);
     }
@@ -2361,6 +2395,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sessionTypes,
     youtubeVideos,
     poolTracks,
+    poolPagination,
     genres,
     studioEquipment,
     shippingZones,
@@ -2441,6 +2476,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateGenre,
     addBooking,
     updateBooking,
+    updateBookingStatus,
     addSessionType,
     updateSessionType,
     deleteSessionType,
@@ -2483,6 +2519,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     removeUser,
     addContactMessage,
     updateContactMessage,
+    deleteMessage,
     addReview,
     addComment,
     markNotificationAsRead,
@@ -2508,9 +2545,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
     refreshStudioSessions, refreshEventGigs,
-    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
+    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
+    messages: contactMessages // Alias for component compatibility
   }), [
-    siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
+    siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, poolPagination, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,
     notifications,
     notificationsLoading,

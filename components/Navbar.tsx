@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import SubscriptionTimer from './SubscriptionTimer';
+import GlobalClock from './GlobalClock';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -96,6 +97,8 @@ const Navbar: React.FC = () => {
 
             {/* Right Icons */}
             <div className="hidden md:flex items-center space-x-6">
+              <GlobalClock />
+
               {user?.isSubscriber && user?.subscriptionExpiry && (
                 <div className="hidden lg:block">
                   <SubscriptionTimer expiryDate={user.subscriptionExpiry} />
@@ -275,6 +278,9 @@ const Navbar: React.FC = () => {
         className={`fixed inset-0 z-40 bg-[#0B0B0F] transition-transform duration-300 ease-in-out md:hidden flex flex-col pt-24 pb-10 px-6 ${isOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
+        <div className="mb-6 flex justify-center">
+            <GlobalClock />
+        </div>
         <div className="flex flex-col space-y-4 flex-1 overflow-y-auto">
           {navLinks.map((link) => (
             <Link

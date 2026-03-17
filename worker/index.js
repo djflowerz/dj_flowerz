@@ -8,12 +8,15 @@ import { handleDashboardUsers } from './api/dashboard/users.js';
 import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
 import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
 import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
+import { handleDashboardFinances } from './api/dashboard/finances.js';
 import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
 import { handleStorefrontPool } from './api/storefront/pool.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
 import { handleCommunity } from './api/community.js';
 import { handleTrialActivation } from './api/user/trial.js';
+import { handleBookings } from './api/bookings.js';
+import { handleSupport } from './api/support.js';
 import { AdminHub } from './utils/hub.js';
 
 const router = new Router();
@@ -23,13 +26,28 @@ router.get('/api/products', handleStorefrontProducts);
 router.get('/api/products/:id', handleStorefrontProducts);
 router.post('/api/orders', handleStorefrontOrders);
 router.get('/api/pool/tracks', handleStorefrontPool);
-router.get('/api/pool/download', handleStorefrontPool);
+router.post('/api/pool/download', handleStorefrontPool);
+router.get('/api/reviews', handleCommunity);
+router.post('/api/reviews', handleCommunity);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
 router.post('/api/admin/products', handleDashboardProducts);
 router.put('/api/admin/products/:id', handleDashboardProducts);
 router.delete('/api/admin/products/:id', handleDashboardProducts);
+
+// New Booking & Support Routes
+router.post('/api/bookings/gig', handleBookings);
+router.post('/api/bookings/studio', handleBookings);
+router.get('/api/admin/bookings/gigs', handleBookings);
+router.get('/api/admin/bookings/studio', handleBookings);
+router.patch('/api/admin/bookings/gig/:id', handleBookings);
+router.patch('/api/admin/bookings/studio/:id', handleBookings);
+
+router.post('/api/contact', handleSupport);
+router.get('/api/admin/support/tickets', handleSupport);
+router.patch('/api/admin/support/tickets/:id', handleSupport);
+
 router.post('/api/admin/r2-sync', handleR2Sync);
 router.post('/api/admin/r2-upload', handleR2Upload);
 router.get('/api/admin/orders', handleDashboardOrders);
@@ -45,10 +63,28 @@ router.put('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.delete('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.get('/api/admin/subscriptions', handleDashboardSubscriptions);
 router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
+router.get('/api/admin/subscription_plans', handleDashboardSubscriptions);
+router.post('/api/admin/subscription_plans', handleDashboardSubscriptions);
+router.patch('/api/admin/subscription_plans/:id', handleDashboardSubscriptions);
+router.put('/api/admin/subscription_plans/:id', handleDashboardSubscriptions);
+router.delete('/api/admin/subscription_plans/:id', handleDashboardSubscriptions);
 router.get('/api/admin/newsletter_subscribers', handleDashboardNewsletter);
 router.get('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
+router.post('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
+router.patch('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
+router.put('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
+router.delete('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.delete('/api/admin/newsletter_subscribers/:id', handleDashboardNewsletter);
 router.post('/api/newsletter/subscribe', handleDashboardNewsletter);
+
+router.get('/api/admin/coupons', handleDashboardNewsletter);
+router.post('/api/admin/coupons', handleDashboardNewsletter);
+router.patch('/api/admin/coupons/:id', handleDashboardNewsletter);
+router.put('/api/admin/coupons/:id', handleDashboardNewsletter);
+router.delete('/api/admin/coupons/:id', handleDashboardNewsletter);
+
+router.get('/api/admin/tips', handleDashboardFinances);
+router.post('/api/admin/tips', handleDashboardFinances);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);
@@ -58,6 +94,32 @@ router.get('/api/studio/locations', handleCommunity);
 router.get('/api/studio/gear', handleCommunity);
 router.get('/api/mixtapes/comments/:id', handleCommunity);
 router.post('/api/mixtapes/comments', handleCommunity);
+router.get('/api/admin/reviews', handleCommunity);
+router.get('/api/admin/comments', handleCommunity);
+router.post('/api/admin/studio/locations', handleCommunity);
+router.put('/api/admin/studio/locations/:id', handleCommunity);
+router.patch('/api/admin/studio/locations/:id', handleCommunity);
+router.delete('/api/admin/studio/locations/:id', handleCommunity);
+router.post('/api/admin/studio/gear', handleCommunity);
+router.put('/api/admin/studio/gear/:id', handleCommunity);
+router.patch('/api/admin/studio/gear/:id', handleCommunity);
+router.delete('/api/admin/studio/gear/:id', handleCommunity);
+router.get('/api/admin/studio/maintenance', handleCommunity);
+router.post('/api/admin/studio/maintenance', handleCommunity);
+router.put('/api/admin/studio/maintenance/:id', handleCommunity);
+router.patch('/api/admin/studio/maintenance/:id', handleCommunity);
+router.get('/api/session_types', handleCommunity);
+router.get('/api/admin/session_types', handleCommunity);
+router.post('/api/admin/session_types', handleCommunity);
+router.put('/api/admin/session_types/:id', handleCommunity);
+router.patch('/api/admin/session_types/:id', handleCommunity);
+router.delete('/api/admin/session_types/:id', handleCommunity);
+
+// Support & Contact
+router.post('/api/contact', handleSupport);
+router.get('/api/admin/support/tickets', handleSupport);
+router.patch('/api/admin/support/tickets/:id', handleSupport);
+router.delete('/api/admin/support/tickets/:id', handleSupport);
 
 // User Profile
 router.post('/api/user/trial', handleTrialActivation);

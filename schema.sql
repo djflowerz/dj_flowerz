@@ -81,8 +81,29 @@ CREATE TABLE profiles (
     avatar_url TEXT,
     role TEXT DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-, is_subscriber BOOLEAN DEFAULT 0, subscription_expiry DATETIME, referral_code TEXT, referral_balance_kes REAL DEFAULT 0.0, referral_earned_days INTEGER DEFAULT 0);
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_subscriber BOOLEAN DEFAULT 0,
+    subscription_expiry DATETIME,
+    subscription_plan TEXT,
+    subscription_end_date DATETIME,
+    phone TEXT,
+    referral_code TEXT,
+    referral_balance_kes REAL DEFAULT 0.0,
+    referral_earned_days INTEGER DEFAULT 0
+);
+
+CREATE TABLE session_types (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    duration INTEGER NOT NULL, -- in minutes
+    description TEXT,
+    features TEXT, -- JSON string array
+    image_url TEXT,
+    active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -177,6 +198,17 @@ CREATE TABLE store_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE tips (
+  id TEXT PRIMARY KEY,
+  amount REAL NOT NULL,
+  currency TEXT DEFAULT 'KES',
+  message TEXT,
+  donor_name TEXT,
+  donor_email TEXT,
+  status TEXT DEFAULT 'completed',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE subscribers (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
@@ -333,6 +365,17 @@ CREATE TABLE mixtape_comments (
     text TEXT NOT NULL,
     status TEXT DEFAULT 'approved',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE studio_maintenance (
+    id TEXT PRIMARY KEY,
+    studio_id TEXT NOT NULL,
+    gear_id TEXT,
+    issue TEXT NOT NULL,
+    status TEXT DEFAULT 'pending', -- pending, in_progress, resolved
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (studio_id) REFERENCES studio_locations(id),
+    FOREIGN KEY (gear_id) REFERENCES studio_gear(id)
 );
 CREATE TABLE d1_migrations(
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1519,27 +1519,61 @@ export default {
 
             // --- 8. MUSIC POOL PRO (SERVICE PACKS) ---
 
-            // GET /api/pool/tracks — High-performance Service Pack fetch
+            // GET /api/pool/tracks — High-performance Service Pack fetch with Filtering & Pagination
             if (method === "GET" && path === "/api/pool/tracks") {
                 const user = await getAuthorizedUser(request, env);
-
-                // 1. GATEKEEPER CHECK
                 const isMaster = user?.email === 'ianmuriithiflowerz@gmail.com';
                 const now = new Date().getTime();
                 const expiry = user?.subscription_expiry ? new Date(user.subscription_expiry).getTime() : 0;
                 const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
 
-                if (!isMaster && !isSubscribed) {
-                    return new Response(JSON.stringify({
-                        error: "ACCESS_DENIED",
-                        message: "Members Only. Please subscribe to access the Music Pool.",
-                        status: "locked"
-                    }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-                }
+                // Note: We allow listing tracks for everyone to see what's available, 
+                // but the DataContext/UI will handle locking actual playback/download based on isAuthorized.
+                // However, we still check authorization here to return user usage context.
+                const isAuthorized = isMaster || isSubscribed;
 
+                const page = parseInt(url.searchParams.get("page") || "1");
+                const limit = parseInt(url.searchParams.get("limit") || "50");
+                const offset = (page - 1) * limit;
+
+                const hub = url.searchParams.get("hub");
                 const genre = url.searchParams.get("genre");
+                const year = url.searchParams.get("year");
+                const month = url.searchParams.get("month");
                 const search = url.searchParams.get("search");
 
+                let whereClause = "WHERE t.is_active = 1";
+                const params = [];
+
+                if (hub && hub !== 'All Hubs') {
+                    whereClause += " AND t.collection_hub = ?";
+                    params.push(hub);
+                }
+                if (genre && genre !== 'All Genres') {
+                    whereClause += " AND (t.display_genre = ? OR t.genre = ?)";
+                    params.push(genre, genre);
+                }
+                if (year && year !== 'All Years') {
+                    whereClause += " AND t.release_year = ?";
+                    params.push(parseInt(year));
+                }
+                if (month && month !== 'All Months') {
+                    whereClause += " AND t.release_month = ?";
+                    params.push(month);
+                }
+                if (search) {
+                    whereClause += " AND (t.title LIKE ? OR t.artist LIKE ? OR t.tags LIKE ?)";
+                    const s = `%${search}%`;
+                    params.push(s, s, s);
+                }
+
+                // 1. Get total count for pagination
+                const countQuery = `SELECT COUNT(*) as count FROM tracks t ${whereClause}`;
+                const { results: countResults } = await env.DB.prepare(countQuery).bind(...params).all();
+                const totalCount = countResults[0].count;
+                const totalPages = Math.ceil(totalCount / limit);
+
+                // 2. Get paginated tracks with versions
                 let query = `
                     SELECT 
                         t.*,
@@ -1553,37 +1587,43 @@ export default {
                             )
                         ) as versions
                     FROM tracks t
-                    JOIN track_versions v ON t.id = v.track_id
-                    WHERE t.is_active = 1
+                    LEFT JOIN track_versions v ON t.id = v.track_id
+                    ${whereClause}
+                    GROUP BY t.id 
+                    ORDER BY t.created_at DESC 
+                    LIMIT ? OFFSET ?
                 `;
 
-                const params = [];
-                if (genre) {
-                    query += " AND t.display_genre = ?";
-                    params.push(genre);
-                }
+                const queryParams = [...params, limit, offset];
+                const { results } = await env.DB.prepare(query).bind(...queryParams).all();
 
-                if (search) {
-                    query += " AND (t.title LIKE ? OR t.artist LIKE ?)";
-                    params.push(`%${search}%`, `%${search}%`);
-                }
-
-                query += " GROUP BY t.id ORDER BY t.created_at DESC LIMIT 500";
-
-                const { results } = await env.DB.prepare(query).bind(...params).all();
-
-                // Parse the JSON strings from D1
+                // 3. Format and attach usage metadata
                 const formatted = results.map(r => ({
                     ...r,
-                    versions: JSON.parse(r.versions),
-                    // Add usage context for the user
-                    user_usage: {
-                        daily_limit: DOWNLOAD_LIMITS[user.current_plan || 'none'],
-                        daily_count: user.daily_download_count || 0
-                    }
+                    versions: r.versions ? JSON.parse(r.versions).filter(v => v.id !== null) : [],
+                    // Map D1 snake_case to Frontend camelCase
+                    collectionHub: r.collection_hub,
+                    displayGenre: r.display_genre,
+                    releaseYear: r.release_year,
+                    releaseMonth: r.release_month
                 }));
 
-                return Response.json(formatted, { headers: corsHeaders });
+                const usageContext = user ? {
+                    daily_limit: DOWNLOAD_LIMITS[user.subscriptionPlan || 'none'] || 0,
+                    daily_count: user.dailyDownloadCount || 0
+                } : null;
+
+                return Response.json({
+                    tracks: formatted,
+                    pagination: {
+                        page,
+                        limit,
+                        totalCount,
+                        totalPages
+                    },
+                    isAuthorized,
+                    usage: usageContext
+                }, { headers: corsHeaders });
             }
 
             // GET /api/pool/download — Secured download with limit enforcement
@@ -1644,51 +1684,66 @@ export default {
             }
 
             // POST /api/admin/migrate-pool-json — Internal ingestion tool
+            // POST /api/admin/migrate-pool-json — Internal ingestion tool
             if (method === "POST" && path === "/api/admin/migrate-pool-json") {
                 const authHeader = request.headers.get("Authorization");
                 if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
                 const body = await request.json();
-                console.log("[Migration] Received body:", JSON.stringify(body).substring(0, 200));
-
-                // --- NEW: Dynamic Filters Route (Drizzle) ---
-                if (method === "GET" && path === "/api/musicpool/filters") {
-                    const tracksData = await db.query.tracks.findMany({
-                        where: (t, { eq }) => eq(t.isActive, true)
-                    });
-
-                    const genres = [...new Set(tracksData.map(t => t.genre).filter(Boolean))].sort();
-                    const years = [...new Set(tracksData.map(t => t.releaseDate ? t.releaseDate.substring(0, 4) : null).filter(Boolean))].sort().reverse();
-
-                    return Response.json({
-                        genres,
-                        years,
-                        months: [] // Simplified or derived as needed
-                    }, { headers: corsHeaders });
-                }
                 const batch = body.tracks || [];
                 console.log(`[Migration] Batch size: ${batch.length}`);
                 let inserted = 0;
                 const errors = [];
                 for (const t of batch) {
                     try {
-                        // Create parent track
-                        await env.DB.prepare(`
-                            INSERT INTO tracks (id, title, artist, display_genre, collection_hub, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(id) DO NOTHING
-                        `).bind(t.id, t.title, t.artist, t.display_genre || t.genre, t.year, t.dateAdded || new Date().toISOString()).run();
+                        const dateAdded = t.dateAdded || t.uploaded || new Date().toISOString();
+                        const dateObj = new Date(dateAdded);
+                        const release_year = !isNaN(dateObj.getFullYear()) ? dateObj.getFullYear() : 2026;
+                        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                        const release_month = !isNaN(dateObj.getMonth()) ? monthNames[dateObj.getMonth()] : "January";
 
-                        // Add versions
-                        for (const v of (t.versions || [])) {
-                            const downloadUrl = v.downloadUrl;
-                            if (!downloadUrl) continue;
-                            const isVideo = downloadUrl.toLowerCase().endsWith('.mp4') || downloadUrl.toLowerCase().endsWith('.mov');
-                            const versionId = `${t.id}-${v.type || 'Original'}-${Date.now()}`;
-                            await env.DB.prepare(`
-                                INSERT INTO track_versions (id, track_id, version_name, preview_url, download_url, is_video)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            `).bind(versionId, t.id, v.type || "Original", t.previewUrl, downloadUrl, isVideo ? 1 : 0).run();
+                        const hub = t.collection_hub || t.year || 'Other';
+                        const displayGenre = t.display_genre || t.month || t.genre || 'Other';
+
+                        await env.DB.prepare(`
+                            INSERT INTO tracks (id, title, artist, genre, display_genre, collection_hub, release_date, release_year, release_month, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET
+                                title = excluded.title,
+                                artist = excluded.artist,
+                                genre = excluded.genre,
+                                display_genre = excluded.display_genre,
+                                collection_hub = excluded.collection_hub,
+                                release_date = excluded.release_date,
+                                release_year = excluded.release_year,
+                                release_month = excluded.release_month,
+                                updated_at = excluded.updated_at
+                        `).bind(
+                            t.id, 
+                            t.title || t.baseTitle, 
+                            t.artist || "Unknown", 
+                            t.genre || t.month || "Other",
+                            displayGenre,
+                            hub,
+                            dateAdded,
+                            release_year,
+                            release_month,
+                            dateAdded,
+                            new Date().toISOString()
+                        ).run();
+
+                        if (Array.isArray(t.versions)) {
+                            await env.DB.prepare(`DELETE FROM track_versions WHERE track_id = ?`).bind(t.id).run();
+                            for (const v of t.versions) {
+                                const downloadUrl = v.downloadUrl || v.url;
+                                if (!downloadUrl) continue;
+                                const isVideo = downloadUrl.toLowerCase().endsWith('.mp4') || downloadUrl.toLowerCase().endsWith('.mov');
+                                const versionId = v.id || `${t.id}-${v.type || v.versionName || 'Original'}-${Date.now()}`;
+                                await env.DB.prepare(`
+                                    INSERT INTO track_versions (id, track_id, version_name, preview_url, download_url, is_video)
+                                    VALUES (?, ?, ?, ?, ?, ?)
+                                `).bind(versionId, t.id, v.type || v.versionName || "Original", t.previewUrl || "", downloadUrl, isVideo ? 1 : 0).run();
+                            }
                         }
                         inserted++;
                     } catch (e) {
@@ -1697,6 +1752,24 @@ export default {
                 }
 
                 return Response.json({ success: true, inserted, errorCount: errors.length, firstErrors: errors.slice(0, 5) }, { headers: corsHeaders });
+            }
+
+            // GET /api/musicpool/filters — Dynamic Filters Route
+            if (method === "GET" && path === "/api/musicpool/filters") {
+                const tracksData = await db.select({
+                    hub: schema.tracks.collectionHub,
+                    genre: schema.tracks.displayGenre,
+                    year: schema.tracks.releaseYear,
+                    month: schema.tracks.releaseMonth
+                }).from(schema.tracks).where(eq(schema.tracks.isActive, true)).run();
+
+                const results = tracksData.results || [];
+                const hubs = [...new Set(results.map(t => t.collection_hub).filter(Boolean))].sort();
+                const genres = [...new Set(results.map(t => t.display_genre).filter(Boolean))].sort();
+                const years = [...new Set(results.map(t => t.release_year).filter(Boolean))].sort((a, b) => b - a);
+                const months = [...new Set(results.map(t => t.release_month).filter(Boolean))].sort();
+
+                return Response.json({ hubs, genres, years, months }, { headers: corsHeaders });
             }
 
             // Admin: POST /api/admin/pool/sync-track — Upsert a track and its versions in D1
@@ -1710,43 +1783,54 @@ export default {
                 }
 
                 try {
-                    // 1. Upsert Track (Drizzle)
-                    // We'll use raw SQL to be safe about column names if there's inconsistency
+                    const dateAdded = track.releaseDate || track.dateAdded || track.uploaded || new Date().toISOString();
+                    const dateObj = new Date(dateAdded);
+                    const release_year = !isNaN(dateObj.getFullYear()) ? dateObj.getFullYear() : 2026;
+                    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                    const release_month = !isNaN(dateObj.getMonth()) ? monthNames[dateObj.getMonth()] : "January";
+
                     await env.DB.prepare(`
-                        INSERT INTO tracks (id, title, artist, display_genre, collection_hub, sub_genre, vibe, bpm, release_year, is_featured, is_active, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO tracks (
+                            id, title, artist, genre, display_genre, collection_hub, 
+                            sub_genre, vibe, bpm, release_date, release_year, release_month, 
+                            is_featured, is_active, updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             title = excluded.title,
                             artist = excluded.artist,
+                            genre = excluded.genre,
                             display_genre = excluded.display_genre,
                             collection_hub = excluded.collection_hub,
                             sub_genre = excluded.sub_genre,
                             vibe = excluded.vibe,
                             bpm = excluded.bpm,
+                            release_date = excluded.release_date,
                             release_year = excluded.release_year,
+                            release_month = excluded.release_month,
                             is_featured = excluded.is_featured,
                             is_active = excluded.is_active,
                             updated_at = excluded.updated_at
                     `).bind(
                         track.id,
                         track.title,
-                        track.artist || "",
-                        track.display_genre || track.genre || "",
-                        track.collection_hub || track.year || "",
-                        track.sub_genre || "",
+                        track.artist || "Unknown",
+                        track.genre || track.month || "Other",
+                        track.display_genre || track.month || track.genre || "Other",
+                        track.collection_hub || track.year || "Other",
+                        track.sub_genre || "ROOT",
                         track.vibe || "",
                         track.bpm || 0,
-                        track.release_year || null,
+                        dateAdded,
+                        release_year,
+                        release_month,
                         track.is_featured ? 1 : 0,
                         track.is_active !== false ? 1 : 0,
                         new Date().toISOString()
                     ).run();
 
-                    // 2. Sync Versions
                     if (Array.isArray(track.versions)) {
-                        // Delete existing versions for this track to ensure clean state
                         await env.DB.prepare(`DELETE FROM track_versions WHERE track_id = ?`).bind(track.id).run();
-
                         for (const v of track.versions) {
                             const versionId = v.id || `${track.id}-${v.versionName || v.type || 'v'}-${Date.now()}`;
                             const downloadUrl = v.downloadUrl || v.url;

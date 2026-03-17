@@ -132,7 +132,7 @@ export async function addAdminNotification(title: string, message: string, type:
 /**
  * Execute D1 queries via the worker endpoints.
  */
-export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DELETE', data?: any, id?: string): Promise<boolean> {
+export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DELETE' | 'PATCH', data?: any, id?: string): Promise<boolean> {
     try {
         const authHeader = await getAuthHeader();
 

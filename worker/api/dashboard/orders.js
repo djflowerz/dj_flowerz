@@ -10,15 +10,20 @@ export async function handleDashboardOrders(request, env, ctx, params) {
     if (id) {
         try {
             const order = await env.DB.prepare(`
-                SELECT o.*, p.full_name AS customer_name, p.email AS customer_email 
-                FROM orders o 
-                LEFT JOIN profiles p ON o.user_id = p.id 
-                WHERE o.id = ?
+                SELECT * FROM orders WHERE id = ?
             `).bind(id).first();
 
             if (!order) return new Response("Not Found", { status: 404 });
 
-            const { results: items } = await env.DB.prepare("SELECT * FROM order_line_items WHERE order_id = ?").bind(id).all();
+            // Parse items if they exist as a JSON string
+            let items = [];
+            if (order.items) {
+                try {
+                    items = JSON.parse(order.items);
+                } catch (e) {
+                    console.error("Failed to parse order items", e);
+                }
+            }
 
             return new Response(JSON.stringify({ ...order, items }), {
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -55,7 +60,6 @@ export async function handleDashboardOrders(request, env, ctx, params) {
 
             try {
                 await env.DB.prepare("DELETE FROM orders WHERE id = ?").bind(orderId).run();
-                await env.DB.prepare("DELETE FROM order_line_items WHERE order_id = ?").bind(orderId).run();
                 return new Response(JSON.stringify({ message: "Order deleted" }), {
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
                 });
@@ -66,13 +70,22 @@ export async function handleDashboardOrders(request, env, ctx, params) {
 
         try {
             const { results } = await env.DB.prepare(`
-                SELECT o.*, p.full_name AS customer_name, p.email AS customer_email 
-                FROM orders o 
-                LEFT JOIN profiles p ON o.user_id = p.id 
-                ORDER BY o.created_at DESC
+                SELECT * FROM orders 
+                ORDER BY created_at DESC
             `).all();
 
-            return new Response(JSON.stringify(results), {
+            // Optionally parse items for each order if needed, but usually the list view doesn't need them
+            const formattedResults = results.map(order => {
+                let items = [];
+                if (order.items) {
+                    try {
+                        items = JSON.parse(order.items);
+                    } catch (e) {}
+                }
+                return { ...order, items };
+            });
+
+            return new Response(JSON.stringify(formattedResults), {
                 headers: {
                     "Content-Type": "application/json",
                     "Access-Control-Allow-Origin": "*",

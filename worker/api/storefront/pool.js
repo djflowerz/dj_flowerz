@@ -19,67 +19,102 @@ export async function handleStorefrontPool(request, env) {
         if (method === "GET" && path === "/api/pool/tracks") {
             const user = await getAuthorizedUser(request, env);
 
-            // 1. GATEKEEPER CHECK (Master/Admin Bypass)
+            // 1. Determine User Role for specific limits later
             const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
             const now = new Date().getTime();
             const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
             const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
 
-            if (!isMaster && !isSubscribed) {
-                return new Response(JSON.stringify({
-                    error: "ACCESS_DENIED",
-                    message: "Members Only. Please subscribe to access the Music Pool.",
-                    status: "locked"
-                }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-            }
-
+            const page = parseInt(url.searchParams.get("page")) || 1;
+            const limit = parseInt(url.searchParams.get("limit")) || 50;
+            const hub = url.searchParams.get("hub");
             const genre = url.searchParams.get("genre");
+            const year = url.searchParams.get("year");
+            const month = url.searchParams.get("month");
             const search = url.searchParams.get("search");
 
-            let query = `
+            let conditions = ["t.is_active = 1"];
+            const params = [];
+
+            if (hub && hub !== 'All Hubs') {
+                conditions.push("t.collection_hub = ?");
+                params.push(hub);
+            }
+            if (genre && genre !== 'All Genres') {
+                conditions.push("(t.display_genre = ? OR t.genre = ?)");
+                params.push(genre, genre);
+            }
+            if (year && year !== 'All Years') {
+                conditions.push("(t.release_year = ? OR t.year = ?)");
+                params.push(year.toString(), year.toString());
+            }
+            if (month && month !== 'All Months') {
+                conditions.push("(t.release_month = ? OR t.month = ?)");
+                params.push(month, month);
+            }
+            if (search) {
+                conditions.push("(t.title LIKE ? OR t.artist LIKE ?)");
+                params.push(`%${search}%`, `%${search}%`);
+            }
+
+            const whereClause = "WHERE " + conditions.join(" AND ");
+
+            // Get total counts first for pagination metadata
+            const countQuery = `SELECT count(DISTINCT t.id) as total FROM tracks t ${whereClause}`;
+            const countResult = await env.DB.prepare(countQuery).bind(...params).first();
+            const totalRecords = countResult?.total || 0;
+            const totalPages = Math.ceil(totalRecords / limit);
+
+            const offset = (page - 1) * limit;
+
+            const query = `
                 SELECT 
                     t.*,
+                    t.audio_url as previewUrl,
                     json_group_array(
                         CASE WHEN v.id IS NOT NULL THEN
                             json_object(
                                 'id', v.id,
-                                'type', v.version_type,
-                                'previewUrl', v.preview_url,
-                                'downloadUrl', v.download_url,
-                                'isMainVersion', v.is_main_version
+                                'type', v.version_name,
+                                'previewUrl', v.file_url,
+                                'downloadUrl', v.download_url
                             )
                         ELSE NULL END
                     ) as versions_json
                 FROM tracks t
                 LEFT JOIN track_versions v ON t.id = v.track_id
-                WHERE t.is_active = 1
+                ${whereClause}
+                GROUP BY t.id 
+                ORDER BY t.created_at DESC 
+                LIMIT ? OFFSET ?
             `;
 
-            const params = [];
-            if (genre) {
-                query += " AND t.display_genre = ?";
-                params.push(genre);
+            const pagedParams = [...params, limit, offset];
+            const { results } = await env.DB.prepare(query).bind(...pagedParams).all();
+
+            // Calculate daily limits
+            const createdDate = new Date(user?.created_at || now);
+            const daysSinceCreated = Math.floor((now - createdDate.getTime()) / (1000 * 3600 * 24));
+            
+            let dailyLimit = 0;
+            const userPlan = user?.subscription_plan?.toLowerCase() || 'none';
+
+            if (isMaster) {
+                dailyLimit = 9999;
+            } else if (isSubscribed) {
+                if (userPlan === 'monthly') {
+                    dailyLimit = 30;
+                } else {
+                    dailyLimit = 200;
+                }
+            } else {
+                // Free/Trial: 10 downloads/day for 1 week
+                if (daysSinceCreated <= 7) {
+                    dailyLimit = 10;
+                } else {
+                    dailyLimit = 0;
+                }
             }
-
-            if (search) {
-                query += " AND (t.title LIKE ? OR t.artist LIKE ?)";
-                params.push(`%${search}%`, `%${search}%`);
-            }
-
-            query += " GROUP BY t.id ORDER BY t.created_at DESC LIMIT 15000";
-
-            const { results } = await env.DB.prepare(query).bind(...params).all();
-
-            // Usage limits (hardcoded limits as they were in the original file, if not present in DB)
-            const DOWNLOAD_LIMITS = {
-                'bedroom': 5,
-                'club': 20,
-                'festival': 9999,
-                'none': 0
-            };
-
-            const userPlan = user?.current_plan || 'none';
-            const dailyLimit = isMaster ? 9999 : (DOWNLOAD_LIMITS[userPlan] || 0);
 
             const responsePayload = {
                 tracks: results.map(r => {
@@ -95,6 +130,12 @@ export async function handleStorefrontPool(request, env) {
                         versions: parsedVersions
                     };
                 }),
+                pagination: {
+                    page,
+                    limit,
+                    totalRecords,
+                    totalPages
+                },
                 isAuthorized: true,
                 downloadLimit: dailyLimit,
                 downloadsCount: user?.daily_download_count || 0
@@ -103,22 +144,84 @@ export async function handleStorefrontPool(request, env) {
             return new Response(JSON.stringify(responsePayload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        if (method === "GET" && path === "/api/pool/download") {
+        if (method === "POST" && path === "/api/pool/download") {
             const user = await getAuthorizedUser(request, env);
-            if (!user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+            if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
-            const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
-            const now = new Date().getTime();
-            const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
-            const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
-
-            if (!isMaster && !isSubscribed) {
-                return new Response(JSON.stringify({ error: "SUBSCRIPTION_EXPIRED" }), { status: 403, headers: corsHeaders });
+            const body = await request.json();
+            const { url: downloadUrl } = body;
+            
+            if (!downloadUrl) {
+                return new Response(JSON.stringify({ error: "Missing download URL" }), { status: 400, headers: corsHeaders });
             }
 
-            // TODO: Implement daily download limit tracking here 
-            // For now just tracking access success for frontend
-            return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
+            const now = new Date();
+            const nowMs = now.getTime();
+            const todayUtcString = now.toISOString().split('T')[0];
+            const createdDate = new Date(user?.created_at || now.toISOString());
+            const daysSinceCreated = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24));
+            
+            const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
+            const isSubscribed = (user?.is_subscriber === 1 && expiry > nowMs);
+            
+            let limit = 0;
+            const userPlan = user?.subscription_plan?.toLowerCase() || 'none';
+
+            if (isMaster) {
+                limit = 9999;
+            } else if (isSubscribed) {
+                if (userPlan === 'monthly') {
+                    limit = 30;
+                } else {
+                    // "Rest of plans 200 downloads a day"
+                    limit = 200;
+                }
+            } else {
+                // Free plan: 10 downloads/day for 1 week
+                if (daysSinceCreated <= 7) {
+                    limit = 10;
+                } else {
+                    limit = 0;
+                }
+            }
+            
+            if (limit === 0) {
+                 return new Response(JSON.stringify({ error: "SUBSCRIPTION_EXPIRED" }), { status: 403, headers: corsHeaders });
+            }
+
+            let currentCount = user?.daily_download_count || 0;
+            const lastReset = user?.last_download_reset;
+
+            if (lastReset !== todayUtcString) {
+                currentCount = 0;
+            }
+
+            if (currentCount >= limit && !isMaster) {
+                return new Response(JSON.stringify({ error: `Daily limit of ${limit} reached.` }), { status: 429, headers: corsHeaders });
+            }
+
+            // Increment count
+            const newCount = currentCount + 1;
+            
+            try {
+                 await env.DB.prepare(
+                     `UPDATE profiles SET daily_download_count = ?, last_download_reset = ? WHERE id = ? OR email = ?`
+                 ).bind(newCount, todayUtcString, user.id, user.email).run();
+            } catch (dbErr) {
+                 console.error("[Download Track] DB Update error", dbErr);
+                 // We can either fail the download or allow it if DB fails. Usually better to fail safe if tracking is strictly req.
+            }
+
+            const remaining = isMaster ? 9999 : (limit - newCount);
+
+            return new Response(JSON.stringify({ redirectUrl: downloadUrl, remaining: remaining, success: true }), { 
+                headers: { 
+                    ...corsHeaders, 
+                    "Content-Type": "application/json",
+                    "X-Downloads-Remaining": remaining.toString()
+                } 
+            });
         }
 
     } catch (e) {

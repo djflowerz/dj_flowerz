@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import {
   Search, Download, Play, Pause, X, ChevronDown,
@@ -41,6 +42,80 @@ const DEFAULT_FILTERS: Filters = {
 
 const GENRES = ['Afrobeats', 'Amapiano', 'Hip Hop', 'R&B', 'Dancehall', 'Drill', 'Gengetone', 'House', 'Edits / Mashups'];
 const HUBS = ['All Hubs', 'Remix & Mashups Hub', 'Amapiano', 'Hype Edits', 'Kenyan Love Songs Hype', 'Bongo Flava (TBT) Hype', "Riddimz F'"];
+
+// --- UI Components ---
+const FilterDropdown = ({ 
+  label, 
+  value, 
+  options, 
+  onChange, 
+  icon: Icon 
+}: { 
+  label: string; 
+  value: string; 
+  options: (string | number)[]; 
+  onChange: (val: string) => void;
+  icon?: any;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-3 px-6 py-4 bg-white/[0.03] border rounded-2xl transition-all duration-300 group ${isOpen ? 'border-brand-purple/50 bg-white/[0.05]' : 'border-white/5 hover:border-white/10'}`}
+      >
+        {Icon && <Icon size={16} className={isOpen ? 'text-brand-purple' : 'text-gray-500'} />}
+        <div className="text-left">
+          <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">{label}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-white font-bold uppercase tracking-wide truncate max-w-[120px]">
+              {value || `Select ${label}`}
+            </span>
+            <ChevronDown size={14} className={`text-gray-600 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#15151A] border border-white/10 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden"
+          >
+            <div className="max-h-[300px] overflow-y-auto py-2 px-2 custom-scrollbar">
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => {
+                    onChange(String(opt));
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${String(opt) === value ? 'bg-brand-purple text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 // --- Helpers ---
 const normalise = (s: string) => s.toLowerCase().trim();
@@ -86,6 +161,52 @@ function groupTracks(tracks: Track[]): Track[] {
 
 // --- Components ---
 
+const CountdownTimer = () => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      
+      // Get the next midnight UTC
+      const tomorrowUTC = new Date(Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1,
+          0, 0, 0
+      ));
+
+      const difference = tomorrowUTC.getTime() - now.getTime();
+
+      if (difference > 0) {
+        const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((difference / 1000 / 60) % 60);
+        const seconds = Math.floor((difference / 1000) % 60);
+
+        setTimeLeft(
+          `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
+        );
+      } else {
+        setTimeLeft('00h 00m 00s');
+      }
+    };
+
+    calculateTimeLeft();
+    const timer = setInterval(calculateTimeLeft, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+       <Clock size={12} className="text-gray-500" />
+       <span className="text-gray-400 text-xs font-bold tracking-wider">
+          Resets in <span className="text-brand-purple">{timeLeft}</span>
+       </span>
+    </div>
+  );
+};
+
 const SubscriptionPlan = ({ 
   icon: Icon, 
   title, 
@@ -127,10 +248,9 @@ const SubscriptionPlan = ({
 );
 
 const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: any) => {
-  const [selectedVersionIdx, setSelectedVersionIdx] = useState(0);
   const isActive = player.track?.id === track.id;
   const isPlaying = isActive && player.isPlaying;
-  const currentVersion = track.versions[selectedVersionIdx] || track.versions[0];
+  const defaultVersionId = track.versions?.[0]?.id;
 
   return (
     <div className="group relative transition-all duration-300">
@@ -139,7 +259,7 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <div 
             className="relative group shrink-0 cursor-pointer"
-            onClick={() => onPlay(track, currentVersion.id)}
+            onClick={() => onPlay(track, defaultVersionId)}
           >
             <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors text-white">
               <img src={track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={track.title} />
@@ -168,23 +288,7 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-4">
-          {/* Version Selector */}
-          {track.versions && track.versions.length > 1 && (
-            <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 self-center">
-              {track.versions.map((v: any, idx: number) => (
-                <button
-                  key={v.id}
-                  onClick={() => setSelectedVersionIdx(idx)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${idx === selectedVersionIdx ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                >
-                  {v.type || v.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Download Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isLocked ? (
               <a 
                 href="#plans"
@@ -195,12 +299,35 @@ const TrackItem = React.memo(({ track, player, onPlay, onDownload, isLocked }: a
               </a>
             ) : (
               <>
-                <button 
-                  onClick={() => onDownload(track, currentVersion.id)}
-                  className="bg-brand-purple text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
-                >
-                  Download {currentVersion.type || currentVersion.label}
-                </button>
+                {track.versions?.map((v: any) => {
+                  const isVersionPlaying = isActive && player.versionId === v.id && player.isPlaying;
+                  return (
+                    <div 
+                      key={v.id} 
+                      className="flex items-center gap-1 bg-[#1a1a22] border border-white/5 p-1 rounded-2xl hover:border-brand-purple/30 transition-all"
+                    >
+                      <span className="pl-3 pr-2 text-[10px] font-black uppercase text-gray-400 border-r border-white/5">
+                        {v.type || v.label}
+                      </span>
+                      
+                      <button 
+                        onClick={() => onPlay(track, v.id)}
+                        className={`p-2 rounded-xl transition-all ${isVersionPlaying ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                        title={isVersionPlaying ? "Pause Preview" : "Play Preview"}
+                      >
+                        {isVersionPlaying ? <Pause size={14} /> : <Play size={14} className="fill-current" />}
+                      </button>
+
+                      <button 
+                        onClick={() => onDownload(track, v.id)}
+                        className="p-2 rounded-xl text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/10 transition-all"
+                        title="Download Version"
+                      >
+                        <Download size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
                 <button 
                   onClick={() => onDownload(track, 'ALL')}
                   className="bg-white/5 hover:bg-white/10 p-3 rounded-2xl border border-white/10 transition-all group/bulk"
@@ -222,11 +349,14 @@ export default function MusicPool() {
   const isAdmin = user?.role === 'admin' || user?.isAdmin;
   const isSubscriber = user?.isSubscriber || isAdmin;
 
-  const { poolTracks, poolLoading } = useData();
+  const { poolTracks, poolLoading, poolPagination, refreshPoolTracks } = useData();
+  const navigate = useNavigate();
   const [usage, setUsage] = useState({ limit: 0, count: 0 });
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeHub, setActiveHub] = useState('All Hubs');
   const [activeGenre, setActiveGenre] = useState('All Genres');
+  const [activeYear, setActiveYear] = useState('All Years');
+  const [activeMonth, setActiveMonth] = useState('All Months');
   
   const [player, setPlayer] = useState<PlayerState>({ track: null, isPlaying: false });
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -259,30 +389,36 @@ export default function MusicPool() {
     }
   }, [user, isAdmin]);
 
-  // Derived tracks - poolTracks from useData is already mapped/grouped by groupTracks or mapR2Track
-  const filteredTracks = useMemo(() => {
-    if (!poolTracks) return [];
-    
-    let list = [...poolTracks];
-    
-    if (filters.search) {
-      const q = normalise(filters.search);
-      list = list.filter(t => 
-        (t.title && normalise(t.title).includes(q)) || 
-        (t.artist && normalise(t.artist).includes(q))
-      );
-    }
+  // Call refresh when filters change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      refreshPoolTracks({
+        page: 1,
+        limit: 50,
+        hub: activeHub,
+        genre: activeGenre,
+        year: activeYear,
+        month: activeMonth,
+        search: filters.search
+      });
+    }, 400); // debounce search
+    return () => clearTimeout(timeoutId);
+  }, [activeHub, activeGenre, activeYear, activeMonth, filters.search, refreshPoolTracks]);
 
-    if (activeHub !== 'All Hubs') {
-      list = list.filter(t => t.collectionHub === activeHub);
+  const loadMore = useCallback(() => {
+    if (poolPagination && poolPagination.page < poolPagination.totalPages && !poolLoading) {
+      const nextPage = poolPagination.page + 1;
+      refreshPoolTracks({
+        page: nextPage,
+        limit: 50,
+        hub: activeHub,
+        genre: activeGenre,
+        year: activeYear,
+        month: activeMonth,
+        search: filters.search
+      });
     }
-
-    if (activeGenre !== 'All Genres') {
-      list = list.filter(t => t.displayGenre === activeGenre || t.genre === activeGenre);
-    }
-    
-    return list;
-  }, [poolTracks, filters.search, activeHub, activeGenre]);
+  }, [poolPagination, poolLoading, activeHub, activeGenre, activeYear, activeMonth, filters.search, refreshPoolTracks]);
 
   const handlePlay = useCallback((track: Track, versionId?: string) => {
     setPlayer(prev => {
@@ -307,42 +443,53 @@ export default function MusicPool() {
       return;
     }
 
+    const triggerDownload = async (v: any) => {
+      const url = v.downloadUrl || v.previewUrl || track.downloadUrl || track.previewUrl;
+      if (!url) {
+        toast.error("Download URL not found.");
+        return;
+      }
+
+      if (!isAdmin && usage.count >= usage.limit) {
+         toast.error(`Daily download limit reached (${usage.limit}). Please upgrade or wait for refresh.`);
+         return;
+      }
+
+      const toastId = toast.loading(`Preparing download for ${track.title}...`);
+      
+      try {
+        const { downloadFileSecurely } = await import('../utils/downloadHelper');
+        
+        const result = await downloadFileSecurely(url, {
+           fileName: `${track.artist} - ${track.title} (${v.type || 'Track'}).mp3`,
+           trackId: track.id,
+           type: 'track'
+        });
+
+        if (result.success) {
+           toast.success(`Downloading ${track.title}`, { id: toastId });
+           if (!isAdmin) {
+              setUsage(u => ({ ...u, count: u.count + 1 }));
+           }
+        } else {
+           toast.error(result.error || "Download failed. Please try again or check your limits.", { id: toastId });
+        }
+      } catch (err: any) {
+        toast.error(err.message || "An unexpected error occurred during download.", { id: toastId });
+      }
+    };
+
     if (versionId === 'ALL') {
-      toast.success(`Broadcasting bulk download for ${track.title}...`);
+      toast.info(`Preparing bulk download for ${track.title}...`);
       track.versions?.forEach((v, i) => {
-        setTimeout(async () => {
-          const url = v.downloadUrl || v.previewUrl;
-          if (url) {
-            if (!isAdmin) await trackPoolDownload(track.id);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${track.artist} - ${track.title} (${v.type}).mp3`;
-            a.click();
-          }
-        }, i * 1500);
+        setTimeout(() => triggerDownload(v), i * 1500);
       });
       return;
     }
 
-    const version = track.versions?.find(v => v.id === versionId);
-    const url = version?.downloadUrl || track.downloadUrl || track.previewUrl;
-    
-    if (url) {
-      if (!isAdmin) {
-        if (usage.count >= usage.limit) {
-          toast.error(`Daily download limit reached (${usage.limit}). Please upgrade or wait for refresh.`);
-          return;
-        }
-        const ok = await trackPoolDownload(track.id);
-        if (!ok) return;
-        setUsage(u => ({ ...u, count: u.count + 1 }));
-      }
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${track.artist} - ${track.title} (${version?.type || 'Edit'}).mp3`;
-      a.click();
-      toast.success(`Downloading ${track.title}`);
-    }
+    const version = track.versions?.find(v => v.id === versionId) || track.versions?.[0] || { type: 'Edit' };
+    await triggerDownload(version);
+
   }, [user, isSubscriber, isAdmin, usage]);
 
   return (
@@ -401,24 +548,60 @@ export default function MusicPool() {
 
         {/* Tracks Area */}
         <section className="mb-24 px-2">
-          <div className="flex justify-between items-center mb-10">
-            <div>
-              <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Stream Preview</h2>
-              <div className="flex items-center gap-2 text-brand-cyan text-[10px] font-bold uppercase tracking-widest">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan"></span>
-                Database Sync: Active
+          <div className="flex flex-col gap-8 mb-10">
+            <div className="flex flex-col lg:flex-row justify-between lg:items-end gap-6">
+              <div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Stream Preview</h2>
+                <div className="flex items-center gap-2 text-brand-cyan text-[10px] font-bold uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse"></span>
+                  Database Sync: Active
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="relative group flex-1 lg:flex-none">
+                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={18} />
+                   <input 
+                      type="text" 
+                      placeholder="SEARCH TRACKS..."
+                      value={filters.search}
+                      onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+                      className="bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all min-w-full lg:min-w-[400px] uppercase font-bold tracking-widest"
+                   />
+                </div>
               </div>
             </div>
-            
-            <div className="relative group">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={18} />
-               <input 
-                  type="text" 
-                  placeholder="SEARCH ARCHIVES..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
-                  className="bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all min-w-[300px] uppercase font-bold tracking-widest"
-               />
+
+            {/* Selectors Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-[2.5rem]">
+              <FilterDropdown 
+                label="Hub"
+                value={activeHub}
+                options={['All Hubs', ...HUBS.filter(h => h !== 'All Hubs')]}
+                onChange={setActiveHub}
+                icon={Radio}
+              />
+              <FilterDropdown 
+                label="Genre"
+                value={activeGenre}
+                options={['All Genres', ...GENRES]}
+                onChange={setActiveGenre}
+                icon={Music2}
+              />
+              <FilterDropdown 
+                label="Year"
+                value={activeYear}
+                options={['All Years', 2026, 2025, 2024, 2023, 2022, 2021, 2020]}
+                onChange={setActiveYear}
+                icon={Clock}
+              />
+              <FilterDropdown 
+                label="Month"
+                value={activeMonth}
+                options={['All Months', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']}
+                onChange={setActiveMonth}
+                icon={Filter}
+              />
             </div>
           </div>
 
@@ -447,15 +630,20 @@ export default function MusicPool() {
                        <Fuel size={20} />
                     </div>
                     <div>
-                       <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Usage Status</p>
                        <div className="flex items-baseline gap-2">
-                          <span className="text-white font-black text-xl">{usage.count}</span>
+                          <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Daily Downloads</p>
+                       </div>
+                       <div className="flex items-baseline gap-2 mt-1">
+                          <span className="text-white font-black text-2xl">{usage.count}</span>
                           <span className="text-gray-600 text-sm font-bold">/ {usage.limit}</span>
                        </div>
                     </div>
                  </div>
                  
                  <div className="flex-1 max-w-[400px]">
+                    <div className="flex justify-between items-end mb-2">
+                       <CountdownTimer />
+                    </div>
                     <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                        <motion.div 
                           className={`h-full ${usage.count >= usage.limit ? 'bg-red-500' : 'bg-brand-purple'}`}
@@ -474,9 +662,11 @@ export default function MusicPool() {
                    <p className="text-[10px] uppercase tracking-[0.4em] font-black animate-pulse">Scanning Hubs...</p>
                  </div>
                ) : (
+                 <>
                  <Virtuoso
                     useWindowScroll
-                    data={filteredTracks}
+                    data={poolTracks}
+                    endReached={loadMore}
                     style={{ height: 'auto' }}
                     itemContent={(index, track) => (
                       <div className="mb-4">
@@ -490,6 +680,12 @@ export default function MusicPool() {
                       </div>
                     )}
                  />
+                 {poolLoading && poolTracks.length > 0 && (
+                   <div className="py-8 flex justify-center">
+                     <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+                 )}
+                 </>
                )}
             </div>
           </div>
@@ -517,7 +713,7 @@ export default function MusicPool() {
                 'Complete Redrum Packs',
                 'Weekly updates'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=year_ultimate')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=year_ultimate' : '/signup/?plan=year_ultimate')}
             />
             <SubscriptionPlan 
               icon={<Flame className="text-orange-500" />}
@@ -531,7 +727,7 @@ export default function MusicPool() {
                 'All releases & Redrums',
                 'Mashups & Exclusive edits'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=six_months_elite')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=six_months_elite' : '/signup/?plan=six_months_elite')}
             />
             <SubscriptionPlan 
               icon={<Rocket className="text-blue-500" />}
@@ -544,7 +740,7 @@ export default function MusicPool() {
                 'All new music updates',
                 'Secure high-speed mirrors'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=three_months_club')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=three_months_club' : '/signup/?plan=three_months_club')}
             />
             <SubscriptionPlan 
               icon={<ZapIcon className="text-brand-purple" />}
@@ -557,7 +753,7 @@ export default function MusicPool() {
                 'High-quality 320kbps MP3s',
                 'Advanced filtering'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=one_month_pro')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=one_month_pro' : '/signup/?plan=one_month_pro')}
             />
             <SubscriptionPlan 
               icon={<Music2 className="text-brand-cyan" />}
@@ -570,7 +766,7 @@ export default function MusicPool() {
                 'All remix packs included',
                 'Mobile friendly downloads'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=one_week_remix')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=one_week_remix' : '/signup/?plan=one_week_remix')}
             />
              <SubscriptionPlan 
               icon={<Package className="text-gray-400" />}
@@ -583,7 +779,7 @@ export default function MusicPool() {
                 'Try library before you buy',
                 'No card required'
               ]}
-              onSelect={() => (window.location.href = '/signup/?plan=free_trial')}
+              onSelect={() => (window.location.href = user ? '/checkout?plan=free_trial' : '/signup/?plan=free_trial')}
             />
           </div>
         </section>
@@ -623,12 +819,23 @@ export default function MusicPool() {
             exit={{ y: 100 }}
             className="fixed bottom-0 left-0 right-0 z-[100] bg-black/40 backdrop-blur-3xl border-t border-white/10"
           >
-            <div className="max-w-7xl mx-auto px-6 h-24 flex items-center gap-6">
+            <div className="max-w-7xl mx-auto px-6 h-28 flex items-center gap-6">
                <div className="relative group shrink-0">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors">
-                    <img src={player.track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className={`w-full h-full object-cover transition-transform duration-700 ${player.isPlaying && 'animate-[spin_10s_linear_infinite]'}`} alt={player.track.title} />
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-white/10 group-hover:border-brand-purple/50 transition-colors bg-black">
+                    {(player.track.previewUrl?.endsWith('.mp4') || player.track.versions?.find(v => v.id === player.versionId)?.previewUrl?.endsWith('.mp4')) ? (
+                      <video 
+                        src={player.track.versions?.find(v => v.id === player.versionId)?.previewUrl || player.track.previewUrl} 
+                        className="w-full h-full object-cover"
+                        autoPlay={player.isPlaying}
+                        muted
+                        playsInline
+                        loop
+                      />
+                    ) : (
+                      <img src={player.track.image_url || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120&h=120&fit=crop'} className={`w-full h-full object-cover transition-transform duration-700 ${player.isPlaying && 'animate-[spin_10s_linear_infinite]'}`} alt={player.track.title} />
+                    )}
                   </div>
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl pointer-events-none">
                     <div className="w-2 h-2 rounded-full bg-brand-purple animate-ping"></div>
                   </div>
                </div>
@@ -645,7 +852,11 @@ export default function MusicPool() {
 
                <div className="flex items-center gap-6">
                  <button 
-                   onClick={() => setPlayer(p => ({ ...p, isPlaying: !p.isPlaying }))}
+                   onClick={() => {
+                     setPlayer(p => ({ ...p, isPlaying: !p.isPlaying }));
+                     if (player.isPlaying) audioRef.current?.pause();
+                     else audioRef.current?.play();
+                   }}
                    className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
                  >
                    {player.isPlaying ? <Pause size={20} fill="black" /> : <Play size={20} className="ml-1" fill="black" />}

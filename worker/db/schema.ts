@@ -219,9 +219,14 @@ export const tracks = sqliteTable('tracks', {
     artist: text('artist'),
     genre: text('genre'),
     subGenre: text('sub_genre'),
+    displayGenre: text('display_genre'),
+    collectionHub: text('collection_hub'),
+    vibe: text('vibe'),
     bpm: integer('bpm'),
     key: text('key'),
     releaseDate: text('release_date'),
+    releaseYear: integer('release_year'),
+    releaseMonth: text('release_month'),
     coverUrl: text('cover_url'),
     audioUrl: text('audio_url'),
     downloadUrl: text('download_url'),
@@ -230,6 +235,7 @@ export const tracks = sqliteTable('tracks', {
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
     tags: text('tags'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
 // 17. GENRES (Music Pool taxonomy)

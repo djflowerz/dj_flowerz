@@ -11,7 +11,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
     if (method === 'GET') {
         try {
             const { results } = await env.DB.prepare(`
-                SELECT * FROM products ORDER BY createdAt DESC
+                SELECT * FROM products ORDER BY created_at DESC
             `).all();
 
             // Fetch variants for each product and parse JSON fields
@@ -62,7 +62,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const variantGroups = body.variantGroups || body.variant_groups ? JSON.stringify(body.variantGroups || body.variant_groups) : null;
 
             await env.DB.prepare(`
-                INSERT INTO products (id, name, description, price, image, category, inventory, createdAt, brand, compare_at_price, status, release_date, logistics, slug, technical_details, hotspots, use_cases, variant_groups)
+                INSERT INTO products (id, name, description, price, image, category, inventory, created_at, brand, compare_at_price, status, release_date, logistics, slug, technical_details, hotspots, use_cases, variant_groups)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,

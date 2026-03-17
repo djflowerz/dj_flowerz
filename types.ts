@@ -372,6 +372,9 @@ export interface StudioEquipment {
   image: string;
   description?: string;
   status?: 'available' | 'maintenance' | 'booked';
+  hourlyRate?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface StudioRoom {
@@ -380,6 +383,11 @@ export interface StudioRoom {
   capacity: number;
   description: string;
   status: 'active' | 'maintenance';
+  rate?: number;
+  features?: string[];
+  imageUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface MaintenanceLog {
