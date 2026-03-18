@@ -183,9 +183,16 @@ function base64UrlToUint8Array(base64Url) {
 }
 
 async function getAuthorizedUser(request, env) {
+    let token = null;
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-    const token = authHeader.split(" ")[1];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+    } else {
+        const url = new URL(request.url);
+        token = url.searchParams.get("token");
+    }
+    
+    if (!token) return null;
 
     const payload = await verifySupabaseJWT(token, env.SUPABASE_JWT_SECRET);
     if (!payload || !payload.email) return null;
@@ -1680,7 +1687,34 @@ export default {
                 });
                 if (!version || !version.downloadUrl) return new Response("File not found", { status: 404, headers: corsHeaders });
 
-                return Response.redirect(version.downloadUrl, 302);
+                // 6. PROXY DOWNLOAD FOR IMMEDIATE BROWSER FEEDBACK
+                // Instead of redirecting to R2, we fetch and stream the body with Attachment header
+                try {
+                    const originRes = await fetch(version.downloadUrl, {
+                        headers: {
+                            "User-Agent": "DJFlowerz-Worker/1.0",
+                            "Referer": "https://djflowerz.co.ke"
+                        }
+                    });
+
+                    if (!originRes.ok) throw new Error(`Origin returned ${originRes.status}`);
+
+                    const friendlyName = url.searchParams.get("filename") || `${version.version_name || 'track'}.mp3`;
+                    const headers = new Headers(corsHeaders);
+                    
+                    // Critical for "Instant Download" showing in browser immediately:
+                    headers.set("Content-Type", originRes.headers.get("Content-Type") || "application/octet-stream");
+                    headers.set("Content-Disposition", `attachment; filename="${friendlyName.replace(/"/g, "'")}"`);
+                    
+                    // Support large files by streaming the body
+                    return new Response(originRes.body, { 
+                        status: 200, 
+                        headers 
+                    });
+                } catch (e) {
+                    console.error("[Download Proxy] Error:", e);
+                    return Response.redirect(version.downloadUrl, 302); // Fallback to redirect
+                }
             }
 
             // POST /api/admin/migrate-pool-json — Internal ingestion tool

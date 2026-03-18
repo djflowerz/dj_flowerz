@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, Pause, Download, Music, Video, Search, X, Flame, Volume2
 } from 'lucide-react';
-import ReactPlayer from 'react-player';
 
 interface TrackVersion {
   id: string;
@@ -27,7 +26,7 @@ interface TrackRowProps {
   playingUrl?: string | null;
   playingType?: 'audio' | 'video' | null;
   onPlay: (url: string, title: string, type: 'audio' | 'video', trackId?: string) => void;
-  onDownload: (url: string, fileName: string) => void;
+  onDownload: (url: string, fileName: string, versionId?: string) => void;
   onDownloadAll: () => void;
   onFindSimilar: () => void;
   onCloseInline?: () => void;
@@ -56,7 +55,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 }) => {
   const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
     const name = (v?.version_name || '').toLowerCase();
-    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
+    const url = (v?.preview_url || '').toLowerCase();
     if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm')) return 'video';
     return 'audio';
   };
@@ -92,15 +91,17 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               {isPlaying ? <Pause size={28} fill="currentColor" className="text-white" /> : <Play size={28} fill="currentColor" className="text-white ml-1" />}
             </div>
           </div>
-          
+
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h3 className="text-white font-black text-xl lg:text-2xl truncate tracking-tight leading-none">
-                <span className="text-zinc-400 font-bold">{artist}</span>
-                <span className="mx-2 text-zinc-600">-</span>
-                {title}
-              </h3>
-              {isNew && (
+              <div className="flex flex-col min-w-0">
+                <h3 className="text-[15px] md:text-base font-bold text-white group-hover:text-brand-purple transition-colors line-clamp-1">
+                  {title}
+                </h3>
+                <p className="text-[13px] text-zinc-400 font-medium group-hover:text-zinc-300 transition-colors truncate">
+                  {artist}
+                </p>
+              </div>
+            {isNew && (
                 <div className="relative flex items-center">
                    <div className="absolute inset-0 bg-rose-500/20 blur-md rounded-full animate-pulse" />
                    <span className="relative px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-wider">
@@ -108,15 +109,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                    </span>
                 </div>
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-zinc-500 text-sm font-medium">
-              <span className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand-purple/40" />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+              <span className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-lg border border-white/5 text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                <Music size={14} className="text-brand-purple/40 mr-1" />
                 {genre}
               </span>
               {bpm > 0 && (
-                <span className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-purple/40" />
+                <span className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-lg border border-white/5 text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] text-brand-purple/60">
+                  <div className="w-1.5 h-1.5 rounded-full bg-brand-purple/40 animate-pulse mr-1" />
                   {bpm} BPM
                 </span>
               )}
@@ -127,15 +127,15 @@ export const TrackRow: React.FC<TrackRowProps> = ({
         {/* Global Actions */}
         <div className="flex items-center gap-3">
            {versions.length > 1 && (
-             <button 
+             <button
                onClick={(e) => {
                  e.stopPropagation();
                  if (!isSubscriber) return;
                  onDownloadAll();
                }}
                className={`h-12 px-6 rounded-2xl font-black text-xs uppercase transition-all shadow-xl active:scale-95 whitespace-nowrap flex items-center gap-2 ${
-                 isSubscriber 
-                   ? 'bg-brand-purple hover:bg-brand-purple/80 text-white shadow-brand-purple/30' 
+                 isSubscriber
+                   ? 'bg-brand-purple hover:bg-brand-purple/80 text-white shadow-brand-purple/30'
                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
                }`}
              >
@@ -143,8 +143,8 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                Download All Versions
              </button>
            )}
-           
-           <button 
+
+           <button
              onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
              className="w-12 h-12 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-brand-purple rounded-2xl transition-all border border-white/5 shadow-lg group/search"
              title="Find Similar Tracks"
@@ -157,41 +157,45 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       {/* Version Control Area */}
       <div className="mt-6 pt-6 border-t border-white/5">
         <div className="flex flex-wrap gap-3">
-          {versions.map((v, idx) => {
-            const vType = getVersionType(v);
-            const vUrl = (vType === 'video' ? (videoUrl || v.preview_url) : v.preview_url) || '';
+          {versions?.filter((v, index, self) =>
+            index === self.findIndex((t) => (
+              t.version_name?.toLowerCase().trim() === v.version_name?.toLowerCase().trim()
+            ))
+          ).map((version) => {
+            const vType = getVersionType(version);
+            const vUrl = version.preview_url || '';
             const isActive = playingUrl === vUrl && isPlaying;
 
             return (
-              <div 
-                key={v.id || idx}
+              <div
+                key={version.id}
                 className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-800/40 border border-white/5 transition-all hover:border-white/10 hover:bg-zinc-800/60 group/version"
               >
                 <div className="flex items-center gap-2 pr-3">
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
+                      onPlay(vUrl, `${artist} - ${title} (${version.version_name})`, vType, id);
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide group/preview ${
-                      isActive 
-                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' 
+                      isActive
+                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
                         : 'bg-zinc-900/60 text-zinc-400 hover:text-white group-hover/version:bg-zinc-900 border border-white/5'
                     }`}
                   >
                     {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                    Preview {v.version_name}
+                    Preview {version.version_name}
                   </button>
 
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!isSubscriber) return;
-                      onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
+                      onDownload(version.download_url, `${artist} - ${title} (${version.version_name})`, version.id);
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide border border-white/5 ${
-                      isSubscriber 
-                        ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple hover:border-brand-purple/30' 
+                      isSubscriber
+                        ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple hover:border-brand-purple/30'
                         : 'bg-zinc-900/20 text-zinc-700 cursor-not-allowed opacity-50'
                     }`}
                     title={isSubscriber ? "Download Version" : "Pro Access Required"}
@@ -222,21 +226,15 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               >
                 <X size={24} />
               </button>
-              <ReactPlayer
-                url={playingUrl}
-                width="100%"
-                height="100%"
-                playing={isPlaying}
+              <video
+                src={playingUrl}
+                className="w-full h-full object-contain"
+                autoPlay={isPlaying}
                 controls
-                config={{
-                  file: {
-                    attributes: {
-                      style: { width: '100%', height: '100%' },
-                      type: 'video/mp4'
-                    }
-                  }
-                }}
-                style={{ position: 'absolute', top: 0, left: 0 }}
+                playsInline
+                onEnded={() => onCloseInline?.()}
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
               />
             </div>
           </motion.div>

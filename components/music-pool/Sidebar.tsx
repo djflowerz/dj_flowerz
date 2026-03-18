@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Folder, Music, Video, Zap, Hash, Layers } from 'lucide-react';
+import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown } from 'lucide-react'; // Added ChevronDown
 import { motion } from 'framer-motion';
 
 interface SidebarProps {
@@ -19,8 +19,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSearchChange,
   activeHub
 }) => {
+  const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+
   return (
-    <aside className="w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border-r border-white/5 flex flex-col h-[calc(100vh-140px)] sticky top-20 rounded-2xl overflow-hidden shadow-xl">
+    <>
+      {/* Mobile Toggle */}
+      <div className="lg:hidden w-full mb-4">
+        <button
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className="w-full flex items-center justify-between px-6 py-4 bg-zinc-900/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl hover:border-brand-purple/30 transition-all active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-brand-purple/20 text-brand-purple shadow-lg shadow-brand-purple/10">
+              <Layers size={20} />
+            </div>
+            <div className="flex flex-col items-start translate-y-0.5">
+              <span className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] leading-none mb-1">Browse Genre</span>
+              <span className="text-sm font-bold text-white leading-none">{activeGenre}</span>
+            </div>
+          </div>
+          <motion.div
+            animate={{ rotate: isMobileOpen ? 180 : 0 }}
+            className="p-2 rounded-lg bg-white/5"
+          >
+            <ChevronDown size={20} className="text-zinc-500" />
+          </motion.div>
+        </button>
+      </div>
+
+      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-200px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
       {/* Search Header */}
       <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-10">
         <div className="relative group">
@@ -80,5 +107,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     </aside>
+    </>
   );
 };

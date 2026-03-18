@@ -15,6 +15,15 @@ import { MONTHS, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../utils/supabase';
+
+interface TrackVersion {
+  id: string;
+  version_name: string;
+  preview_url: string;
+  download_url: string;
+  is_main_version: boolean;
+}
 
 // New Components
 import { Sidebar } from '../components/music-pool/Sidebar';
@@ -245,12 +254,18 @@ export default function MusicPool() {
     const nextTrack = poolTracks[nextIndex];
     if (nextTrack) {
       const mainV = nextTrack.versions?.find(v => v.is_main_version) || nextTrack.versions?.[0];
+      const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
+        const name = (v?.version_name || '').toLowerCase();
+        const url = (v?.preview_url || '').toLowerCase();
+        if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm')) return 'video';
+        return 'audio';
+      };
       const url = nextTrack.videoUrl || mainV?.preview_url || '';
-      const type = (nextTrack.videoUrl || nextTrack.versions?.some(v => v.version_name.toLowerCase().includes('video'))) ? 'video' : 'audio';
+      const type = (nextTrack.videoUrl || (mainV && getVersionType(mainV) === 'video')) ? 'video' : 'audio';
       handlePlay(url, nextTrack.title, type, nextTrack.id);
     }
   }, [poolTracks, expandedTrackId, handlePlay]);
-  const handleDownload = useCallback(async (url: string, fileName: string) => {
+  const handleDownload = useCallback(async (url: string, fileName: string, versionId?: string) => {
     if (!isSubscriber) {
       toast.error("Subscription required to download.");
       return;
@@ -260,45 +275,53 @@ export default function MusicPool() {
       toast.error("Download URL not available");
       return;
     }
-    
+
     try {
-      // Ensure we hit the tracking API first without blocking the download
+      // Get session for token
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        toast.error("Session expired. Please log in again.");
+        return;
+      }
+
+      // 1. HIT THE TRACKING API (POST) - Non-blocking
       fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || ''}/api/pool/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, versionId })
       }).catch(err => console.error("Tracking error:", err));
 
-      // Force download via fetch to bypass cross-origin browser opening
-      // If it fails, fallback to window.open
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Network response was not ok");
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        // toast.success("Download started");
-      } catch (blobErr) {
-        console.warn("Blob download failed, falling back to new tab", blobErr);
-        window.open(url, '_blank');
-      }
+      // 2. TRIGGER NATIVE BROWSER DOWNLOAD IMMEDIATELY
+      // We use the GET version of the endpoint with ?token=... to support window.location.href
+      // This will return the body with Content-Disposition: attachment
+      const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
+      const downloadApiUrl = `${WORKER_URL}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
+      // Using window.location.href triggers the browser's download manager immediately
+      // For cross-origin or same-origin direct streams with Attachment header, this is perfect.
+      window.location.href = downloadApiUrl;
+      
     } catch (err) {
+      console.error("Download error:", err);
+      // Fallback
       window.open(url, '_blank');
     }
   }, [isSubscriber]);
 
   const handleDownloadAll = useCallback((track: any) => {
-    track.versions.forEach((v: any) => {
-      handleDownload(v.download_url, `${track.artist} - ${track.title} (${v.version_name}).mp3`);
+    if (!track.versions || track.versions.length === 0) return;
+    
+    toast.success(`Starting downloads for all versions of ${track.title}`);
+    
+    // To trigger multiple downloads at once without window.location.href overriding itself,
+    // we use multiple hidden iframes or <a> tags.
+    track.versions.forEach((v: any, index: number) => {
+      setTimeout(() => {
+        handleDownload(v.download_url, `${track.artist} - ${track.title} (${v.version_name}).mp3`, v.id);
+      }, index * 500); // Stagger to be safe
     });
-    toast.success(`Downloading all versions for ${track.title}`);
   }, [handleDownload]);
 ;
 
@@ -461,11 +484,10 @@ export default function MusicPool() {
                     Get full access to the Music Pool on your mobile device. Download 92,000+ professional DJ edits anywhere.
                   </p>
                   <Link 
-                    to="/catalog?tab=plans"
-                    className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase transition-all shadow-2xl shadow-blue-600/40 active:scale-95 flex items-center gap-3"
+                    to="/account?tab=subscription"
+                    className="px-8 py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white rounded-2xl font-black uppercase text-sm hover:shadow-2xl hover:shadow-brand-purple/20 transition-all active:scale-95"
                   >
-                    <Crown size={20} />
-                    Unlock Library
+                    View Subscription Plans
                   </Link>
                 </div>
               ) : poolLoading && poolTracks.length === 0 ? (

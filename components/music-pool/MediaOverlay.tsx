@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Maximize, Minimize } from 'lucide-react';
-import ReactPlayer from 'react-player';
 
 interface MediaOverlayProps {
   url: string;
@@ -40,23 +39,16 @@ export const MediaOverlay: React.FC<MediaOverlayProps> = ({ url, isOpen, onClose
               </button>
             </div>
 
-            {/* Video Player */}
-            <div className="w-full h-full flex items-center justify-center">
-              <ReactPlayer
-                url={url}
+            <div className="w-full h-full flex items-center justify-center relative">
+              <video
+                src={url}
+                className="w-full h-full object-contain"
+                autoPlay
                 controls
-                playing
-                width="100%"
-                height="100%"
-                config={{
-                  file: {
-                    attributes: {
-                      style: { width: '100%', height: '100%' },
-                      type: 'video/mp4'
-                    }
-                  }
-                }}
-                style={{ position: 'absolute', top: 0, left: 0 }}
+                playsInline
+                onEnded={onClose}
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
               />
             </div>
           </motion.div>

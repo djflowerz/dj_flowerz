@@ -14,7 +14,24 @@ const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
   const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals'>('profile');
+  
+  // Set active tab based on query param
+  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') as any;
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals'];
+    return allowed.includes(tab) ? tab : 'profile';
+  });
+
+  // Update tab when URL changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') as any;
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals'];
+    if (tab && allowed.includes(tab) && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [window.location.search]);
 
   // Sensitive Actions State
   const [showReauth, setShowReauth] = useState(false);

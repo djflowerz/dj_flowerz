@@ -1,9 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Play, Pause, Download, Music, Video, Zap, Search, X, Volume2
+import {
+  Play, Pause, Download, Music, Video, Zap, Search, X, Volume2, Hash, Maximize2, SkipBack, SkipForward, Layers
 } from 'lucide-react';
-import ReactPlayer from 'react-player';
 
 interface TrackVersion {
   id: string;
@@ -27,19 +26,19 @@ interface HypeTrackRowProps {
   playingUrl?: string | null;
   playingType?: 'audio' | 'video' | null;
   onPlay: (url: string, title: string, type: 'audio' | 'video', trackId?: string) => void;
-  onDownload: (url: string, fileName: string) => void;
+  onDownload: (url: string, fileName: string, versionId?: string) => void;
   onDownloadAll: () => void;
   onFindSimilar: () => void;
   onCloseInline?: () => void;
   isSubscriber?: boolean;
 }
 
-const getVersionType = (v: TrackVersion) => {
-  const name = v.version_name.toLowerCase();
-  const url = v.download_url.toLowerCase();
-  if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov')) return 'video';
-  return 'audio';
-};
+  const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
+    const name = (v?.version_name || '').toLowerCase();
+    const url = (v?.preview_url || '').toLowerCase();
+    if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm')) return 'video';
+    return 'audio';
+  };
 
 export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
   id, title, artist, bpm, genre, videoUrl, versions, isNew, isExpanded, isPlaying, playingUrl, playingType, onPlay, onDownload, onDownloadAll, onFindSimilar, onCloseInline, isSubscriber = false
@@ -84,13 +83,15 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
           </div>
           
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-4 mb-3">
-              <h3 className="text-white font-black text-2xl lg:text-3xl truncate tracking-tighter leading-none">
-                <span className="text-zinc-400 font-bold">{artist}</span>
-                <span className="mx-3 text-zinc-600">-</span>
-                {title}
-              </h3>
-              {isNew && (
+              <div className="flex flex-col min-w-0">
+                <h3 className="text-[15px] md:text-base font-bold text-white group-hover:text-brand-purple transition-colors line-clamp-1">
+                  {title}
+                </h3>
+                <p className="text-[13px] text-zinc-400 font-medium group-hover:text-zinc-300 transition-colors truncate">
+                  {artist}
+                </p>
+              </div>
+            {isNew && (
                 <div className="relative flex items-center">
                     <div className="absolute inset-0 bg-rose-500/20 blur-md rounded-full animate-pulse" />
                     <span className="relative px-4 py-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-[0.1em]">
@@ -98,15 +99,14 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                     </span>
                 </div>
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-zinc-400 text-sm font-bold uppercase tracking-wider">
-              <span className="flex items-center gap-2.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <span className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-lg border border-white/5 text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] text-zinc-500">
                 <Music size={14} className="text-brand-purple" />
                 {genre}
               </span>
               {bpm > 0 && (
-                <span className="flex items-center gap-2.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5 text-brand-purple">
-                  <div className="w-2 h-2 rounded-full bg-brand-purple animate-pulse" />
+                <span className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-lg border border-white/5 text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] text-brand-purple">
+                  <div className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse mr-1" />
                   {bpm} BPM
                 </span>
               )}
@@ -147,9 +147,13 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
       {/* Version Control Area */}
       <div className="mt-8 pt-8 border-t border-white/10 relative z-10">
         <div className="flex flex-wrap gap-4">
-          {versions.map((v, idx) => {
+          {versions?.filter((v, index, self) => 
+            index === self.findIndex((t) => (
+              t.version_name?.toLowerCase().trim() === v.version_name?.toLowerCase().trim()
+            ))
+          ).map((v, idx) => {
             const vType = getVersionType(v);
-            const vUrl = (vType === 'video' ? (videoUrl || v.preview_url) : v.preview_url) || '';
+            const vUrl = v.preview_url || '';
             const isActive = playingUrl === vUrl && isPlaying;
 
             return (
@@ -166,7 +170,7 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                     className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
                       isActive 
                         ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/30' 
-                        : 'bg-zinc-900 text-zinc-400 hover:text-white group-hover/version:bg-zinc-800'
+                        : 'bg-zinc-900 text-zinc-400 hover:text-white group-hover/version:bg-zinc-900'
                     }`}
                   >
                     {isActive ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
@@ -177,7 +181,7 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!isSubscriber) return;
-                      onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
+                      onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`, v.id);
                     }}
                     className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
                       isSubscriber 
@@ -212,21 +216,15 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
               >
                 <X size={28} />
               </button>
-              <ReactPlayer
-                url={playingUrl}
-                width="100%"
-                height="100%"
-                playing={isPlaying}
+              <video
+                src={playingUrl}
+                className="w-full h-full object-contain"
+                autoPlay={isPlaying}
                 controls
-                config={{
-                  file: {
-                    attributes: {
-                      style: { width: '100%', height: '100%' },
-                      type: 'video/mp4'
-                    }
-                  }
-                }}
-                style={{ position: 'absolute', top: 0, left: 0 }}
+                playsInline
+                onEnded={() => onCloseInline?.()}
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
               />
             </div>
           </motion.div>
