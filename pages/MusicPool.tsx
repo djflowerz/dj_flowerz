@@ -6,7 +6,8 @@ import {
   Music, Video, Filter, Zap, CheckCircle2, AlertCircle,
   Clock, SortAsc, SortDesc, Disc3, Fuel, ChevronRight,
   Star, Lock, Check, Crown, Flame, Rocket, Zap as ZapIcon,
-  PlayCircle, Package, Layers, Info, Volume2, Globe
+  PlayCircle, Package, Layers, Info, Volume2, Globe,
+  ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Track } from '../types';
@@ -146,8 +147,8 @@ export default function MusicPool() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       refreshPoolTracks({
-        page: 1,
-        limit: 50,
+        page: poolPagination?.page || 1,
+        limit: 100,
         hub: activeHub,
         genre: activeGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
@@ -161,19 +162,24 @@ export default function MusicPool() {
   }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks]);
 
   const loadMore = useCallback(() => {
-    if (poolPagination && poolPagination.page < poolPagination.totalPages && !poolLoading) {
-      refreshPoolTracks({
-        page: poolPagination.page + 1,
-        limit: 50,
-        hub: activeHub,
-        year: activeYear,
-        month: activeMonth,
-        search: searchTerm,
-        bpmMin: bpmFilter[0],
-        bpmMax: bpmFilter[1]
-      });
-    }
-  }, [poolPagination, poolLoading, activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks]);
+    // Infinite scroll handled by Virtuoso if needed, but we are switching to explicit pagination 
+    // at the user's request for "Next/Prev buttons".
+  }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    if (poolLoading) return;
+    refreshPoolTracks({
+      page: newPage,
+      limit: 100,
+      hub: activeHub,
+      year: activeYear === 'All Years' ? undefined : activeYear,
+      month: activeMonth === 'All Months' ? undefined : activeMonth,
+      search: searchTerm,
+      bpmMin: bpmFilter[0],
+      bpmMax: bpmFilter[1]
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading]);
 
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
     if (trackId) {
@@ -525,6 +531,40 @@ export default function MusicPool() {
                 />
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {poolPagination && poolPagination.totalPages > 1 && (
+              <div className="mt-12 flex items-center justify-center gap-4 pb-12">
+                <button
+                  onClick={() => handlePageChange(poolPagination.page - 1)}
+                  disabled={poolPagination.page === 1 || poolLoading}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold uppercase text-xs"
+                >
+                  <ArrowLeft size={16} />
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs font-black uppercase tracking-widest">Page</span>
+                  <span className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 font-black text-sm">
+                    {poolPagination.page}
+                  </span>
+                  <span className="text-zinc-500 text-xs font-black uppercase tracking-widest">of</span>
+                  <span className="text-zinc-300 text-xs font-black tracking-widest">
+                    {poolPagination.totalPages}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(poolPagination.page + 1)}
+                  disabled={poolPagination.page === poolPagination.totalPages || poolLoading}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold uppercase text-xs"
+                >
+                  Next
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
