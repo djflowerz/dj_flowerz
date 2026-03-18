@@ -20,7 +20,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
 
             const enrichedProduct = {
                 ...product,
-                isActive: product.status === 'active',
+                isActive: Boolean(product.is_active),
                 shortDescription: product.description ? product.description.substring(0, 100) : null,
                 variants: variants || []
             };
@@ -39,7 +39,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
         try {
             const { results } = await env.DB.prepare(`
                 SELECT * FROM products 
-                WHERE status = 'active'
+                WHERE is_active = 1
                 ORDER BY created_at DESC
             `).all();
 
@@ -50,7 +50,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 
                 return {
                     ...p,
-                    isActive: p.status === 'active',
+                    isActive: Boolean(p.is_active),
                     isFeatured: false,
                     shortDescription: p.description ? p.description.substring(0, 100) : null,
                     variants: variants || []

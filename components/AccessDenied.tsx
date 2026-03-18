@@ -16,8 +16,9 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [selectedPlanId, setSelectedPlanId] = useState<string>(SUBSCRIPTION_PLANS[0].id);
-    const selectedPlan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlanId) || SUBSCRIPTION_PLANS[0];
+    const eligiblePlans = SUBSCRIPTION_PLANS.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
+    const [selectedPlanId, setSelectedPlanId] = useState<string>(eligiblePlans[0]?.id || SUBSCRIPTION_PLANS[0].id);
+    const selectedPlan = eligiblePlans.find(p => p.id === selectedPlanId) || eligiblePlans[0] || SUBSCRIPTION_PLANS[0];
 
     // Paystack Configuration
     const paystackConfig = {
@@ -100,7 +101,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
 
                 {/* Plans Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-                    {SUBSCRIPTION_PLANS.filter(p => p.active).map((plan, index) => (
+                    {eligiblePlans.map((plan, index) => (
                         <motion.div
                             key={plan.id}
                             initial={{ opacity: 0, y: 20 }}

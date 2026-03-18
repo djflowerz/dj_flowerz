@@ -25,33 +25,41 @@ export async function handleDashboardMixtapes(request, env) {
         if (method === 'POST') {
             const body = await request.json();
             const {
-                id, title, artist, description, genre, coverUrl,
-                audioUrl, duration, trackCount, featured, isFree,
-                downloadEnabled, releaseDate
+                id, title, slug, artist, description, genre, coverUrl,
+                audioUrl, videoUrl, duration, releaseDate, status,
+                tracklist, tags, isFeatured, showInGallery, showInMusicPool,
+                isExclusive, allowFullStream, allowDownload, downloadType,
+                streamQuality, videoDownloadUrl, downloadLimit, downloadExpiryDays,
+                youtubeUrl, soundcloudUrl, metaTitle, metaDescription, ogImage,
+                enableComments, requireLoginToComment, moderateComments
             } = body;
 
-            const mixtapeId = id || crypto.randomUUID();
+            const mixtapeId = id || `m${Date.now()}`;
             const now = new Date().toISOString();
 
             await env.DB.prepare(
-                `INSERT INTO mixtapes (id, title, artist, description, genre, cover_url,
-                 audio_url, duration, track_count, featured, is_free, download_enabled,
-                 release_date, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(id) DO UPDATE SET
-                   title=excluded.title, artist=excluded.artist,
-                   description=excluded.description, genre=excluded.genre,
-                   cover_url=excluded.cover_url, audio_url=excluded.audio_url,
-                   duration=excluded.duration, track_count=excluded.track_count,
-                   featured=excluded.featured, is_free=excluded.is_free,
-                   download_enabled=excluded.download_enabled,
-                   release_date=excluded.release_date, updated_at=excluded.updated_at`
+                `INSERT INTO mixtapes (
+                    id, title, slug, artist, description, genre, cover_url,
+                    audio_url, video_url, duration, release_date, status,
+                    tracklist, tags, is_featured, show_in_gallery, show_in_music_pool,
+                    is_exclusive, allow_full_stream, allow_download, download_type,
+                    stream_quality, video_download_url, download_limit, download_expiry_days,
+                    youtube_url, soundcloud_url, meta_title, meta_description, og_image,
+                    enable_comments, require_login_to_comment, moderate_comments,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
-                mixtapeId, title, artist || 'DJ Flowerz', description || '',
-                genre || 'Afrobeat', coverUrl || '', audioUrl || '',
-                duration || '', trackCount || 0,
-                featured ? 1 : 0, isFree ? 1 : 0, downloadEnabled ? 1 : 0,
-                releaseDate || now, now, now
+                mixtapeId, title, slug || title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                artist || 'DJ Flowerz', description || '', genre || '', coverUrl || '',
+                audioUrl || '', videoUrl || '', duration || '', releaseDate || now, status || 'draft',
+                tracklist ? JSON.stringify(tracklist) : '[]',
+                tags ? JSON.stringify(tags) : '[]',
+                isFeatured ? 1 : 0, showInGallery ? 1 : 0, showInMusicPool ? 1 : 0,
+                isExclusive ? 1 : 0, allowFullStream ? 1 : 0, allowDownload ? 1 : 0, downloadType || 'free',
+                streamQuality || 'high', videoDownloadUrl || '', downloadLimit || null, downloadExpiryDays || null,
+                youtubeUrl || '', soundcloudUrl || '', metaTitle || '', metaDescription || '', ogImage || '',
+                enableComments ? 1 : 0, requireLoginToComment ? 1 : 0, moderateComments ? 1 : 0,
+                now, now
             ).run();
 
             return Response.json({ success: true, id: mixtapeId }, { status: 201 });
@@ -64,24 +72,41 @@ export async function handleDashboardMixtapes(request, env) {
 
             const fields = [];
             const values = [];
+            
             const fieldMap = {
-                title: 'title', artist: 'artist', description: 'description',
+                title: 'title', slug: 'slug', artist: 'artist', description: 'description',
                 genre: 'genre', coverUrl: 'cover_url', audioUrl: 'audio_url',
-                duration: 'duration', trackCount: 'track_count',
-                featured: 'featured', isFree: 'is_free',
-                downloadEnabled: 'download_enabled', releaseDate: 'release_date'
+                videoUrl: 'video_url', duration: 'duration', releaseDate: 'release_date',
+                status: 'status', isFeatured: 'is_featured', showInGallery: 'show_in_gallery',
+                showInMusicPool: 'show_in_music_pool', isExclusive: 'is_exclusive',
+                allowFullStream: 'allow_full_stream', allowDownload: 'allow_download',
+                downloadType: 'download_type', streamQuality: 'stream_quality',
+                videoDownloadUrl: 'video_download_url', downloadLimit: 'download_limit',
+                downloadExpiryDays: 'download_expiry_days', youtubeUrl: 'youtube_url',
+                soundcloudUrl: 'soundcloud_url', metaTitle: 'meta_title',
+                metaDescription: 'meta_description', ogImage: 'og_image',
+                enableComments: 'enable_comments', requireLoginToComment: 'require_login_to_comment',
+                moderateComments: 'moderate_comments'
             };
 
             for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
                 if (body[jsKey] !== undefined) {
                     fields.push(`${dbCol} = ?`);
-                    // Convert booleans to integers for SQLite
                     if (typeof body[jsKey] === 'boolean') {
                         values.push(body[jsKey] ? 1 : 0);
                     } else {
                         values.push(body[jsKey]);
                     }
                 }
+            }
+
+            if (body.tracklist !== undefined) {
+                fields.push('tracklist = ?');
+                values.push(JSON.stringify(body.tracklist));
+            }
+            if (body.tags !== undefined) {
+                fields.push('tags = ?');
+                values.push(JSON.stringify(body.tags));
             }
 
             fields.push('updated_at = ?');

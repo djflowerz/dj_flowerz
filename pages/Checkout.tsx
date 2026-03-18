@@ -74,10 +74,17 @@ export default function Checkout() {
   const { items, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // Determine if cart is all-digital
-  const hasPhysical = useMemo(() => items.some((i: any) => i.type !== 'digital'), [items]);
-  const hasDigital = useMemo(() => items.some((i: any) => i.type === 'digital'), [items]);
-  const isDigitalOnly = !hasPhysical && hasDigital;
+  // Determine if cart has physical items
+  const hasPhysical = useMemo(() => items.some((i: any) => 
+    i.type === 'physical' || 
+    (i.requiresShipping !== false && i.type !== 'digital' && i.type !== 'subscription')
+  ), [items]);
+  
+  const hasDigital = useMemo(() => items.some((i: any) => 
+    i.type === 'digital' || i.type === 'subscription' || i.requiresShipping === false
+  ), [items]);
+
+  const isDigitalOnly = !hasPhysical;
 
   const selectedCounty = watch('county');
   const [selectedZoneId, setSelectedZoneId] = useState<string>(INITIAL_SHIPPING_ZONES[0].id);
@@ -95,7 +102,10 @@ export default function Checkout() {
     , [selectedZone, selectedRateId]);
 
   const shippingCost = isDigitalOnly ? 0 : selectedRate.price;
-  const finalTotal = cartTotal + shippingCost;
+  
+  // Ensure we sum up all prices correctly, handling potentially missing prices on sub items
+  const subtotal = useMemo(() => items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0), [items]);
+  const finalTotal = subtotal + shippingCost;
 
   const handleZoneChange = (zoneId: string) => {
     const zone = INITIAL_SHIPPING_ZONES.find(z => z.id === zoneId);

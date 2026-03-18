@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Track } from '../types';
-import { MONTHS } from '../constants';
+import { MONTHS, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { fetchPoolTracks, trackPoolDownload, fetchPoolFilters } from '../utils/r2';
 import AccessDenied from '../components/AccessDenied';
@@ -40,7 +40,11 @@ const DEFAULT_FILTERS: Filters = {
   vibe: '',
 };
 
-const GENRES = ['Afrobeats', 'Amapiano', 'Hip Hop', 'R&B', 'Dancehall', 'Drill', 'Gengetone', 'House', 'Edits / Mashups'];
+const GENRES = [
+  'Afrobeats', 'Amapiano', 'Bongo', 'Dancehall', 'Drill', 
+  'Edits / Mashups', 'Gengetone', 'Gospel', 'Hip Hop', 
+  'House', 'Pop', 'R&B', 'Reggae', 'Riddim'
+].sort();
 const HUBS = ['All Hubs', 'Remix & Mashups Hub', 'Amapiano', 'Hype Edits', 'Kenyan Love Songs Hype', 'Bongo Flava (TBT) Hype', "Riddimz F'"];
 
 // --- UI Components ---
@@ -692,97 +696,38 @@ export default function MusicPool() {
         </section>
 
         {/* Subscription Plans Section */}
-        <section id="plans" className="mb-32">
-          <div className="text-center mb-16">
-            <h2 className="font-display font-black text-4xl md:text-5xl text-white mb-4 uppercase tracking-tighter">Choose Your <span className="text-brand-purple">Frequency</span></h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">Select the plan that matches your performance schedule. Every tier includes access to premium edits and mashups.</p>
-          </div>
+        {!isSubscriber && (
+          <section id="plans" className="mb-32">
+            <div className="text-center mb-16">
+              <h2 className="font-display font-black text-4xl md:text-5xl text-white mb-4 uppercase tracking-tighter">Choose Your <span className="text-brand-purple">Frequency</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto">Select the plan that matches your performance schedule. Every tier includes access to premium edits and mashups.</p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <SubscriptionPlan 
-              icon={<Crown className="text-yellow-500" />}
-              title="1 Year Ultimate"
-              price={6000}
-              period="yr"
-              savings="SAVE KSH 2,400 ✅"
-              highlight
-              features={[
-                '12 months full access',
-                'Unlimited downloads',
-                'All old & new releases',
-                'Complete Redrum Packs',
-                'Weekly updates'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=year_ultimate' : '/signup/?plan=year_ultimate')}
-            />
-            <SubscriptionPlan 
-              icon={<Flame className="text-orange-500" />}
-              title="6 Months Elite"
-              price={3500}
-              period="6mo"
-              savings="SAVE KSH 700"
-              features={[
-                '6 months unlimited access',
-                '200 downloads per day',
-                'All releases & Redrums',
-                'Mashups & Exclusive edits'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=six_months_elite' : '/signup/?plan=six_months_elite')}
-            />
-            <SubscriptionPlan 
-              icon={<Rocket className="text-blue-500" />}
-              title="3 Months Club"
-              price={1800}
-              period="3mo"
-              features={[
-                '3 months full access',
-                '200 downloads per day',
-                'All new music updates',
-                'Secure high-speed mirrors'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=three_months_club' : '/signup/?plan=three_months_club')}
-            />
-            <SubscriptionPlan 
-              icon={<ZapIcon className="text-brand-purple" />}
-              title="1 Month Pro"
-              price={700}
-              period="mo"
-              features={[
-                'Full 30 days access',
-                '100 downloads per day',
-                'High-quality 320kbps MP3s',
-                'Advanced filtering'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=one_month_pro' : '/signup/?plan=one_month_pro')}
-            />
-            <SubscriptionPlan 
-              icon={<Music2 className="text-brand-cyan" />}
-              title="1 Week Remix"
-              price={200}
-              period="wk"
-              features={[
-                '7 days full access',
-                '50 downloads per day',
-                'All remix packs included',
-                'Mobile friendly downloads'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=one_week_remix' : '/signup/?plan=one_week_remix')}
-            />
-             <SubscriptionPlan 
-              icon={<Package className="text-gray-400" />}
-              title="1 Week Free Trial"
-              price={0}
-              period="7days"
-              features={[
-                '7 days preview access',
-                '5 downloads total',
-                'Try library before you buy',
-                'No card required'
-              ]}
-              onSelect={() => (window.location.href = user ? '/checkout?plan=free_trial' : '/signup/?plan=free_trial')}
-            />
-          </div>
-        </section>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {SUBSCRIPTION_PLANS
+                .filter(plan => plan.active && (!plan.isTrial || !user?.hasUsedTrial))
+                .map((plan) => (
+                  <SubscriptionPlan 
+                    key={plan.id}
+                    icon={
+                      plan.id === 'yearly' ? <Crown className="text-yellow-500" /> :
+                      plan.id === '6months' ? <Flame className="text-orange-500" /> :
+                      plan.id === '3months' ? <Rocket className="text-blue-500" /> :
+                      plan.id === 'monthly' ? <ZapIcon className="text-brand-purple" /> :
+                      plan.id === 'weekly' ? <Music2 className="text-brand-cyan" /> :
+                      <Package className="text-gray-400" />
+                    }
+                    title={plan.name}
+                    price={plan.price}
+                    period={plan.period}
+                    features={plan.features}
+                    highlight={plan.isBestValue || plan.id === '6months' || plan.id === '3months'}
+                    onSelect={() => (window.location.href = user ? `/checkout?plan=${plan.id}` : `/signup/?plan=${plan.id}`)}
+                  />
+                ))}
+            </div>
+          </section>
+        )}
 
         {/* Hub Filters (Sub-Navigation) */}
         <section className="mb-24 px-2">

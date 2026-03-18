@@ -137,19 +137,19 @@ const MixtapeDetails: React.FC = () => {
                   </p>
 
                   {/* Embed Player Section */}
-                  {isStreamable(mixtape.audioUrl) && (
-                     <div className="mb-8 rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-2xl">
-                        <iframe
-                           src={getEmbedUrl(mixtape.audioUrl) || ''}
-                           width="100%"
-                           height="150"
-                           frameBorder="0"
-                           scrolling="no"
-                           allow="autoplay"
-                           className="block"
-                        ></iframe>
-                     </div>
-                  )}
+                   {isStreamable(mixtape.audioUrl) && (
+                      <div className="mb-8 rounded-[2rem] overflow-hidden border border-white/10 bg-black/40 shadow-2xl flex items-center justify-center">
+                          <iframe
+                             src={getEmbedUrl(mixtape.audioUrl) || ''}
+                             width="100%"
+                             height="600"
+                             frameBorder="0"
+                             scrolling="no"
+                             allow="autoplay"
+                             className="block"
+                          ></iframe>
+                      </div>
+                   )}
 
                   <div className="flex flex-col sm:flex-row gap-4 mb-8">
                      <button onClick={handleShare} className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition flex items-center justify-center gap-2">
