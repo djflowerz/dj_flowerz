@@ -82,9 +82,9 @@ export const orders = sqliteTable('orders', {
     referenceCode: text('reference_code'),
     paystackRef: text('paystack_ref'),
     items: text('items').notNull(), // JSON string: Array of {id, name, price, quantity}
-    shippingAddress: text('shipping_address'),
+    address: text('address'),
     city: text('city'),
-    phoneNumber: text('phone_number'),
+    customerPhone: text('customer_phone'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

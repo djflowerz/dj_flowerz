@@ -675,9 +675,9 @@ export default {
                                 status: order.status || 'pending',
                                 paymentStatus: order.paymentStatus || order.payment_status || 'unpaid',
                                 paymentMethod: order.paymentMethod || order.payment_method,
+                                address: order.address || order.shippingAddress || order.shipping_address,
                                 city: order.city,
-                                shippingAddress: order.address || order.shippingAddress || order.shipping_address,
-                                phoneNumber: order.phoneNumber || order.customerPhone || order.customer_phone,
+                                customerPhone: order.phoneNumber || order.customerPhone || order.customer_phone,
                             })
                             .run();
 
