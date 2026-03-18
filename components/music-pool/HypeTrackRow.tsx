@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Play, Pause, Download, Music, Video, Zap, Search, X
+  Play, Pause, Download, Music, Video, Zap, Search, X, Volume2
 } from 'lucide-react';
 import ReactPlayer from 'react-player';
 
@@ -34,85 +34,79 @@ interface HypeTrackRowProps {
   isSubscriber?: boolean;
 }
 
+const getVersionType = (v: TrackVersion) => {
+  const name = v.version_name.toLowerCase();
+  const url = v.download_url.toLowerCase();
+  if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov')) return 'video';
+  return 'audio';
+};
+
 export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
-  id,
-  title,
-  artist,
-  bpm,
-  genre,
-  videoUrl,
-  versions,
-  isNew,
-  isExpanded,
-  isPlaying,
-  playingUrl,
-  playingType,
-  onPlay,
-  onDownload,
-  onDownloadAll,
-  onFindSimilar,
-  onCloseInline,
-  isSubscriber = false
+  id, title, artist, bpm, genre, videoUrl, versions, isNew, isExpanded, isPlaying, playingUrl, playingType, onPlay, onDownload, onDownloadAll, onFindSimilar, onCloseInline, isSubscriber = false
 }) => {
   const isHighBpm = bpm > 130;
-
-  const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
-    const name = (v?.version_name || '').toLowerCase();
-    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
-    return name.includes('video') || url.endsWith('.mp4') || url.endsWith('.webm') ? 'video' : 'audio';
-  };
 
   const isVideo = versions?.some(v => getVersionType(v) === 'video') || false;
   const mainVersion = versions?.find(v => v?.is_main_version) || versions?.[0];
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`group relative flex flex-col p-4 mb-3 rounded-2xl transition-all duration-300 overflow-hidden ${
-        isPlaying ? 'bg-blue-600 shadow-[0_0_30px_rgba(37,99,235,0.3)]' : 'bg-blue-700 hover:bg-blue-600'
-      } border border-blue-400/30`}
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`group relative flex flex-col p-6 mb-4 rounded-[2.5rem] transition-all duration-500 ${
+        isPlaying 
+          ? 'bg-brand-purple/10 border-brand-purple/40 shadow-[0_0_40px_rgba(168,85,247,0.15)]' 
+          : 'bg-zinc-900/40 border-white/5 hover:bg-zinc-800/60 hover:border-white/10'
+      } border backdrop-blur-xl overflow-hidden`}
     >
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 opacity-90" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,255,255,0.1),transparent)] transition-all duration-700" />
+      {/* Hype Glow Effect */}
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-purple/10 blur-[80px] rounded-full group-hover:bg-brand-purple/20 transition-all duration-700" />
       
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 w-full relative z-10">
-        {/* Track Info & Preview Action */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-8 w-full relative z-10">
+        {/* Track Info with Preview Action */}
         <div className="flex-1 flex items-center min-w-0">
-          <div className="relative flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-white/20 backdrop-blur-lg border border-white/30 flex items-center justify-center group/play mr-4 cursor-pointer shadow-xl transition-transform hover:scale-105"
+          <div className="relative flex-shrink-0 w-20 h-20 rounded-3xl overflow-hidden bg-zinc-800/80 flex items-center justify-center group/play mr-6 cursor-pointer shadow-2xl border border-white/10"
                onClick={() => {
                  if (mainVersion) {
                    const vType = getVersionType(mainVersion);
                    const vUrl = (vType === 'video' ? (videoUrl || mainVersion.preview_url) : mainVersion.preview_url) || '';
-                   onPlay(vUrl, `${title} (${mainVersion.version_name})`, vType, id);
+                   onPlay(vUrl, `${artist} - ${title} (${mainVersion.version_name})`, vType, id);
                  }
                }}>
-            <Zap className={`text-white fill-white ${isPlaying ? 'animate-bounce' : 'animate-pulse'}`} size={28} />
+            <div className={`w-full h-full flex items-center justify-center ${isVideo ? 'bg-brand-purple/20 text-brand-purple' : 'bg-white/10 text-white'}`}>
+              {isVideo ? <Video size={32} /> : <Zap size={32} className="animate-pulse" />}
+            </div>
             
             {/* Play Overlay */}
-            <div className={`absolute inset-0 flex items-center justify-center bg-blue-400/40 transition-opacity duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover/play:opacity-100'}`}>
-              <Play size={28} fill="currentColor" className="text-white ml-1" />
+            <div className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-purple to-purple-800 transition-all duration-500 ${isPlaying ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover/play:opacity-100 group-hover/play:scale-100'}`}>
+              {isPlaying ? <Pause size={32} fill="currentColor" className="text-white" /> : <Play size={32} fill="currentColor" className="text-white ml-1" />}
             </div>
           </div>
           
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="text-white font-black text-lg truncate tracking-tight uppercase italic">{title}</h3>
+            <div className="flex flex-wrap items-center gap-4 mb-3">
+              <h3 className="text-white font-black text-2xl lg:text-3xl truncate tracking-tighter leading-none">
+                <span className="text-zinc-400 font-bold">{artist}</span>
+                <span className="mx-3 text-zinc-600">-</span>
+                {title}
+              </h3>
               {isNew && (
-                <span className="px-2 py-0.5 bg-yellow-400 text-blue-900 text-[10px] font-black uppercase rounded-full shadow-lg">
-                  TRENDING
-                </span>
+                <div className="relative flex items-center">
+                    <div className="absolute inset-0 bg-rose-500/20 blur-md rounded-full animate-pulse" />
+                    <span className="relative px-4 py-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-[0.1em]">
+                      NEW
+                    </span>
+                </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-white/90 text-sm">
-              <span className="font-bold">{artist}</span>
-              <span className="flex items-center gap-2 opacity-70">
-                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-zinc-400 text-sm font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-2.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+                <Music size={14} className="text-brand-purple" />
                 {genre}
               </span>
               {bpm > 0 && (
-                <span className={`font-black italic px-2 py-0.5 rounded bg-white/10 ${isHighBpm ? 'text-red-300' : 'text-white'}`}>
+                <span className="flex items-center gap-2.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5 text-brand-purple">
+                  <div className="w-2 h-2 rounded-full bg-brand-purple animate-pulse" />
                   {bpm} BPM
                 </span>
               )}
@@ -120,63 +114,82 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
           </div>
         </div>
 
-        {/* Versions and Actions */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          {/* Version Pills -Focus on DOWNLOAD */}
-          <div className="flex flex-wrap gap-2 max-w-md">
-            {versions.map((v, idx) => (
+        {/* Global Actions */}
+        <div className="flex items-center gap-4">
+           {versions.length > 1 && (
+             <button 
+               onClick={(e) => {
+                 e.stopPropagation();
+                 if (!isSubscriber) return;
+                 onDownloadAll();
+               }}
+                className={`h-14 px-8 rounded-[1.5rem] font-black text-sm uppercase transition-all shadow-2xl active:scale-95 whitespace-nowrap flex items-center gap-3 ${
+                  isSubscriber 
+                    ? 'bg-brand-purple hover:bg-brand-purple/80 text-white shadow-brand-purple/30' 
+                    : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5'
+                }`}
+             >
+               <Download size={20} />
+               Download All
+             </button>
+           )}
+           
+             <button 
+               onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
+               className="w-14 h-14 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-brand-purple rounded-[1.5rem] transition-all border border-white/10 shadow-xl group/search"
+               title="Find Similar Tracks"
+             >
+               <Search size={22} className="group-hover:scale-110 transition-transform" />
+             </button>
+        </div>
+      </div>
+
+      {/* Version Control Area */}
+      <div className="mt-8 pt-8 border-t border-white/10 relative z-10">
+        <div className="flex flex-wrap gap-4">
+          {versions.map((v, idx) => {
+            const vType = getVersionType(v);
+            const vUrl = (vType === 'video' ? (videoUrl || v.preview_url) : v.preview_url) || '';
+            const isActive = playingUrl === vUrl && isPlaying;
+
+            return (
               <div 
                 key={v.id || idx}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-blue-900 text-[11px] font-black uppercase transition-all hover:scale-105 shadow-xl group/pill"
+                className="flex items-center gap-1.5 p-1.5 pr-4 rounded-[1.5rem] bg-zinc-900/40 border border-white/5 transition-all hover:border-brand-purple/30 hover:bg-zinc-800/60 group/version shadow-lg"
               >
-                <span className="opacity-80 group-hover/pill:opacity-100">{v.version_name}</span>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
+                    isActive 
+                      ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/30' 
+                      : 'bg-zinc-900 text-zinc-400 hover:text-white group-hover/version:bg-zinc-800'
+                  }`}
+                >
+                  {isActive ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                  {v.version_name}
+                </button>
+
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isSubscriber) return;
                     onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
                   }}
-                  className={`ml-2 pl-3 border-l border-blue-100 transition-all ${
+                  className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
                     isSubscriber 
-                      ? 'text-blue-600 hover:text-blue-500 hover:scale-125' 
-                      : 'text-zinc-400 cursor-not-allowed opacity-50'
+                      ? 'text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple/80' 
+                      : 'text-zinc-700 cursor-not-allowed opacity-50'
                   }`}
                   title={isSubscriber ? "Download Version" : "Pro Access Required"}
                 >
-                  <Download size={16} />
+                  <Download size={22} />
                 </button>
               </div>
-            ))}
-          </div>
-
-          {/* Action Row */}
-          <div className="flex items-center gap-3">
-            {versions.length > 1 && (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isSubscriber) return;
-                  onDownloadAll();
-                }}
-                className={`h-12 px-6 rounded-xl font-black text-xs uppercase transition-all shadow-2xl active:scale-95 flex items-center gap-2 whitespace-nowrap ${
-                  isSubscriber 
-                    ? 'bg-yellow-400 hover:bg-yellow-300 text-blue-900 hover:scale-105 active:scale-95' 
-                    : 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
-                }`}
-              >
-                <Download size={18} />
-                ALL VERSIONS
-              </button>
-            )}
-            
-            <button 
-              onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
-              className="w-12 h-12 flex items-center justify-center bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all border border-white/20 shadow-lg"
-              title="Find Similar"
-            >
-              <Search size={20} />
-            </button>
-          </div>
+            );
+          })}
         </div>
       </div>
 
@@ -184,17 +197,17 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
       <AnimatePresence>
         {isExpanded && playingType === 'video' && playingUrl && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="w-full mt-4 rounded-2xl overflow-hidden bg-black/90 border border-white/20 relative z-20 shadow-2xl"
+            initial={{ height: 0, opacity: 0, y: 20 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 20 }}
+            className="w-full mt-8 rounded-[2.5rem] overflow-hidden bg-black border-2 border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] relative z-10"
           >
-            <div className="relative aspect-video w-full">
+            <div className="relative aspect-video w-full bg-zinc-900/80">
               <button 
                 onClick={(e) => { e.stopPropagation(); onCloseInline?.(); }}
-                className="absolute top-6 right-6 z-30 w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-red-500/80 rounded-full text-white transition-all border border-white/20"
+                className="absolute top-8 right-8 z-20 w-14 h-14 flex items-center justify-center bg-black/60 hover:bg-red-500 text-white transition-all border border-white/20 backdrop-blur-xl rounded-2xl shadow-2xl"
               >
-                <X size={20} />
+                <X size={28} />
               </button>
               <ReactPlayer
                 url={playingUrl}
@@ -213,28 +226,29 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
       <AnimatePresence>
         {isExpanded && playingType === 'audio' && playingUrl && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="w-full mt-4 relative z-20"
+            initial={{ height: 0, opacity: 0, y: 10 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 10 }}
+            className="w-full mt-8"
           >
-            <div className="flex items-center gap-4 bg-white/10 backdrop-blur-xl rounded-2xl px-6 py-4 border border-white/20 shadow-2xl">
+            <div className="flex items-center gap-8 bg-zinc-800/60 rounded-[2.5rem] px-10 py-8 border border-white/10 shadow-3xl backdrop-blur-3xl">
               <div className="flex-1">
-                <div className="text-[10px] text-white/60 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                  <Play size={10} fill="currentColor" /> Previewing Master: {title}
+                <div className="text-xs text-zinc-500 font-extrabold uppercase tracking-[0.3em] mb-4 flex items-center gap-3">
+                  <Volume2 size={16} className="text-brand-purple animate-pulse" />
+                  Hype Preview: {title}
                 </div>
                 <audio
                   src={playingUrl}
                   autoPlay={isPlaying}
                   controls
-                  className="w-full h-8 accent-yellow-400"
+                  className="w-full h-12 accent-brand-purple"
                 />
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseInline?.(); }}
-                className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-white border border-white/10 transition-all"
+                className="w-14 h-14 flex items-center justify-center bg-zinc-700/50 hover:bg-red-500/20 hover:text-red-400 rounded-2xl text-zinc-400 border border-white/10 transition-all shadow-xl"
               >
-                <X size={20} />
+                <X size={28} />
               </button>
             </div>
           </motion.div>

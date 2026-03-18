@@ -376,8 +376,12 @@ const mapR2Product = (p: any): Product => {
     const images = Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []);
     const mainImage = p.image || images[0] || '';
 
+    const type = p.type || (['Software', 'Samples', 'digital'].includes(p.category || '') ? 'digital' : 'physical');
+    const requiresShipping = Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : (type === 'physical')));
+
     return {
       ...p,
+      type: type,
       id: String(p.id || ''),
       name: String(p.name || 'Untitled Product'),
       slug: String(p.slug || ''),
@@ -413,7 +417,7 @@ const mapR2Product = (p: any): Product => {
       meta_description: p.meta_description || p.metaDescription || '',
       meta_keywords: p.meta_keywords || '',
       whatsappEnabled: Boolean(p.whatsapp_enabled !== undefined ? p.whatsapp_enabled : (p.whatsappEnabled !== undefined ? p.whatsappEnabled : true)),
-      requiresShipping: Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : false)),
+      requiresShipping: requiresShipping,
       technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails),
       hotspots: safeJsonParse(p.hotspots),
       useCases: safeJsonParse(p.use_cases || p.useCases)
@@ -841,8 +845,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const params = new URLSearchParams();
       if (filters.page) params.append('page', filters.page.toString());
       if (filters.limit) params.append('limit', filters.limit.toString());
-      if (filters.hub && filters.hub !== 'All Hubs') params.append('hub', filters.hub);
-      if (filters.genre && filters.genre !== 'All Genres') params.append('genre', filters.genre);
+      if (filters.hub && filters.hub !== 'all' && filters.hub !== 'All Hubs') params.append('hub', filters.hub);
+      if (filters.genre && filters.genre !== 'All' && filters.genre !== 'All Genres') params.append('genre', filters.genre);
       if (filters.year && filters.year !== 'All Years') params.append('year', filters.year);
       if (filters.month && filters.month !== 'All Months') params.append('month', filters.month);
       if (filters.search) params.append('search', filters.search);

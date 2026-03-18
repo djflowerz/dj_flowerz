@@ -146,13 +146,21 @@ export default function MusicPool() {
   // Sync refresh on filter change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      // Map month abbreviation to full name if necessary
+      const monthMap: Record<string, string> = {
+        'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
+        'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
+        'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+      };
+      const mappedMonth = activeMonth !== 'All Months' ? (monthMap[activeMonth] || activeMonth) : undefined;
+
       refreshPoolTracks({
         page: poolPagination?.page || 1,
-        limit: 100,
-        hub: activeHub,
-        genre: activeGenre,
+        limit: poolPagination?.limit || 50,
+        hub: activeHub === 'all' ? undefined : activeHub,
+        genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
-        month: activeMonth === 'All Months' ? undefined : activeMonth,
+        month: mappedMonth,
         search: searchTerm,
         bpmMin: bpmFilter[0],
         bpmMax: bpmFilter[1]
@@ -168,37 +176,53 @@ export default function MusicPool() {
 
   const handlePageChange = useCallback((newPage: number) => {
     if (poolLoading) return;
+
+    // Map month abbreviation to full name if necessary
+    const monthMap: Record<string, string> = {
+      'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
+      'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
+      'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+    };
+    const mappedMonth = activeMonth !== 'All Months' ? (monthMap[activeMonth] || activeMonth) : undefined;
+
     refreshPoolTracks({
       page: newPage,
-      limit: 100,
-      hub: activeHub,
+      limit: poolPagination.limit || 50,
+      hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
+      genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
       year: activeYear === 'All Years' ? undefined : activeYear,
-      month: activeMonth === 'All Months' ? undefined : activeMonth,
+      month: mappedMonth,
       search: searchTerm,
       bpmMin: bpmFilter[0],
       bpmMax: bpmFilter[1]
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading]);
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination.limit]);
 
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
     if (trackId) {
-      // Toggle pause on same track
-      if (expandedTrackId === trackId && player.isPlaying) {
-        setPlayer(p => ({ ...p, isPlaying: false }));
+      const track = poolTracks.find(t => t.id === trackId);
+      if (track) {
+        // Toggle pause if same track is already playing
+        if (expandedTrackId === trackId && player.isPlaying && player.url === url) {
+          setPlayer(p => ({ ...p, isPlaying: false }));
+          return;
+        }
+
+        const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
+        setPlayer({ url, title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
+        setExpandedTrackId(trackId);
+        
+        // When playing inline, pause the footer audio to avoid double-play.
         if (audioRef.current) audioRef.current.pause();
         return;
       }
-      setExpandedTrackId(trackId);
-      setPlayer({ url, title, type, isPlaying: true });
-      // When playing inline, ALWAYS pause the footer audio to avoid double-play.
-      // The inline <audio> element handles playback via its own autoPlay + src props.
-      if (audioRef.current) audioRef.current.pause();
-      return;
     }
 
-    // Non-inline (global) play — use footer audio for audio, mute it for video
-    setPlayer({ url, title, type, isPlaying: true });
+    // Global play (from footer or non-track source)
+    setPlayer({ url, title, type, isPlaying: true, id: trackId });
+    if (trackId) setExpandedTrackId(trackId);
+    
     if (type === 'audio') {
       if (audioRef.current) {
         audioRef.current.src = url;
@@ -207,7 +231,7 @@ export default function MusicPool() {
     } else {
       if (audioRef.current) audioRef.current.pause();
     }
-  }, [expandedTrackId, player.isPlaying]);
+  }, [poolTracks, expandedTrackId, player.isPlaying, player.url, audioRef]);
 
   const handleSkip = useCallback((direction: 'next' | 'prev') => {
     if (!poolTracks.length || !expandedTrackId) return;
@@ -219,12 +243,12 @@ export default function MusicPool() {
     
     const nextTrack = poolTracks[nextIndex];
     if (nextTrack) {
-      const url = nextTrack.videoUrl || nextTrack.versions?.[0]?.preview_url || '';
+      const mainV = nextTrack.versions?.find(v => v.is_main_version) || nextTrack.versions?.[0];
+      const url = nextTrack.videoUrl || mainV?.preview_url || '';
       const type = (nextTrack.videoUrl || nextTrack.versions?.some(v => v.version_name.toLowerCase().includes('video'))) ? 'video' : 'audio';
       handlePlay(url, nextTrack.title, type, nextTrack.id);
     }
   }, [poolTracks, expandedTrackId, handlePlay]);
-
   const handleDownload = useCallback(async (url: string, fileName: string) => {
     if (!isSubscriber) {
       toast.error("Subscription required to download.");
@@ -236,7 +260,6 @@ export default function MusicPool() {
       return;
     }
     
-    const toastId = toast.loading(`Preparing download: ${fileName}...`);
     try {
       // Ensure we hit the tracking API first without blocking the download
       fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || ''}/api/pool/download`, {
@@ -259,27 +282,24 @@ export default function MusicPool() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
-        toast.success("Download complete", { id: toastId });
+        // toast.success("Download started");
       } catch (blobErr) {
         console.warn("Blob download failed, falling back to new tab", blobErr);
         window.open(url, '_blank');
-        toast.success("Download started in new tab", { id: toastId });
       }
 
     } catch (err) {
       window.open(url, '_blank');
-      toast.success("Download attempt started", { id: toastId });
     }
   }, [isSubscriber]);
 
   const handleDownloadAll = useCallback((track: any) => {
-    toast.info(`Starting bulk download for ${track.title}...`);
-    track.versions.forEach((v: any, i: number) => {
-      setTimeout(() => {
-        handleDownload(v.download_url, `${track.artist} - ${track.title} (${v.version_name}).mp3`);
-      }, i * 1000);
+    track.versions.forEach((v: any) => {
+      handleDownload(v.download_url, `${track.artist} - ${track.title} (${v.version_name}).mp3`);
     });
+    toast.success(`Downloading all versions for ${track.title}`);
   }, [handleDownload]);
+;
 
   const handleFindSimilar = useCallback((track: any) => {
     setBpmFilter([track.bpm - 3, track.bpm + 3]);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
@@ -80,7 +80,7 @@ export default function Checkout() {
   // Determine if cart has physical items
   const hasPhysical = useMemo(() => items.some((i: any) => 
     i.type === 'physical' || 
-    (i.requiresShipping !== false && i.type !== 'digital' && i.type !== 'subscription')
+    (i.type !== 'digital' && i.type !== 'subscription' && i.requiresShipping !== false)
   ), [items]);
   
   const hasDigital = useMemo(() => items.some((i: any) => 
@@ -95,6 +95,13 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedDownloads, setCompletedDownloads] = useState<DownloadItem[] | null>(null);
   const [completedEmail, setCompletedEmail] = useState('');
+
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (items.length === 0 && !completedDownloads) {
+      navigate('/store');
+    }
+  }, [items, navigate, completedDownloads]);
 
   const selectedZone = useMemo(() =>
     INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId) || INITIAL_SHIPPING_ZONES[0]

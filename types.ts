@@ -67,7 +67,8 @@ export interface ProductVariant {
 
 export interface ProductVariantGroup {
   name: string; // e.g. "Storage", "Color", "Size"
-  options: string[];
+  options?: string[]; // Legacy/Simple
+  variants?: ProductVariant[]; // Detailed/Nested structure from Admin
 }
 
 export interface Product {

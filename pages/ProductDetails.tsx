@@ -44,8 +44,11 @@ export default function ProductDetails() {
       if (foundProduct?.variantGroups && Array.isArray(foundProduct.variantGroups)) {
         const initialVariants: Record<string, string> = {};
         foundProduct.variantGroups.forEach(group => {
-          if (group?.name && group?.options && Array.isArray(group.options) && group.options.length > 0) {
-            initialVariants[group.name] = group.options[0];
+          if (group?.name) {
+            const options = group.options || (group.variants || []).map(v => v.name);
+            if (options.length > 0) {
+              initialVariants[group.name] = options[0];
+            }
           }
         });
         setSelectedVariantOptions(initialVariants);
@@ -60,30 +63,51 @@ export default function ProductDetails() {
 
   // Update current variant based on selection
   useEffect(() => {
+    let matched: ProductVariant | null = null;
+
+    // 1. Try top-level variants (combinations)
     if (product?.variants?.length) {
       const selectedValues = Object.values(selectedVariantOptions);
       if (selectedValues.length === 0) {
-        setCurrentVariant(product.variants[0] || null);
-        return;
+        matched = product.variants[0] || null;
+      } else {
+        matched = product.variants.find(v => {
+          if (!v || !v.name) return false;
+          const selectionString = selectedValues.join(', ');
+          if (v.name === selectionString) return true;
+          // Try if all selected values are in the name
+          return selectedValues.every(val => v.name?.toLowerCase().includes(val.toLowerCase()));
+        }) || null;
       }
-      
-      const matchingVariant = product.variants.find(v => {
-        if (!v || !v.name) return false;
-        
-        // Try exact match first
-        const selectionString = selectedValues.join(', ');
-        if (v.name === selectionString) return true;
-        
-        // Try if all selected values are in the name
-        return selectedValues.every(val => v.name?.includes(val));
-      });
-      
-      if (matchingVariant) {
-        setCurrentVariant(matchingVariant);
-        if (matchingVariant.image || matchingVariant.image_url) {
-          setSelectedImage(matchingVariant.image || matchingVariant.image_url);
+    }
+
+    // 2. Fallback to nested variants in groups if no top-level match
+    if (!matched && product?.variantGroups) {
+      for (const group of product.variantGroups) {
+        const selectedOption = selectedVariantOptions[group.name];
+        if (selectedOption && group.variants) {
+          const v = group.variants.find(v => v.name === selectedOption);
+          if (v) {
+            matched = {
+              ...v,
+              // Ensure we have correct prices even if not defined in the nested variant
+              price: v.price || product.price,
+              discountPrice: v.discountPrice !== undefined ? v.discountPrice : product.discountPrice,
+              compareAtPrice: v.compareAtPrice !== undefined ? v.compareAtPrice : product.compareAtPrice
+            };
+            break; 
+          }
         }
       }
+    }
+
+    if (matched) {
+      setCurrentVariant(matched);
+      if (matched.image || matched.image_url) {
+        setSelectedImage(matched.image || matched.image_url);
+      }
+    } else {
+      setCurrentVariant(null);
     }
   }, [selectedVariantOptions, product]);
 
@@ -241,14 +265,14 @@ export default function ProductDetails() {
                         <span className="text-white text-xs font-bold">{selectedVariantOptions[group.name]}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {(Array.isArray(group.options) ? group.options : []).map((option) => {
+                        {(group.options || (group.variants || []).map(v => v.name)).map((option) => {
                           if (!option) return null;
                           const isSelected = selectedVariantOptions[group.name] === option;
                           return (
                             <button
                               key={option}
                               onClick={() => setSelectedVariantOptions(prev => ({ ...prev, [group?.name as string]: option }))}
-                              className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${isSelected ? 'border-brand-purple bg-brand-purple/10 text-white' : 'border-white/5 bg-white/[0.02] text-gray-500 hover:border-white/20'}`}
+                              className={`px-6 py-3 rounded-xl text-xs font-bold transition-all border ${isSelected ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'}`}
                             >
                               {option}
                             </button>

@@ -24,13 +24,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Search Header */}
       <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-10">
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-blue-400 transition-colors" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-brand-purple transition-colors" size={18} />
           <input
             type="text"
             placeholder="Search Genres..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-zinc-800/50 border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+            className="w-full bg-zinc-800/50 border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple/50 transition-all font-bold"
           />
         </div>
       </div>
@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onGenreSelect(genre)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                 activeGenre === genre
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                  ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/25'
                   : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
               }`}
             >
