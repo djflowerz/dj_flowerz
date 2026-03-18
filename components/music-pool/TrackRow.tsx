@@ -165,38 +165,41 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             return (
               <div 
                 key={v.id || idx}
-                className="flex items-center gap-1 p-1 pr-3 rounded-2xl bg-zinc-800/40 border border-white/5 transition-all hover:border-white/10 hover:bg-zinc-800/60 group/version"
+                className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-800/40 border border-white/5 transition-all hover:border-white/10 hover:bg-zinc-800/60 group/version"
               >
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
-                  }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide ${
-                    isActive 
-                      ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' 
-                      : 'bg-zinc-900/60 text-zinc-400 hover:text-white group-hover/version:bg-zinc-900'
-                  }`}
-                >
-                  {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                  {v.version_name}
-                </button>
+                <div className="flex items-center gap-2 pr-3">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide group/preview ${
+                      isActive 
+                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' 
+                        : 'bg-zinc-900/60 text-zinc-400 hover:text-white group-hover/version:bg-zinc-900 border border-white/5'
+                    }`}
+                  >
+                    {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                    Preview {v.version_name}
+                  </button>
 
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isSubscriber) return;
-                    onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
-                  }}
-                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
-                    isSubscriber 
-                      ? 'text-brand-purple hover:bg-brand-purple/10 hover:text-brand-purple/80' 
-                      : 'text-zinc-700 cursor-not-allowed'
-                  }`}
-                  title={isSubscriber ? "Download Version" : "Pro Access Required"}
-                >
-                  <Download size={18} />
-                </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isSubscriber) return;
+                      onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide border border-white/5 ${
+                      isSubscriber 
+                        ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple hover:border-brand-purple/30' 
+                        : 'bg-zinc-900/20 text-zinc-700 cursor-not-allowed opacity-50'
+                    }`}
+                    title={isSubscriber ? "Download Version" : "Pro Access Required"}
+                  >
+                    <Download size={14} />
+                    Instant Download
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -225,6 +228,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 height="100%"
                 playing={isPlaying}
                 controls
+                config={{
+                  file: {
+                    attributes: {
+                      style: { width: '100%', height: '100%' },
+                      type: 'video/mp4'
+                    }
+                  }
+                }}
                 style={{ position: 'absolute', top: 0, left: 0 }}
               />
             </div>

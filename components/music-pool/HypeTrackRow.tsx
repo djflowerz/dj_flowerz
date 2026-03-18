@@ -155,38 +155,41 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
             return (
               <div 
                 key={v.id || idx}
-                className="flex items-center gap-1.5 p-1.5 pr-4 rounded-[1.5rem] bg-zinc-900/40 border border-white/5 transition-all hover:border-brand-purple/30 hover:bg-zinc-800/60 group/version shadow-lg"
+                className="flex items-center gap-2 p-1.5 rounded-[1.5rem] bg-zinc-900/40 border border-white/5 transition-all hover:border-brand-purple/30 hover:bg-zinc-800/60 group/version shadow-lg"
               >
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
-                  }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
-                    isActive 
-                      ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/30' 
-                      : 'bg-zinc-900 text-zinc-400 hover:text-white group-hover/version:bg-zinc-800'
-                  }`}
-                >
-                  {isActive ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                  {v.version_name}
-                </button>
+                <div className="flex items-center gap-2 pr-4">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
+                    }}
+                    className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
+                      isActive 
+                        ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/30' 
+                        : 'bg-zinc-900 text-zinc-400 hover:text-white group-hover/version:bg-zinc-800'
+                    }`}
+                  >
+                    {isActive ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                    Preview {v.version_name}
+                  </button>
 
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isSubscriber) return;
-                    onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
-                  }}
-                  className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
-                    isSubscriber 
-                      ? 'text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple/80' 
-                      : 'text-zinc-700 cursor-not-allowed opacity-50'
-                  }`}
-                  title={isSubscriber ? "Download Version" : "Pro Access Required"}
-                >
-                  <Download size={22} />
-                </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isSubscriber) return;
+                      onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`);
+                    }}
+                    className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-[0.05em] ${
+                      isSubscriber 
+                        ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple' 
+                        : 'bg-zinc-900/20 text-zinc-700 cursor-not-allowed opacity-50'
+                    }`}
+                    title={isSubscriber ? "Download Version" : "Pro Access Required"}
+                  >
+                    <Download size={18} />
+                    Instant Download
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -215,6 +218,14 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                 height="100%"
                 playing={isPlaying}
                 controls
+                config={{
+                  file: {
+                    attributes: {
+                      style: { width: '100%', height: '100%' },
+                      type: 'video/mp4'
+                    }
+                  }
+                }}
                 style={{ position: 'absolute', top: 0, left: 0 }}
               />
             </div>

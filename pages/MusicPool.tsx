@@ -206,6 +206,7 @@ export default function MusicPool() {
         // Toggle pause if same track is already playing
         if (expandedTrackId === trackId && player.isPlaying && player.url === url) {
           setPlayer(p => ({ ...p, isPlaying: false }));
+          setExpandedTrackId(null);
           return;
         }
 

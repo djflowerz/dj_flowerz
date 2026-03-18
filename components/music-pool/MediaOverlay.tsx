@@ -48,6 +48,14 @@ export const MediaOverlay: React.FC<MediaOverlayProps> = ({ url, isOpen, onClose
                 playing
                 width="100%"
                 height="100%"
+                config={{
+                  file: {
+                    attributes: {
+                      style: { width: '100%', height: '100%' },
+                      type: 'video/mp4'
+                    }
+                  }
+                }}
                 style={{ position: 'absolute', top: 0, left: 0 }}
               />
             </div>
