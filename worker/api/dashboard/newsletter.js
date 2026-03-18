@@ -1,5 +1,6 @@
 // worker/api/dashboard/newsletter.js
 import { getAuthorizedUser } from '../../utils/auth.js';
+import { sendEmail } from '../../utils/email.js';
 
 export async function handleDashboardNewsletter(request, env, ctx, params) {
     const url = new URL(request.url);
@@ -20,6 +21,30 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             }
 
             await env.DB.prepare(`INSERT INTO newsletter_subscribers (email) VALUES (?)`).bind(email).run();
+            
+            // Send Confirmation Email
+            try {
+                await sendEmail({
+                    to: email,
+                    subject: 'Welcome to DJ FLOWERZ! 🎧',
+                    html: `
+                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                            <h1 style="color: #a855f7; margin-bottom: 10px;">Welcome Aboard!</h1>
+                            <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Thanks for joining the DJ FLOWERZ newsletter. You're now on the list for exclusive mixtapes, store drops, and music pool updates.</p>
+                            <div style="background: #15151a; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #ffffff10;">
+                                <p style="margin: 0; color: #ffffff;"><strong>Enjoying the vibes?</strong> Stay tuned for our next drop coming soon!</p>
+                            </div>
+                            <a href="https://djflowerz.co.ke" style="display: inline-block; background: #a855f7; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px;">Visit Website</a>
+                            <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
+                            <p style="font-size: 10px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 0.1em;">© 2026 DJ FLOWERZ. All rights reserved.</p>
+                        </div>
+                    `,
+                    text: `Welcome to DJ FLOWERZ! Thanks for joining our newsletter. Visit djflowerz.co.ke for the latest mixtapes.`
+                }, env);
+            } catch (e) {
+                console.error('[Newsletter Email Error]', e);
+            }
+
             return Response.json({ success: true });
         } catch (err) {
             console.error('[Newsletter Subscribe Error]', err);

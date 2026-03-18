@@ -13,10 +13,12 @@ import { VirtuosoGrid } from 'react-virtuoso';
 import { useCart } from '../context/CartContext';
 
 export default function Products() {
-  const { products, productsLoading } = useData();
+  const { products, productsLoading, addSubscriber } = useData();
   const { addToCart: addItem } = useCart();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const searchQuery = searchParams.get('search') || '';
   const categoryFilter = searchParams.get('category') || 'All';
@@ -547,18 +549,34 @@ export default function Products() {
             <h2 className="text-3xl md:text-5xl font-display font-black text-white mb-4 tracking-tight">Stay in the Loop</h2>
             <p className="text-gray-400 text-lg mb-10 leading-relaxed font-medium">Join our newsletter to get exclusive deals, early access to new drops, and the latest gear news straight to your inbox.</p>
 
-            <form className="flex flex-col sm:flex-row gap-3 w-full max-w-lg mx-auto" onSubmit={(e) => { e.preventDefault(); alert('Subscribed successfully!'); }}>
+             <form className="flex flex-col sm:flex-row gap-3 w-full max-w-lg mx-auto" onSubmit={async (e) => { 
+              e.preventDefault(); 
+              if (!email) return;
+              setIsSubmitting(true);
+              try {
+                await addSubscriber(email, 'Store Newsletter');
+                alert('Subscribed successfully!');
+                setEmail('');
+              } catch (err) {
+                alert('Failed to subscribe. Please try again.');
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}>
               <input
                 type="email"
                 placeholder="Enter your email address..."
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="flex-1 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:bg-black/60 focus:border-brand-purple/50 focus:ring-1 focus:ring-brand-purple/50 transition-all font-medium placeholder:text-gray-500 shadow-inner"
               />
               <button
                 type="submit"
-                className="px-8 py-4 bg-brand-purple text-white font-bold rounded-2xl hover:bg-purple-600 transition-colors shadow-[0_0_20px_rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.5)] active:scale-95 whitespace-nowrap"
+                disabled={isSubmitting}
+                className="px-8 py-4 bg-brand-purple text-white font-bold rounded-2xl hover:bg-purple-600 transition-colors shadow-[0_0_20px_rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.5)] active:scale-95 whitespace-nowrap disabled:opacity-50"
               >
-                Subscribe Now
+                {isSubmitting ? 'Joining...' : 'Subscribe Now'}
               </button>
             </form>
             <p className="text-xs text-gray-500 mt-6 font-medium">We respect your privacy. No spam, ever.</p>

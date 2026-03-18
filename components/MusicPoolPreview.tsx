@@ -30,43 +30,18 @@ const MusicPoolPreview: React.FC = () => {
         return url;
     };
 
+    // Stable random seed per mount — changes every page load
+    const randomSeed = useMemo(() => Math.random(), []);
+
     const recentTracks = useMemo(() => {
         const query = searchQuery.toLowerCase();
 
         // Filter out invalid tracks
         const validTracks = poolTracks.filter(t => t.title && t.artist);
 
-        // Sort strategy: 
-        // 1. Prioritize tracks that contain "2026" and "Feb" in title/artist/genre/category
-        // 2. Then sort by dateAdded (newest first)
-        const results = [...validTracks].sort((a, b) => {
-            const isFeb2026 = (t: any) => {
-                const searchStr = `${t.title} ${t.artist} ${t.genre} ${(t.category || []).join(' ')}`.toLowerCase();
-                const has2026 = searchStr.includes('2026');
-                const hasFeb = searchStr.includes('feb') || searchStr.includes('february') || (t.dateAdded && t.dateAdded.includes('-02-')) || (t.createdAt && t.createdAt.includes('-02-'));
-                return has2026 && hasFeb;
-            };
-
-            const isAFeb2026 = isFeb2026(a);
-            const isBFeb2026 = isFeb2026(b);
-
-            if (isAFeb2026 && !isBFeb2026) return -1;
-            if (!isAFeb2026 && isBFeb2026) return 1;
-
-            // Fallback to year if dateAdded is missing
-            const getSortTime = (t: any) => {
-                if (t.dateAdded) return new Date(t.dateAdded).getTime();
-                if (t.createdAt) return new Date(t.createdAt).getTime();
-                if (t.year) return new Date(`${t.year}-01-01`).getTime();
-                return 0;
-            };
-
-            return getSortTime(b) - getSortTime(a);
-        });
-
         if (query) {
             // Search: return ALL matching results from full pool (no cap)
-            return results.filter(t =>
+            return validTracks.filter(t =>
                 t.title.toLowerCase().includes(query) ||
                 t.artist.toLowerCase().includes(query) ||
                 t.genre?.toLowerCase().includes(query) ||
@@ -74,8 +49,18 @@ const MusicPoolPreview: React.FC = () => {
             );
         }
 
-        return results.slice(0, 16); // Default: show top 16 as preview
-    }, [poolTracks, searchQuery]);
+        // Randomize: Fisher-Yates shuffle seeded by randomSeed (stable per render cycle)
+        const shuffled = [...validTracks];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            // Use a deterministic index so the shuffle doesn't change on every re-render,
+            // but DOES change when randomSeed (set at mount) changes.
+            const j = Math.floor(((randomSeed * (i + 1) * 9301 + 49297) % 233280) / 233280 * (i + 1)) % (i + 1);
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        return shuffled.slice(0, 16); // 16 random tracks from all genres
+    }, [poolTracks, searchQuery, randomSeed]);
+
 
     // Detect if a URL is a direct MP4 video file (from VickNick CDN or similar)
     const isMp4Url = (url?: string): boolean => {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import {
   Search, Download, Play, Pause, X, ChevronDown,
@@ -130,6 +130,14 @@ export default function MusicPool() {
     isPlaying: false 
   });
   
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   const [showVideoOverlay, setShowVideoOverlay] = useState(false);
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -169,25 +177,29 @@ export default function MusicPool() {
 
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
     if (trackId) {
+      // Toggle pause on same track
       if (expandedTrackId === trackId && player.isPlaying) {
         setPlayer(p => ({ ...p, isPlaying: false }));
         if (audioRef.current) audioRef.current.pause();
         return;
       }
       setExpandedTrackId(trackId);
+      setPlayer({ url, title, type, isPlaying: true });
+      // When playing inline, ALWAYS pause the footer audio to avoid double-play.
+      // The inline <audio> element handles playback via its own autoPlay + src props.
+      if (audioRef.current) audioRef.current.pause();
+      return;
     }
 
+    // Non-inline (global) play — use footer audio for audio, mute it for video
     setPlayer({ url, title, type, isPlaying: true });
-    
     if (type === 'audio') {
       if (audioRef.current) {
         audioRef.current.src = url;
         audioRef.current.play();
       }
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      if (audioRef.current) audioRef.current.pause();
     }
   }, [expandedTrackId, player.isPlaying]);
 
@@ -412,7 +424,24 @@ export default function MusicPool() {
 
             {/* List */}
             <div className="min-h-[600px]">
-              {poolLoading && poolTracks.length === 0 ? (
+              {isMobile && !isSubscriber ? (
+                <div className="flex flex-col items-center justify-center py-24 px-6 text-center bg-zinc-900/30 rounded-[3rem] border border-white/5 backdrop-blur-md">
+                  <div className="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center mb-8 border border-blue-500/30 shadow-2xl">
+                    <Lock className="text-blue-400" size={32} />
+                  </div>
+                  <h2 className="text-2xl font-black text-white mb-4 italic uppercase tracking-tighter">Pro Access Required</h2>
+                  <p className="text-zinc-400 max-w-sm mb-10 font-medium leading-relaxed italic opacity-80">
+                    Get full access to the Music Pool on your mobile device. Download 92,000+ professional DJ edits anywhere.
+                  </p>
+                  <Link 
+                    to="/catalog?tab=plans"
+                    className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase transition-all shadow-2xl shadow-blue-600/40 active:scale-95 flex items-center gap-3"
+                  >
+                    <Crown size={20} />
+                    Unlock Library
+                  </Link>
+                </div>
+              ) : poolLoading && poolTracks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 space-y-4">
                   <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-600 animate-pulse">Syncing Engine...</p>
@@ -453,6 +482,7 @@ export default function MusicPool() {
                             isPlaying={expandedTrackId === track.id && player.isPlaying}
                             playingUrl={expandedTrackId === track.id ? player.url : null}
                             playingType={expandedTrackId === track.id ? player.type : null}
+                            isSubscriber={isSubscriber}
                             onPlay={(url, title, type) => handlePlay(url, title, type, track.id)}
                             onDownload={handleDownload}
                             onDownloadAll={() => handleDownloadAll(track)}
@@ -480,6 +510,7 @@ export default function MusicPool() {
                           isPlaying={expandedTrackId === track.id && player.isPlaying}
                           playingUrl={expandedTrackId === track.id ? player.url : null}
                           playingType={expandedTrackId === track.id ? player.type : null}
+                          isSubscriber={isSubscriber}
                           onPlay={(url, title, type) => handlePlay(url, title, type, track.id)}
                           onDownload={handleDownload}
                           onDownloadAll={() => handleDownloadAll(track)}

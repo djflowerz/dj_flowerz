@@ -35,6 +35,7 @@ interface HypeTrackRowProps {
   onSkipNext?: () => void;
   onSkipPrev?: () => void;
   onCloseInline?: () => void;
+  isSubscriber?: boolean;
 }
 
 export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
@@ -57,9 +58,17 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
   onFindSimilar,
   onSkipNext,
   onSkipPrev,
-  onCloseInline
+  onCloseInline,
+  isSubscriber = false
 }) => {
   const isHighBpm = bpm > 130;
+
+  // Helper: determine type for a specific version
+  const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
+    const name = (v?.version_name || '').toLowerCase();
+    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
+    return name.includes('video') || url.endsWith('.mp4') || url.endsWith('.webm') ? 'video' : 'audio';
+  };
   
   return (
     <motion.div
@@ -121,14 +130,27 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                 <span>{v.version_name}</span>
                 <div className="flex items-center ml-2 border-l border-blue-100 pl-2 gap-2">
                   <button 
-                    onClick={() => onPlay(videoUrl || v?.preview_url || v?.previewUrl || '', `${title} (${v?.version_name || 'Main'})`, (videoUrl || v?.version_name?.toLowerCase()?.includes('video')) ? 'video' : 'audio')}
+                    onClick={() => {
+                      const vType = getVersionType(v);
+                      const vUrl = (vType === 'video' ? (videoUrl || v?.preview_url || v?.previewUrl) : (v?.preview_url || v?.previewUrl)) || '';
+                      onPlay(vUrl, `${title} (${v?.version_name || 'Main'})`, vType);
+                    }}
                     className="p-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                   >
                     <Play size={14} fill="currentColor" />
                   </button>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); onDownload(v?.download_url || v?.downloadUrl || '', `${artist} - ${title} (${v?.version_name || 'Main'})`); }}
-                    className="p-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      if (!isSubscriber) return;
+                      onDownload(v?.download_url || v?.downloadUrl || '', `${artist} - ${title} (${v?.version_name || 'Main'})`); 
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      isSubscriber 
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                        : 'bg-zinc-700/50 text-zinc-500 cursor-not-allowed opacity-50'
+                    }`}
+                    title={isSubscriber ? "Download" : "Subscription Required"}
                   >
                     <Download size={14} />
                   </button>
@@ -141,8 +163,16 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
           <div className="flex items-center gap-2 ml-auto">
             {versions.length > 1 && (
               <button 
-                onClick={onDownloadAll}
-                className="px-5 py-3 bg-yellow-400 hover:bg-yellow-300 text-blue-900 rounded-xl font-black text-xs uppercase transition-all shadow-xl active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                onClick={() => {
+                  if (!isSubscriber) return;
+                  onDownloadAll();
+                }}
+                className={`px-5 py-3 rounded-xl font-black text-xs uppercase transition-all shadow-xl active:scale-95 flex items-center gap-2 whitespace-nowrap ${
+                  isSubscriber 
+                    ? 'bg-yellow-400 hover:bg-yellow-300 text-blue-900' 
+                    : 'bg-zinc-700/50 text-zinc-500 cursor-not-allowed opacity-50'
+                }`}
+                title={isSubscriber ? "Download All" : "Subscription Required"}
               >
                 <Download size={16} />
                 ALL VERSIONS
@@ -184,6 +214,35 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                 controls
                 style={{ position: 'absolute', top: 0, left: 0 }}
               />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inline Audio Player */}
+      <AnimatePresence>
+        {isExpanded && playingType === 'audio' && playingUrl && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="w-full mt-2 px-2 pb-2 relative z-20"
+          >
+            <div className="flex items-center gap-3 bg-black/70 rounded-xl px-4 py-3 border border-white/20">
+              <span className="text-white/60 text-xs font-bold truncate flex-1">{isPlaying ? '▶ Playing…' : '⏸ Paused'}</span>
+              <audio
+                src={playingUrl}
+                autoPlay={isPlaying}
+                controls
+                className="flex-1 h-8 accent-yellow-400"
+                style={{ minWidth: 0 }}
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); onCloseInline?.(); }}
+                className="p-1.5 bg-black/60 hover:bg-black/90 rounded-full text-white border border-white/20 flex-shrink-0"
+              >
+                <X size={14} />
+              </button>
             </div>
           </motion.div>
         )}

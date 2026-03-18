@@ -35,6 +35,7 @@ interface TrackRowProps {
   onSkipNext?: () => void;
   onSkipPrev?: () => void;
   onCloseInline?: () => void;
+  isSubscriber?: boolean;
 }
 
 export const TrackRow: React.FC<TrackRowProps> = ({
@@ -57,10 +58,18 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   onFindSimilar,
   onSkipNext,
   onSkipPrev,
-  onCloseInline
+  onCloseInline,
+  isSubscriber = false
 }) => {
+  // Helper: determine type for a specific version
+  const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
+    const name = (v?.version_name || '').toLowerCase();
+    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
+    return name.includes('video') || url.endsWith('.mp4') || url.endsWith('.webm') ? 'video' : 'audio';
+  };
+
   // Determine if it's primarily a video track
-  const isVideo = versions?.some(v => v?.version_name?.toLowerCase()?.includes('video') || v?.download_url?.toLowerCase()?.endsWith('.mp4')) || false;
+  const isVideo = versions?.some(v => getVersionType(v) === 'video') || false;
   const mainVersion = versions?.find(v => v?.is_main_version) || versions?.[0];
 
   return (
@@ -120,14 +129,22 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <span>{v.version_name.replace('Original', 'ORIG')}</span>
                 <div className="flex items-center ml-1 border-l border-zinc-700 pl-2 gap-2">
                   <button 
-                    onClick={() => onPlay(videoUrl || v?.preview_url || v?.previewUrl || '', `${title} (${v?.version_name || 'Main'})`, (videoUrl || v?.version_name?.toLowerCase()?.includes('video')) ? 'video' : 'audio')}
+                    onClick={() => {
+                      const vType = getVersionType(v);
+                      const vUrl = (vType === 'video' ? (videoUrl || v?.preview_url || v?.previewUrl) : (v?.preview_url || v?.previewUrl)) || '';
+                      onPlay(vUrl, `${title} (${v?.version_name || 'Main'})`, vType);
+                    }}
                     className="hover:scale-125 transition-transform text-blue-600"
                   >
                     <Play size={12} fill="currentColor" />
                   </button>
                   <button 
-                    onClick={() => onDownload(v?.download_url || v?.downloadUrl || '', `${artist} - ${title} (${v?.version_name || 'Main'})`)}
-                    className="hover:scale-125 transition-transform text-blue-600"
+                    onClick={() => {
+                      if (!isSubscriber) return;
+                      onDownload(v?.download_url || v?.downloadUrl || '', `${artist} - ${title} (${v?.version_name || 'Main'})`);
+                    }}
+                    className={`hover:scale-125 transition-transform ${isSubscriber ? 'text-blue-600' : 'text-zinc-300 opacity-50 cursor-not-allowed'}`}
+                    title={isSubscriber ? "Download" : "Subscription Required"}
                   >
                     <Download size={12} />
                   </button>
@@ -140,8 +157,16 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           <div className="flex items-center gap-2 ml-auto">
             {versions.length > 1 && (
               <button 
-                onClick={onDownloadAll}
-                className="px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-blue-900 rounded-lg font-black text-[10px] uppercase transition-all shadow-sm active:scale-95"
+                onClick={() => {
+                  if (!isSubscriber) return;
+                  onDownloadAll();
+                }}
+                className={`px-3 py-2 rounded-lg font-black text-[10px] uppercase transition-all shadow-sm active:scale-95 ${
+                  isSubscriber 
+                    ? 'bg-yellow-400 hover:bg-yellow-300 text-blue-900' 
+                    : 'bg-zinc-700 text-zinc-500 cursor-not-allowed opacity-50'
+                }`}
+                title={isSubscriber ? "Download All" : "Subscription Required"}
               >
                 All Versions
               </button>
@@ -182,6 +207,35 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 controls
                 style={{ position: 'absolute', top: 0, left: 0 }}
               />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inline Audio Player */}
+      <AnimatePresence>
+        {isExpanded && playingType === 'audio' && playingUrl && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="w-full mt-2 px-2 pb-2"
+          >
+            <div className="flex items-center gap-3 bg-black/60 rounded-xl px-4 py-3 border border-white/10">
+              <span className="text-white/60 text-xs font-bold truncate flex-1">{isPlaying ? '▶ Playing…' : '⏸ Paused'}</span>
+              <audio
+                src={playingUrl}
+                autoPlay={isPlaying}
+                controls
+                className="flex-1 h-8 accent-blue-400"
+                style={{ minWidth: 0 }}
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); onCloseInline?.(); }}
+                className="p-1.5 bg-black/60 hover:bg-black/90 rounded-full text-white border border-white/10 flex-shrink-0"
+              >
+                <X size={14} />
+              </button>
             </div>
           </motion.div>
         )}

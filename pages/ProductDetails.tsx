@@ -41,10 +41,10 @@ export default function ProductDetails() {
       setSelectedImage(foundProduct.image || foundProduct.image_url);
 
       // Initialize variant selection
-      if (foundProduct.variantGroups && Array.isArray(foundProduct.variantGroups)) {
+      if (foundProduct?.variantGroups && Array.isArray(foundProduct.variantGroups)) {
         const initialVariants: Record<string, string> = {};
         foundProduct.variantGroups.forEach(group => {
-          if (group && group.options && Array.isArray(group.options) && group.options.length > 0) {
+          if (group?.name && group?.options && Array.isArray(group.options) && group.options.length > 0) {
             initialVariants[group.name] = group.options[0];
           }
         });
@@ -232,28 +232,32 @@ export default function ProductDetails() {
 
               {/* Variant Selectors */}
               <div className="space-y-8">
-                {product.variantGroups?.map((group) => (
-                  <div key={group.name} className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-[10px] uppercase font-black tracking-[0.2em]">{group.name}</span>
-                      <span className="text-white text-xs font-bold">{selectedVariantOptions[group.name]}</span>
+               {product.variantGroups?.map((group) => {
+                  if (!group?.name) return null;
+                  return (
+                    <div key={group.name} className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 text-[10px] uppercase font-black tracking-[0.2em]">{group.name}</span>
+                        <span className="text-white text-xs font-bold">{selectedVariantOptions[group.name]}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(group.options) ? group.options : []).map((option) => {
+                          if (!option) return null;
+                          const isSelected = selectedVariantOptions[group.name] === option;
+                          return (
+                            <button
+                              key={option}
+                              onClick={() => setSelectedVariantOptions(prev => ({ ...prev, [group?.name as string]: option }))}
+                              className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${isSelected ? 'border-brand-purple bg-brand-purple/10 text-white' : 'border-white/5 bg-white/[0.02] text-gray-500 hover:border-white/20'}`}
+                            >
+                              {option}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {group.options.map((option) => {
-                        const isSelected = selectedVariantOptions[group.name] === option;
-                        return (
-                          <button
-                            key={option}
-                            onClick={() => setSelectedVariantOptions(prev => ({ ...prev, [group.name]: option }))}
-                            className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${isSelected ? 'border-brand-purple bg-brand-purple/10 text-white' : 'border-white/5 bg-white/[0.02] text-gray-500 hover:border-white/20'}`}
-                          >
-                            {option}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <div className="flex flex-col pt-4">
                   <span className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Current Valuation</span>

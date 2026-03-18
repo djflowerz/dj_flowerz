@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
+import { usePaystackPayment } from 'react-paystack';
 import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
@@ -73,6 +74,8 @@ export default function Checkout() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const { items, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
+  // We initialize Paystack with empty config and override it upon click
+  const paystackInitialize = usePaystackPayment({} as any);
 
   // Determine if cart has physical items
   const hasPhysical = useMemo(() => items.some((i: any) => 
@@ -177,20 +180,66 @@ export default function Checkout() {
 
       clearCart();
 
-      // For digital-only orders — show download links immediately
-      if (isDigitalOnly) {
-        const downloads: DownloadItem[] = items
-          .filter((item: any) => item.type === 'digital' && item.digitalFileUrl)
-          .map((item: any) => ({
-            name: item.name,
-            url: item.digitalFileUrl,
-            password: item.downloadPassword || undefined,
-          }));
-        setCompletedEmail(data.email);
-        setCompletedDownloads(downloads);
-      } else {
-        navigate('/success');
-      }
+      // Paystack configuration
+      const paystackConfig = {
+        reference: `ord_${new Date().getTime()}`,
+        email: data.email || 'buyer@djflowerz.co.ke',
+        amount: finalTotal * 100, // in KES cents
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
+        currency: 'KES',
+        metadata: {
+          type: 'order',
+          order_id: result.orderId,
+          customerName: data.name,
+          order_type: isDigitalOnly ? 'digital' : (hasDigital ? 'mixed' : 'physical'),
+          custom_fields: [
+            {
+              display_name: 'Order ID',
+              variable_name: 'order_id',
+              value: result.orderId
+            }
+          ]
+        }
+      };
+
+      const onSuccess = (reference: any) => {
+        setIsProcessing(false);
+        // For digital-only orders — show download links immediately
+        if (isDigitalOnly) {
+          const downloads: DownloadItem[] = items
+            .filter((item: any) => item.type === 'digital' && item.digitalFileUrl)
+            .map((item: any) => ({
+              name: item.name,
+              url: item.digitalFileUrl,
+              password: item.downloadPassword || undefined,
+            }));
+          setCompletedEmail(data.email);
+          setCompletedDownloads(downloads);
+        } else {
+          navigate('/success', {
+            state: {
+              type: 'order',
+              reference: reference.reference,
+              amount: finalTotal,
+              email: data.email,
+              customerName: data.name
+            }
+          });
+        }
+      };
+
+      const onClose = () => {
+        setIsProcessing(false);
+        toast.error('Payment cancelled. Your order has been placed but remains unpaid.');
+        navigate('/account'); // Navigate to account so they can see their order
+      };
+
+      // Ensure usePaystackPayment does not error by dynamically importing or passing config
+      // But wait, hooks cannot be called conditionally. We need to call it at the top level
+      // However, we don't have paystackConfig at the top level with final values unless we use state.
+      // A common pattern is to just call `initializePayment({ config, onSuccess, onClose })`.
+      // Let's rely on that. We will declare `const initializePayment = usePaystackPayment({});` at the top level.
+      paystackInitialize({ ...paystackConfig, onSuccess, onClose } as any);
 
     } catch (err: any) {
       toast.error('Error placing order. Please try again.');
