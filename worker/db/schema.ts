@@ -262,10 +262,12 @@ export const trackVersions = sqliteTable('track_versions', {
     id: text('id').primaryKey(),
     trackId: text('track_id').references(() => tracks.id),
     versionName: text('version_name'), // e.g., 'Clean', 'Dirty', 'Radio Edit'
+    previewUrl: text('preview_url'),
     fileUrl: text('file_url'),
     downloadUrl: text('download_url'),
     fileSize: text('file_size'),
     format: text('format').default('mp3'),
+    isMainVersion: integer('is_main_version', { mode: 'boolean' }).default(false),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

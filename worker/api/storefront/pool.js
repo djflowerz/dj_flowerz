@@ -36,11 +36,11 @@ export async function handleStorefrontPool(request, env) {
             let conditions = ["t.is_active = 1"];
             const params = [];
 
-            if (hub && hub !== 'All Hubs') {
+            if (hub && hub !== 'All Hubs' && hub !== 'all') {
                 conditions.push("t.collection_hub = ?");
                 params.push(hub);
             }
-            if (genre && genre !== 'All Genres') {
+            if (genre && genre !== 'All Genres' && genre !== 'All' && genre !== 'all') {
                 conditions.push("(t.display_genre = ? OR t.genre = ?)");
                 params.push(genre, genre);
             }

@@ -36,6 +36,7 @@
     "react-hook-form": "^7.71.2",
     "react-is": "^19.2.4",
     "react-paystack": "5.0.0",
+    "react-player": "^3.4.0",
     "react-quill": "^2.0.0",
     "react-router-dom": "^7.13.0",
     "react-virtuoso": "^4.18.1",

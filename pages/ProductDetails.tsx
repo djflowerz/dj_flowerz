@@ -68,12 +68,14 @@ export default function ProductDetails() {
       }
       
       const matchingVariant = product.variants.find(v => {
+        if (!v || !v.name) return false;
+        
         // Try exact match first
         const selectionString = selectedValues.join(', ');
         if (v.name === selectionString) return true;
         
         // Try if all selected values are in the name
-        return selectedValues.every(val => v.name.includes(val));
+        return selectedValues.every(val => v.name?.includes(val));
       });
       
       if (matchingVariant) {

@@ -313,13 +313,24 @@ const mapR2Track = (t: any): Track => {
     return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
   };
 
-  const versions = safeJsonParse(t.versions, []).map((v: any) => ({
+  let versions = safeJsonParse(t.versions, []).map((v: any) => ({
     ...v,
     id: String(v.id || Math.random().toString(36).substr(2, 9)),
-    type: String(v.type || v.label || 'Main'),
-    label: String(v.label || v.type || 'Main'),
-    downloadUrl: ensureAbsolute(v.previewUrl || v.preview_url || v.downloadUrl || v.download_url)
+    type: String(v.type || v.version_name || v.label || 'Main'),
+    version_name: String(v.version_name || v.type || v.label || 'Main'),
+    preview_url: ensureAbsolute(v.preview_url || v.previewUrl || v.file_url || v.download_url || v.downloadUrl),
+    previewUrl: ensureAbsolute(v.previewUrl || v.preview_url || v.file_url || v.download_url || v.downloadUrl),
+    download_url: ensureAbsolute(v.download_url || v.downloadUrl || v.file_url || v.preview_url || v.previewUrl),
+    downloadUrl: ensureAbsolute(v.downloadUrl || v.download_url || v.file_url || v.previewUrl || v.preview_url),
+    is_main_version: Boolean(v.is_main_version || v.isMainVersion || false)
   }));
+
+  // Deduplicate versions by name and URL to prevent "2 same versions" issue
+  versions = versions.filter((v, index, self) =>
+    index === self.findIndex((t) => (
+      t.version_name === v.version_name && (t.download_url === v.download_url || t.preview_url === v.preview_url)
+    ))
+  );
 
   // Robustly handle URLs - prioritizing streamable content
   let previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
