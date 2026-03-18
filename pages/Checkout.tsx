@@ -249,8 +249,9 @@ export default function Checkout() {
       paystackInitialize({ ...paystackConfig, onSuccess, onClose } as any);
 
     } catch (err: any) {
-      toast.error('Error placing order. Please try again.');
-      console.error(err);
+      const errorMessage = err.message || 'Error placing order. Please try again.';
+      toast.error(errorMessage);
+      console.error('Order error:', err);
     } finally {
       setIsProcessing(false);
     }

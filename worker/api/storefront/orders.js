@@ -20,8 +20,8 @@ export async function handleStorefrontOrders(request, env) {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
             orderId, 
-            body.customer_email || body.customer?.email, 
-            body.customer_name || body.customer?.name, 
+            body.customer_email || body.customer?.email || null, 
+            body.customer_name || body.customer?.name || null, 
             totalAmount, 
             body.status || 'pending',
             'pending', // payment_status

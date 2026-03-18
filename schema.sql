@@ -155,7 +155,7 @@ CREATE TABLE orders (
     status TEXT DEFAULT 'pending',
     items TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-, customer_name TEXT, customer_email TEXT, customer_phone TEXT, city TEXT, address TEXT, payment_status TEXT DEFAULT 'unpaid', payment_method TEXT, tracking_number TEXT, refund_status TEXT, shipping_provider TEXT, shipping_method TEXT, shipping_cost REAL DEFAULT 0.0, notes TEXT);
+, customer_name TEXT, customer_email TEXT, customer_phone TEXT, city TEXT, address TEXT, payment_status TEXT DEFAULT 'unpaid', payment_method TEXT, tracking_number TEXT, refund_status TEXT, shipping_provider TEXT, shipping_method TEXT, shipping_cost REAL DEFAULT 0.0, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE genres (
     id TEXT PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
