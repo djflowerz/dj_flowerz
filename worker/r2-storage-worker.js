@@ -1682,10 +1682,22 @@ export default {
                 }
 
                 // 5. GET DOWNLOAD URL (Drizzle)
+                console.log(`[Download] Looking up versionId: ${versionId} for user: ${user.email}`);
                 const version = await db.query.trackVersions.findFirst({
                     where: (tv, { eq }) => eq(tv.id, versionId)
                 });
-                if (!version || !version.downloadUrl) return new Response("File not found", { status: 404, headers: corsHeaders });
+                
+                if (!version) {
+                    console.error(`[Download] Version NOT FOUND for ID: ${versionId}`);
+                    return new Response("File not found", { status: 404, headers: corsHeaders });
+                }
+                
+                if (!version.downloadUrl) {
+                    console.error(`[Download] downloadUrl MISSING for Version ID: ${versionId}`);
+                    return new Response("File not found", { status: 404, headers: corsHeaders });
+                }
+                
+                console.log(`[Download] Found version: ${version.version_name}, URL: ${version.downloadUrl.substring(0, 50)}...`);
 
                 // 6. PROXY DOWNLOAD FOR IMMEDIATE BROWSER FEEDBACK
                 // Instead of redirecting to R2, we fetch and stream the body with Attachment header

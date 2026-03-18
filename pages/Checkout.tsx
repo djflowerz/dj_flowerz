@@ -10,6 +10,7 @@ import {
 import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, COUNTY_TO_ZONE_MAP } from '../constants';
 import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
+import { STORAGE_WORKER_URL } from '../utils/r2';
 
 /* ─── Digital Delivery Screen ───────────────────────────────────────────── */
 interface DownloadItem {
@@ -168,7 +169,7 @@ export default function Checkout() {
         created_at: new Date().toISOString(),
       };
 
-      const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/orders`, {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
@@ -191,7 +192,7 @@ export default function Checkout() {
       const paystackConfig = {
         reference: `ord_${new Date().getTime()}`,
         email: data.email || 'buyer@djflowerz.co.ke',
-        amount: finalTotal * 100, // in KES cents
+        amount: Math.round(finalTotal * 100), // in KES cents
         publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
         currency: 'KES',
         metadata: {

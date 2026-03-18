@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabase';
+import { STORAGE_WORKER_URL } from '../utils/r2';
 
 interface TrackVersion {
   id: string;
@@ -287,7 +288,7 @@ export default function MusicPool() {
       }
 
       // 1. HIT THE TRACKING API (POST) - Non-blocking
-      fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || ''}/api/pool/download`, {
+      fetch(`${STORAGE_WORKER_URL}/api/pool/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, versionId })
@@ -296,8 +297,7 @@ export default function MusicPool() {
       // 2. TRIGGER NATIVE BROWSER DOWNLOAD IMMEDIATELY
       // We use the GET version of the endpoint with ?token=... to support window.location.href
       // This will return the body with Content-Disposition: attachment
-      const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
-      const downloadApiUrl = `${WORKER_URL}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
+      const downloadApiUrl = `${STORAGE_WORKER_URL}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
       // Using window.location.href triggers the browser's download manager immediately
       // For cross-origin or same-origin direct streams with Attachment header, this is perfect.
@@ -475,22 +475,73 @@ export default function MusicPool() {
             {/* List */}
             <div className="min-h-[600px]">
               {isMobile && !isSubscriber ? (
-                <div className="flex flex-col items-center justify-center py-24 px-6 text-center bg-zinc-900/30 rounded-[3rem] border border-white/5 backdrop-blur-md">
-                  <div className="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center mb-8 border border-blue-500/30 shadow-2xl">
-                    <Lock className="text-blue-400" size={32} />
+                <div className="flex flex-col items-center py-12 px-4 space-y-12">
+                  <div className="text-center space-y-4 px-6">
+                    <div className="w-16 h-16 bg-brand-purple/10 rounded-3xl flex items-center justify-center mx-auto border border-brand-purple/20 shadow-2xl">
+                      <Crown className="text-brand-purple animate-pulse" size={32} />
+                    </div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">Pro Access Required</h2>
+                    <p className="text-zinc-500 text-sm font-medium leading-relaxed max-w-xs mx-auto">
+                      Unlock 92,000+ professional DJ edits, redrums, and mashups. Choose a plan to start downloading instantly.
+                    </p>
                   </div>
-                  <h2 className="text-2xl font-black text-white mb-4 italic uppercase tracking-tighter">Pro Access Required</h2>
-                  <p className="text-zinc-400 max-w-sm mb-10 font-medium leading-relaxed italic opacity-80">
-                    Get full access to the Music Pool on your mobile device. Download 92,000+ professional DJ edits anywhere.
-                  </p>
-                  <Link 
-                    to="/account?tab=subscription"
-                    className="px-8 py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white rounded-2xl font-black uppercase text-sm hover:shadow-2xl hover:shadow-brand-purple/20 transition-all active:scale-95"
-                  >
-                    View Subscription Plans
-                  </Link>
+
+                  <div className="grid grid-cols-1 gap-6 w-full max-w-sm mx-auto">
+                    {SUBSCRIPTION_PLANS.filter(p => p.active && !p.isTrial).map((plan) => (
+                      <div 
+                        key={plan.id}
+                        className={`relative p-6 rounded-[2.5rem] bg-zinc-900/40 border transition-all ${
+                          plan.isBestValue 
+                            ? 'border-brand-purple bg-brand-purple/5 shadow-[0_0_40px_rgba(168,85,247,0.15)] ring-1 ring-brand-purple/20' 
+                            : 'border-white/5 hover:border-white/10'
+                        }`}
+                      >
+                        {plan.isBestValue && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-brand-purple text-white text-[10px] font-black uppercase rounded-full shadow-lg tracking-widest whitespace-nowrap">
+                            Best Value
+                          </div>
+                        )}
+                        
+                        <div className="mb-6">
+                          <h3 className="text-white font-black uppercase text-sm mb-2">{plan.name}</h3>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-black text-white">KES {plan.price.toLocaleString()}</span>
+                            <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">/{plan.period}</span>
+                          </div>
+                        </div>
+
+                        <ul className="space-y-3 mb-8">
+                          {plan.features.slice(0, 4).map((feature, i) => (
+                            <li key={i} className="flex items-start gap-3 text-[11px] text-zinc-400 font-bold leading-tight">
+                              <CheckCircle2 size={14} className="text-brand-purple flex-shrink-0 mt-0.5" />
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+
+                        <Link 
+                          to={`/account?tab=subscription&plan=${plan.id}`}
+                          className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-black uppercase text-xs tracking-widest transition-all active:scale-95 ${
+                            plan.isBestValue
+                              ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/20 hover:brightness-110'
+                              : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                          }`}
+                        >
+                          Unlock Now <ChevronRight size={16} />
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-center pt-8 border-t border-white/5 w-full">
+                    <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Secured by Paystack</p>
+                    <div className="flex items-center justify-center gap-6 opacity-30 grayscale saturate-0">
+                      <img src="https://paystack.com/assets/img/logos/merchants/paystack.png" className="h-4" alt="Paystack" />
+                    </div>
+                  </div>
                 </div>
-              ) : poolLoading && poolTracks.length === 0 ? (
+              ) :
+ poolLoading && poolTracks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 space-y-4">
                   <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-600 animate-pulse">Syncing Engine...</p>

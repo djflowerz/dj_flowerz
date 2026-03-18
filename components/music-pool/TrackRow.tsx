@@ -96,19 +96,16 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               <div className="flex flex-col min-w-0">
                 <h3 className="text-[15px] md:text-base font-bold text-white group-hover:text-brand-purple transition-colors line-clamp-1">
                   {title}
+                  {isNew && (
+                    <span className="inline-flex items-center ml-2 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-wider align-middle">
+                      NEW
+                    </span>
+                  )}
                 </h3>
                 <p className="text-[13px] text-zinc-400 font-medium group-hover:text-zinc-300 transition-colors truncate">
                   {artist}
                 </p>
               </div>
-            {isNew && (
-                <div className="relative flex items-center">
-                   <div className="absolute inset-0 bg-rose-500/20 blur-md rounded-full animate-pulse" />
-                   <span className="relative px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-wider">
-                     NEW
-                   </span>
-                </div>
-              )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
               <span className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-lg border border-white/5 text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] text-zinc-500">
                 <Music size={14} className="text-brand-purple/40 mr-1" />
@@ -193,15 +190,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                       if (!isSubscriber) return;
                       onDownload(version.download_url, `${artist} - ${title} (${version.version_name})`, version.id);
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide border border-white/5 ${
+                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all border border-white/5 ${
                       isSubscriber
                         ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple hover:border-brand-purple/30'
                         : 'bg-zinc-900/20 text-zinc-700 cursor-not-allowed opacity-50'
                     }`}
-                    title={isSubscriber ? "Download Version" : "Pro Access Required"}
+                    title={isSubscriber ? `Download ${version.version_name}` : "Pro Access Required"}
                   >
-                    <Download size={14} />
-                    Instant Download
+                    <Download size={18} />
                   </button>
                 </div>
               </div>
