@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@aws-sdk/s3-request-presigner": "^3.1010.0",
+    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.27",
