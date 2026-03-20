@@ -476,31 +476,44 @@ const mapR2Mixtape = (m: any): Mixtape => {
   }
 };
 
-const mapR2Order = (o: any): Order => ({
-  ...o,
-  customerName: o.customer_name || o.customerName,
-  customerEmail: o.customer_email || o.customerEmail,
-  customerPhone: o.customer_phone || o.customerPhone || o.phone,
-  city: o.city,
-  address: o.address,
-  paymentStatus: o.payment_status || o.paymentStatus,
-  referenceCode: o.reference_code || o.referenceCode,
-  trackingNumber: o.tracking_number || o.trackingNumber,
-  courierName: o.courier_name || o.courierName,
-  estimatedArrival: o.estimated_arrival || o.estimatedArrival,
-  pickupLocation: o.pickup_location || o.pickupLocation,
-  receiptUrl: o.receipt_url || o.receiptUrl,
-  adminMessage: o.admin_message || o.adminMessage,
-  shippedAt: o.shipped_at || o.shippedAt,
-  deliveryMethod: o.delivery_method || o.deliveryMethod,
-  requiresShipping: o.requires_shipping !== undefined ? o.requires_shipping : o.requiresShipping,
-  subtotal: o.subtotal !== undefined ? o.subtotal : o.subtotal,
-  discountAmount: o.discount_amount !== undefined ? o.discount_amount : o.discountAmount,
-  shippingCost: o.shipping_cost !== undefined ? o.shipping_cost : o.shippingCost,
-  couponCode: o.coupon_code || o.couponCode,
-  createdAt: o.created_at || o.createdAt,
-  updatedAt: o.updated_at || o.updatedAt
-});
+const mapR2Order = (o: any): Order => {
+  let parsedItems = o.items;
+  if (typeof o.items === 'string') {
+    try {
+      parsedItems = JSON.parse(o.items);
+    } catch (e) {
+      console.error("Failed to parse order items:", e);
+      parsedItems = [];
+    }
+  }
+
+  return {
+    ...o,
+    items: Array.isArray(parsedItems) ? parsedItems : [],
+    customerName: o.customer_name || o.customerName,
+    customerEmail: o.customer_email || o.customerEmail,
+    customerPhone: o.customer_phone || o.customerPhone || o.phone,
+    city: o.city,
+    address: o.address,
+    paymentStatus: o.payment_status || o.paymentStatus,
+    referenceCode: o.reference_code || o.referenceCode,
+    trackingNumber: o.tracking_number || o.trackingNumber,
+    courierName: o.courier_name || o.courierName,
+    estimatedArrival: o.estimated_arrival || o.estimatedArrival,
+    pickupLocation: o.pickup_location || o.pickupLocation,
+    receiptUrl: o.receipt_url || o.receiptUrl,
+    adminMessage: o.admin_message || o.adminMessage,
+    shippedAt: o.shipped_at || o.shippedAt,
+    deliveryMethod: o.delivery_method || o.deliveryMethod,
+    requiresShipping: o.requires_shipping !== undefined ? o.requires_shipping : o.requiresShipping,
+    subtotal: o.subtotal !== undefined ? o.subtotal : o.subtotal,
+    discountAmount: o.discount_amount !== undefined ? o.discount_amount : o.discountAmount,
+    shippingCost: o.shipping_cost !== undefined ? o.shipping_cost : o.shippingCost,
+    couponCode: o.coupon_code || o.couponCode,
+    createdAt: o.created_at || o.createdAt,
+    updatedAt: o.updated_at || o.updatedAt
+  };
+};
 
 const mapR2User = (u: any): User => ({
   ...u,

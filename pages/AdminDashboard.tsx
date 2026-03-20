@@ -890,7 +890,7 @@ const AdminDashboard: React.FC = () => {
    const activeSubs = useMemo(() => liveSubscriptions?.filter(s => s.status === 'active').length || 0, [liveSubscriptions]);
 
    const shippingStats = useMemo(() => {
-      const shippingOrders = (liveOrders || []).filter(o => o.requiresShipping || o.items?.some(item => item.type === 'physical'));
+      const shippingOrders = (liveOrders || []).filter(o => o.requiresShipping || (Array.isArray(o.items) && o.items.some(item => item.type === 'physical')));
       return {
          pending: shippingOrders.filter(o => o.status === 'pending' || o.status === 'processing').length,
          delivered: shippingOrders.filter(o => o.status === 'shipped' || o.status === 'completed').length,

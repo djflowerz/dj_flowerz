@@ -43,12 +43,18 @@ export async function verifySupabaseJWT(token, secret) {
                 base64UrlToUint8Array(signature),
                 encoder.encode(`${header}.${payload}`)
             );
-            if (!isValid) return null;
+            if (!isValid) {
+                console.error('[Auth] JWT signature verification failed');
+                return null;
+            }
         }
         // No secret: decode payload and trust the Supabase-issued token.
         // Still validate expiry.
 
-        const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+        let b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = b64.length % 4;
+        if (pad) b64 += '='.repeat(4 - pad);
+        const decoded = JSON.parse(atob(b64));
 
         const now = Math.floor(Date.now() / 1000);
         if (decoded.exp && decoded.exp < now) {
@@ -69,7 +75,10 @@ export async function getAuthorizedUser(request, env) {
     const token = authHeader.split(' ')[1];
 
     const payload = await verifySupabaseJWT(token, env.SUPABASE_JWT_SECRET);
-    if (!payload) return null;
+    if (!payload) {
+        console.error('[Auth] verifySupabaseJWT returned null. Token invalid or expired.');
+        return null;
+    }
 
     const email = payload.email;
     const sub = payload.sub;
