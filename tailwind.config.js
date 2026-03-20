@@ -12,14 +12,19 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        display: ['Poppins', 'sans-serif'],
+      },
       colors: {
-        'brand': {
-          'blue': '#0A1128',
-          'cyan': '#00F0FF',
-          'magenta': '#FF003C',
+        brand: {
+          dark: '#0B0B0F',
+          card: '#15151A',
+          purple: '#7B5CFF',
+          cyan: '#00E5FF',
         }
       }
-    },
+    }
   },
   plugins: [],
 }
