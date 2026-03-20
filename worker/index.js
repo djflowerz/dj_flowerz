@@ -140,18 +140,65 @@ export { AdminHub };
 
 export default {
     async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+        
         // Handle CORS
         if (request.method === "OPTIONS") {
             return new Response(null, {
                 headers: {
                     "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name",
+                    "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
                 }
             });
         }
 
         try {
+            // --- PUBLIC FILE PROXY: GET /files/* ---
+            // Proxies track media (mp3, mp4, etc.) from the correct origin R2/worker CDN
+            if (request.method === "GET" && url.pathname.startsWith("/files/")) {
+                const filePath = decodeURIComponent(url.pathname.replace("/files/", ""));
+                const originParam = url.searchParams.get("origin");
+
+                let originBase;
+                if (originParam === "remix") {
+                    originBase = "https://remix-and-mashups-worker.dennismacharia20.workers.dev";
+                } else {
+                    originBase = "https://r2.vicknickvideopool.com";
+                }
+
+                // Re-encode just the path (not query) for the upstream request
+                const encodedPath = filePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+                const originUrl = `${originBase}/${encodedPath}`;
+                const rangeHeader = request.headers.get("Range");
+
+                const originRes = await fetch(originUrl, {
+                    headers: {
+                        "User-Agent": "DJFlowerz-Worker/1.0",
+                        "Referer": "https://djflowerz.co.ke",
+                        ...(rangeHeader ? { "Range": rangeHeader } : {})
+                    }
+                });
+
+                const headers = new Headers();
+                headers.set("Access-Control-Allow-Origin", "*");
+                headers.set("Content-Type", originRes.headers.get("Content-Type") || "application/octet-stream");
+                headers.set("Cache-Control", "public, max-age=86400"); // 1 day cache
+                headers.set("Accept-Ranges", "bytes");
+
+                // Pass through critical headers for seeking/streaming
+                const contentLength = originRes.headers.get("Content-Length");
+                const contentRange = originRes.headers.get("Content-Range");
+                if (contentLength) headers.set("Content-Length", contentLength);
+                if (contentRange) headers.set("Content-Range", contentRange);
+
+                return new Response(originRes.body, {
+                    status: originRes.status,
+                    headers
+                });
+            }
+
             const response = await router.handle(request, env, ctx);
 
             // Special handling for WebSockets: return the original response if status is 101
