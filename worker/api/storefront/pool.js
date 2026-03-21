@@ -22,7 +22,7 @@ export async function handleStorefrontPool(request, env) {
             // 1. Determine User Role for specific limits later
             const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
             const now = new Date().getTime();
-            const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
+            const expiry = user?.subscription_expiry ? new Date(user.subscription_expiry).getTime() : 0;
             const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
 
             const page = parseInt(url.searchParams.get("page")) || 1;
@@ -37,11 +37,11 @@ export async function handleStorefrontPool(request, env) {
             const params = [];
 
             if (hub && hub !== 'All Hubs' && hub !== 'all') {
-                conditions.push("t.collection_hub = ?");
+                conditions.push("LOWER(t.collection_hub) = LOWER(?)");
                 params.push(hub);
             }
             if (genre && genre !== 'All Genres' && genre !== 'All' && genre !== 'all') {
-                conditions.push("(t.display_genre = ? OR t.genre = ?)");
+                conditions.push("(LOWER(t.display_genre) = LOWER(?) OR LOWER(t.genre) = LOWER(?))");
                 params.push(genre, genre);
             }
             if (year && year !== 'All Years') {
@@ -49,7 +49,7 @@ export async function handleStorefrontPool(request, env) {
                 params.push(year.toString(), year.toString());
             }
             if (month && month !== 'All Months') {
-                conditions.push("(t.release_month = ? OR t.month = ?)");
+                conditions.push("(LOWER(t.release_month) = LOWER(?) OR LOWER(t.month) = LOWER(?))");
                 params.push(month, month);
             }
             if (search) {
@@ -162,7 +162,7 @@ export async function handleStorefrontPool(request, env) {
             const createdDate = new Date(user?.created_at || now.toISOString());
             const daysSinceCreated = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24));
             
-            const expiry = user?.subscription_end_date ? new Date(user.subscription_end_date).getTime() : 0;
+            const expiry = user?.subscription_expiry ? new Date(user.subscription_expiry).getTime() : 0;
             const isSubscribed = (user?.is_subscriber === 1 && expiry > nowMs);
             
             let limit = 0;

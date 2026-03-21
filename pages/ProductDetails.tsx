@@ -76,7 +76,7 @@ export default function ProductDetails() {
           const selectionString = selectedValues.join(', ');
           if (v.name === selectionString) return true;
           // Try if all selected values are in the name
-          return selectedValues.every(val => v.name?.toLowerCase().includes(val.toLowerCase()));
+          return selectedValues.every((val: any) => v.name?.toLowerCase().includes(String(val).toLowerCase()));
         }) || null;
       }
     }
@@ -251,7 +251,10 @@ export default function ProductDetails() {
                   </div>
                 </div>
                 <h1 className="font-display font-bold text-5xl md:text-6xl text-white mb-6 leading-tight tracking-tighter uppercase">{product.name}</h1>
-                <p className="text-gray-400 text-xl leading-relaxed font-light">{product.description || 'Elevate your creative workflow with this masterfully engineered piece of hardware.'}</p>
+                <div 
+                  className="text-gray-400 text-xl leading-relaxed font-light product-description-html"
+                  dangerouslySetInnerHTML={{ __html: product.description || 'Elevate your creative workflow with this masterfully engineered piece of hardware.' }}
+                />
               </div>
 
               {/* Variant Selectors */}
@@ -419,15 +422,22 @@ export default function ProductDetails() {
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-purple/50 to-transparent"></div>
               <h3 className="text-3xl font-display font-black text-white mb-16 text-center tracking-tighter uppercase">How it compares</h3>
               <div className="grid md:grid-cols-3 gap-8 md:gap-12 items-center">
+                {/* Lite / Alternative 1 */}
                 <div className="text-center p-8 bg-white/[0.02] rounded-3xl opacity-40 border border-white/5 transition-all hover:opacity-100">
-                  <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">Lite Variant</h4>
-                  <div className="text-2xl text-white font-black mb-6">KSh {formatPrice(displayPrice * 0.7)}</div>
+                  <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">
+                    {product.variantGroups?.[0]?.options?.[0] ? `${product.variantGroups[0].options[0]} Edition` : 'Standard Edition'}
+                  </h4>
+                  <div className="text-2xl text-white font-black mb-6">
+                    KSh {formatPrice(displayPrice * 0.8)}
+                  </div>
                   <div className="space-y-3 text-[10px] text-gray-500 uppercase font-black tracking-widest">
-                    <p>Standard Core</p>
-                    <p>Basic Finish</p>
-                    <p>Essential Kit</p>
+                    <p>Essential Features</p>
+                    <p>Original Build</p>
+                    <p>Standard Kit</p>
                   </div>
                 </div>
+
+                {/* Main / Master Selection */}
                 <div className="text-center p-12 bg-brand-purple/10 rounded-[2.5rem] border border-brand-purple/40 ring-1 ring-brand-purple/30 relative scale-105 md:scale-110 shadow-2xl backdrop-blur-md">
                   <span className="absolute -top-4 left-1/2 -translate-x-1/2 bg-brand-purple text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest whitespace-nowrap">Master Selection</span>
                   <h4 className="text-brand-purple uppercase tracking-widest text-[10px] mb-4 font-black">{product.name}</h4>
@@ -439,13 +449,21 @@ export default function ProductDetails() {
                     <p>Studio Grade Build</p>
                   </div>
                 </div>
+
+                {/* Elite / Alternative 2 */}
                 <div className="text-center p-8 bg-white/[0.02] rounded-3xl opacity-40 border border-white/5 transition-all hover:opacity-100">
-                  <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">Elite Edition</h4>
-                  <div className="text-2xl text-white font-black mb-6">KSh {formatPrice(displayPrice * 1.5)}</div>
+                  <h4 className="text-gray-500 uppercase tracking-widest text-[10px] mb-4 font-black">
+                    {product.variantGroups?.[0]?.options?.length && product.variantGroups[0].options.length > 1 
+                      ? `${product.variantGroups[0].options[product.variantGroups[0].options.length - 1]} Pro` 
+                      : 'Elite Edition'}
+                  </h4>
+                  <div className="text-2xl text-white font-black mb-6">
+                    KSh {formatPrice(displayPrice * 1.5)}
+                  </div>
                   <div className="space-y-3 text-[10px] text-gray-500 uppercase font-black tracking-widest">
-                    <p>Elite Max Core</p>
-                    <p>Liquid Nitro Cooling</p>
-                    <p>Bespoke Case</p>
+                    <p>Elite Max Specs</p>
+                    <p>Next-Gen Cooling</p>
+                    <p>Bespoke Design</p>
                   </div>
                 </div>
               </div>

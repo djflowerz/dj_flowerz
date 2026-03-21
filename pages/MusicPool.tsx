@@ -474,7 +474,7 @@ export default function MusicPool() {
 
             {/* List */}
             <div className="min-h-[600px]">
-              {isMobile && !isSubscriber ? (
+              {!isSubscriber ? (
                 <div className="flex flex-col items-center py-12 px-4 space-y-12">
                   <div className="text-center space-y-4 px-6">
                     <div className="w-16 h-16 bg-brand-purple/10 rounded-3xl flex items-center justify-center mx-auto border border-brand-purple/20 shadow-2xl">

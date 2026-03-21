@@ -53,7 +53,7 @@ export async function handleDashboardSubscriptions(request, env) {
                 // Revoke: set is_subscriber=0 and subscription_plan to null
                 await env.DB.prepare(
                     `UPDATE profiles SET is_subscriber = 0, subscription_plan = NULL,
-                     subscription_end_date = NULL, updated_at = ?
+                     subscription_expiry = NULL, updated_at = ?
                      WHERE id = ?`
                 ).bind(nowIso, userId).run();
 
@@ -103,7 +103,7 @@ export async function handleDashboardSubscriptions(request, env) {
                 // Update the profile
                 await env.DB.prepare(
                     `UPDATE profiles SET is_subscriber = 1, subscription_plan = ?,
-                     subscription_end_date = ?, updated_at = ?
+                     subscription_expiry = ?, updated_at = ?
                      WHERE id = ?`
                 ).bind(plan, expiryIso, nowIso, userId).run();
 

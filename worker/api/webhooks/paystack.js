@@ -114,7 +114,102 @@ export async function handlePaystackWebhook(request, env) {
                 }
             } catch (e) {
                 console.error("Tip webhook error:", e);
-                // If the tips table has a different schema, it might fail, but let's try assuming standard columns.
+            }
+        } else if (type === 'subscription') {
+            const userId = metadata?.userId;
+            const planId = metadata?.planId;
+            const planName = metadata?.plan || 'Premium Plan';
+
+            if (userId && planId) {
+                const now = new Date();
+                const nowIso = now.toISOString();
+                
+                // Calculate durations in days
+                const durations = {
+                    'weekly': 7,
+                    'monthly': 30,
+                    '3months': 90,
+                    '6months': 180,
+                    'yearly': 365,
+                    'pro': 365,
+                    'trial': 7
+                };
+                const durationDays = durations[planId] || 30;
+                
+                const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+                const expiryIso = expiryDate.toISOString().replace('T', ' ').substring(0, 19); // YYYY-MM-DD HH:MM:SS format
+                // Actually, let's keep ISO for R2 consistency, but D1 might expect the ' ' format if it's text.
+                // handleTrialActivation used `.replace('T', ' ').substring(0, 19)`
+                
+                try {
+                    // 1. Update D1 Profile
+                    await env.DB.prepare(`
+                        UPDATE profiles 
+                        SET is_subscriber = 1, 
+                            subscription_plan = ?, 
+                            subscription_expiry = ?, 
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).bind(planId, expiryIso, userId).run();
+
+                    // 2. Add Subscription History Record
+                    const subId = crypto.randomUUID();
+                    await env.DB.prepare(`
+                        INSERT INTO subscriptions (id, user_id, plan, status, start_date, end_date, created_at, updated_at)
+                        VALUES (?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    `).bind(subId, userId, planId, nowIso, expiryDate.toISOString()).run();
+
+                    // 3. Sync to R2 for immediate frontend update
+                    try {
+                        const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
+                        let r2Profile = {};
+                        if (existingR2) {
+                            r2Profile = await existingR2.json();
+                        }
+                        
+                        r2Profile.id = userId; // ensure ID exists
+                        r2Profile.is_subscriber = 1;
+                        r2Profile.subscription_plan = planId;
+                        r2Profile.subscription_expiry = expiryIso;
+                        r2Profile.updated_at = new Date().toISOString();
+                        
+                        await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
+                    } catch (r2Err) {
+                        console.error('[Paystack Webhook] R2 Sync Error:', r2Err);
+                    }
+
+                    // 4. Send Activation Email
+                    const userEmail = customer?.email || metadata?.userEmail || 'member@djflowerz.co.ke';
+                    const userName = metadata?.userName || customer?.first_name || 'Member';
+
+                    try {
+                        await sendEmail({
+                            to: userEmail,
+                            subject: '🚀 Music Pool Access Activated!',
+                            html: `
+                                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                                    <h1 style="color: #a855f7; margin-bottom: 20px;">Welcome to the Pool!</h1>
+                                    <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${userName}, your <strong>${planName}</strong> is now active.</p>
+                                    <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff10;">
+                                        <h3 style="color: #ffffff; margin-top: 0;">Access Details</h3>
+                                        <p style="margin: 5px 0; color: #9ca3af;">Plan: ${planName}</p>
+                                        <p style="margin: 5px 0; color: #9ca3af;">Expiry: ${expiryDate.toLocaleDateString()}</p>
+                                    </div>
+                                    <p style="color: #9ca3af; font-size: 14px;">You now have full access to the Music Pool and exclusive mixtapes. Happy listening!</p>
+                                    <a href="https://djflowerz.co.ke/music-pool" style="display: inline-block; background: #a855f7; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px;">Enter Music Pool</a>
+                                    <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
+                                    <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ • Nairobi, Kenya</p>
+                                </div>
+                            `,
+                            text: `Hello ${userName}, your ${planName} is now active! Visit djflowerz.co.ke/music-pool to start.`
+                        }, env);
+                    } catch (emailErr) {
+                        console.error('[Subscription Activation Email Error]', emailErr);
+                    }
+
+                } catch (dbErr) {
+                    console.error('[Paystack Webhook] Subscription Database Error:', dbErr);
+                }
             }
         }
     }

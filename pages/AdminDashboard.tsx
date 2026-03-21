@@ -1193,6 +1193,30 @@ const AdminDashboard: React.FC = () => {
       }
    };
 
+   const handleR2ProductSync = async () => {
+      if (!confirm("⚠️ This will sync 53+ products from R2 to D1 database. Continue?")) return;
+      setIsSyncing(true);
+      setSyncMessage('Syncing products from R2 storage...');
+      try {
+         const res = await fetch(`${WORKER_URL}/api/admin/r2-sync`, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'importFromR2' })
+         });
+         const data = await res.json();
+         if (data.success) {
+            toast.success(data.message);
+            if (typeof refreshProducts === 'function') refreshProducts();
+         } else {
+            throw new Error(data.error || 'Failed to sync products');
+         }
+      } catch (e: any) {
+         toast.error("Sync Error: " + e.message);
+      } finally {
+         setIsSyncing(false);
+         setSyncMessage('');
+      }
+   };
+
    const handleManualGrant = async (type: 'subscription' | 'studio', email: string, amount: number, id?: string) => {
       try {
          const res = await fetch(`${WORKER_URL}/api/admin/manual-grant`, {
@@ -5012,6 +5036,32 @@ const AdminDashboard: React.FC = () => {
                                     Repair Data
                                  </button>
                               </div>
+                           </div>
+                        </div>
+
+                        {/* Product Recovery Card */}
+                        <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 blur-[80px] rounded-full -mr-24 -mt-24 group-hover:bg-emerald-500/10 transition-all" />
+                           <div className="relative z-10 space-y-6">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                                    <ShoppingBag size={28} />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xl font-black text-white tracking-tight">Product Recovery</h4>
+                                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">D1 Database Restoration</p>
+                                 </div>
+                              </div>
+                              <p className="text-sm text-gray-500 font-medium leading-relaxed">Restore all 53+ platform products from Cloudflare R2 backup. Use this if products are missing in the storefront or admin list.</p>
+
+                              <button
+                                 onClick={handleR2ProductSync}
+                                 disabled={isSyncing}
+                                 className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-emerald-500/10 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 disabled:opacity-50"
+                              >
+                                 {isSyncing ? <RefreshCw className="animate-spin" size={18} /> : <CloudUpload size={18} />}
+                                 {isSyncing ? 'Synchronizing...' : 'Sync Products from R2'}
+                              </button>
                            </div>
                         </div>
 
