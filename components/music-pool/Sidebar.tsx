@@ -99,9 +99,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-sm font-bold truncate">All Tracks</span>
           </button>
           
-          {hubsWithGenres.map((hubData) => {
+          {(hubsWithGenres || []).map((hubData) => {
+            if (!hubData?.hub) return null;
             const isExpanded = expandedHubs.includes(hubData.hub) || activeHub === hubData.hub || searchTerm !== '';
-            const filteredGenres = hubData.genres.filter(g => g.toLowerCase().includes(searchTerm.toLowerCase()));
+            const filteredGenres = (hubData.genres || []).filter(g => g.toLowerCase().includes(searchTerm.toLowerCase()));
             
             // If searching and no genres match in this hub (and hub name itself doesn't match), hide it
             if (searchTerm && filteredGenres.length === 0 && !hubData.hub.toLowerCase().includes(searchTerm.toLowerCase())) return null;
