@@ -456,12 +456,15 @@ export default function MusicPool() {
                                   track?.display_genre?.toLowerCase()?.includes('hype') || 
                                   track?.sub_genre?.toLowerCase()?.includes('hype');
                     
-                    // Logic for "NEW" badge: if added in the last 14 days or explicitly marked
-                    const isActuallyNew = track.is_featured || 
-                                         track.isNew || 
-                                         track.is_new ||
-                                         (track.category && Array.isArray(track.category) && track.category.some((c: string) => c.toLowerCase().includes('new'))) ||
-                                         (track.created_at && (new Date().getTime() - new Date(track.created_at).getTime() < 14 * 24 * 60 * 60 * 1000));
+                    // Logic for "NEW" badge: March 2026 or added from today (March 22, 2026) onwards
+                    const trackDate = track.created_at ? new Date(track.created_at) : null;
+                    const today = new Date('2026-03-22');
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const isMarch2026 = track.release_year === 2026 && track.release_month === 'March';
+                    const isFromTodayOnwards = trackDate && trackDate >= today;
+
+                    const isActuallyNew = track.is_featured || isMarch2026 || isFromTodayOnwards;
 
                     if (isHype && activeGenre !== 'All') {
                       return (

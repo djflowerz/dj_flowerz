@@ -103,6 +103,7 @@ interface DataContextType {
   payments: any[];
   tips: any[];
   scannedTracks: any[];
+  syncNotifications: any[];
   notifications: AppNotification[];
   addNotification: (notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => Promise<void>;
   contactMessages: ContactMessage[];
@@ -111,6 +112,7 @@ interface DataContextType {
   reviewsLoading: boolean;
   commentsLoading: boolean;
   notificationsLoading: boolean;
+  syncNotificationsLoading: boolean;
   studioSessions: StudioSession[];
   eventGigs: EventGig[];
   mixtapesError: string | null;
@@ -230,6 +232,7 @@ interface DataContextType {
   clearNotifications: () => Promise<void>;
   refreshStudioSessions: () => void;
   refreshEventGigs: () => void;
+  refreshSyncNotifications: () => void;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -744,7 +747,8 @@ const getTableName = (colName: string): string => {
     'mixtape_comments': 'mixtape_comments',
     'contactMessages': 'support/tickets',
     'contact_messages': 'support/tickets',
-    'bookings': 'bookings/gigs' // Default for legacy bookings collection
+    'bookings': 'bookings/gigs', // Default for legacy bookings collection
+    'syncNotifications': 'pool/sync-notifications'
   };
   return mapping[colName] || colName;
 };
@@ -1019,6 +1023,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'D1', isAdmin);
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'D1', isAdmin);
+  const [syncNotifications, , syncNotificationsLoading, , , refreshSyncNotifications] = useCollection<any>('syncNotifications', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
   const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
 
   // Telegram (Admin) - Non-realtime
@@ -2497,6 +2502,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     tipsLoading: tipsLoading || false,
     notifications,
     notificationsLoading: notificationsLoading || false,
+    syncNotifications,
+    syncNotificationsLoading: syncNotificationsLoading || false,
     addNotification,
     studioEquipmentLoading: equipmentLoading || false,
     studioRoomsLoading: studioRoomsLoading || false,
@@ -2565,6 +2572,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addCampaign,
     updateCampaign,
     refreshNotifications,
+    refreshSyncNotifications,
     addCoupon,
     updateCoupon,
     deleteCoupon,
@@ -2612,6 +2620,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,
     notifications,
     notificationsLoading,
+    syncNotifications,
+    syncNotificationsLoading,
     payments, tips, reviews, comments,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,

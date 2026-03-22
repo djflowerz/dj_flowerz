@@ -144,23 +144,25 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       {/* Version Controls Row — always visible */}
       {normalizedVersions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-          {/* Download All Versions button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isSubscriber) return;
-              onDownloadAll();
-            }}
-            title={isSubscriber ? 'Download all versions' : 'Subscription required'}
-            className={`h-8 px-3 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap flex items-center gap-1.5 flex-shrink-0 ${
-              isSubscriber
-                ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-500/30'
-                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5'
-            }`}
-          >
-            <Download size={11} />
-            Download All Versions
-          </button>
+          {/* Download All Versions button - Only if multiple versions */}
+          {normalizedVersions.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isSubscriber) return;
+                onDownloadAll();
+              }}
+              title={isSubscriber ? 'Download all versions' : 'Subscription required'}
+              className={`h-8 px-3 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap flex items-center gap-1.5 flex-shrink-0 ${
+                isSubscriber
+                  ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-500/30'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5'
+              }`}
+            >
+              <Download size={11} />
+              Download All Versions
+            </button>
+          )}
 
           {/* Per-version: play + download button pairs */}
           {normalizedVersions.map((v, idx) => {

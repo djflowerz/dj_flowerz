@@ -1,7 +1,15 @@
 // worker/utils/cron.js
+import { syncPool } from './poolSync.js';
 
 export async function handleScheduled(event, env, ctx) {
-    console.log("[Cron] Running trial maintenance...");
+    console.log("[Cron] Running maintenance...");
+    
+    // 1. Sync Music Pool from external sources
+    try {
+        await syncPool(env);
+    } catch (err) {
+        console.error("[Cron] Music Pool Sync failed:", err);
+    }
     
     try {
         const now = new Date().toISOString().replace('T', ' ').substring(0, 19);

@@ -9,6 +9,7 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
+   History,
    Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -1964,6 +1965,82 @@ const AdminDashboard: React.FC = () => {
                            </div>
                         </div>
                      </div>
+
+                     {/* Sync Status Banner */}
+                     <div className="bg-[#0B0B0F] rounded-[2rem] border border-white/5 p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden group">
+                        <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
+                           <div className="w-14 h-14 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-cyan/20 transition-colors">
+                              <RefreshCw size={28} className={`text-brand-cyan ${syncNotificationsLoading ? 'animate-spin' : ''}`} />
+                           </div>
+                           <div className="flex-1">
+                              <h3 className="text-lg font-black text-white leading-tight">Music Pool Sync</h3>
+                              <p className="text-sm text-gray-500 font-medium">
+                                 {syncNotificationsLoading ? 'Checking for new tracks...' : 
+                                  syncNotifications && syncNotifications.length > 0 ? 
+                                  `Last sync found ${syncNotifications[0].tracksAdded} new tracks` : 
+                                  'Automated daily sync is active'}
+                              </p>
+                           </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto relative z-10">
+                           <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl flex items-center gap-2">
+                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Monitoring</span>
+                           </div>
+                           <button 
+                              onClick={() => {
+                                 toast.promise(refreshSyncNotifications(), {
+                                    loading: 'Inhaling new tracks...',
+                                    success: 'Sync complete',
+                                    error: 'Sync failed'
+                                 });
+                              }}
+                              disabled={syncNotificationsLoading}
+                              className="px-6 py-2 bg-brand-cyan text-black text-[11px] font-black rounded-xl hover:bg-cyan-400 transition-all uppercase tracking-widest disabled:opacity-50"
+                           >
+                              Manual Sync
+                           </button>
+                        </div>
+                     </div>
+
+                     {/* Recent Sync Notifications */}
+                     {syncNotifications && syncNotifications.length > 0 && (
+                        <div className="bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] p-8">
+                           <div className="flex items-center justify-between mb-8">
+                              <div>
+                                 <h3 className="text-xl font-black text-white tracking-tight">Sync Activity</h3>
+                                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Recently Added Tracks</p>
+                              </div>
+                              <History size={20} className="text-gray-600" />
+                           </div>
+                           
+                           <div className="space-y-4">
+                              {syncNotifications.slice(0, 3).map((notif: any, idx: number) => (
+                                 <div key={idx} className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-brand-cyan/20 transition-all">
+                                    <div className="flex items-center gap-4">
+                                       <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 flex items-center justify-center">
+                                          <Music size={18} className="text-brand-cyan" />
+                                       </div>
+                                       <div>
+                                          <p className="text-sm font-bold text-white tracking-tight">
+                                             {notif.tracksAdded} tracks added from pool sources
+                                          </p>
+                                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                             {new Date(notif.timestamp).toLocaleString()}
+                                          </p>
+                                       </div>
+                                    </div>
+                                    <div className="text-right">
+                                       <span className="px-3 py-1 bg-green-500/10 text-green-500 text-[9px] font-black rounded-full uppercase tracking-[0.1em]">
+                                          Success
+                                       </span>
+                                    </div>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                     )}
 
                      <div className="flex justify-end gap-3 mb-4">
                         <select
