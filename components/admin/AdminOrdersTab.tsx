@@ -122,11 +122,22 @@ export default function AdminOrdersTab() {
   };
 
   const generateWhatsAppMessage = (order: Order) => {
-    const products = order.items.map(item => `- ${item.productName || item.name} (x${item.quantity})`).join('%0A');
+    const products = (order.items || []).map(item => `- ${item.productName} (x${item.quantity})`).join('%0A');
     const total = formatCurrency(order.total || (order as any).total_amount || 0);
     const greeting = `Hello ${order.customerName || 'Customer'},`;
     const body = `Thank you for your order from DJ FLOWERZ!%0A%0AOrder ID: #${order.id.slice(0, 8)}%0AStatus: ${order.status.toUpperCase()}%0A%0AItems:%0A${products}%0A%0ATotal: ${total}%0A%0A${order.status === 'shipped' ? `Tracking ID: ${order.trackingNumber || 'N/A'}` : 'We will update you once your order is shipped.'}`;
     return `https://wa.me/${(order.customerPhone || (order as any).customer_phone)?.replace(/\+/g, '').replace(/\s/g, '')}?text=${encodeURIComponent(greeting)}%0A%0A${body}`;
+  };
+
+  const orderNeedsShipping = (order: Order) => {
+    if (!order.items || order.items.length === 0) return true;
+    return order.items.some(item => {
+      const type = (item as any).type;
+      if (type === 'digital' || type === 'subscription') return false;
+      const category = (item as any).category?.toLowerCase();
+      if (category === 'samples' || category === 'presets' || category === 'course') return false;
+      return true;
+    });
   };
 
   return (
@@ -311,84 +322,88 @@ export default function AdminOrdersTab() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                           {/* Column 1: Logistics & Fulfillment */}
                           <div className="space-y-8">
-                            <div>
-                              <h5 className="text-[11px] font-black text-brand-purple uppercase tracking-[0.4em] mb-6 flex items-center gap-2">
-                                <Truck size={14} /> Logistics Control
-                              </h5>
-                              <div className="space-y-5">
-                                <div className="space-y-1.5">
-                                  <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Courier Provider</label>
-                                  <div className="relative">
-                                    <select
-                                      value={order.courierName || ''}
-                                      onChange={(e) => updateField(order.id, 'courierName', e.target.value)}
-                                      className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-xs text-white outline-none appearance-none focus:border-brand-purple/50 transition-all font-bold cursor-pointer"
-                                    >
-                                      <option value="">Select Courier</option>
-                                      {COURIERS.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                    </select>
-                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" size={14} />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Tracking Identifier</label>
-                                  <div className="relative group">
-                                    <Hash className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={16} />
-                                    <input
-                                      type="text"
-                                      placeholder="Tracking Number"
-                                      defaultValue={order.trackingNumber}
-                                      onBlur={(e) => updateField(order.id, 'trackingNumber', e.target.value)}
-                                      className="w-full bg-black/60 border border-white/5 rounded-2xl pl-12 pr-12 py-4 text-xs text-white focus:border-brand-purple/50 outline-none transition-all font-bold"
-                                    />
-                                    {order.trackingNumber && (
-                                      <button 
-                                        onClick={() => window.open(`https://www.google.com/search?q=${order.trackingNumber}+tracking`, '_blank')}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                            {orderNeedsShipping(order) && (
+                              <div>
+                                <h5 className="text-[11px] font-black text-brand-purple uppercase tracking-[0.4em] mb-6 flex items-center gap-2">
+                                  <Truck size={14} /> Logistics Control
+                                </h5>
+                                <div className="space-y-5">
+                                  <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Courier Provider</label>
+                                    <div className="relative">
+                                      <select
+                                        value={order.courierName || ''}
+                                        onChange={(e) => updateField(order.id, 'courierName', e.target.value)}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-xs text-white outline-none appearance-none focus:border-brand-purple/50 transition-all font-bold cursor-pointer"
                                       >
-                                        <ExternalLink size={16} />
-                                      </button>
-                                    )}
+                                        <option value="">Select Courier</option>
+                                        {COURIERS.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                      </select>
+                                      <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" size={14} />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Tracking Identifier</label>
+                                    <div className="relative group">
+                                      <Hash className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={16} />
+                                      <input
+                                        type="text"
+                                        placeholder="Tracking Number"
+                                        defaultValue={order.trackingNumber}
+                                        onBlur={(e) => updateField(order.id, 'trackingNumber', e.target.value)}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl pl-12 pr-12 py-4 text-xs text-white focus:border-brand-purple/50 outline-none transition-all font-bold"
+                                      />
+                                      {order.trackingNumber && (
+                                        <button 
+                                          onClick={() => window.open(`https://www.google.com/search?q=${order.trackingNumber}+tracking`, '_blank')}
+                                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                        >
+                                          <ExternalLink size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                      onClick={() => {
+                                        const trkInput = document.querySelector(`input[defaultValue="${order.trackingNumber}"]`) as HTMLInputElement;
+                                        markAsShipped(order.id, trkInput?.value || order.trackingNumber || '', order.courierName);
+                                      }}
+                                      disabled={updatingId === order.id || order.status === 'shipped' || order.status === 'delivered'}
+                                      className="bg-brand-purple/10 border border-brand-purple/30 text-brand-purple hover:bg-brand-purple hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 flex items-center justify-center gap-2 group/btn"
+                                    >
+                                      {updatingId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} className="group-hover/btn:translate-x-1 transition-transform" />} Mark Shipped
+                                    </button>
+                                    <select
+                                      value={order.status}
+                                      onChange={(e) => updateStatus(order.id, e.target.value)}
+                                      className="bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest px-4 py-4 rounded-2xl outline-none appearance-none cursor-pointer hover:bg-white/10 transition-all text-center"
+                                    >
+                                      <option value="pending">Pending</option>
+                                      <option value="processing">Processing</option>
+                                      <option value="shipped">Shipped</option>
+                                      <option value="delivered">Delivered</option>
+                                      <option value="cancelled">Cancelled</option>
+                                    </select>
                                   </div>
                                 </div>
+                              </div>
+                            )}
 
-                                <div className="grid grid-cols-2 gap-3">
-                                  <button
-                                    onClick={() => {
-                                      const trkInput = document.querySelector(`input[defaultValue="${order.trackingNumber}"]`) as HTMLInputElement;
-                                      markAsShipped(order.id, trkInput?.value || order.trackingNumber || '', order.courierName);
-                                    }}
-                                    disabled={updatingId === order.id || order.status === 'shipped' || order.status === 'delivered'}
-                                    className="bg-brand-purple/10 border border-brand-purple/30 text-brand-purple hover:bg-brand-purple hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 flex items-center justify-center gap-2 group/btn"
-                                  >
-                                    {updatingId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} className="group-hover/btn:translate-x-1 transition-transform" />} Mark Shipped
-                                  </button>
-                                  <select
-                                    value={order.status}
-                                    onChange={(e) => updateStatus(order.id, e.target.value)}
-                                    className="bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest px-4 py-4 rounded-2xl outline-none appearance-none cursor-pointer hover:bg-white/10 transition-all text-center"
-                                  >
-                                    <option value="pending">Pending</option>
-                                    <option value="processing">Processing</option>
-                                    <option value="shipped">Shipped</option>
-                                    <option value="delivered">Delivered</option>
-                                    <option value="cancelled">Cancelled</option>
-                                  </select>
+                            {orderNeedsShipping(order) && (
+                              <div className="p-6 rounded-[2rem] bg-black/40 border border-white/5 space-y-4">
+                                <h6 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                                  <MapPin size={12} /> Shipping Address
+                                </h6>
+                                <div className="space-y-1">
+                                  <p className="text-sm font-black text-white italic truncate">{order.customerName}</p>
+                                  <p className="text-[11px] font-bold text-gray-400 leading-relaxed uppercase tracking-wider">{order.address || order.shippingAddress || 'No detailed address provided.'}</p>
+                                  <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mt-2">{order.city || 'Standard Area'}</p>
                                 </div>
                               </div>
-                            </div>
-
-                            <div className="p-6 rounded-[2rem] bg-black/40 border border-white/5 space-y-4">
-                              <h6 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                                <MapPin size={12} /> Shipping Address
-                              </h6>
-                              <div className="space-y-1">
-                                <p className="text-sm font-black text-white italic truncate">{order.customerName}</p>
-                                <p className="text-[11px] font-bold text-gray-400 leading-relaxed uppercase tracking-wider">{order.address || order.shippingAddress || 'No detailed address provided.'}</p>
-                                <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mt-2">{order.city || 'Standard Area'}</p>
-                              </div>
-                            </div>
+                            )}
                           </div>
 
                           {/* Column 2: Order Summary & Settlement */}

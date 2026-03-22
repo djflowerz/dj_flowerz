@@ -115,6 +115,10 @@ export interface Product {
   expiryDays?: number;
   allowRedownload?: boolean;
   isFree?: boolean;
+  isBestSeller?: boolean;
+  isSpecialOffer?: boolean;
+  isTrending?: boolean;
+  offerExpiry?: string;
   whatsappEnabled: boolean;
   technicalDetails?: { title: string; description: string }[];
   hotspots?: { x: number; y: number; title: string; description: string }[];
@@ -268,6 +272,7 @@ export interface Coupon {
   active: boolean;
   isSingleUse?: boolean;
   assignedUserId?: string; // If set, only this user can use it
+  minSpend?: number;
 }
 
 export interface ReferralStats {

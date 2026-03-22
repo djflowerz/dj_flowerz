@@ -36,10 +36,11 @@ export async function handlePaystackWebhook(request, env) {
     if (event.event === 'charge.success') {
         const { reference, metadata, amount, customer } = event.data;
         const type = metadata?.type;
+        const orderId = metadata?.order_id;
 
-        if (type === 'order') {
-            const orderId = metadata?.order_id;
-            if (orderId) {
+        // 1. ALWAYS update order status if order_id is present
+        if (orderId) {
+            try {
                 // Update orders table
                 await env.DB.prepare(`
                     UPDATE orders SET payment_status = 'paid', status = 'processing'
@@ -71,7 +72,6 @@ export async function handlePaystackWebhook(request, env) {
                     console.error('[Order Receipt Email Error]', e);
                 }
 
-                // Wait, previous code checked order_line_items. We'll leave it in case it still exists.
                 try {
                     const { results: items } = await env.DB.prepare("SELECT * FROM order_line_items WHERE order_id = ?").bind(orderId).all();
                     for (const item of items) {
@@ -80,42 +80,13 @@ export async function handlePaystackWebhook(request, env) {
                         `).bind(item.quantity, item.variant_id).run();
                     }
                 } catch(e) { /* ignore if order_line_items doesn't exist */ }
+            } catch (err) {
+                console.error('[Order Update Error]', err);
             }
-        } else if (type === 'tip') {
-            const userId = metadata?.userId || 'guest';
-            const userEmail = metadata?.userEmail || customer?.email || 'guest_tipper@djflowerz.co.ke';
-            const customerName = metadata?.customerName || customer?.first_name || 'Guest';
-            const message = metadata?.message || '';
+        }
 
-            try {
-                await env.DB.prepare(`
-                    INSERT INTO tips (id, user_id, amount, message, created_at, status, email, name)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'completed', ?, ?)
-                `).bind(`tip_${Date.now()}`, userId, amount / 100, message, userEmail, customerName).run();
-
-                // Send Tip Receipt
-                try {
-                    await sendEmail({
-                        to: userEmail,
-                        subject: 'Thank You for Your Support! 💎',
-                        html: `
-                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                <h1 style="color: #a855f7; margin-bottom: 10px;">You're a Legend!</h1>
-                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Your contribution of <strong>KSh ${(amount / 100).toLocaleString()}</strong> was received with deep gratitude.</p>
-                                <p style="color: #9ca3af; font-size: 14px;">Support like yours keeps the music flowing and the mixtapes dropping. Thank you for being part of the journey.</p>
-                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ OFFICIAL</p>
-                            </div>
-                        `,
-                        text: `Thank You for Your Support! Your tip of KSh ${(amount / 100).toLocaleString()} was received.`
-                    }, env);
-                } catch (e) {
-                    console.error('[Tip Receipt Email Error]', e);
-                }
-            } catch (e) {
-                console.error("Tip webhook error:", e);
-            }
-        } else if (type === 'subscription') {
+        // 2. Handle Subscription Activation (if type is subscription OR planId is present)
+        if (type === 'subscription' || metadata?.planId) {
             const userId = metadata?.userId;
             const planId = metadata?.planId;
             const planName = metadata?.plan || 'Premium Plan';
@@ -152,12 +123,11 @@ export async function handlePaystackWebhook(request, env) {
                         WHERE id = ?
                     `).bind(planId, expiryIso, userId).run();
 
-                    // 2. Add Subscription History Record
                     const subId = crypto.randomUUID();
                     await env.DB.prepare(`
-                        INSERT INTO subscriptions (id, user_id, plan, status, start_date, end_date, created_at, updated_at)
-                        VALUES (?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    `).bind(subId, userId, planId, nowIso, expiryDate.toISOString()).run();
+                        INSERT INTO subscriptions (id, user_id, plan, status, starts_at, expires_at, created_at)
+                        VALUES (?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP)
+                    `).bind(subId, userId, planId, nowIso, expiryIso).run();
 
                     // 3. Sync to R2 for immediate frontend update
                     try {
@@ -178,7 +148,16 @@ export async function handlePaystackWebhook(request, env) {
                         console.error('[Paystack Webhook] R2 Sync Error:', r2Err);
                     }
 
-                    // 4. Send Activation Email
+                    // 5. Update trial_usage if exists
+                    try {
+                        await env.DB.prepare(`
+                            UPDATE trial_usage SET status = 'paid_subscriber' WHERE supabase_user_id = ?
+                        `).bind(userId).run();
+                    } catch (trialErr) {
+                        console.error('[Paystack Webhook] trial_usage update error:', trialErr);
+                    }
+
+                    // 6. Send Activation Email
                     const userEmail = customer?.email || metadata?.userEmail || 'member@djflowerz.co.ke';
                     const userName = metadata?.userName || customer?.first_name || 'Member';
 
@@ -210,6 +189,43 @@ export async function handlePaystackWebhook(request, env) {
                 } catch (dbErr) {
                     console.error('[Paystack Webhook] Subscription Database Error:', dbErr);
                 }
+            }
+        }
+
+        // 3. Handle Tips separately
+        if (type === 'tip') {
+            const userId = metadata?.userId || 'guest';
+            const userEmail = metadata?.userEmail || customer?.email || 'guest_tipper@djflowerz.co.ke';
+            const customerName = metadata?.customerName || customer?.first_name || 'Guest';
+            const message = metadata?.message || '';
+
+            try {
+                await env.DB.prepare(`
+                    INSERT INTO tips (id, user_id, amount, message, created_at, status, email, name)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'completed', ?, ?)
+                `).bind(`tip_${Date.now()}`, userId, amount / 100, message, userEmail, customerName).run();
+
+                // Send Tip Receipt
+                try {
+                    await sendEmail({
+                        to: userEmail,
+                        subject: 'Thank You for Your Support! 💎',
+                        html: `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
+                                <h1 style="color: #a855f7; margin-bottom: 10px;">You're a Legend!</h1>
+                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Your contribution of <strong>KSh ${(amount / 100).toLocaleString()}</strong> was received with deep gratitude.</p>
+                                <p style="color: #9ca3af; font-size: 14px;">Support like yours keeps the music flowing and the mixtapes dropping. Thank you for being part of the journey.</p>
+                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
+                                <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ OFFICIAL</p>
+                            </div>
+                        `,
+                        text: `Thank You for Your Support! Your tip of KSh ${(amount / 100).toLocaleString()} was received.`
+                    }, env);
+                } catch (e) {
+                    console.error('[Tip Receipt Email Error]', e);
+                }
+            } catch (e) {
+                console.error("Tip webhook error:", e);
             }
         }
     }

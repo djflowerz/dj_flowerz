@@ -116,6 +116,12 @@ const RecordingSessions: React.FC = () => {
       }
 
       try {
+         if (!config.publicKey || config.publicKey === 'pk_live_default') {
+            alert('Paystack Public Key is missing or invalid. Please contact the administrator.');
+            console.error('Paystack Public Key is not configured correctly in environment variables.');
+            return;
+         }
+
          // 1. Create pending booking in D1
          const response = await fetch('/api/bookings/studio', {
             method: 'POST',

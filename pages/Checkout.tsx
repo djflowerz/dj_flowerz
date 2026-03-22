@@ -11,6 +11,7 @@ import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, COUNTY_TO_ZONE_MAP } from '../
 import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
+import { useAuth } from '../context/AuthContext';
 
 /* ─── Digital Delivery Screen ───────────────────────────────────────────── */
 interface DownloadItem {
@@ -72,12 +73,10 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 
 /* ─── Main Checkout Page ─────────────────────────────────────────────────── */
 export default function Checkout() {
+  const { user } = useAuth() as any;
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const { items, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
-  // We initialize Paystack with empty config and override it upon click
-  const paystackInitialize = usePaystackPayment({} as any);
-
   // Determine if cart has physical items
   const hasPhysical = useMemo(() => items.some((i: any) => 
     i.type === 'physical' || 
@@ -96,6 +95,54 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedDownloads, setCompletedDownloads] = useState<DownloadItem[] | null>(null);
   const [completedEmail, setCompletedEmail] = useState('');
+
+  // We initialize Paystack with the public key at the top level to ensure it's valid
+  const [currentPaystackConfig, setCurrentPaystackConfig] = useState<any>({
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
+    email: '',
+    amount: 0,
+    reference: '',
+  });
+
+  const paystackInitialize = usePaystackPayment(currentPaystackConfig);
+
+  // Trigger Paystack after config is updated
+  useEffect(() => {
+    if (currentPaystackConfig.email && currentPaystackConfig.amount > 0 && currentPaystackConfig.reference && isProcessing) {
+      const onSuccess = (reference: any) => {
+        setIsProcessing(false);
+        if (isDigitalOnly) {
+          const downloads: DownloadItem[] = items
+            .filter((item: any) => item.type === 'digital' && item.digitalFileUrl)
+            .map((item: any) => ({
+              name: item.name,
+              url: item.digitalFileUrl,
+              password: item.downloadPassword || undefined,
+            }));
+          setCompletedEmail(currentPaystackConfig.email);
+          setCompletedDownloads(downloads);
+        } else {
+          navigate('/success', {
+            state: {
+              type: 'order',
+              reference: reference.reference,
+              amount: currentPaystackConfig.amount / 100,
+              email: currentPaystackConfig.email,
+              customerName: currentPaystackConfig.metadata?.customerName
+            }
+          });
+        }
+      };
+
+      const onClose = () => {
+        setIsProcessing(false);
+        toast.error('Payment cancelled. Your order has been placed but remains unpaid.');
+        navigate('/account');
+      };
+
+      paystackInitialize({ onSuccess, onClose } as any);
+    }
+  }, [currentPaystackConfig, isProcessing, items, isDigitalOnly, navigate]);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -188,6 +235,9 @@ export default function Checkout() {
 
       clearCart();
 
+      // Detect if there's a subscription in the cart to help with auto-activation
+      const subscriptionItem = items.find((item: any) => item.type === 'subscription');
+
       // Paystack configuration
       const paystackConfig = {
         reference: `ord_${new Date().getTime()}`,
@@ -196,10 +246,16 @@ export default function Checkout() {
         publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
         currency: 'KES',
         metadata: {
-          type: 'order',
+          type: subscriptionItem ? 'subscription' : 'order',
           order_id: result.orderId,
           customerName: data.name,
           order_type: isDigitalOnly ? 'digital' : (hasDigital ? 'mixed' : 'physical'),
+          // Include plan info if it's a subscription
+          ...(subscriptionItem && {
+            plan: subscriptionItem.name,
+            planId: subscriptionItem.id,
+            userId: user?.id,
+          }),
           custom_fields: [
             {
               display_name: 'Order ID',
@@ -210,51 +266,26 @@ export default function Checkout() {
         }
       };
 
-      const onSuccess = (reference: any) => {
+  // Ensure paystackConfig is valid
+      if (!paystackConfig.publicKey || paystackConfig.publicKey === 'pk_test_placeholder') {
+        toast.error('Paystack Public Key is missing or invalid. Please contact the administrator.');
+        console.error('Paystack Public Key is not configured correctly in environment variables.');
         setIsProcessing(false);
-        // For digital-only orders — show download links immediately
-        if (isDigitalOnly) {
-          const downloads: DownloadItem[] = items
-            .filter((item: any) => item.type === 'digital' && item.digitalFileUrl)
-            .map((item: any) => ({
-              name: item.name,
-              url: item.digitalFileUrl,
-              password: item.downloadPassword || undefined,
-            }));
-          setCompletedEmail(data.email);
-          setCompletedDownloads(downloads);
-        } else {
-          navigate('/success', {
-            state: {
-              type: 'order',
-              reference: reference.reference,
-              amount: finalTotal,
-              email: data.email,
-              customerName: data.name
-            }
-          });
-        }
-      };
+        return;
+      }
 
-      const onClose = () => {
-        setIsProcessing(false);
-        toast.error('Payment cancelled. Your order has been placed but remains unpaid.');
-        navigate('/account'); // Navigate to account so they can see their order
-      };
-
-      // Ensure usePaystackPayment does not error by dynamically importing or passing config
-      // But wait, hooks cannot be called conditionally. We need to call it at the top level
-      // However, we don't have paystackConfig at the top level with final values unless we use state.
-      // A common pattern is to just call `initializePayment({ config, onSuccess, onClose })`.
-      // Let's rely on that. We will declare `const initializePayment = usePaystackPayment({});` at the top level.
-      paystackInitialize({ ...paystackConfig, onSuccess, onClose } as any);
+      // Update state to trigger useEffect which calls paystackInitialize
+      setCurrentPaystackConfig({
+        ...paystackConfig,
+        onSuccess: (res: any) => console.log('Paystack Success:', res), // Handled by useEffect
+        onClose: () => console.log('Paystack Closed'), // Handled by useEffect
+      });
 
     } catch (err: any) {
+      setIsProcessing(false);
       const errorMessage = err.message || 'Error placing order. Please try again.';
       toast.error(errorMessage);
       console.error('Order error:', err);
-    } finally {
-      setIsProcessing(false);
     }
   };
 

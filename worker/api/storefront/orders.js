@@ -1,6 +1,42 @@
 // worker/api/storefront/orders.js
 
-export async function handleStorefrontOrders(request, env) {
+export async function handleStorefrontOrders(request, env, ctx, params) {
+    const url = new URL(request.url);
+    const id = params?.id || url.searchParams.get('id');
+
+    // GET /api/orders/track?id=ORD-...&email=...
+    if (request.method === 'GET' && url.pathname.includes('/track')) {
+        const orderId = url.searchParams.get('id');
+        const email = url.searchParams.get('email');
+
+        if (!orderId || !email) {
+            return new Response(JSON.stringify({ error: "Order ID and email are required" }), { status: 400 });
+        }
+
+        try {
+            const order = await env.DB.prepare(`
+                SELECT id, customer_name, status, payment_status, 
+                       tracking_number, shipping_provider, estimated_arrival, 
+                       created_at, updated_at, items, total_amount, address
+                FROM orders 
+                WHERE id = ? AND (customer_email = ? OR customer_email IS NULL)
+            `).bind(orderId, email).first();
+
+            if (!order) {
+                return new Response(JSON.stringify({ error: "Order not found" }), { status: 404 });
+            }
+
+            return new Response(JSON.stringify(order), {
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            });
+        } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        }
+    }
+
     if (request.method !== 'POST') return new Response("Method Not Allowed", { status: 405 });
 
     try {

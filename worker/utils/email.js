@@ -1,6 +1,11 @@
 // worker/utils/email.js
 
-export async function sendEmail(env, { to, subject, html, from = "DJ Flowerz <no-reply@djflowerz.co.ke>" }) {
+/**
+ * sendEmail
+ * Uses Resend API to send transactional emails.
+ */
+export async function sendEmail(options, env) {
+    const { to, subject, html, text, from = 'DJ FLOWERZ <no-reply@djflowerz.co.ke>' } = options;
     if (!env.RESEND_API_KEY) {
         console.warn("[Email] RESEND_API_KEY not set. Skipping email to:", to);
         return false;
@@ -12,7 +17,7 @@ export async function sendEmail(env, { to, subject, html, from = "DJ Flowerz <no
                 "Authorization": `Bearer ${env.RESEND_API_KEY}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ from, to, subject, html })
+            body: JSON.stringify({ from, to, subject, html, text })
         });
         if (!res.ok) {
             const err = await res.text();

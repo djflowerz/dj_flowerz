@@ -66,7 +66,12 @@ export async function handleDashboardUsers(request, env) {
                 is_subscriber: 'is_subscriber',
                 referral_balance_kes: 'referral_balance_kes',
                 referral_code: 'referral_code',
-                role: 'role'
+                role: 'role',
+                subscription_plan: 'subscription_plan',
+                subscription_expiry: 'subscription_expiry',
+                daily_download_count: 'daily_download_count',
+                last_download_reset: 'last_download_reset',
+                has_used_trial: 'has_used_trial'
             };
 
             for (const [jsKey, dbCol] of Object.entries(fieldMap)) {

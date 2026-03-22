@@ -74,8 +74,8 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
             planId: plan.id,
             referralCode: referralInfo?.code,
             referrerId: referralInfo?.referrerId,
-            discount: referralInfo?.discount || (isFirstTimer ? referralSettings.firstTimeDiscount : 0),
-            discountType: referralInfo?.discountType || referralSettings.firstTimeDiscountType || 'percentage',
+            discount: referralInfo?.discount || (isFirstTimer ? referralSettings?.firstTimeDiscount : 0),
+            discountType: referralInfo?.discountType || referralSettings?.firstTimeDiscountType || 'percentage',
             custom_fields: [
                 {
                     display_name: "Plan Name",

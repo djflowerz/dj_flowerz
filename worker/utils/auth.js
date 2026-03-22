@@ -94,9 +94,24 @@ export async function getAuthorizedUser(request, env) {
         user = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(sub).first().catch(() => null);
     }
 
-    // If still no profile found, build a minimal user from the JWT payload
+    // If still no profile found, build a minimal user and auto-provision in D1
     if (!user) {
         user = { id: sub, email: email };
+
+        try {
+            // Provision minimal D1 record if missing
+            await env.DB.prepare(
+                'INSERT OR IGNORE INTO profiles (id, email, full_name, role) VALUES (?, ?, ?, ?)'
+            ).bind(sub, email, email ? email.split('@')[0] : 'User', 'user').run();
+
+            // Attempt re-fetch to get complete record
+            const freshUser = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(sub).first();
+            if (freshUser) {
+                user = freshUser;
+            }
+        } catch (err) {
+            console.error('[Auth] Failed to auto-provision D1 profile:', err);
+        }
     }
 
     // Auto-assign admin role based on email — fixes all handlers that check user.role === 'admin'

@@ -4,11 +4,13 @@ import { Plus } from 'lucide-react';
 import ProductTable from './ProductTable';
 import AddProductForm from './AddProductForm';
 import { useData } from '../../context/DataContext';
+import { uploadFileToR2 } from '../../utils/r2';
 
 export default function AdminProductsTab() {
   const { products, addProduct, updateProduct, deleteProduct, productsLoading } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
@@ -22,39 +24,60 @@ export default function AdminProductsTab() {
   };
 
   const handleSave = async (formData: FormData) => {
-    const data = Object.fromEntries(formData.entries());
-    const variants = data.variants ? JSON.parse(data.variants as string) : [];
+    setLoading(true); // Using a local loading state might be good, but we can rely on context if it exists
+    try {
+      const data = Object.fromEntries(formData.entries());
+      const variants = data.variants ? JSON.parse(data.variants as string) : [];
+      const imageFile = formData.get('image') as File | null;
 
-    const productData: Partial<Product> = {
-      name: data.name as string,
-      description: data.description as string,
-      price: parseFloat(data.price as string),
-      category: data.category as string,
-      stock: parseInt(data.stock as string) || 0,
-      sku: data.sku as string,
-      weight: data.weight ? (data.weight as string) : undefined,
-      dimensions: data.dimensions as string,
-      compareAtPrice: data.compare_at_price ? parseFloat(data.compare_at_price as string) : undefined,
-      isActive: data.status === 'active',
-      isFeatured: data.is_featured === 'on',
-      isFree: data.is_free === 'on',
-      whatsappEnabled: data.whatsapp_enabled === 'on',
-      variants: variants,
-      shippingPrice: data.shipping_price ? parseFloat(data.shipping_price as string) : 0,
-    };
+      let imageUrl = editingProduct?.image || '';
 
-    if (editingProduct && editingProduct.image) {
-      productData.image = editingProduct.image;
+      // Upload new image if provided
+      if (imageFile && imageFile.size > 0) {
+        try {
+          const uploadResult = await uploadFileToR2(imageFile, 'products');
+          if (uploadResult?.url) {
+            imageUrl = uploadResult.url;
+          }
+        } catch (uploadErr) {
+          console.error("Image upload failed:", uploadErr);
+          alert("Failed to upload product image. The product will be saved without the new image.");
+        }
+      }
+
+      const productData: Partial<Product> = {
+        name: data.name as string,
+        description: data.description as string,
+        price: parseFloat(data.price as string),
+        category: data.category as string,
+        stock: parseInt(data.stock as string) || 0,
+        sku: data.sku as string,
+        weight: data.weight ? (data.weight as string) : undefined,
+        dimensions: data.dimensions as string,
+        compareAtPrice: data.compare_at_price ? parseFloat(data.compare_at_price as string) : undefined,
+        isActive: data.status === 'active',
+        isFeatured: data.is_featured === 'on',
+        isFree: data.is_free === 'on',
+        whatsappEnabled: data.whatsapp_enabled === 'on',
+        variants: variants,
+        shippingPrice: data.shipping_price ? parseFloat(data.shipping_price as string) : 0,
+        image: imageUrl, // Now correctly setting the image URL
+        type: (data.type || 'physical') as 'physical' | 'digital' | 'subscription'
+      };
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+      } else {
+        await addProduct(productData as Omit<Product, 'id'>);
+      }
+
+      setIsModalOpen(false);
+      setEditingProduct(null);
+    } catch (err) {
+      console.error("Save product error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    if (editingProduct) {
-      await updateProduct(editingProduct.id, productData);
-    } else {
-      await addProduct(productData as Omit<Product, 'id'>);
-    }
-
-    setIsModalOpen(false);
-    setEditingProduct(null);
   };
 
   if (productsLoading) {
@@ -75,10 +98,11 @@ export default function AdminProductsTab() {
         {!isModalOpen && (
           <button
             onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
-            className="flex items-center gap-2 bg-brand-purple hover:bg-purple-600 text-white px-4 py-2 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(123,92,255,0.3)] hover:shadow-[0_0_30px_rgba(123,92,255,0.5)]"
+            disabled={loading}
+            className="flex items-center gap-2 bg-brand-purple hover:bg-purple-600 text-white px-4 py-2 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(123,92,255,0.3)] hover:shadow-[0_0_30px_rgba(123,92,255,0.5)] disabled:opacity-50"
           >
             <Plus size={18} />
-            <span>Add Product</span>
+            <span>{loading ? 'Processing...' : 'Add Product'}</span>
           </button>
         )}
       </div>

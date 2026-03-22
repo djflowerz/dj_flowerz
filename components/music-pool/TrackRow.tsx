@@ -97,7 +97,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <h3 className="text-[15px] md:text-base font-bold text-white group-hover:text-brand-purple transition-colors line-clamp-1">
                   {title}
                   {isNew && (
-                    <span className="inline-flex items-center ml-2 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-wider align-middle">
+                    <span className="inline-flex items-center ml-2 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full shadow-lg shadow-rose-500/20 tracking-wider align-middle animate-pulse">
                       NEW
                     </span>
                   )}
@@ -153,56 +153,104 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 
       {/* Version Control Area */}
       <div className="mt-6 pt-6 border-t border-white/5">
-        <div className="flex flex-wrap gap-3">
-          {versions?.filter((v, index, self) =>
-            index === self.findIndex((t) => (
-              t.version_name?.toLowerCase().trim() === v.version_name?.toLowerCase().trim()
-            ))
-          ).map((version) => {
-            const vType = getVersionType(version);
-            const vUrl = version.preview_url || '';
-            const isActive = playingUrl === vUrl && isPlaying;
-
-            return (
-              <div
-                key={version.id}
-                className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-800/40 border border-white/5 transition-all hover:border-white/10 hover:bg-zinc-800/60 group/version"
-              >
-                <div className="flex items-center gap-2 pr-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlay(vUrl, `${artist} - ${title} (${version.version_name})`, vType, id);
-                    }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-[11px] uppercase tracking-wide group/preview ${
-                      isActive
-                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
-                        : 'bg-zinc-900/60 text-zinc-400 hover:text-white group-hover/version:bg-zinc-900 border border-white/5'
+        <div className="flex flex-col gap-4">
+          {/* Audio Versions */}
+          {versions.some(v => getVersionType(v) === 'audio') && (
+            <div className="flex flex-wrap gap-2">
+              <span className="w-full text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-1">Audio Versions</span>
+              {versions.filter(v => getVersionType(v) === 'audio').map((v, idx) => {
+                const vUrl = v.preview_url || '';
+                const isActive = playingUrl === vUrl && isPlaying;
+                return (
+                  <div 
+                    key={v.id || `audio-${idx}`}
+                    className={`flex items-center rounded-xl overflow-hidden border transition-all duration-300 ${
+                      isActive 
+                        ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
+                        : 'border-white/5 bg-zinc-900/50 hover:border-white/20'
                     }`}
                   >
-                    {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                    Preview {version.version_name}
-                  </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, 'audio', id);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2.5 transition-all font-bold text-[11px] uppercase tracking-wider ${
+                        isActive ? 'text-blue-400' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      {v.version_name}
+                    </button>
+                    <div className="w-px h-6 bg-white/5" />
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isSubscriber) return;
+                        onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`, v.id);
+                      }}
+                      className={`flex items-center justify-center w-10 py-2.5 transition-all ${
+                        isSubscriber 
+                          ? 'text-blue-500 hover:bg-blue-500 hover:text-white' 
+                          : 'text-zinc-700 cursor-not-allowed'
+                      }`}
+                    >
+                      <Download size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isSubscriber) return;
-                      onDownload(version.download_url, `${artist} - ${title} (${version.version_name})`, version.id);
-                    }}
-                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all border border-white/5 ${
-                      isSubscriber
-                        ? 'bg-zinc-900/40 text-brand-purple hover:bg-brand-purple/20 hover:text-brand-purple hover:border-brand-purple/30'
-                        : 'bg-zinc-900/20 text-zinc-700 cursor-not-allowed opacity-50'
+          {/* Video Versions */}
+          {versions.some(v => getVersionType(v) === 'video') && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="w-full text-[9px] font-black text-brand-purple/50 uppercase tracking-[0.2em] mb-1">Video Versions</span>
+              {versions.filter(v => getVersionType(v) === 'video').map((v, idx) => {
+                const vUrl = v.preview_url || '';
+                const isActive = playingUrl === vUrl && isPlaying;
+                return (
+                  <div 
+                    key={v.id || `video-${idx}`}
+                    className={`flex items-center rounded-xl overflow-hidden border transition-all duration-300 ${
+                      isActive 
+                        ? 'border-brand-purple/50 bg-brand-purple/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]' 
+                        : 'border-white/5 bg-zinc-900/50 hover:border-white/20'
                     }`}
-                    title={isSubscriber ? `Download ${version.version_name}` : "Pro Access Required"}
                   >
-                    <Download size={18} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, 'video', id);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2.5 transition-all font-bold text-[11px] uppercase tracking-wider ${
+                        isActive ? 'text-brand-purple' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {isActive ? <Pause size={14} fill="currentColor" /> : <Video size={14} />}
+                      {v.version_name}
+                    </button>
+                    <div className="w-px h-6 bg-white/5" />
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isSubscriber) return;
+                        onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`, v.id);
+                      }}
+                      className={`flex items-center justify-center w-10 py-2.5 transition-all ${
+                        isSubscriber 
+                          ? 'text-brand-purple hover:bg-brand-purple hover:text-white' 
+                          : 'text-zinc-700 cursor-not-allowed'
+                      }`}
+                    >
+                      <Download size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

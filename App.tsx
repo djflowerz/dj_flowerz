@@ -27,6 +27,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
 import UserProfile from './pages/UserProfile';
+import OrderTracking from './pages/OrderTracking';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -121,6 +122,7 @@ const App: React.FC = () => {
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/success" element={<Success />} />
                   <Route path="/success/:id" element={<Success />} />
+                  <Route path="/order-tracking" element={<OrderTracking />} />
                   <Route path="/bookings" element={<Bookings />} />
                   <Route path="/recording-sessions" element={<RecordingSessions />} />
                   <Route path="/sessions" element={<Sessions />} />

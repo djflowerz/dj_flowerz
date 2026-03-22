@@ -8,11 +8,29 @@ interface AddProductFormProps {
   onCancel: () => void;
 }
 
-type TabType = 'basic' | 'variants' | 'shipping' | 'advanced';
+type TabType = 'basic' | 'variants' | 'shipping' | 'advanced' | 'marketing';
 
 const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, onCancel }) => {
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: initialData?.name || '',
+    description: initialData?.description || '',
+    category: initialData?.category || 'Merch',
+    status: initialData?.is_active || initialData?.isActive ? 'active' : 'draft',
+    price: initialData?.price || 0,
+    compare_at_price: initialData?.compare_at_price || 0,
+    shipping_price: initialData?.shippingPrice || 0,
+    meta_title: initialData?.name || '',
+    slug: initialData?.slug || '',
+    is_featured: initialData?.isFeatured || false,
+    is_free: initialData?.isFree || false,
+    whatsapp_enabled: initialData?.whatsappEnabled !== false,
+    // The following are new or adjusted based on the diff
+    // status: 'published' as const, // This seems like a duplicate of the 'status' above, keeping the one derived from initialData
+    variantGroups: [] as any[],
+    type: (initialData?.type || 'physical') as 'physical' | 'digital' | 'subscription',
+  });
   const [variants, setVariants] = useState<any[]>(initialData?.variants || []);
 
   const addVariant = () => {
@@ -23,13 +41,26 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     setVariants(variants.filter(v => v.id !== id));
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target as HTMLInputElement;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const formData = new FormData(e.currentTarget);
-      formData.append('variants', JSON.stringify(variants));
-      await onSave(formData);
+      const formNativeData = new FormData(e.currentTarget);
+      // Append formData state values, overriding native form fields if necessary
+      for (const key in formData) {
+        // @ts-ignore
+        formNativeData.set(key, formData[key]);
+      }
+      formNativeData.append('variants', JSON.stringify(variants));
+      await onSave(formNativeData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -43,6 +74,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
       ? 'text-brand-purple bg-brand-purple/5'
       : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}
   `;
+
+  const tabs = [
+    { id: 'basic', label: 'Basic Info', icon: Info },
+    { id: 'variants', label: 'Variants', icon: Layers },
+    ...(formData.type === 'physical' ? [{ id: 'shipping', label: 'Logistics', icon: Truck }] : []),
+    { id: 'advanced', label: 'System', icon: Settings },
+  ];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8">
@@ -76,22 +114,17 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
 
         {/* Tabs */}
         <div className="flex border-b border-white/5 bg-white/[0.01]">
-          <button type="button" onClick={() => setActiveTab('basic')} className={tabClasses('basic')}>
-            <Info size={14} /> Basic Info
-            {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
-          </button>
-          <button type="button" onClick={() => setActiveTab('variants')} className={tabClasses('variants')}>
-            <Layers size={14} /> Variants
-            {activeTab === 'variants' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
-          </button>
-          <button type="button" onClick={() => setActiveTab('shipping')} className={tabClasses('shipping')}>
-            <Truck size={14} /> Shipping
-            {activeTab === 'shipping' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
-          </button>
-          <button type="button" onClick={() => setActiveTab('advanced')} className={tabClasses('advanced')}>
-            <Settings size={14} /> Advanced
-            {activeTab === 'advanced' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
-          </button>
+          {tabs.map((tabItem) => (
+            <button
+              key={tabItem.id}
+              type="button"
+              onClick={() => setActiveTab(tabItem.id as TabType)}
+              className={tabClasses(tabItem.id as TabType)}
+            >
+              <tabItem.icon size={14} /> {tabItem.label}
+              {activeTab === tabItem.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-purple shadow-[0_0_10px_#A855F7]" />}
+            </button>
+          ))}
         </div>
 
         {/* Content */}
@@ -104,7 +137,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <input
                     name="name"
                     required
-                    defaultValue={initialData?.name}
+                    value={formData.name}
+                    onChange={handleInputChange}
                     placeholder="e.g., Premium Sample Pack Vol. 1"
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
                   />
@@ -114,7 +148,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <textarea
                     name="description"
                     rows={4}
-                    defaultValue={initialData?.description}
+                    value={formData.description}
+                    onChange={handleInputChange}
                     placeholder="Describe your product details..."
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium resize-none"
                   />
@@ -124,7 +159,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Category</label>
                     <select
                       name="category"
-                      defaultValue={initialData?.category || 'Merch'}
+                      value={formData.category}
+                      onChange={handleInputChange}
                       className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
                     >
                       <option value="Merch">Merch</option>
@@ -138,7 +174,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Status</label>
                     <select
                       name="status"
-                      defaultValue={initialData ? (initialData.is_active || initialData.isActive ? 'active' : 'draft') : 'active'}
+                      value={formData.status}
+                      onChange={handleInputChange}
                       className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
                     >
                       <option value="active">Active</option>
@@ -173,7 +210,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       type="number"
                       name="price"
                       required
-                      defaultValue={initialData?.price}
+                      value={formData.price}
+                      onChange={handleInputChange}
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
                     />
                   </div>
@@ -182,11 +220,25 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <input
                       type="number"
                       name="compare_at_price"
-                      defaultValue={initialData?.compare_at_price}
+                      value={formData.compare_at_price}
+                      onChange={handleInputChange}
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium placeholder:text-gray-700"
                       placeholder="0.00"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Product Type</label>
+                  <select
+                    name="type"
+                    value={formData.type}
+                    onChange={handleInputChange}
+                    className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                  >
+                    <option value="physical">Physical</option>
+                    <option value="digital">Digital</option>
+                    <option value="subscription">Subscription</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -291,7 +343,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <input
                     type="number"
                     name="shipping_price"
-                    defaultValue={initialData?.shippingPrice || 0}
+                    value={formData.shipping_price}
+                    onChange={handleInputChange}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
                   />
                 </div>

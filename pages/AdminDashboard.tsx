@@ -2117,39 +2117,11 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'system' && (
-                  <div className="animate-fade-in-up space-y-6">
-                     <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 max-w-2xl">
-                        <h3 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                           <Database size={24} className="text-brand-purple" /> Database Management
-                        </h3>
-                        <p className="text-gray-400 mb-6">
-                           Use this utility to populate your Firestore database with the initial template data (Products, Mixtapes, Plans, etc.).
-                           Run this <b>once</b> to initialize your app content.
-                        </p>
-                        <button
-                           onClick={() => { if (confirm("This will overwrite existing items with matching IDs. Continue?")) seedDatabase() }}
-                           className="bg-brand-purple text-white px-6 py-3 rounded-lg font-bold hover:bg-purple-600 transition flex items-center gap-2"
-                        >
-                           <Upload size={18} /> Seed Database (Upload Initial Data)
-                        </button>
-                     </div>
-
-                     <div className="bg-[#15151A] p-8 rounded-xl border border-white/5 max-w-2xl">
-                        <h3 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                           <Shield size={24} className="text-red-500" /> Maintenance Mode
-                        </h3>
-                        <div className="flex items-center gap-4">
-                           <div className="w-12 h-6 bg-white/10 rounded-full relative cursor-pointer">
-                              <div className="absolute left-1 top-1 w-4 h-4 bg-gray-400 rounded-full transition-all"></div>
-                           </div>
-                           <span className="text-gray-400">Site is currently Live</span>
-                        </div>
-                     </div>
+               {activeTab === 'newsletters' && (
+                  <div className="animate-fade-in-up space-y-8">
+                     <p className="text-gray-400">Loading Newsletter Manager...</p>
                   </div>
                )}
-
-               {activeTab === 'newsletters' && <NewsletterTab />}
                {activeTab === 'interactions' && <InteractionsTab />}
                {activeTab === 'analytics' && <AnalyticsTab />}
 

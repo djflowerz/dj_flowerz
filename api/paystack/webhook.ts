@@ -138,30 +138,52 @@ export default async function handler(req: any, res: any) {
 
 async function handleChargeSuccess(data: any, metadata: any) {
     const isTip = metadata.type === 'tip';
+    // 1. Get IDs and Metadata
     const isSubscription = metadata.type === 'subscription';
     const isBooking = metadata.type === 'booking';
+    const orderId = metadata.order_id || `order_${data.reference}`;
+    let userId = metadata.userId;
 
-    const orderId = `order_${data.reference}`;
-
-    let orderItems = metadata.items;
-    if (typeof orderItems === 'string') {
-        try { orderItems = JSON.parse(orderItems); } catch (e) { orderItems = null; }
+    // Fetch existing order if it exists to preserve item details in mixed orders
+    let existingOrder: any = null;
+    try {
+        const orders = await getR2Collection<any>('orders');
+        existingOrder = orders.find(o => o.id === orderId);
+    } catch (e) {
+        console.warn(`[PAYSTACK WH] Could not fetch existing order ${orderId}:`, e);
     }
 
-    // 1. Get User ID from metadata or fallback to finding by email
-    let userId = metadata.userId;
     if (!userId && data.customer?.email) {
         const profiles = await getR2Collection<any>('profiles');
         const profile = profiles.find(p => p.email === data.customer.email);
         userId = profile?.id;
     }
 
+    let orderItems = metadata.items;
+    if (typeof orderItems === 'string') {
+        try { orderItems = JSON.parse(orderItems); } catch (e) { orderItems = null; }
+    }
+
+    // Use items from existing order if available (preserves full cart details)
+    const itemsToSave = existingOrder?.items || orderItems || [
+        {
+            productId: isTip ? 'tip' : (isSubscription ? 'subscription' : (isBooking ? 'booking' : 'other')),
+            productName: isTip ? 'Tip Jar' :
+                (isSubscription ? `${metadata.plan || 'Plan'} Subscription` :
+                    (isBooking ? `Booking: ${metadata.service || 'Session'}` : 'Store Purchase')),
+            quantity: 1,
+            price: data.amount / 100,
+            type: isSubscription ? 'subscription' : 'digital'
+        }
+    ];
+
     const { items: _, ...orderMetadata } = metadata; // Exclude raw items from top-level
     const orderData = {
+        ...(existingOrder || {}), // Merge with existing order data
         id: orderId,
-        user_id: userId || null,
-        customer_name: metadata.customerName || data.customer?.first_name || 'Guest',
-        customer_email: data.customer?.email,
+        user_id: userId || existingOrder?.user_id || null,
+        customer_name: metadata.customerName || data.customer?.first_name || existingOrder?.customer_name || 'Guest',
+        customer_email: data.customer?.email || existingOrder?.customer_email,
         total: data.amount / 100,
         subtotal: metadata.subtotal || (data.amount / 100),
         status: 'completed',
@@ -169,19 +191,9 @@ async function handleChargeSuccess(data: any, metadata: any) {
         date: new Date().toISOString().split('T')[0],
         time: new Date().toLocaleTimeString(),
         reference_code: data.reference,
-        items: orderItems || [
-            {
-                productId: isTip ? 'tip' : (isSubscription ? 'subscription' : (isBooking ? 'booking' : 'other')),
-                productName: isTip ? 'Tip Jar' :
-                    (isSubscription ? `${metadata.plan || 'Plan'} Subscription` :
-                        (isBooking ? `Booking: ${metadata.service || 'Session'}` : 'Store Purchase')),
-                quantity: 1,
-                price: data.amount / 100,
-                type: 'digital'
-            }
-        ],
-        type: metadata.type || 'store',
-        created_at: new Date().toISOString(),
+        items: itemsToSave,
+        type: metadata.type || existingOrder?.type || 'store',
+        created_at: existingOrder?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
 
@@ -313,9 +325,12 @@ async function handleChargeSuccess(data: any, metadata: any) {
 
     // If it's a subscription payment, activate the subscription immediately.
     // NOTE: subscription.create only fires for Paystack recurring plans, not one-time payments.
-    // So we must activate here on charge.success when type === 'subscription'.
-    if (isSubscription && userId) {
-        const planName = metadata.planId || metadata.plan || 'monthly';
+    // So we must activate here on charge.success when type === 'subscription' OR an item is a subscription.
+    const hasSubscriptionItem = orderData.items.some((i: any) => i.type === 'subscription');
+    
+    if ((isSubscription || hasSubscriptionItem) && userId) {
+        const subItem = orderData.items.find((i: any) => i.type === 'subscription');
+        const planName = metadata.planId || metadata.plan || subItem?.productName || subItem?.name || 'monthly';
         const now = new Date();
         let expiryDate = new Date(now);
         if (planName.toLowerCase().includes('week')) {

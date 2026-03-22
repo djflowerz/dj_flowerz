@@ -19,7 +19,7 @@ const Login: React.FC = () => {
   useEffect(() => {
     // Redirect if already logged in
     if (user && !authLoading) {
-      const from = (location.state as any)?.from?.pathname || '/';
+      const from = (location.state as any)?.from?.pathname || (location.state as any)?.from || '/';
       navigate(from, { replace: true });
     }
   }, [user, authLoading, navigate, location.state]);
@@ -51,7 +51,7 @@ const Login: React.FC = () => {
       // Check if session exists
       if (data.session) {
         // Successful login — redirect back to the page they came from, or home
-        const from = (location.state as any)?.from?.pathname || '/';
+        const from = (location.state as any)?.from?.pathname || (location.state as any)?.from || '/';
         navigate(from, { replace: true });
 
       } else {

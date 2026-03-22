@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import {
   Search, Download, Play, Pause, X, ChevronDown,
@@ -7,12 +7,13 @@ import {
   Clock, SortAsc, SortDesc, Disc3, Fuel, ChevronRight,
   Star, Lock, Check, Crown, Flame, Rocket, Zap as ZapIcon,
   PlayCircle, Package, Layers, Info, Volume2, Globe,
-  ArrowLeft, ArrowRight
+  ArrowLeft, ArrowRight, MapPin
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Track } from '../types';
 import { MONTHS, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabase';
@@ -32,6 +33,8 @@ import { FolderSwitcher } from '../components/music-pool/FolderSwitcher';
 import { TrackRow } from '../components/music-pool/TrackRow';
 import { HypeTrackRow } from '../components/music-pool/HypeTrackRow';
 import { MediaOverlay } from '../components/music-pool/MediaOverlay';
+import { TrialBanner } from '../components/music-pool/TrialBanner';
+import { UpgradeButton } from '../components/music-pool/UpgradeButton';
 import AccessDenied from '../components/AccessDenied';
 
 // --- Types ---
@@ -42,86 +45,13 @@ interface PlayerState {
   isPlaying: boolean;
 }
 
-const HUBS = [
-  { id: 'all', label: 'All Sources', icon: <Globe size={18} /> },
-  { id: 'Remix & Mashups Hub', label: 'Remix & Mashups Hub', icon: <Zap size={18} /> },
-  { id: 'Genres', label: 'Genre Categories', icon: <Layers size={18} /> },
-  { id: '2024 VIDEO', label: '2024 Video Pool', icon: <Video size={18} /> },
-  { id: '2023 VIDEO', label: '2023 Video Pool', icon: <Video size={18} /> }
-];
-
-const REMIX_HUB_GENRES = [
-  "All",
-  "redrum video remixes",
-  "audio redrums",
-  "remixah",
-  "dancehall refix",
-  "Khester Redrums Remixes",
-  "R&B Remixes",
-  "Amapiano Redrum remixes",
-  "HYPE edits",
-  "Club Edits",
-  "Dancehall Remixes",
-  "Amapiano",
-  "Afrohouse",
-  "Reggae Fussion"
-];
-
-const VICKNICK_HUB_GENRES = [
-  "All",
-  "Arbantone & Gengetone (Low Hype)",
-  "Arbantone & Gengetone (Hype)",
-  "Kenya Love Songs (Hype)",
-  "Kenya Love Songs (Low Hype)",
-  "Locals",
-  "Rnb 2000",
-  "Rnb 2010",
-  "Rnb 90",
-  "3 Step Amapiano",
-  "South Africa Amapiano",
-  "Reggae Covers",
-  "Afro Beats (TBT)",
-  "Mugithi Covers (Kikuyu)",
-  "Taarabu",
-  "Afro Amapiano",
-  "Mugithi (Kikuyu)",
-  "soul",
-  "East Africa TBT (Low Hype)",
-  "East Africa TBT (Hype)",
-  "Urban Pop (Low Hype)",
-  "EDMs",
-  "Urban Pop (Hype)",
-  "Urban Pop (Urban)",
-  "Gospel (Urban)",
-  "Drill Rhumba",
-  "RNB (Low Hype)",
-  "Dancehall (Low Hype)",
-  "Bongo (TZ) (Hype)",
-  "UG Music",
-  "Dancehall (Hype)",
-  "RNB (Hype)",
-  "Ragga (Low Hype)",
-  "Afro Beats (Naija) (Hype)",
-  "Ragga (Hype)",
-  "Hip Hop",
-  "BassHall Dancehall",
-  "Kikuyu Gospel (Kigoco)",
-  "Rhumba",
-  "Jazz",
-  "Country",
-  "Rock",
-  "Pop",
-  "Deep House",
-  "Reggae Funk",
-  "Oldies",
-  "Kalenjin",
-  "Luhya",
-  "Kamba",
-  "Kisii"
-];
+// Filters are now fetched dynamically from the backend
 
 export default function MusicPool() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { addToCart } = useCart();
   const isAdmin = user?.role === 'admin' || user?.isAdmin;
   const isSubscriber = user?.isSubscriber || isAdmin;
 
@@ -133,6 +63,28 @@ export default function MusicPool() {
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeMonth, setActiveMonth] = useState('All Months');
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
+  
+  const [dynamicFilters, setDynamicFilters] = useState<{
+    genres: string[];
+    hubs: string[];
+    years: number[];
+  }>({ genres: [], hubs: [], years: [] });
+
+  const fetchFilters = useCallback(async () => {
+    try {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
+      if (response.ok) {
+        const data = await response.json();
+        setDynamicFilters(data);
+      }
+    } catch (err) {
+      console.error("Error fetching filters:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
   
   const [player, setPlayer] = useState<PlayerState>({ 
     url: null, 
@@ -290,14 +242,18 @@ export default function MusicPool() {
       // 1. HIT THE TRACKING API (POST) - Non-blocking
       fetch(`${STORAGE_WORKER_URL}/api/pool/download`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ url, versionId })
       }).catch(err => console.error("Tracking error:", err));
 
       // 2. TRIGGER NATIVE BROWSER DOWNLOAD IMMEDIATELY
       // We use the GET version of the endpoint with ?token=... to support window.location.href
       // This will return the body with Content-Disposition: attachment
-      const downloadApiUrl = `${STORAGE_WORKER_URL}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
+      const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+      const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
       // Using window.location.href triggers the browser's download manager immediately
       // For cross-origin or same-origin direct streams with Attachment header, this is perfect.
@@ -332,14 +288,36 @@ export default function MusicPool() {
   }, []);
 
   const genres = useMemo(() => {
-    if (activeHub === 'Remix & Mashups Hub') return REMIX_HUB_GENRES;
-    return VICKNICK_HUB_GENRES;
-  }, [activeHub]);
+    const list = ['All', ...dynamicFilters.genres];
+    return Array.from(new Set(list));
+  }, [dynamicFilters.genres]);
 
-  if (!user) return <AccessDenied />;
+  const hubs = useMemo(() => {
+    const defaultHubs = [
+      { id: 'all', label: 'All Sources', icon: <Globe size={18} /> },
+      { id: 'Remix & Mashups Hub', label: 'Remix & Mashups Hub', icon: <Zap size={18} /> },
+    ];
+    
+    const dbHubs = dynamicFilters.hubs.map(h => ({
+      id: h,
+      label: h,
+      icon: h.toLowerCase().includes('locals') ? <MapPin size={18} /> : 
+            h.toLowerCase().includes('video') ? <Video size={18} /> : <Layers size={18} />
+    }));
+
+    // Merge and unique
+    const all = [...defaultHubs];
+    dbHubs.forEach(dh => {
+      if (!all.find(a => a.id === dh.id)) all.push(dh);
+    });
+    return all;
+  }, [dynamicFilters.hubs]);
+
+  // Removed early return for guests to show locked design instead
 
   return (
     <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 overflow-x-hiddenselection:bg-blue-500/30">
+      <TrialBanner />
       <div className="max-w-[1700px] mx-auto px-6">
         
         {/* Header Section */}
@@ -373,9 +351,10 @@ export default function MusicPool() {
                  className="bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[300px] transition-all placeholder:text-zinc-600"
                />
              </div>
+             <UpgradeButton />
              <FolderSwitcher 
                activeHub={activeHub} 
-               hubs={HUBS}
+               hubs={hubs}
                onHubSelect={(hubId) => {
                  setActiveHub(hubId);
                  setActiveGenre('All');
@@ -388,13 +367,13 @@ export default function MusicPool() {
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
           {/* Sidebar */}
-          <Sidebar 
+           <Sidebar 
             genres={genres}
             activeGenre={activeGenre}
             onGenreSelect={setActiveGenre}
             searchTerm={genreSearchTerm}
             onSearchChange={setGenreSearchTerm}
-            activeHub={HUBS.find(h => h.id === activeHub)?.label || 'All'}
+            activeHub={hubs.find(h => h.id === activeHub)?.label || 'All'}
           />
 
           {/* Track List Area */}
@@ -428,14 +407,10 @@ export default function MusicPool() {
                       onChange={(e) => setActiveYear(e.target.value)}
                       className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                     >
-                      <option>All Years</option>
-                      <option>2026</option>
-                      <option>2025</option>
-                      <option>2024</option>
-                      <option>2023</option>
-                      <option>2022</option>
-                      <option>2021</option>
-                      <option>2020</option>
+                       <option>All Years</option>
+                      {dynamicFilters.years.map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -475,70 +450,8 @@ export default function MusicPool() {
             {/* List */}
             <div className="min-h-[600px]">
               {!isSubscriber ? (
-                <div className="flex flex-col items-center py-12 px-4 space-y-12">
-                  <div className="text-center space-y-4 px-6">
-                    <div className="w-16 h-16 bg-brand-purple/10 rounded-3xl flex items-center justify-center mx-auto border border-brand-purple/20 shadow-2xl">
-                      <Crown className="text-brand-purple animate-pulse" size={32} />
-                    </div>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">Pro Access Required</h2>
-                    <p className="text-zinc-500 text-sm font-medium leading-relaxed max-w-xs mx-auto">
-                      Unlock 92,000+ professional DJ edits, redrums, and mashups. Choose a plan to start downloading instantly.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-6 w-full max-w-sm mx-auto">
-                    {SUBSCRIPTION_PLANS.filter(p => p.active && !p.isTrial).map((plan) => (
-                      <div 
-                        key={plan.id}
-                        className={`relative p-6 rounded-[2.5rem] bg-zinc-900/40 border transition-all ${
-                          plan.isBestValue 
-                            ? 'border-brand-purple bg-brand-purple/5 shadow-[0_0_40px_rgba(168,85,247,0.15)] ring-1 ring-brand-purple/20' 
-                            : 'border-white/5 hover:border-white/10'
-                        }`}
-                      >
-                        {plan.isBestValue && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-brand-purple text-white text-[10px] font-black uppercase rounded-full shadow-lg tracking-widest whitespace-nowrap">
-                            Best Value
-                          </div>
-                        )}
-                        
-                        <div className="mb-6">
-                          <h3 className="text-white font-black uppercase text-sm mb-2">{plan.name}</h3>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">KES {plan.price.toLocaleString()}</span>
-                            <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">/{plan.period}</span>
-                          </div>
-                        </div>
-
-                        <ul className="space-y-3 mb-8">
-                          {plan.features.slice(0, 4).map((feature, i) => (
-                            <li key={i} className="flex items-start gap-3 text-[11px] text-zinc-400 font-bold leading-tight">
-                              <CheckCircle2 size={14} className="text-brand-purple flex-shrink-0 mt-0.5" />
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-
-                        <Link 
-                          to={`/account?tab=subscription&plan=${plan.id}`}
-                          className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-black uppercase text-xs tracking-widest transition-all active:scale-95 ${
-                            plan.isBestValue
-                              ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/20 hover:brightness-110'
-                              : 'bg-zinc-800 text-white hover:bg-zinc-700'
-                          }`}
-                        >
-                          Unlock Now <ChevronRight size={16} />
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="text-center pt-8 border-t border-white/5 w-full">
-                    <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Secured by Paystack</p>
-                    <div className="flex items-center justify-center gap-6 opacity-30 grayscale saturate-0">
-                      <img src="https://paystack.com/assets/img/logos/merchants/paystack.png" className="h-4" alt="Paystack" />
-                    </div>
-                  </div>
+                <div className="w-full py-12">
+                   <AccessDenied />
                 </div>
               ) :
  poolLoading && poolTracks.length === 0 ? (
@@ -563,9 +476,17 @@ export default function MusicPool() {
                   data={poolTracks}
                   endReached={loadMore}
                   itemContent={(index, track) => {
-                    const isHype = track?.display_genre?.toLowerCase()?.includes('hype') || 
+                    const isHype = track?.genre?.toLowerCase()?.includes('hype') || 
+                                  track?.display_genre?.toLowerCase()?.includes('hype') || 
                                   track?.sub_genre?.toLowerCase()?.includes('hype');
                     
+                    // Logic for "NEW" badge: if added in the last 14 days or explicitly marked
+                    const isActuallyNew = track.is_featured || 
+                                         track.isNew || 
+                                         track.is_new ||
+                                         (track.category && Array.isArray(track.category) && track.category.some((c: string) => c.toLowerCase().includes('new'))) ||
+                                         (track.created_at && (new Date().getTime() - new Date(track.created_at).getTime() < 14 * 24 * 60 * 60 * 1000));
+
                     if (isHype && activeGenre !== 'All') {
                       return (
                         <div className="mb-2" key={track.id}>
@@ -573,11 +494,11 @@ export default function MusicPool() {
                             title={track.title}
                             artist={track.artist}
                             bpm={track.bpm}
-                            genre={track.display_genre || 'Hype'}
+                            genre={track.genre || track.display_genre || track.collection_hub || 'Hype'}
                             videoUrl={track.videoUrl}
                             previewUrl={track.previewUrl || track.versions?.[0]?.previewUrl}
                             versions={track.versions || []}
-                            isNew={track.is_featured}
+                            isNew={isActuallyNew}
                             isExpanded={expandedTrackId === track.id}
                             isPlaying={expandedTrackId === track.id && player.isPlaying}
                             playingUrl={expandedTrackId === track.id ? player.url : null}
@@ -601,11 +522,11 @@ export default function MusicPool() {
                           title={track.title}
                           artist={track.artist}
                           bpm={track.bpm}
-                          genre={track.display_genre || 'General'}
+                          genre={track.genre || track.display_genre || track.collection_hub || 'General'}
                           videoUrl={track.videoUrl}
                           previewUrl={track.previewUrl || track.versions?.[0]?.previewUrl}
                           versions={track.versions || []}
-                          isNew={track.is_featured}
+                          isNew={isActuallyNew}
                           isExpanded={expandedTrackId === track.id}
                           isPlaying={expandedTrackId === track.id && player.isPlaying}
                           playingUrl={expandedTrackId === track.id ? player.url : null}

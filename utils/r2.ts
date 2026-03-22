@@ -164,7 +164,7 @@ export async function saveToD1(collection: string, method: 'POST' | 'PUT' | 'DEL
  */
 export async function uploadFileToR2(file: File, folder: string = 'uploads'): Promise<{ url: string; key: string } | null> {
     const authHeader = await getAuthHeader();
-    const uploadUrl = `/api/r2-upload`;
+    const uploadUrl = `${STORAGE_WORKER_URL}/api/admin/r2-upload`;
     console.log(`[R2] Attempting upload to: ${uploadUrl}`, { folder, fileName: file.name, type: file.type });
 
     const response = await fetch(uploadUrl, {

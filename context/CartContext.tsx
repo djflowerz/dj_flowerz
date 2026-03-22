@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Product, CartItem } from '../types';
+import { toast } from 'sonner';
 
 interface CartContextType {
   items: CartItem[];
@@ -16,7 +17,20 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('djf_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Error loading cart from localStorage", e);
+      return [];
+    }
+  });
+
+  // Persist to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('djf_cart', JSON.stringify(items));
+  }, [items]);
 
   const addToCart = (product: Product, quantity: number = 1, variantId?: string) => {
     setItems(prev => {
@@ -48,6 +62,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         );
       }
       return [...prev, { ...product, price: itemPrice, compareAtPrice: itemCompareAtPrice, discountPrice: itemDiscountPrice, quantity, selectedVariant: variantName || variantId }];
+    });
+
+    toast.success(`${product.name} added to cart!`, {
+      description: variantId ? `Variant: ${variantId}` : undefined,
+      action: {
+        label: 'View Cart',
+        onClick: () => window.location.href = '/cart'
+      }
     });
   };
 

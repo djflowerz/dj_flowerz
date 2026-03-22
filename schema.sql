@@ -120,6 +120,10 @@ CREATE TABLE products (
     hotspots TEXT,
     use_cases TEXT,
     variant_groups TEXT,
+    is_best_seller BOOLEAN DEFAULT FALSE,
+    is_special_offer BOOLEAN DEFAULT FALSE,
+    is_trending BOOLEAN DEFAULT FALSE,
+    offer_expiry DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -415,6 +419,10 @@ CREATE TABLE products_new (
     is_featured BOOLEAN DEFAULT FALSE,
     meta_title TEXT,
     meta_description TEXT,
+    is_best_seller BOOLEAN DEFAULT FALSE,
+    is_special_offer BOOLEAN DEFAULT FALSE,
+    is_trending BOOLEAN DEFAULT FALSE,
+    offer_expiry DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 , brand TEXT, type TEXT, release_date DATETIME, image_url TEXT, short_description TEXT, visibility TEXT DEFAULT 'public', status TEXT DEFAULT 'published', tag_list TEXT, os TEXT, requires_shipping BOOLEAN DEFAULT 1, track_stock BOOLEAN DEFAULT 1, whatsapp_enabled BOOLEAN DEFAULT 1);

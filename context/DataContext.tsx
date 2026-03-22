@@ -418,6 +418,10 @@ const mapR2Product = (p: any): Product => {
       meta_keywords: p.meta_keywords || '',
       whatsappEnabled: Boolean(p.whatsapp_enabled !== undefined ? p.whatsapp_enabled : (p.whatsappEnabled !== undefined ? p.whatsappEnabled : true)),
       requiresShipping: requiresShipping,
+      isBestSeller: Boolean(p.is_best_seller !== undefined ? p.is_best_seller : (p.isBestSeller !== undefined ? p.isBestSeller : false)),
+      isSpecialOffer: Boolean(p.is_special_offer !== undefined ? p.is_special_offer : (p.isSpecialOffer !== undefined ? p.isSpecialOffer : false)),
+      isTrending: Boolean(p.is_trending !== undefined ? p.is_trending : (p.isTrending !== undefined ? p.isTrending : false)),
+      offerExpiry: p.offer_expiry || p.offerExpiry || '',
       technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails),
       hotspots: safeJsonParse(p.hotspots),
       useCases: safeJsonParse(p.use_cases || p.useCases)
@@ -622,14 +626,40 @@ const mapR2Coupon = (c: any): Coupon => ({
   ...c,
   discountType: c.discount_type || c.discountType,
   discountValue: c.discount_value !== undefined ? c.discount_value : c.discountValue,
-  appliesTo: c.applies_to || c.appliesTo,
-  applicablePlans: c.applicable_plans || c.applicablePlans,
+  appliesTo: c.scope || c.applies_to || c.appliesTo,
+  applicablePlans: safeJsonParse(c.applicable_plans || c.applicablePlans),
   expiryDate: c.expiry_date || c.expiryDate,
-  usageLimit: c.usage_limit !== undefined ? c.usage_limit : c.usageLimit,
+  usageLimit: c.max_uses_total !== undefined ? c.max_uses_total : (c.usage_limit !== undefined ? c.usage_limit : c.usageLimit),
   usageCount: c.usage_count !== undefined ? c.usage_count : (c.usageCount || 0),
+  active: Boolean(c.is_active !== undefined ? c.is_active : (c.active !== undefined ? c.active : true)),
+  minSpend: c.min_spend !== undefined ? c.min_spend : c.minSpend,
   createdAt: c.created_at || c.createdAt,
   updatedAt: c.updated_at || c.updatedAt
 });
+
+const mapCouponToD1 = (c: Partial<Coupon>) => {
+  const mapped: any = { ...c };
+  if (c.discountType) mapped.discount_type = c.discountType;
+  if (c.discountValue !== undefined) mapped.discount_value = c.discountValue;
+  if (c.appliesTo) mapped.scope = c.appliesTo;
+  if (c.expiryDate) mapped.expiry_date = c.expiryDate;
+  if (c.usageLimit !== undefined) mapped.max_uses_total = c.usageLimit;
+  if (c.active !== undefined) mapped.is_active = c.active ? 1 : 0;
+  if (c.minSpend !== undefined) mapped.min_spend = c.minSpend;
+  if (c.applicablePlans) mapped.applicable_plans = JSON.stringify(c.applicablePlans);
+  
+  // Clean up camelCase fields
+  delete mapped.discountType;
+  delete mapped.discountValue;
+  delete mapped.appliesTo;
+  delete mapped.expiryDate;
+  delete mapped.usageLimit;
+  delete mapped.active;
+  delete mapped.minSpend;
+  delete mapped.applicablePlans;
+  
+  return mapped;
+};
 
 const mapR2ReferralStats = (r: any): ReferralStats => ({
   ...r,
@@ -1997,9 +2027,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addCoupon = async (coupon: Coupon) => {
+  const addCoupon = async (coupon: Partial<Coupon>) => {
     try {
-      const ok = await saveToD1('admin/coupons', 'POST', coupon);
+      const dbCoupon = mapCouponToD1(coupon);
+      const ok = await saveToD1('admin/coupons', 'POST', dbCoupon);
       if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Add coupon failed:", err.message);
@@ -2008,7 +2039,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateCoupon = async (id: string, data: Partial<Coupon>) => {
     try {
-      const ok = await saveToD1('admin/coupons', 'PATCH', data, id);
+      const dbCoupon = mapCouponToD1(data);
+      const ok = await saveToD1('admin/coupons', 'PATCH', dbCoupon, id);
       if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Update coupon failed:", err.message);

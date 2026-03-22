@@ -43,19 +43,21 @@
       text-shadow: 0 0 10px rgba(123, 92, 255, 0.5);
     }
   </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-paystack": "https://esm.sh/react-paystack@5.0.0"
-  }
-}
-</script>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      var el = document.getElementById('root');
+      if (el) {
+        el.innerHTML = '<div style="color:#ff4444;font-family:monospace;padding:24px;background:#0b0b0f;min-height:100vh;white-space:pre-wrap"><h2>⚠️ App Crash Detected</h2><p>' + msg + '</p><p>' + src + ':' + line + ':' + col + '</p><p>' + (err && err.stack ? err.stack : '') + '</p></div>';
+      }
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var el = document.getElementById('root');
+      if (el && !el.children.length) {
+        el.innerHTML = '<div style="color:#ff4444;font-family:monospace;padding:24px;background:#0b0b0f;min-height:100vh;white-space:pre-wrap"><h2>⚠️ Unhandled Promise Rejection</h2><p>' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)) + '</p></div>';
+      }
+    });
+  </script>
 </head>
 
 <body>

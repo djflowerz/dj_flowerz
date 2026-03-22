@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown } from 'lucide-react'; // Added ChevronDown
+import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown, MapPin } from 'lucide-react'; // Added ChevronDown, MapPin
 import { motion } from 'framer-motion';
 
 interface SidebarProps {
@@ -82,10 +82,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className={`p-1.5 rounded-lg transition-colors ${
                 activeGenre === genre ? 'bg-white/20' : 'bg-zinc-800 group-hover:bg-zinc-700'
               }`}>
-                {genre === 'All' ? <Layers size={16} /> : 
-                 genre.includes('Video') ? <Video size={16} /> : 
-                 genre.includes('Hype') ? <Zap size={16} /> : 
-                 <Music size={16} />}
+                 {genre === 'All' ? <Layers size={16} /> : 
+                  genre.includes('Video') ? <Video size={16} /> : 
+                  genre.includes('Hype') ? <Zap size={16} /> : 
+                  (genre.toLowerCase().includes('kikuyu') || 
+                   genre.toLowerCase().includes('kamba') || 
+                   genre.toLowerCase().includes('mugithi') || 
+                   genre.toLowerCase().includes('luo') || 
+                   genre.toLowerCase().includes('kenya') || 
+                   genre.toLowerCase().includes('locals')) ? <MapPin size={16} /> :
+                  <Music size={16} />}
               </div>
               <span className="text-sm font-bold truncate">{genre}</span>
               {activeGenre === genre && (

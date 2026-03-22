@@ -8,6 +8,7 @@ import { useCart } from '../context/CartContext';
 import MusicPoolPreview from '../components/MusicPoolPreview';
 import { CountdownTimer } from '../components/CountdownTimer';
 import Hero from '../components/Hero';
+import ProductCard from '../components/ProductCard';
 
 const toEmbedUrl = (url: string): string => {
    if (!url) return '';
@@ -50,32 +51,64 @@ const Home: React.FC = () => {
    return (
       <div className="pb-20">
 
-         {/* 1. Dynamic Hero Section (AURA Redesign) */}
-         <Hero
+         {/* 1. Hero Section */}
+         <Hero 
             badge="The Official Audio Portal"
-            title={<>{hero.title.split(' ').map((word, i) => (
-               <span key={i} className={word.toLowerCase() === 'flowerz' ? 'text-brand-purple' : ''}>
-                  {word}{' '}
-               </span>
-            ))}</>}
+            title={
+               <>
+                  DJ <span className="text-brand-purple">FLOWERZ</span>
+               </>
+            }
             subtitle={hero.subtitle}
-            cta1Text="🎵 Music Pool"
+            cta1Text="Access Music Pool"
             cta1Link="/music-pool"
-            cta2Text="🛍️ Visit Store"
+            cta2Text="Visit Store"
             cta2Link="/store"
             bgImage={hero.bgImage}
          />
 
+         {/* 2. Store Preview Section */}
+         <section className="py-24 bg-[#0B0B0F] border-b border-white/5">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+               <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+                  <div>
+                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-[10px] font-black uppercase tracking-widest mb-4">
+                        <ShoppingBag size={12} /> Premium Gear
+                     </div>
+                     <h2 className="text-4xl md:text-5xl font-display font-black text-white uppercase italic tracking-tighter">
+                        Featured <span className="text-brand-cyan">Products</span>
+                     </h2>
+                     <p className="text-gray-400 mt-4 font-medium max-w-xl leading-relaxed">
+                        Elevate your performance with our curated selection of professional DJ equipment and exclusive merchandise.
+                     </p>
+                  </div>
+                  <Link to="/store" className="btn-premium px-8 py-4 text-xs uppercase tracking-widest group">
+                     <span className="flex items-center gap-2">
+                        Browse Full Store
+                        <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                     </span>
+                  </Link>
+               </div>
 
-         {/* 2. Featured Mixtapes (Dynamic) */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {displayProducts.slice(0, 4).map((product) => (
+                     <ProductCard key={product.id} product={product} viewMode="grid" />
+                  ))}
+               </div>
+            </div>
+         </section>
+
+         {/* 4. Featured Mixtapes (Re-integrated) */}
          <section className="py-20 bg-[#0B0B0F]">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="flex justify-between items-end mb-12">
                   <div>
-                     <h2 className="text-3xl md:text-4xl font-display font-bold text-white">{home.featuredMixtapes.title}</h2>
-                     <p className="text-gray-400 mt-2">{home.featuredMixtapes.subtitle}</p>
+                     <h2 className="text-3xl md:text-4xl font-display font-black text-white uppercase italic">Featured Mixtapes</h2>
+                     <p className="text-gray-400 mt-2 font-medium">Curated sets for the ultimate listening experience.</p>
                   </div>
-                  <Link to="/mixtapes" className="text-brand-cyan flex items-center gap-2 hover:underline font-bold">{home.featuredMixtapes.ctaText} <ArrowRight size={18} /></Link>
+                  <Link to="/mixtapes" className="text-brand-cyan flex items-center gap-2 hover:underline font-black uppercase text-xs tracking-widest transition">
+                     Explore All <ArrowRight size={16} />
+                  </Link>
                </div>
 
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -100,135 +133,20 @@ const Home: React.FC = () => {
                         </div>
                         <div className="p-6">
                            <Link to={`/mixtapes/${mix.id}`} className="block hover:text-brand-purple transition-colors mb-3">
-                              <h3 className="text-lg font-black text-white uppercase tracking-tight truncate">{mix.title}</h3>
+                              <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{mix.title}</h3>
                            </Link>
-                           <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                           <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold uppercase tracking-widest">
                               <span className="flex items-center gap-1.5"><Disc size={12} className="text-brand-purple" /> {mix.tracksCount || 12} Tracks</span>
                               <span className="flex items-center gap-1.5"><Headphones size={12} className="text-brand-cyan" /> {mix.duration}</span>
                            </div>
                         </div>
-                        {/* Hover Border Glow */}
-                        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-brand-purple to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
                      </div>
                   ))}
                </div>
             </div>
          </section>
 
-         {/* 3. Weekly Best Deals (Store Promo) - Dribbble Concept Match */}
-         <section className="py-24 bg-[#0F0F13] text-white overflow-hidden border-y border-white/5">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-               {/* Header Row */}
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-6">
-                  <h2 className="text-3xl md:text-5xl font-display font-bold tracking-tight">Weekly Best Deals</h2>
-                  {siteConfig.promoTimer?.enabled && (
-                     <div className="flex items-center gap-4">
-                        <span className="text-sm font-medium tracking-wide">{siteConfig.promoTimer.label}</span>
-                        <CountdownTimer expiryDate={siteConfig.promoTimer.endDate} variant="premium" />
-                     </div>
-                  )}
-               </div>
-
-               {/* Filters / Categories */}
-               <div className="flex overflow-x-auto pb-4 mb-8 gap-3 scrollbar-hide">
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Up to 90% off</button>
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Under KES 1000</button>
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full bg-brand-cyan text-black border hover:bg-cyan-400 border-brand-cyan text-sm font-bold shadow-[0_0_15px_rgba(40,230,220,0.3)] transition">Almost Sold out</button>
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">DJ Equipment</button>
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Audio & Wearables</button>
-                  <button className="whitespace-nowrap px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition">Software & Plugins</button>
-               </div>
-
-               {/* Top 4 Products Grid */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-                  {displayProducts.slice(0, 4).map((product) => (
-                     <Link to={`/store/${product.slug || product.id}`} key={product.id} className="glass-card rounded-[24px] overflow-hidden group hover:border-brand-purple/30 hover:-translate-y-2 transition-all duration-500 flex flex-col relative h-[520px]">
-                        <div className="absolute top-5 left-5 z-10">
-                           <span className="bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded-md shadow-lg uppercase tracking-widest border border-white/10">Sale</span>
-                        </div>
-                        <div className="absolute top-5 right-5 z-10 w-10 h-10 glass-panel rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-black/60 transition-all border border-white/5">
-                           <span className="text-xl leading-none font-light">♡</span>
-                        </div>
-
-                        <div className="relative h-[300px] p-8 flex-shrink-0 bg-white/5 flex items-center justify-center overflow-hidden">
-                           <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/5 to-transparent pointer-events-none" />
-                           <img src={product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:rotate-3 transition duration-700 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]" />
-                        </div>
-
-                        <div className="p-6 flex flex-col flex-grow">
-                           <div className="flex gap-1 mb-3 opacity-60">
-                              {[...Array(5)].map((_, i) => (
-                                 <Star key={i} size={10} className={i < 4 ? "text-brand-cyan fill-brand-cyan" : "text-gray-600 fill-gray-600"} />
-                              ))}
-                           </div>
-
-                           <h3 className="text-white font-black text-base uppercase leading-tight mb-4 line-clamp-2 group-hover:text-brand-cyan transition-colors">{product.name}</h3>
-
-                           <div className="mt-auto pt-4 border-t border-white/5">
-                              <div className="flex items-center justify-between mb-5">
-                                 <div className="flex flex-col">
-                                    <span className="text-brand-cyan font-black text-2xl tracking-tighter">
-                                       {product.discountPrice && product.discountPrice > 0 ? `KES ${(product.discountPrice || 0).toLocaleString()}` : (product.price === 0 ? 'Free' : `KES ${(product.price || 0).toLocaleString()}`)}
-                                    </span>
-                                    {product.discountPrice && product.discountPrice > 0 && (
-                                       <span className="text-gray-500 line-through text-[10px] font-bold">KES {(product.price || 0).toLocaleString()}</span>
-                                    )}
-                                 </div>
-                                 <ShoppingBag size={20} className="text-gray-500 group-hover:text-brand-purple transition-colors" />
-                              </div>
-
-                              <button
-                                 className="w-full btn-premium py-4 text-xs tracking-widest"
-                                 onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    addToCart(product);
-                                 }}
-                              >
-                                 Deploy to Cart
-                              </button>
-                           </div>
-                        </div>
-                     </Link>
-                  ))}
-               </div>
-
-               {/* Bottom Promo Banners */}
-               {displayProducts.length > 4 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     {displayProducts.slice(4, 6).map((product, idx) => {
-                        const bgColors = ['bg-gradient-to-br from-[#1A1A24] to-[#0B0B0F] border border-white/5', 'bg-gradient-to-br from-[#15151A] to-[#0A0A0C] border border-white/5'];
-                        return (
-                           <Link to={`/store/${product.slug || product.id}`} key={product.id} className={`${bgColors[idx]} rounded-[24px] p-8 flex flex-col sm:flex-row items-center justify-between relative overflow-hidden group hover:shadow-2xl hover:border-brand-purple/30 hover:-translate-y-1 transition duration-300`}>
-                              <div className="relative z-10 sm:w-1/2 flex flex-col items-start gap-3">
-                                 <span className="text-[10px] font-bold tracking-widest uppercase text-brand-purple bg-brand-purple/10 px-3 py-1 rounded-full shadow-sm">
-                                    {idx === 0 ? 'DJ Equipment' : 'Studio Essentials'}
-                                 </span>
-                                 <h3 className="text-white font-black text-2xl lg:text-3xl uppercase leading-[1.1] mt-1">
-                                    <span className="block mb-1">{idx === 0 ? 'PRO DJ GEAR' : 'PREMIUM AUDIO SETUP'}</span>
-                                    SPECIAL OFFER
-                                 </h3>
-                                 <p className="text-gray-400 text-sm font-medium mt-1">
-                                    Offers start from <span className="text-brand-cyan font-bold ml-1 bg-white/10 px-2 py-0.5 rounded">KES {product.discountPrice ? product.discountPrice.toLocaleString() : product.price.toLocaleString()}</span>
-                                 </p>
-
-                                 <button className="mt-4 bg-brand-purple text-white px-6 py-2.5 rounded-full text-xs font-black tracking-wider uppercase hover:bg-purple-600 transition shadow-lg w-max">
-                                    Shop Now
-                                 </button>
-                              </div>
-                              <div className="relative z-10 w-full max-w-[280px] h-[280px] mt-8 sm:mt-0 flex items-center justify-center bg-white rounded-3xl p-6 shadow-2xl border border-white/10">
-                                 <img src={product.image || product.image_url || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 group-hover:-rotate-6 transition duration-500 drop-shadow-xl relative z-20" />
-                              </div>
-                           </Link>
-                        );
-                     })}
-                  </div>
-               )}
-            </div>
-         </section>
-
-         {/* 4. Music Pool Preview & Grid */}
+         {/* 5. Music Pool Preview & Grid */}
          <MusicPoolPreview />
 
          {/* 5. YouTube Section (Dynamic) */}

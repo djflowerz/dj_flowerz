@@ -14,9 +14,10 @@ import { handleStorefrontPool } from './api/storefront/pool.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
 import { handleCommunity } from './api/community.js';
-import { handleTrialActivation } from './api/user/trial.js';
+import { handleTrialActivation, handleTrialStatus } from './api/user/trial.js';
 import { handleBookings } from './api/bookings.js';
 import { handleSupport } from './api/support.js';
+import { handleScheduled } from './utils/cron.js';
 import { AdminHub } from './utils/hub.js';
 
 const router = new Router();
@@ -25,7 +26,9 @@ const router = new Router();
 router.get('/api/products', handleStorefrontProducts);
 router.get('/api/products/:id', handleStorefrontProducts);
 router.post('/api/orders', handleStorefrontOrders);
+router.get('/api/orders/track', handleStorefrontOrders);
 router.get('/api/pool/tracks', handleStorefrontPool);
+router.get('/api/pool/download', handleStorefrontPool);
 router.post('/api/pool/download', handleStorefrontPool);
 router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
@@ -123,6 +126,7 @@ router.delete('/api/admin/support/tickets/:id', handleSupport);
 
 // User Profile
 router.post('/api/user/trial', handleTrialActivation);
+router.get('/api/trial/status', handleTrialStatus);
 
 // Legacy/Mixtapes
 router.get('/api/mixtapes', handleLegacy);
@@ -222,5 +226,8 @@ export default {
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
             });
         }
+    },
+    async scheduled(event, env, ctx) {
+        return handleScheduled(event, env, ctx);
     }
 };

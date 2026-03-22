@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Lock, MessageCircle, CreditCard, ShieldAlert, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { usePaystackPayment } from 'react-paystack';
 import { useAuth } from '../context/AuthContext';
 import { SUBSCRIPTION_PLANS } from '../constants';
 import { toast } from 'sonner';
+import { useCart } from '../context/CartContext';
+import { Product } from '../types';
 
 interface AccessDeniedProps {
     onJoinSuccess?: () => void;
@@ -15,52 +16,42 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     const { user, activateTrial } = useAuth() as any;
     const navigate = useNavigate();
     const location = useLocation();
+    const { addToCart } = useCart();
 
     const eligiblePlans = SUBSCRIPTION_PLANS.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
     const [selectedPlanId, setSelectedPlanId] = useState<string>(eligiblePlans[0]?.id || SUBSCRIPTION_PLANS[0].id);
     const selectedPlan = eligiblePlans.find(p => p.id === selectedPlanId) || eligiblePlans[0] || SUBSCRIPTION_PLANS[0];
 
-    // Paystack Configuration
-    const paystackConfig = {
-        reference: `pool_${(new Date()).getTime()}`,
-        email: user?.email || "guest@djflowerz.co.ke",
-        amount: selectedPlan.price * 100, // KES to cents
-        publicKey: (import.meta as any).env.VITE_PAYSTACK_PUBLIC_KEY || (import.meta as any).env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_live_default',
-        currency: 'KES',
-        metadata: {
-            type: 'subscription',
-            planId: selectedPlan.id,
-            userId: user?.id,
-            userEmail: user?.email,
-            customerName: user?.user_metadata?.full_name || 'DJ',
-            custom_fields: []
-        }
-    };
-
-    const initializePayment = usePaystackPayment(paystackConfig);
-
-    const handleSuccess = (reference: any) => {
-        toast.success(`Payment successful! Welcome to the Music Pool.`);
-        // Optional: refresh user session or reload to trigger access
-        if (onJoinSuccess) {
-            onJoinSuccess();
-        } else {
-            window.location.reload();
-        }
-    };
-
-    const handleClose = () => {
-        toast.error('Payment cancelled.');
-    };
-
     const handleJoinNow = async () => {
-        if (!user) {
-            toast.info("Please sign in or create an account to start your subscription.");
-            navigate('/login', { state: { from: location } });
-            return;
-        }
+        // Create a product object for the subscription plan
+        const planProduct: Product = {
+            id: selectedPlan.id,
+            name: selectedPlan.name,
+            slug: `sub-${selectedPlan.id}`,
+            type: 'subscription',
+            category: 'Subscription',
+            shortDescription: `Access to Music Pool for ${selectedPlan.period}`,
+            description: selectedPlan.features.join('. '),
+            price: selectedPlan.price,
+            currency: 'KES',
+            isActive: true,
+            visibility: 'public',
+            tags: ['subscription', 'music-pool'],
+            image: 'https://images.unsplash.com/photo-1514525253361-bee8a48790c3?w=400&h=400&fit=crop&q=80',
+            hasVariants: false,
+            requiresShipping: false,
+            whatsappEnabled: false,
+            status: 'published',
+            trackStock: false,
+            stock: 999
+        };
 
         if (selectedPlan.price === 0) {
+            if (!user) {
+                toast.info("Please sign in to activate your free trial.");
+                navigate('/login', { state: { from: location } });
+                return;
+            }
             // Free Trial
             const trialToast = toast.loading("Activating your free trial...");
             try {
@@ -74,8 +65,15 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
             return;
         }
 
-        // Trigger Paystack
-        initializePayment({ onSuccess: handleSuccess, onClose: handleClose });
+        // Add to cart and head to checkout
+        addToCart(planProduct, 1);
+        
+        if (!user) {
+            toast.info("Plan added to cart. Please sign in to complete your checkout.");
+            navigate('/login', { state: { from: '/checkout' } });
+        } else {
+            navigate('/checkout');
+        }
     };
 
     const handleWhatsAppHelp = () => {

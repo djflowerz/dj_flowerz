@@ -20,11 +20,17 @@ interface User {
     full_name: string;
     email: string;
     phone_number: string; // Matches 'phone_number' in D1
+    phone?: string;
     referral_code: string;
     referral_balance_kes: number;
     is_subscriber: number;
-    subscription_plan?: 'trial' | 'weekly' | 'monthly' | 'pro';
-    subscription_end_date: string; // Matches 'subscription_end_date' in D1
+    subscription_plan?: 'trial' | 'weekly' | 'monthly' | 'pro' | 'master';
+    subscription_expiry?: string;
+    subscription_end_date?: string; // Legacy field name
+    daily_download_count?: number;
+    last_download_reset?: string;
+    has_used_trial?: number;
+    role?: string;
     created_at: string;
 }
 
@@ -179,7 +185,11 @@ const AdminCommunityDirectory: React.FC = () => {
                 phone_number: formData.get('phone_number'),
                 is_subscriber: formData.get('is_subscriber') === '1' ? 1 : 0,
                 referral_balance_kes: Number(formData.get('referral_balance_kes')) || 0,
-                referral_code: formData.get('referral_code')
+                referral_code: formData.get('referral_code'),
+                subscription_plan: formData.get('subscription_plan'),
+                subscription_expiry: formData.get('subscription_expiry') || null,
+                daily_download_count: Number(formData.get('daily_download_count')) || 0,
+                has_used_trial: formData.get('has_used_trial') === 'on' ? 1 : 0
             };
 
             const res = await fetch(`${WORKER_URL}/api/admin/users/${editingUser.id}`, {
@@ -327,15 +337,18 @@ const AdminCommunityDirectory: React.FC = () => {
                                                     {u.subscription_plan || 'N/A'}
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 font-mono">
-                                                    {u.subscription_end_date
-                                                        ? new Date(u.subscription_end_date).toLocaleDateString()
-                                                        : 'No Expiry'}
+                                                    {u.subscription_expiry
+                                                        ? new Date(u.subscription_expiry).toLocaleDateString()
+                                                        : u.subscription_end_date
+                                                            ? new Date(u.subscription_end_date).toLocaleDateString()
+                                                            : 'No Expiry'}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             {(() => {
-                                                const isExpired = u.subscription_end_date ? new Date(u.subscription_end_date) < new Date() : true;
+                                                const expiryDate = u.subscription_expiry || u.subscription_end_date;
+                                                const isExpired = expiryDate ? new Date(expiryDate) < new Date() : true;
                                                 const isActive = u.is_subscriber === 1 && !isExpired;
 
                                                 if (isActive) {
@@ -347,7 +360,7 @@ const AdminCommunityDirectory: React.FC = () => {
                                                 }
                                                 return (
                                                     <div className="flex items-center gap-1.5 text-[10px] font-black text-red-500/50 border border-red-500/5 rounded-full px-3 py-1 bg-red-500/2 w-fit uppercase tracking-widest">
-                                                        <X size={10} /> {isExpired && u.subscription_end_date ? 'EXPIRED' : 'INACTIVE'}
+                                                        <X size={10} /> {(isExpired && (u.subscription_expiry || u.subscription_end_date)) ? 'EXPIRED' : 'INACTIVE'}
                                                     </div>
                                                 );
                                             })()}
@@ -360,6 +373,11 @@ const AdminCommunityDirectory: React.FC = () => {
                                                 <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500/70">
                                                     KES {(u.referral_balance_kes || 0).toLocaleString()}
                                                 </div>
+                                                {u.daily_download_count !== undefined && (
+                                                    <div className="text-[9px] font-black text-orange-500 uppercase tracking-widest mt-1">
+                                                        {u.daily_download_count} Downloads Today
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -462,6 +480,55 @@ const AdminCommunityDirectory: React.FC = () => {
                                             <option value="1">PRO (Active)</option>
                                             <option value="0">BASIC (Inactive)</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-6 mt-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Sub Plan</label>
+                                        <select
+                                            name="subscription_plan"
+                                            defaultValue={editingUser.subscription_plan || ''}
+                                            className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium appearance-none"
+                                        >
+                                            <option value="">None</option>
+                                            <option value="trial">Trial</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="pro">Pro (6 Months)</option>
+                                            <option value="master">Master (Yearly)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Expiry Date</label>
+                                        <input
+                                            name="subscription_expiry"
+                                            type="date"
+                                            defaultValue={editingUser.subscription_expiry ? new Date(editingUser.subscription_expiry).toISOString().split('T')[0] : ''}
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Daily Downloads</label>
+                                        <input
+                                            name="daily_download_count"
+                                            type="number"
+                                            defaultValue={editingUser.daily_download_count || 0}
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-3 pt-6">
+                                        <input
+                                            id="has_used_trial"
+                                            name="has_used_trial"
+                                            type="checkbox"
+                                            defaultChecked={editingUser.has_used_trial === 1}
+                                            className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-brand-purple/50"
+                                        />
+                                        <label htmlFor="has_used_trial" className="text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer">Trial Used</label>
                                     </div>
                                 </div>
                             </div>

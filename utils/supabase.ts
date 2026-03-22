@@ -12,31 +12,47 @@ const supabaseKey = isServer
     : (import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 
 if (!supabaseUrl || !supabaseKey) {
-    console.warn('Supabase credentials missing. Check environment variables.');
+    console.error('⚠️ Supabase credentials missing! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
 }
 
-// Enhanced client with retry logic and increased timeouts
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+// Create a no-op fallback so the app doesn't crash at module level when credentials are missing
+const createNoOpClient = () => ({
     auth: {
-        persistSession: !isServer,
-        autoRefreshToken: !isServer,
-        detectSessionInUrl: !isServer,
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signInWithOAuth: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signOut: () => Promise.resolve({ error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        resetPasswordForEmail: () => Promise.resolve({ error: new Error('Supabase not configured') }),
+        updateUser: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
     },
-    global: {
-        headers: {
-            'x-client-info': 'dj-flowerz-web',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-        },
-    },
-    db: {
-        schema: 'public',
-    },
-    realtime: {
-        params: {
-            eventsPerSecond: 10,
-        },
-    },
-    // Increase timeout to handle slow connections
-    // Note: This is a fetch option that will be passed to the underlying fetch calls
+    from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }),
 });
+
+// Enhanced client with retry logic and increased timeouts
+export const supabase = (supabaseUrl && supabaseKey)
+    ? createClient(supabaseUrl, supabaseKey, {
+        auth: {
+            persistSession: !isServer,
+            autoRefreshToken: !isServer,
+            detectSessionInUrl: !isServer,
+        },
+        global: {
+            headers: {
+                'x-client-info': 'dj-flowerz-web',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            },
+        },
+        db: {
+            schema: 'public',
+        },
+        realtime: {
+            params: {
+                eventsPerSecond: 10,
+            },
+        },
+    })
+    : (createNoOpClient() as any);
