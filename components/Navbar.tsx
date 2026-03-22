@@ -29,7 +29,6 @@ const Navbar: React.FC = () => {
     { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
     { name: 'Tip Jar', path: '/tip-jar' },
-    { name: 'About', path: '/about' },
     { name: 'Contact', path: '/contact' },
   ];
 

@@ -253,7 +253,7 @@ export default function MusicPool() {
       // We use the GET version of the endpoint with ?token=... to support window.location.href
       // This will return the body with Content-Disposition: attachment
       const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-      const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${versionId}&token=${token}&filename=${encodeURIComponent(fileName)}`;
+      const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${encodeURIComponent(versionId || '')}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
       // Using window.location.href triggers the browser's download manager immediately
       // For cross-origin or same-origin direct streams with Attachment header, this is perfect.

@@ -28,6 +28,7 @@ router.get('/api/products/:id', handleStorefrontProducts);
 router.post('/api/orders', handleStorefrontOrders);
 router.get('/api/orders/track', handleStorefrontOrders);
 router.get('/api/pool/tracks', handleStorefrontPool);
+router.get('/api/pool/filters', handleStorefrontPool);
 router.get('/api/pool/download', handleStorefrontPool);
 router.post('/api/pool/download', handleStorefrontPool);
 router.get('/api/reviews', handleCommunity);
