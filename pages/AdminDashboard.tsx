@@ -681,7 +681,7 @@ const AdminDashboard: React.FC = () => {
       addMaintenanceLog, updateMaintenanceLog,
       scannedTracks, addScannedTracks, clearAllScannedTracks, deleteScannedTrack,
       referralSettings, updateReferralSettings, applyReferralCode, issueReferralReward, referralLogs,
-      notifications, markNotificationAsRead,
+      notifications, markNotificationAsRead, syncNotifications, syncNotificationsLoading, refreshSyncNotifications,
       refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
       refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
       refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
