@@ -1,25 +1,37 @@
 import React from 'react';
 import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown, MapPin } from 'lucide-react'; // Added ChevronDown, MapPin
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface HubWithGenres {
+  hub: string;
+  genres: string[];
+}
 
 interface SidebarProps {
-  genres: string[];
+  hubsWithGenres: HubWithGenres[];
   activeGenre: string;
   onGenreSelect: (genre: string) => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
   activeHub: string;
+  onHubSelect: (hub: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  genres,
+  hubsWithGenres,
   activeGenre,
   onGenreSelect,
   searchTerm,
   onSearchChange,
-  activeHub
+  activeHub,
+  onHubSelect
 }) => {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const [expandedHubs, setExpandedHubs] = React.useState<string[]>([]);
+  
+  const toggleHub = (hub: string) => {
+    setExpandedHubs(prev => prev.includes(hub) ? prev.filter(h => h !== hub) : [...prev, hub]);
+  };
 
   return (
     <>
@@ -68,40 +80,91 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="px-4 mb-2">
             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Music Categories</span>
           </div>
+          <button
+            onClick={() => {
+              onHubSelect('all');
+              onGenreSelect('All');
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group mb-4 ${
+              activeHub === 'all' && activeGenre === 'All'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg transition-colors ${
+              activeHub === 'all' && activeGenre === 'All' ? 'bg-white/20' : 'bg-zinc-800 group-hover:bg-zinc-700'
+            }`}>
+              <Layers size={16} />
+            </div>
+            <span className="text-sm font-bold truncate">All Tracks</span>
+          </button>
           
-          {genres.filter(g => g.toLowerCase().includes(searchTerm.toLowerCase())).map((genre) => (
-            <button
-              key={genre}
-              onClick={() => onGenreSelect(genre)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                activeGenre === genre
-                  ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/25'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-              }`}
-            >
-              <div className={`p-1.5 rounded-lg transition-colors ${
-                activeGenre === genre ? 'bg-white/20' : 'bg-zinc-800 group-hover:bg-zinc-700'
-              }`}>
-                 {genre === 'All' ? <Layers size={16} /> : 
-                  genre.includes('Video') ? <Video size={16} /> : 
-                  genre.includes('Hype') ? <Zap size={16} /> : 
-                  (genre.toLowerCase().includes('kikuyu') || 
-                   genre.toLowerCase().includes('kamba') || 
-                   genre.toLowerCase().includes('mugithi') || 
-                   genre.toLowerCase().includes('luo') || 
-                   genre.toLowerCase().includes('kenya') || 
-                   genre.toLowerCase().includes('locals')) ? <MapPin size={16} /> :
-                  <Music size={16} />}
+          {hubsWithGenres.map((hubData) => {
+            const isExpanded = expandedHubs.includes(hubData.hub) || activeHub === hubData.hub || searchTerm !== '';
+            const filteredGenres = hubData.genres.filter(g => g.toLowerCase().includes(searchTerm.toLowerCase()));
+            
+            // If searching and no genres match in this hub (and hub name itself doesn't match), hide it
+            if (searchTerm && filteredGenres.length === 0 && !hubData.hub.toLowerCase().includes(searchTerm.toLowerCase())) return null;
+
+            return (
+              <div key={hubData.hub} className="mb-2">
+                <button
+                  onClick={() => {
+                    toggleHub(hubData.hub);
+                    onHubSelect(hubData.hub);
+                    onGenreSelect('All');
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group ${
+                    activeHub === hubData.hub
+                      ? 'bg-zinc-800/80 text-white border border-white/10 shadow-lg'
+                      : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Folder size={16} className={activeHub === hubData.hub ? 'text-blue-400' : 'text-zinc-500 group-hover:text-zinc-300'} />
+                    <span className="text-sm font-bold truncate">{hubData.hub}</span>
+                  </div>
+                  <ChevronDown 
+                    size={16} 
+                    className={`transition-transform duration-200 text-zinc-500  ${isExpanded ? 'rotate-180' : ''}`} 
+                  />
+                </button>
+                
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pl-4 pr-2 py-2 space-y-1 border-l-2 border-white/5 ml-6 mt-1">
+                        {filteredGenres.map(genre => (
+                          <button
+                            key={genre}
+                            onClick={() => {
+                               onHubSelect(hubData.hub);
+                               onGenreSelect(genre);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-left ${
+                              activeGenre === genre && activeHub === hubData.hub
+                                ? 'bg-blue-500/10 text-blue-400 font-bold'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 text-sm'
+                            }`}
+                          >
+                            <span className="truncate">{genre}</span>
+                            {activeGenre === genre && activeHub === hubData.hub && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <span className="text-sm font-bold truncate">{genre}</span>
-              {activeGenre === genre && (
-                <motion.div 
-                  layoutId="active-indicator"
-                  className="ml-auto w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white]" 
-                />
-              )}
-            </button>
-          ))}
+            );
+          })}
         </div>
       </div>
       

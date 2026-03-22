@@ -121,8 +121,11 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           </div>
         </div>
 
-        {/* Global Actions */}
-        <div className="flex items-center gap-3">
+      </div>
+
+      {/* Version Control Area */}
+      <div className="mt-4 pt-4 border-t border-white/5">
+        <div className="flex flex-wrap items-center gap-2">
            {versions.length > 1 && (
              <button
                onClick={(e) => {
@@ -130,40 +133,26 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                  if (!isSubscriber) return;
                  onDownloadAll();
                }}
-               className={`h-12 px-6 rounded-2xl font-black text-xs uppercase transition-all shadow-xl active:scale-95 whitespace-nowrap flex items-center gap-2 ${
+               className={`h-9 px-4 rounded-xl font-black text-[10px] uppercase transition-all shadow-xl active:scale-95 whitespace-nowrap flex items-center gap-2 ${
                  isSubscriber
-                   ? 'bg-brand-purple hover:bg-brand-purple/80 text-white shadow-brand-purple/30'
+                   ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/30'
                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
                }`}
              >
-               <Download size={16} />
-               Download All Versions
+               <Download size={14} />
+               Download All
              </button>
            )}
 
-           <button
-             onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
-             className="w-12 h-12 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-brand-purple rounded-2xl transition-all border border-white/5 shadow-lg group/search"
-             title="Find Similar Tracks"
-           >
-             <Search size={20} className="group-hover:scale-110 transition-transform" />
-           </button>
-        </div>
-      </div>
-
-      {/* Version Control Area */}
-      <div className="mt-6 pt-6 border-t border-white/5">
-        <div className="flex flex-col gap-4">
-          {/* Audio Versions */}
-          {versions.some(v => getVersionType(v) === 'audio') && (
-            <div className="flex flex-wrap gap-2">
-              <span className="w-full text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-1">Audio Versions</span>
-              {versions.filter(v => getVersionType(v) === 'audio').map((v, idx) => {
-                const vUrl = v.preview_url || '';
-                const isActive = playingUrl === vUrl && isPlaying;
-                return (
+           {versions.map((v, idx) => {
+             const vType = getVersionType(v);
+             const vUrl = v.preview_url || '';
+             const isActive = playingUrl === vUrl && isPlaying;
+             const isVideoObj = vType === 'video';
+             
+             return (
                   <div 
-                    key={v.id || `audio-${idx}`}
+                    key={v.id || `${vType}-${idx}`}
                     className={`flex items-center rounded-xl overflow-hidden border transition-all duration-300 ${
                       isActive 
                         ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
@@ -173,13 +162,13 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, 'audio', id);
+                        onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
                       }}
-                      className={`flex items-center gap-2 px-4 py-2.5 transition-all font-bold text-[11px] uppercase tracking-wider ${
+                      className={`flex items-center gap-2 px-3 py-2 transition-all font-bold text-[10px] uppercase tracking-wider ${
                         isActive ? 'text-blue-400' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
-                      {isActive ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      {isActive ? <Pause size={14} fill="currentColor" /> : (isVideoObj ? <Video size={14} /> : <Play size={14} fill="currentColor" />)}
                       {v.version_name}
                     </button>
                     <div className="w-px h-6 bg-white/5" />
@@ -189,7 +178,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                         if (!isSubscriber) return;
                         onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`, v.id);
                       }}
-                      className={`flex items-center justify-center w-10 py-2.5 transition-all ${
+                      className={`flex items-center justify-center w-9 py-2 transition-all flex-shrink-0 ${
                         isSubscriber 
                           ? 'text-blue-500 hover:bg-blue-500 hover:text-white' 
                           : 'text-zinc-700 cursor-not-allowed'
@@ -198,59 +187,8 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                       <Download size={14} />
                     </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Video Versions */}
-          {versions.some(v => getVersionType(v) === 'video') && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="w-full text-[9px] font-black text-brand-purple/50 uppercase tracking-[0.2em] mb-1">Video Versions</span>
-              {versions.filter(v => getVersionType(v) === 'video').map((v, idx) => {
-                const vUrl = v.preview_url || '';
-                const isActive = playingUrl === vUrl && isPlaying;
-                return (
-                  <div 
-                    key={v.id || `video-${idx}`}
-                    className={`flex items-center rounded-xl overflow-hidden border transition-all duration-300 ${
-                      isActive 
-                        ? 'border-brand-purple/50 bg-brand-purple/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]' 
-                        : 'border-white/5 bg-zinc-900/50 hover:border-white/20'
-                    }`}
-                  >
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, 'video', id);
-                      }}
-                      className={`flex items-center gap-2 px-4 py-2.5 transition-all font-bold text-[11px] uppercase tracking-wider ${
-                        isActive ? 'text-brand-purple' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      {isActive ? <Pause size={14} fill="currentColor" /> : <Video size={14} />}
-                      {v.version_name}
-                    </button>
-                    <div className="w-px h-6 bg-white/5" />
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!isSubscriber) return;
-                        onDownload(v.download_url, `${artist} - ${title} (${v.version_name})`, v.id);
-                      }}
-                      className={`flex items-center justify-center w-10 py-2.5 transition-all ${
-                        isSubscriber 
-                          ? 'text-brand-purple hover:bg-brand-purple hover:text-white' 
-                          : 'text-zinc-700 cursor-not-allowed'
-                      }`}
-                    >
-                      <Download size={14} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+             );
+           })}
         </div>
       </div>
 

@@ -65,15 +65,18 @@ async function handlePoolFilters(request, env) {
   try {
     const db = env.DB;
     
-    // Get unique genres
-    const genresResult = await db.prepare(
-      "SELECT DISTINCT genre FROM tracks WHERE genre IS NOT NULL AND genre != '' ORDER BY genre ASC"
+    // Get distinct hub and genre combinations to build hierarchy
+    const filtersRaw = await db.prepare(
+      "SELECT DISTINCT collection_hub, genre FROM tracks WHERE collection_hub IS NOT NULL AND collection_hub != '' AND genre IS NOT NULL AND genre != '' ORDER BY collection_hub ASC, genre ASC"
     ).all();
+
+    const hubsMap = {};
+    filtersRaw.results.forEach(row => {
+        if (!hubsMap[row.collection_hub]) hubsMap[row.collection_hub] = [];
+        hubsMap[row.collection_hub].push(row.genre);
+    });
     
-    // Get unique collection hubs
-    const hubsResult = await db.prepare(
-      "SELECT DISTINCT collection_hub FROM tracks WHERE collection_hub IS NOT NULL AND collection_hub != '' ORDER BY collection_hub ASC"
-    ).all();
+    const hubsWithGenres = Object.entries(hubsMap).map(([hub, genres]) => ({ hub, genres }));
     
     // Get unique years
     const yearsResult = await db.prepare(
@@ -81,8 +84,7 @@ async function handlePoolFilters(request, env) {
     ).all();
 
     return new Response(JSON.stringify({
-      genres: genresResult.results.map(r => r.genre),
-      hubs: hubsResult.results.map(r => r.collection_hub),
+      hubsWithGenres,
       years: yearsResult.results.map(r => r.release_year)
     }), {
       headers: {

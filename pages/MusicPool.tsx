@@ -64,11 +64,15 @@ export default function MusicPool() {
   const [activeMonth, setActiveMonth] = useState('All Months');
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
   
-  const [dynamicFilters, setDynamicFilters] = useState<{
+  interface HubWithGenres {
+    hub: string;
     genres: string[];
-    hubs: string[];
+  }
+  
+  const [dynamicFilters, setDynamicFilters] = useState<{
+    hubsWithGenres: HubWithGenres[];
     years: number[];
-  }>({ genres: [], hubs: [], years: [] });
+  }>({ hubsWithGenres: [], years: [] });
 
   const fetchFilters = useCallback(async () => {
     try {
@@ -292,26 +296,7 @@ export default function MusicPool() {
     return Array.from(new Set(list));
   }, [dynamicFilters.genres]);
 
-  const hubs = useMemo(() => {
-    const defaultHubs = [
-      { id: 'all', label: 'All Sources', icon: <Globe size={18} /> },
-      { id: 'Remix & Mashups Hub', label: 'Remix & Mashups Hub', icon: <Zap size={18} /> },
-    ];
-    
-    const dbHubs = dynamicFilters.hubs.map(h => ({
-      id: h,
-      label: h,
-      icon: h.toLowerCase().includes('locals') ? <MapPin size={18} /> : 
-            h.toLowerCase().includes('video') ? <Video size={18} /> : <Layers size={18} />
-    }));
-
-    // Merge and unique
-    const all = [...defaultHubs];
-    dbHubs.forEach(dh => {
-      if (!all.find(a => a.id === dh.id)) all.push(dh);
-    });
-    return all;
-  }, [dynamicFilters.hubs]);
+// Removed default hubs use effect hook since dynamic filters covers this from sidebar
 
   // Removed early return for guests to show locked design instead
 
@@ -352,14 +337,7 @@ export default function MusicPool() {
                />
              </div>
              <UpgradeButton />
-             <FolderSwitcher 
-               activeHub={activeHub} 
-               hubs={hubs}
-               onHubSelect={(hubId) => {
-                 setActiveHub(hubId);
-                 setActiveGenre('All');
-               }} 
-             />
+             {/* Removed FolderSwitcher */}
           </div>
         </div>
 
@@ -368,12 +346,13 @@ export default function MusicPool() {
           
           {/* Sidebar */}
            <Sidebar 
-            genres={genres}
+            hubsWithGenres={dynamicFilters.hubsWithGenres}
             activeGenre={activeGenre}
             onGenreSelect={setActiveGenre}
             searchTerm={genreSearchTerm}
             onSearchChange={setGenreSearchTerm}
-            activeHub={hubs.find(h => h.id === activeHub)?.label || 'All'}
+            activeHub={activeHub}
+            onHubSelect={setActiveHub}
           />
 
           {/* Track List Area */}
