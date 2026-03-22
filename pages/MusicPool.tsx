@@ -291,10 +291,7 @@ export default function MusicPool() {
     toast.success(`Finding tracks similar to ${track.bpm} BPM in ${track.display_genre}`);
   }, []);
 
-  const genres = useMemo(() => {
-    const list = ['All', ...dynamicFilters.genres];
-    return Array.from(new Set(list));
-  }, [dynamicFilters.genres]);
+  // genres derived from hubsWithGenres in Sidebar component directly
 
 // Removed default hubs use effect hook since dynamic filters covers this from sidebar
 
