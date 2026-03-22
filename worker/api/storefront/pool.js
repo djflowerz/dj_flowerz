@@ -168,9 +168,10 @@ async function handleGetPoolTracks(request, env) {
                 CASE WHEN v.id IS NOT NULL THEN
                     json_object(
                         'id', v.id,
-                        'type', v.version_name,
-                        'previewUrl', v.file_url,
-                        'downloadUrl', v.download_url
+                        'version_name', v.version_name,
+                        'preview_url', v.file_url,
+                        'download_url', v.download_url,
+                        'is_main_version', v.is_main_version
                     )
                 ELSE NULL END
             ) as versions_json
@@ -178,7 +179,7 @@ async function handleGetPoolTracks(request, env) {
         LEFT JOIN track_versions v ON t.id = v.track_id
         ${whereClause}
         GROUP BY t.id 
-        ORDER BY t.created_at DESC 
+        ORDER BY t.release_year DESC, t.created_at DESC 
         LIMIT ? OFFSET ?
     `;
 
@@ -397,9 +398,10 @@ export async function handleStorefrontPool(request, env) {
                         CASE WHEN v.id IS NOT NULL THEN
                             json_object(
                                 'id', v.id,
-                                'type', v.version_name,
-                                'previewUrl', v.file_url,
-                                'downloadUrl', v.download_url
+                                'version_name', v.version_name,
+                                'preview_url', v.file_url,
+                                'download_url', v.download_url,
+                                'is_main_version', v.is_main_version
                             )
                         ELSE NULL END
                     ) as versions_json
@@ -407,7 +409,7 @@ export async function handleStorefrontPool(request, env) {
                 LEFT JOIN track_versions v ON t.id = v.track_id
                 ${whereClause}
                 GROUP BY t.id 
-                ORDER BY t.created_at DESC 
+                ORDER BY t.release_year DESC, t.created_at DESC 
                 LIMIT ? OFFSET ?
             `;
 
