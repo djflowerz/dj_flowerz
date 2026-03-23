@@ -15,12 +15,12 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             }
 
             // Check if already exists
-            const existing = await env.DB.prepare(`SELECT id FROM newsletter_subscribers WHERE email = ?`).bind(email).first();
+            const existing = await env.DB.prepare(`SELECT email FROM subscribers WHERE email = ?`).bind(email).first();
             if (existing) {
                 return Response.json({ success: true, message: 'Already subscribed' });
             }
 
-            await env.DB.prepare(`INSERT INTO newsletter_subscribers (email) VALUES (?)`).bind(email).run();
+            await env.DB.prepare(`INSERT INTO subscribers (email, status, is_active) VALUES (?, 'active', 1)`).bind(email).run();
             
             // Send Confirmation Email
             try {
@@ -126,7 +126,8 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
         if (method === 'DELETE') {
             const id = url.pathname.split('/').pop();
             if (url.pathname.includes('/subscribers/')) {
-                await env.DB.prepare(`DELETE FROM newsletter_subscribers WHERE id = ?`).bind(id).run();
+                const emailId = decodeURIComponent(id);
+                await env.DB.prepare(`DELETE FROM subscribers WHERE email = ?`).bind(emailId).run();
                 return Response.json({ success: true });
             }
             if (url.pathname.includes('/campaigns/')) {
@@ -142,7 +143,7 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
         if (method === 'GET') {
             if (url.pathname.includes('/subscribers')) {
                 const { results } = await env.DB.prepare(
-                    `SELECT * FROM newsletter_subscribers ORDER BY subscribed_at DESC`
+                    `SELECT email, status, is_active, created_at FROM subscribers ORDER BY created_at DESC`
                 ).all();
                 return Response.json(results || []);
             }
