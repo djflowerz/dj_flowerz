@@ -73,7 +73,7 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 
 /* ─── Main Checkout Page ─────────────────────────────────────────────────── */
 export default function Checkout() {
-  const { user } = useAuth() as any;
+  const { user, loading } = useAuth() as any;
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const { items, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
@@ -143,6 +143,14 @@ export default function Checkout() {
       paystackInitialize({ onSuccess, onClose } as any);
     }
   }, [currentPaystackConfig, isProcessing, items, isDigitalOnly, navigate]);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      toast.error('Please sign in to continue checkout');
+      navigate('/login', { state: { returnTo: '/checkout' } });
+    }
+  }, [user, loading, navigate]);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -292,6 +300,17 @@ export default function Checkout() {
   // Show digital delivery confirmation screen
   if (completedDownloads) {
     return <DigitalDelivery downloads={completedDownloads} email={completedEmail} />;
+  }
+
+  if (loading || !user) {
+    return (
+      <div className="bg-[#0B0B0F] min-h-screen flex items-center justify-center p-8 mt-16">
+        <div className="space-y-4 text-center">
+          <div className="w-12 h-12 border-4 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin mx-auto"></div>
+          <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">Checking authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   const inputCls = "w-full bg-[#0B0B0F] border border-white/10 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-brand-purple focus:border-transparent outline-none transition-all placeholder:text-gray-700 font-medium text-white";

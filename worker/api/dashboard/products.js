@@ -61,14 +61,22 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const hotspots = body.hotspots ? JSON.stringify(body.hotspots) : null;
             const useCases = body.useCases || body.use_cases ? JSON.stringify(body.useCases || body.use_cases) : null;
             const variantGroups = body.variantGroups || body.variant_groups ? JSON.stringify(body.variantGroups || body.variant_groups) : null;
+            const isHot = body.isHot || body.is_hot || false;
+            const isFeatured = body.isFeatured || body.is_featured || false;
             const isBestSeller = body.isBestSeller || body.is_best_seller || false;
             const isSpecialOffer = body.isSpecialOffer || body.is_special_offer || false;
             const isTrending = body.isTrending || body.is_trending || false;
             const offerExpiry = body.offerExpiry || body.offer_expiry || null;
+            const sku = body.sku || null;
 
             await env.DB.prepare(`
-                INSERT INTO products (id, name, description, price, image, category, inventory, created_at, brand, compare_at_price, status, is_active, release_date, logistics, slug, technical_details, hotspots, use_cases, variant_groups, type, is_best_seller, is_special_offer, is_trending, offer_expiry)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO products (
+                    id, name, description, price, image, category, inventory, created_at, 
+                    brand, compare_at_price, status, is_active, release_date, logistics, 
+                    slug, technical_details, hotspots, use_cases, variant_groups, type, 
+                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -90,10 +98,13 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 useCases,
                 variantGroups,
                 body.type || 'physical',
+                isHot ? 1 : 0,
+                isFeatured ? 1 : 0,
                 isBestSeller ? 1 : 0,
                 isSpecialOffer ? 1 : 0,
                 isTrending ? 1 : 0,
-                offerExpiry
+                offerExpiry,
+                sku
             ).run();
 
             // Handle variants
@@ -144,17 +155,20 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const hotspots = body.hotspots ? JSON.stringify(body.hotspots) : null;
             const useCases = body.useCases || body.use_cases ? JSON.stringify(body.useCases || body.use_cases) : null;
             const variantGroups = body.variantGroups || body.variant_groups ? JSON.stringify(body.variantGroups || body.variant_groups) : null;
+            const isHot = body.isHot || body.is_hot || false;
+            const isFeatured = body.isFeatured || body.is_featured || false;
             const isBestSeller = body.isBestSeller || body.is_best_seller || false;
             const isSpecialOffer = body.isSpecialOffer || body.is_special_offer || false;
             const isTrending = body.isTrending || body.is_trending || false;
             const offerExpiry = body.offerExpiry || body.offer_expiry || null;
+            const sku = body.sku || null;
 
             await env.DB.prepare(`
                 UPDATE products 
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
-                    is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?
                 WHERE id = ?
             `).bind(
                 body.name,
@@ -175,10 +189,13 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 useCases,
                 variantGroups,
                 body.type || 'physical',
+                isHot ? 1 : 0,
+                isFeatured ? 1 : 0,
                 isBestSeller ? 1 : 0,
                 isSpecialOffer ? 1 : 0,
                 isTrending ? 1 : 0,
                 offerExpiry,
+                sku,
                 id
             ).run();
 

@@ -59,26 +59,27 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 }) => {
   const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
     const name = (v?.version_name || '').toLowerCase();
-    const url = (v?.preview_url || '').toLowerCase();
+    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
     if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm')) return 'video';
     return 'audio';
   };
 
-  // Build a normalized list of versions — always at least one entry
+  // Build a normalized list of versions — always at least one entry if data exists
   const normalizedVersions: TrackVersion[] = React.useMemo(() => {
     if (versions && versions.length > 0) return versions;
-    // Fallback: create a synthetic main version from previewUrl
-    if (previewUrl) {
+    // Fallback: create a synthetic main version from previewUrl or videoUrl
+    const fallbackUrl = previewUrl || videoUrl;
+    if (fallbackUrl) {
       return [{
         id: `${id}-main`,
         version_name: 'Original',
-        preview_url: previewUrl,
-        download_url: previewUrl,
+        preview_url: fallbackUrl,
+        download_url: fallbackUrl,
         is_main_version: true,
       }];
     }
     return [];
-  }, [versions, previewUrl, id]);
+  }, [versions, previewUrl, videoUrl, id]);
 
   const mainVersion = normalizedVersions.find(v => v?.is_main_version) || normalizedVersions[0];
   const isVideo = normalizedVersions.some(v => getVersionType(v) === 'video');

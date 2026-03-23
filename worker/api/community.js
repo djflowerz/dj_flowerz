@@ -37,7 +37,7 @@ export async function handleCommunity(request, env) {
                     features = COALESCE(?, features), 
                     image_url = COALESCE(?, image_url)
                 WHERE id = ?
-            `).bind(data.name, data.rate, data.description, data.features ? JSON.stringify(data.features) : null, data.image_url, id).run();
+            `).bind(data.name || null, data.rate || null, data.description || null, data.features ? JSON.stringify(data.features) : null, data.image_url || null, id).run();
             return Response.json({ success: true });
         }
         if (method === "DELETE") {
@@ -75,7 +75,7 @@ export async function handleCommunity(request, env) {
                     image_url = COALESCE(?, image_url), 
                     description = COALESCE(?, description)
                 WHERE id = ?
-            `).bind(data.name, data.hourly_rate, data.category, data.image_url, data.description, id).run();
+            `).bind(data.name || null, data.hourly_rate || null, data.category || null, data.image_url || null, data.description || null, id).run();
             return Response.json({ success: true });
         }
         if (method === "DELETE") {
@@ -165,7 +165,7 @@ export async function handleCommunity(request, env) {
                     status = COALESCE(?, status),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).bind(data.studioId, data.gearId, data.issue, data.status, id).run();
+            `).bind(data.studioId || null, data.gearId || null, data.issue || null, data.status || null, id).run();
             return Response.json({ success: true });
         }
     }
@@ -214,7 +214,7 @@ export async function handleCommunity(request, env) {
                     active = COALESCE(?, active),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).bind(data.name, data.price, data.duration, data.description, data.features ? JSON.stringify(data.features) : null, data.image_url, data.active !== undefined ? (data.active ? 1 : 0) : null, id).run();
+            `).bind(data.name || null, data.price || null, data.duration || null, data.description || null, data.features ? JSON.stringify(data.features) : null, data.image_url || null, data.active !== undefined ? (data.active ? 1 : 0) : null, id).run();
             return Response.json({ success: true });
         }
         if (method === "DELETE") {

@@ -372,8 +372,8 @@ export default function ProductDetails() {
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                         <h3 className="text-3xl font-display font-black text-white uppercase tracking-tight">Experience The Craftsmanship</h3>
                         <div 
-                            className="text-gray-400 text-lg leading-relaxed font-light product-description-html prose prose-invert max-w-none prose-p:text-gray-400 prose-li:text-gray-400 prose-ul:list-disc prose-ul:pl-6 prose-ol:list-decimal prose-ol:pl-6"
-                            dangerouslySetInnerHTML={{ __html: product.description }}
+                            className="text-gray-400 text-lg leading-relaxed font-light whitespace-pre-line product-description-html prose prose-invert max-w-none prose-p:text-gray-400 prose-li:text-gray-400 prose-ul:list-disc prose-ul:pl-6 prose-ol:list-decimal prose-ol:pl-6"
+                            dangerouslySetInnerHTML={{ __html: product.description || '' }}
                         />
                         <div className="grid md:grid-cols-2 gap-8 pt-8">
                             <div className="bg-[#15151A] p-8 rounded-[32px] border border-white/5">

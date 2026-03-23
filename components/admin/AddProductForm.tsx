@@ -20,14 +20,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     status: initialData?.is_active || initialData?.isActive ? 'active' : 'draft',
     price: initialData?.price || 0,
     compare_at_price: initialData?.compare_at_price || 0,
+    sku: (initialData as any)?.sku || '',
     shipping_price: initialData?.shippingPrice || 0,
     meta_title: initialData?.name || '',
     slug: initialData?.slug || '',
     is_featured: initialData?.isFeatured || false,
     is_free: initialData?.isFree || false,
     whatsapp_enabled: initialData?.whatsappEnabled !== false,
-    // The following are new or adjusted based on the diff
-    // status: 'published' as const, // This seems like a duplicate of the 'status' above, keeping the one derived from initialData
     variantGroups: [] as any[],
     type: (initialData?.type || 'physical') as 'physical' | 'digital' | 'subscription',
   });
@@ -226,6 +225,16 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       placeholder="0.00"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SKU (Stock Keeping Unit)</label>
+                  <input
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleInputChange}
+                    placeholder="e.g., DJ-FLX10-BLK"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Product Type</label>

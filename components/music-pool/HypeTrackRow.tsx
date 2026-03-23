@@ -19,6 +19,7 @@ interface HypeTrackRowProps {
   bpm: number;
   genre: string;
   videoUrl?: string;
+  previewUrl?: string;
   versions: TrackVersion[];
   isNew?: boolean;
   isExpanded?: boolean;
@@ -35,18 +36,35 @@ interface HypeTrackRowProps {
 
   const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
     const name = (v?.version_name || '').toLowerCase();
-    const url = (v?.preview_url || '').toLowerCase();
+    const url = (v?.preview_url || v?.download_url || '').toLowerCase();
     if (name.includes('video') || name.includes('visual') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm')) return 'video';
     return 'audio';
   };
 
 export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
-  id, title, artist, bpm, genre, videoUrl, versions, isNew, isExpanded, isPlaying, playingUrl, playingType, onPlay, onDownload, onDownloadAll, onFindSimilar, onCloseInline, isSubscriber = false
+  id, title, artist, bpm, genre, videoUrl, previewUrl, versions, isNew, isExpanded, isPlaying, playingUrl, playingType, onPlay, onDownload, onDownloadAll, onFindSimilar, onCloseInline, isSubscriber = false
 }) => {
   const isHighBpm = bpm > 130;
 
-  const isVideo = versions?.some(v => getVersionType(v) === 'video') || false;
-  const mainVersion = versions?.find(v => v?.is_main_version) || versions?.[0];
+  // Build a normalized list of versions — always at least one entry if data exists
+  const normalizedVersions: TrackVersion[] = React.useMemo(() => {
+    if (versions && versions.length > 0) return versions;
+    // Fallback: create a synthetic main version from previewUrl or videoUrl
+    const fallbackUrl = previewUrl || videoUrl;
+    if (fallbackUrl) {
+      return [{
+        id: `${id}-main`,
+        version_name: 'Original',
+        preview_url: fallbackUrl,
+        download_url: fallbackUrl,
+        is_main_version: true,
+      }];
+    }
+    return [];
+  }, [versions, previewUrl, videoUrl, id]);
+
+  const isVideo = normalizedVersions.some(v => getVersionType(v) === 'video');
+  const mainVersion = normalizedVersions.find(v => v?.is_main_version) || normalizedVersions[0];
 
   return (
     <motion.div
@@ -113,7 +131,7 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
 
         {/* Global Actions */}
         <div className="flex items-center gap-4">
-           {versions.length > 1 && (
+           {normalizedVersions.length > 1 && (
              <button 
                onClick={(e) => {
                  e.stopPropagation();
@@ -145,10 +163,10 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
       <div className="mt-8 pt-8 border-t border-white/10 relative z-10">
         <div className="flex flex-col gap-5">
           {/* Audio Versions */}
-          {versions.some(v => getVersionType(v) === 'audio') && (
+          {normalizedVersions.some(v => getVersionType(v) === 'audio') && (
             <div className="flex flex-wrap gap-3">
               <span className="w-full text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-1">Audio Versions</span>
-              {versions.filter(v => getVersionType(v) === 'audio').map((v, idx) => {
+              {normalizedVersions.filter(v => getVersionType(v) === 'audio').map((v, idx) => {
                 const vUrl = v.preview_url || '';
                 const isActive = playingUrl === vUrl && isPlaying;
                 return (
@@ -194,10 +212,10 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
           )}
 
           {/* Video Versions */}
-          {versions.some(v => getVersionType(v) === 'video') && (
+          {normalizedVersions.some(v => getVersionType(v) === 'video') && (
             <div className="flex flex-wrap gap-3 mt-2">
               <span className="w-full text-[10px] font-black text-brand-purple/50 uppercase tracking-[0.3em] mb-1">Video Versions</span>
-              {versions.filter(v => getVersionType(v) === 'video').map((v, idx) => {
+              {normalizedVersions.filter(v => getVersionType(v) === 'video').map((v, idx) => {
                 const vUrl = v.preview_url || '';
                 const isActive = playingUrl === vUrl && isPlaying;
                 return (

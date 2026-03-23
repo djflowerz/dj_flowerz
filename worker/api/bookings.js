@@ -46,7 +46,7 @@ export async function handleBookings(request, env, ctx, params) {
         }
     }
 
-    // ADMIN ONLY: Fetch bookings
+    // ADMIN ONLY: Operations
     const user = await getAuthorizedUser(request, env);
     if (!user || user.role !== 'admin') {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -65,23 +65,60 @@ export async function handleBookings(request, env, ctx, params) {
             }
         }
 
-        if (method === 'PATCH') {
+        if (method === 'POST') {
+            const body = await request.json();
+            const id = body.id || crypto.randomUUID();
+
+            if (url.pathname.includes('/gig')) {
+                const { client_name, client_email, event_date, event_type, location_details, requirements, status, quote_amount, deposit_received } = body;
+                await env.DB.prepare(`
+                    INSERT INTO event_gigs (id, client_name, client_email, event_date, event_type, location_details, requirements, status, quote_amount, deposit_received)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, client_name, client_email, event_date, event_type, location_details, requirements, status || 'confirmed', quote_amount || 0, deposit_received || 0).run();
+                return Response.json({ success: true, id });
+            }
+
+            if (url.pathname.includes('/studio')) {
+                const { customer_email, session_date, start_time, duration_hours, extras, total_price_kes, status } = body;
+                await env.DB.prepare(`
+                    INSERT INTO studio_sessions (id, customer_email, session_date, start_time, duration_hours, extras, total_price_kes, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, customer_email, session_date, start_time, duration_hours || 1, JSON.stringify(extras || []), total_price_kes || 0, status || 'confirmed').run();
+                return Response.json({ success: true, id });
+            }
+        }
+
+        if (method === 'PATCH' || method === 'PUT') {
             const body = await request.json();
             const id = url.pathname.split('/').pop();
 
             if (url.pathname.includes('/gig/')) {
-                const { status, quote_amount, deposit_received } = body;
+                const { status, quote_amount, deposit_received, client_name, client_email, event_date, event_type } = body;
                 await env.DB.prepare(`
-                    UPDATE event_gigs SET status = ?, quote_amount = ?, deposit_received = ? WHERE id = ?
-                `).bind(status, quote_amount, deposit_received, id).run();
+                    UPDATE event_gigs 
+                    SET status = COALESCE(?, status), 
+                        quote_amount = COALESCE(?, quote_amount), 
+                        deposit_received = COALESCE(?, deposit_received),
+                        client_name = COALESCE(?, client_name),
+                        client_email = COALESCE(?, client_email),
+                        event_date = COALESCE(?, event_date),
+                        event_type = COALESCE(?, event_type)
+                    WHERE id = ?
+                `).bind(status || null, quote_amount || null, deposit_received || null, client_name || null, client_email || null, event_date || null, event_type || null, id).run();
                 return Response.json({ success: true });
             }
 
             if (url.pathname.includes('/studio/')) {
-                const { status } = body;
+                const { status, total_price_kes, duration_hours, session_date, start_time } = body;
                 await env.DB.prepare(`
-                    UPDATE studio_sessions SET status = ? WHERE id = ?
-                `).bind(status, id).run();
+                    UPDATE studio_sessions 
+                    SET status = COALESCE(?, status),
+                        total_price_kes = COALESCE(?, total_price_kes),
+                        duration_hours = COALESCE(?, duration_hours),
+                        session_date = COALESCE(?, session_date),
+                        start_time = COALESCE(?, start_time)
+                    WHERE id = ?
+                `).bind(status || null, total_price_kes || null, duration_hours || null, session_date || null, start_time || null, id).run();
                 return Response.json({ success: true });
             }
         }

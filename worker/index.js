@@ -45,6 +45,10 @@ router.post('/api/bookings/gig', handleBookings);
 router.post('/api/bookings/studio', handleBookings);
 router.get('/api/admin/bookings/gigs', handleBookings);
 router.get('/api/admin/bookings/studio', handleBookings);
+router.post('/api/admin/bookings/gig', handleBookings);
+router.post('/api/admin/bookings/studio', handleBookings);
+router.put('/api/admin/bookings/gig/:id', handleBookings);
+router.put('/api/admin/bookings/studio/:id', handleBookings);
 router.patch('/api/admin/bookings/gig/:id', handleBookings);
 router.patch('/api/admin/bookings/studio/:id', handleBookings);
 

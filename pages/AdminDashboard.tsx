@@ -490,7 +490,8 @@ const InputGroup: React.FC<{
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
-   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Accessories', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false, technicalDetails: [], hotspots: [], useCases: []
+   id: '', name: '', brand: '', releaseDate: '', slug: '', type: 'physical', category: 'Accessories', shortDescription: '', description: '', price: 0, discountPrice: 0, compareAtPrice: 0, currency: 'KES', isActive: true, visibility: 'public', tags: [], image: '', images: [], hasVariants: false, variantGroups: [], variants: [], trackStock: true, stock: 0, requiresShipping: true, whatsappEnabled: true, status: 'draft', digitalFileUrl: '', downloadPassword: '', weight: '', size: '', sku: '', dimensions: '', isFree: false, technicalDetails: [], hotspots: [], useCases: [],
+   isHot: false, isFeatured: false, isBestSeller: false, isSpecialOffer: false, isTrending: false, offerExpiry: ''
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
@@ -5365,6 +5366,9 @@ const AdminDashboard: React.FC = () => {
                      <button onClick={() => setProductFormTab('images')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'images' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                         <ImageIcon size={14} /> Images
                      </button>
+                     <button onClick={() => setProductFormTab('marketing')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'marketing' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                        <Zap size={14} /> Marketing
+                     </button>
                      <button onClick={() => setProductFormTab('advanced')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'advanced' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                         <Settings size={14} /> Advanced
                      </button>
@@ -5769,6 +5773,67 @@ const AdminDashboard: React.FC = () => {
                               <h4 className="font-bold text-white mb-2 tracking-tight">Gallery Preview</h4>
                               <p className="text-xs text-gray-500 mb-6">Add multiple angles or features (max 8 images).</p>
                               <MultiImageUpload label="" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
+                           </div>
+                        </div>
+                     </div>
+                  )}
+
+                  {productFormTab === 'marketing' && (
+                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="bg-black/20 p-8 rounded-[3rem] border border-white/5 space-y-8">
+                           <div className="flex items-center gap-4 mb-2">
+                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
+                                 <Zap size={24} />
+                              </div>
+                              <div>
+                                 <h4 className="text-xl font-black text-white tracking-tight">Marketing & Visibility</h4>
+                                 <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Control where this product appears</p>
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <InputGroup 
+                                 label="Hot & New" 
+                                 type="checkbox" 
+                                 checked={newProduct.isHot} 
+                                 onChange={v => updateProductField('isHot', v)} 
+                                 placeholder="Show in 'Hot Items' section" 
+                              />
+                              <InputGroup 
+                                 label="Featured Product" 
+                                 type="checkbox" 
+                                 checked={newProduct.isFeatured} 
+                                 onChange={v => updateProductField('isFeatured', v)} 
+                                 placeholder="Feature on Homepage Hero" 
+                              />
+                              <InputGroup 
+                                 label="Best Seller" 
+                                 type="checkbox" 
+                                 checked={newProduct.isBestSeller} 
+                                 onChange={v => updateProductField('isBestSeller', v)} 
+                                 placeholder="Add 'Best Seller' badge" 
+                              />
+                              <InputGroup 
+                                 label="Trending" 
+                                 type="checkbox" 
+                                 checked={newProduct.isTrending} 
+                                 onChange={v => updateProductField('isTrending', v)} 
+                                 placeholder="Show in Trending section" 
+                              />
+                              <InputGroup 
+                                 label="Special Offer" 
+                                 type="checkbox" 
+                                 checked={newProduct.isSpecialOffer} 
+                                 onChange={v => updateProductField('isSpecialOffer', v)} 
+                                 placeholder="Show in Special Offers" 
+                              />
+                              <InputGroup 
+                                 label="Offer Expiry" 
+                                 type="date" 
+                                 value={newProduct.offerExpiry || ''} 
+                                 onChange={v => updateProductField('offerExpiry', v)} 
+                                 helperText="When the special offer badge expires"
+                              />
                            </div>
                         </div>
                      </div>
