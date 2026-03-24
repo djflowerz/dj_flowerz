@@ -33,6 +33,11 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     release_date: initialData?.release_date || initialData?.releaseDate || '',
     weight: (initialData as any)?.weight || 0,
     dimensions: (initialData as any)?.dimensions || '',
+    features: Array.isArray((initialData as any)?.features) 
+      ? (initialData as any).features.join('\n') 
+      : (typeof (initialData as any)?.features === 'string' && (initialData as any).features.startsWith('[')
+        ? JSON.parse((initialData as any).features).join('\n')
+        : (initialData as any)?.features || ''),
   });
   const [variants, setVariants] = useState<any[]>(initialData?.variants || []);
   const [additionalImages, setAdditionalImages] = useState<string[]>(
@@ -65,7 +70,15 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     try {
       const formNativeData = new FormData(e.currentTarget);
       // Append formData state values, overriding native form fields if necessary
+      const featuresArray = formData.features 
+        ? formData.features.split('\n').map(f => f.trim()).filter(f => f !== '')
+        : [];
+        
       for (const key in formData) {
+        if (key === 'features') {
+          formNativeData.set(key, JSON.stringify(featuresArray));
+          continue;
+        }
         // @ts-ignore
         formNativeData.set(key, formData[key]);
       }
@@ -215,6 +228,18 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Key Features (One per line)</label>
+                <textarea
+                  name="features"
+                  value={formData.features}
+                  onChange={handleInputChange}
+                  rows={4}
+                  placeholder="e.g. Premium Sound Quality&#10;Waterproof IPX7&#10;24-hour Battery Life"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium resize-none"
+                />
               </div>
 
               <div className="space-y-6">

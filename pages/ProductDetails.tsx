@@ -254,9 +254,40 @@ export default function ProductDetails() {
                 </div>
             </div>
 
-            <div className="text-gray-400 text-sm leading-relaxed max-w-xl">
-                {product.shortDescription || product.description}
-            </div>
+            {(() => {
+                let features: string[] = [];
+                try {
+                    if (product.features) {
+                        features = typeof product.features === 'string' 
+                            ? JSON.parse(product.features) 
+                            : product.features;
+                    }
+                } catch (e) {
+                    console.error("Error parsing features:", e);
+                }
+
+                if (features.length > 0) {
+                    return (
+                        <div className="space-y-3 max-w-xl">
+                            <h4 className="text-[10px] font-black text-brand-cyan uppercase tracking-[0.2em]">Key Features</h4>
+                            <div className="grid grid-cols-1 gap-2">
+                                {features.slice(0, 5).map((feature, idx) => (
+                                    <div key={idx} className="flex items-start gap-3 group">
+                                        <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-all group-hover:scale-125" />
+                                        <p className="text-gray-300 text-sm font-medium leading-tight tracking-wide">{feature}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="text-gray-400 text-sm leading-relaxed max-w-xl">
+                        {product.shortDescription || product.description}
+                    </div>
+                );
+            })()}
 
             {/* Inventory Note */}
             <div className="p-4 rounded-2xl bg-green-400/5 border border-green-400/20 flex items-center gap-4">
