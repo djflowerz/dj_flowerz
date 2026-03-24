@@ -255,16 +255,7 @@ export default function ProductDetails() {
             </div>
 
             {(() => {
-                let features: string[] = [];
-                try {
-                    if (product.features) {
-                        features = typeof product.features === 'string' 
-                            ? JSON.parse(product.features) 
-                            : product.features;
-                    }
-                } catch (e) {
-                    console.error("Error parsing features:", e);
-                }
+                const features = Array.isArray(product.features) ? product.features : [];
 
                 if (features.length > 0) {
                     return (
@@ -439,6 +430,7 @@ export default function ProductDetails() {
                                 { label: 'SKU', value: product.sku || 'N/A' },
                                 { label: 'Weight', value: product.weight || 'N/A' },
                                 { label: 'Dimensions', value: product.dimensions || 'N/A' },
+                                { label: 'Release Date', value: product.releaseDate || product.release_date || 'N/A' },
                                 { label: 'Shipping Class', value: product.shippingClass || 'Standard Premium' },
                                 { label: 'Category', value: product.category },
                                 { label: 'Brand', value: product.brand || 'DJ Flowerz Exclusive' },

@@ -16,7 +16,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     description: initialData?.description || '',
-    category: initialData?.category || 'Merch',
+    category: initialData?.category || 'DJ Equipment',
     status: initialData?.is_active || initialData?.isActive ? 'active' : 'draft',
     price: initialData?.price || 0,
     compare_at_price: initialData?.compare_at_price || 0,
@@ -187,11 +187,16 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       onChange={handleInputChange}
                       className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
                     >
-                      <option value="Merch">Merch</option>
-                      <option value="Samples">Samples</option>
-                      <option value="Presets">Presets</option>
-                      <option value="Tickets">Tickets</option>
-                      <option value="Course">Course</option>
+                      <option value="DJ Equipment">DJ Equipment</option>
+                      <option value="Audio Equipment">Audio Equipment</option>
+                      <option value="Headphones">Headphones</option>
+                      <option value="Microphones">Microphones</option>
+                      <option value="Computers & Devices">Computers & Devices</option>
+                      <option value="Studio & Production">Studio & Production</option>
+                      <option value="Accessories">Accessories</option>
+                      <option value="Lighting & Effects">Lighting & Effects</option>
+                      <option value="DJ Software">DJ Software</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div>

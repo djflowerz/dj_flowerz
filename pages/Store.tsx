@@ -141,20 +141,32 @@ export default function Products() {
     </div>
   );
 
-  const categoriesList = ['All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Mobile Phones', 'Mobile Accessories', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'];
+  const categoriesList = [
+    'All', 
+    'DJ Equipment', 
+    'Audio Equipment', 
+    'Headphones', 
+    'Microphones', 
+    'Computers & Devices', 
+    'Studio & Production', 
+    'Accessories', 
+    'Lighting & Effects',
+    'DJ Software',
+    'Other'
+  ];
 
   const categoryAssets: Record<string, { icon: React.ReactNode, img: string }> = {
     'All': { icon: <Grid size={24} />, img: 'https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=200' },
-    'Audio Equipment': { icon: <Headphones size={24} />, img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=200' },
     'DJ Equipment': { icon: <Disc size={24} />, img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=200' },
-    'Laptops': { icon: <Laptop size={24} />, img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=200' },
-    'Mobile Phones': { icon: <Smartphone size={24} />, img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200' },
-    'Mobile Accessories': { icon: <Battery size={24} />, img: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=200' },
-    'Software': { icon: <Database size={24} />, img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200' },
-    'Samples': { icon: <Music size={24} />, img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=200' },
-    'Apparel': { icon: <Shirt size={24} />, img: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=200' },
-    'Accessories': { icon: <ShoppingCart size={24} />, img: 'https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&q=80&w=200' },
-    'Other': { icon: <Search size={24} />, img: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=200' }
+    'Audio Equipment': { icon: <Zap size={24} />, img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=200' },
+    'Headphones': { icon: <Headphones size={24} />, img: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=200' },
+    'Microphones': { icon: <Music size={24} />, img: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&q=80&w=200' },
+    'Computers & Devices': { icon: <Laptop size={24} />, img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=200' },
+    'Studio & Production': { icon: <Database size={24} />, img: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=200' },
+    'Accessories': { icon: <Battery size={24} />, img: 'https://images.unsplash.com/photo-1619133300910-b964391cb4f0?auto=format&fit=crop&q=80&w=200' },
+    'Lighting & Effects': { icon: <Flame size={24} />, img: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=200' },
+    'DJ Software': { icon: <LayoutGrid size={24} />, img: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=200' },
+    'Other': { icon: <ShoppingBag size={24} />, img: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=200' }
   };
 
   const SidebarContent = () => (

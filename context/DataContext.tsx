@@ -376,10 +376,10 @@ const safeJsonParse = (val: any, fallback: any = []) => {
 
 const mapR2Product = (p: any): Product => {
   try {
-    const images = Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []);
+    const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []);
     const mainImage = p.image || images[0] || '';
 
-    const type = p.type || (['Software', 'Samples', 'digital'].includes(p.category || '') ? 'digital' : 'physical');
+    const type = p.type || (['Software', 'Samples', 'digital', 'DJ Software'].includes(p.category || '') ? 'digital' : 'physical');
     const requiresShipping = Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : (type === 'physical')));
 
     return {
@@ -411,6 +411,10 @@ const mapR2Product = (p: any): Product => {
         };
       }),
       stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
+      features: safeJsonParse(p.features),
+      weight: p.weight,
+      dimensions: p.dimensions,
+      releaseDate: p.release_date || p.releaseDate,
       tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()) : (p.tag_list ? String(p.tag_list).split(',').map((t: string) => t.trim()) : [])),
       createdAt: p.created_at || p.createdAt || new Date().toISOString(),
       updatedAt: p.updated_at || p.updatedAt || new Date().toISOString(),
