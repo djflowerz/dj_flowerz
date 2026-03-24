@@ -31,6 +31,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     type: (initialData?.type || 'physical') as 'physical' | 'digital' | 'subscription',
   });
   const [variants, setVariants] = useState<any[]>(initialData?.variants || []);
+  const [additionalImages, setAdditionalImages] = useState<string[]>(
+    (initialData as any)?.images || []
+  );
+
+  const addImageUrl = () => setAdditionalImages(prev => [...prev, '']);
+  const removeImageUrl = (i: number) => setAdditionalImages(prev => prev.filter((_, idx) => idx !== i));
+  const updateImageUrl = (i: number, val: string) => setAdditionalImages(prev => prev.map((v, idx) => idx === i ? val : v));
 
   const addVariant = () => {
     setVariants([...variants, { id: crypto.randomUUID(), name: '', price: initialData?.price || 0, stock: 10 }]);
@@ -59,6 +66,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
         formNativeData.set(key, formData[key]);
       }
       formNativeData.append('variants', JSON.stringify(variants));
+      formNativeData.append('images', JSON.stringify(additionalImages.filter(Boolean)));
       await onSave(formNativeData);
     } catch (err) {
       console.error(err);
@@ -200,6 +208,38 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                         <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mt-2">Supports JPG, PNG, WEBP (Max 5MB)</p>
                       </>
                     )}
+                  </div>
+                </div>
+
+                {/* Additional Gallery Images */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Gallery Images (URLs)</label>
+                    <button type="button" onClick={addImageUrl} className="flex items-center gap-1.5 text-[10px] font-black text-brand-purple hover:text-purple-400 uppercase tracking-widest transition">
+                      <Plus size={12} /> Add Image
+                    </button>
+                  </div>
+                  {additionalImages.length === 0 && (
+                    <p className="text-[11px] text-gray-600 ml-1">No additional images. Click "Add Image" to add gallery URLs.</p>
+                  )}
+                  <div className="space-y-3">
+                    {additionalImages.map((url, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={e => updateImageUrl(i, e.target.value)}
+                          placeholder="https://... image URL"
+                          className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 text-white text-sm placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all"
+                        />
+                        {url && (
+                          <img src={url} className="w-10 h-10 rounded-xl object-cover border border-white/10" onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+                        )}
+                        <button type="button" onClick={() => removeImageUrl(i)} className="text-gray-500 hover:text-red-400 transition">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">

@@ -26,7 +26,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     technicalDetails: p.technical_details ? JSON.parse(p.technical_details) : [],
                     hotspots: p.hotspots ? JSON.parse(p.hotspots) : [],
                     useCases: p.use_cases ? JSON.parse(p.use_cases) : [],
-                    variantGroups: p.variant_groups ? JSON.parse(p.variant_groups) : []
+                    variantGroups: p.variant_groups ? JSON.parse(p.variant_groups) : [],
+                    images: p.images ? JSON.parse(p.images) : []
                 };
             }));
 
@@ -74,9 +75,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     id, name, description, price, image, category, inventory, created_at, 
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, type, 
-                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku
+                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -104,7 +105,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 isSpecialOffer ? 1 : 0,
                 isTrending ? 1 : 0,
                 offerExpiry,
-                sku
+                sku,
+                body.images ? JSON.stringify(body.images) : null
             ).run();
 
             // Handle variants
@@ -168,7 +170,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
-                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?
                 WHERE id = ?
             `).bind(
                 body.name,
@@ -196,6 +198,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 isTrending ? 1 : 0,
                 offerExpiry,
                 sku,
+                body.images ? JSON.stringify(body.images) : null,
                 id
             ).run();
 
