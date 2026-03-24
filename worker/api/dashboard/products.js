@@ -69,15 +69,18 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const isTrending = body.isTrending || body.is_trending || false;
             const offerExpiry = body.offerExpiry || body.offer_expiry || null;
             const sku = body.sku || null;
+            const weight = body.weight || null;
+            const dimensions = body.dimensions || null;
 
             await env.DB.prepare(`
                 INSERT INTO products (
                     id, name, description, price, image, category, inventory, created_at, 
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, type, 
-                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images
+                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images,
+                    weight, dimensions
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -106,7 +109,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 isTrending ? 1 : 0,
                 offerExpiry,
                 sku,
-                body.images ? JSON.stringify(body.images) : null
+                body.images ? JSON.stringify(body.images) : null,
+                weight,
+                dimensions
             ).run();
 
             // Handle variants
@@ -164,13 +169,15 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const isTrending = body.isTrending || body.is_trending || false;
             const offerExpiry = body.offerExpiry || body.offer_expiry || null;
             const sku = body.sku || null;
+            const weight = body.weight || null;
+            const dimensions = body.dimensions || null;
 
             await env.DB.prepare(`
                 UPDATE products 
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
-                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?, weight = ?, dimensions = ?
                 WHERE id = ?
             `).bind(
                 body.name,
@@ -199,6 +206,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 offerExpiry,
                 sku,
                 body.images ? JSON.stringify(body.images) : null,
+                weight,
+                dimensions,
                 id
             ).run();
 

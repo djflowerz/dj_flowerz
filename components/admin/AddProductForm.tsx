@@ -29,6 +29,10 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     whatsapp_enabled: initialData?.whatsappEnabled !== false,
     variantGroups: [] as any[],
     type: (initialData?.type || 'physical') as 'physical' | 'digital' | 'subscription',
+    inventory: initialData?.inventory || initialData?.stock || 0,
+    release_date: initialData?.release_date || initialData?.releaseDate || '',
+    weight: (initialData as any)?.weight || 0,
+    dimensions: (initialData as any)?.dimensions || '',
   });
   const [variants, setVariants] = useState<any[]>(initialData?.variants || []);
   const [additionalImages, setAdditionalImages] = useState<string[]>(
@@ -189,6 +193,27 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       <option value="draft">Draft</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Stock Quantity</label>
+                  <input
+                    type="number"
+                    name="inventory"
+                    value={formData.inventory}
+                    onChange={handleInputChange}
+                    placeholder="0"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Release Date</label>
+                  <input
+                    type="date"
+                    name="release_date"
+                    value={formData.release_date}
+                    onChange={handleInputChange}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                  />
                 </div>
               </div>
 
@@ -400,6 +425,30 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                 <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
                   <CheckCircle2 size={16} className="text-emerald-500" />
                   <p className="text-[11px] font-black text-emerald-500/80 uppercase tracking-widest">Free shipping threshold applies</p>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="weight"
+                      value={formData.weight}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Dimensions (L x W x H)</label>
+                    <input
+                      name="dimensions"
+                      value={formData.dimensions}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 20x15x10 cm"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                    />
+                  </div>
                 </div>
               </div>
 
