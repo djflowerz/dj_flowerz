@@ -19,6 +19,7 @@ export class Router {
     put(path, handler) { this.add('PUT', path, handler); }
     patch(path, handler) { this.add('PATCH', path, handler); }
     delete(path, handler) { this.add('DELETE', path, handler); }
+    options(path, handler) { this.add('OPTIONS', path, handler); }
 
     async handle(request, env, ctx) {
         const url = new URL(request.url);

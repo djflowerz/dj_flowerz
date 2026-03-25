@@ -45,13 +45,25 @@ export async function syncPool(env) {
       console.log(`[Sync] Fetched ${tracksData.length} tracks from ${source.name}`);
 
       for (const item of tracksData) {
-        // ID generation consistent with existing logic
-        const trackIdStr = `${item.normalizedTitle || item.baseTitle}_${item.year}`;
+        // Generate an ID for the track based on normalizedTitle
+        // Strip out common version tags to improve grouping
+        const cleanTitle = (item.normalizedTitle || item.baseTitle || '')
+            .toLowerCase()
+            .replace(/\((clean|dirty|short edit|acap|extended|remix|edit)\)/gi, '')
+            .replace(/-(clean|dirty|short edit|acap|extended|remix|edit)/gi, '')
+            .trim();
+
+        const trackIdStr = `${cleanTitle}_${item.year}`;
         let trackIdNum = 0;
         for (let i = 0; i < trackIdStr.length; i++) {
           trackIdNum = Math.imul(31, trackIdNum) + trackIdStr.charCodeAt(i) | 0;
         }
         const safeTrackId = 'ext_' + Math.abs(trackIdNum);
+
+        // Ensure URLs are consistent and defined BEFORE used in Track record
+        const r2Url = source.origin === "remix" 
+          ? `https://remix-and-mashups-worker.dennismacharia20.workers.dev/${item.key.split('/').map(encodeURIComponent).join('/')}`
+          : `https://r2.vicknickvideopool.com/${item.key.split('/').map(encodeURIComponent).join('/')}`;
 
         // Categorization logic
         let hub = item.year || 'Collection';
@@ -98,6 +110,8 @@ export async function syncPool(env) {
             artist,
             genre,
             collection_hub: hub,
+            audio_url: r2Url,
+            download_url: r2Url,
             release_year: parseInt(item.year) || 2026,
             release_month: item.month || 'March',
             created_at: item.uploaded || new Date().toISOString()
@@ -111,9 +125,7 @@ export async function syncPool(env) {
         }
         const safeVersionId = 'ver_' + Math.abs(versionIdNum);
 
-        const r2Url = source.origin === "remix" 
-          ? `https://remix-and-mashups-worker.dennismacharia20.workers.dev/${item.key.split('/').map(encodeURIComponent).join('/')}`
-          : `https://r2.vicknickvideopool.com/${item.key.split('/').map(encodeURIComponent).join('/')}`;
+        // (r2Url defined above)
 
         versionsData.push({
           id: safeVersionId,
@@ -139,18 +151,20 @@ export async function syncPool(env) {
     const chunk = trackEntries.slice(i, i + batchSize);
     for (const t of chunk) {
       queries.push(env.DB.prepare(`
-        INSERT INTO tracks (id, title, artist, genre, collection_hub, release_year, release_month, created_at, updated_at, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO tracks (id, title, artist, genre, collection_hub, audio_url, download_url, release_year, release_month, created_at, updated_at, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(id) DO UPDATE SET 
           title=excluded.title, 
           artist=excluded.artist, 
           genre=excluded.genre, 
           collection_hub=excluded.collection_hub,
+          audio_url=excluded.audio_url,
+          download_url=excluded.download_url,
           release_year=excluded.release_year,
           release_month=excluded.release_month,
           updated_at=excluded.updated_at,
           is_active=1
-      `).bind(t.id, t.title, t.artist, t.genre, t.collection_hub, t.release_year, t.release_month, t.created_at, new Date().toISOString()));
+      `).bind(t.id, t.title, t.artist, t.genre, t.collection_hub, t.audio_url, t.download_url, t.release_year, t.release_month, t.created_at, new Date().toISOString()));
     }
   }
 
@@ -158,10 +172,10 @@ export async function syncPool(env) {
     const chunk = versionsData.slice(i, i + batchSize);
     for (const v of chunk) {
       queries.push(env.DB.prepare(`
-        INSERT INTO track_versions (id, track_id, version_name, file_url, download_url, is_video, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO track_versions (id, track_id, version_name, preview_url, file_url, download_url, is_video, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO NOTHING
-      `).bind(v.id, v.track_id, v.version_name, v.preview_url, v.download_url, v.is_video, v.created_at));
+      `).bind(v.id, v.track_id, v.version_name, v.preview_url, v.preview_url, v.download_url, v.is_video, v.created_at));
     }
   }
 

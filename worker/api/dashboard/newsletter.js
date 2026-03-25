@@ -15,18 +15,27 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             }
 
             // Check if already exists
-            const existing = await env.DB.prepare(`SELECT email FROM subscribers WHERE email = ?`).bind(email).first();
-            if (existing) {
-                return Response.json({ success: true, message: 'Already subscribed' });
-            }
+        const existing = await env.DB.prepare("SELECT email FROM subscribers WHERE email = ?").bind(email).first();
+        if (existing) {
+            return new Response(JSON.stringify({ success: true, message: "Already subscribed!" }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        }
 
-            await env.DB.prepare(`INSERT INTO subscribers (email, status, is_active) VALUES (?, 'active', 1)`).bind(email).run();
+        const now = new Date().toISOString();
+
+        // Insert into subscribers
+        await env.DB.prepare(
+            "INSERT INTO subscribers (email, status, is_active, created_at, updated_at) VALUES (?, 'active', 1, ?, ?)"
+        ).bind(email, now, now).run();
             
             // Send Confirmation Email
             try {
                 await sendEmail({
                     to: email,
                     subject: 'Welcome to DJ FLOWERZ! 🎧',
+                    fromEmail: 'promo@djflowerz.co.ke',
+                    fromName: 'DJ Flowerz Promotions',
                     html: `
                         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                             <h1 style="color: #a855f7; margin-bottom: 10px;">Welcome Aboard!</h1>
@@ -143,7 +152,7 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
         if (method === 'GET') {
             if (url.pathname.includes('/subscribers')) {
                 const { results } = await env.DB.prepare(
-                    `SELECT email, status, is_active, created_at FROM subscribers ORDER BY created_at DESC`
+                    `SELECT email, status, is_active, created_at AS dateSubscribed FROM subscribers ORDER BY created_at DESC`
                 ).all();
                 return Response.json(results || []);
             }

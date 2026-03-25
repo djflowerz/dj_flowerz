@@ -13,6 +13,7 @@ import { useData } from '../context/DataContext';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
+import { STORAGE_WORKER_URL } from '../utils/r2';
 
 // Simple countdown timer for sections
 const CountdownTimer = ({ hours, minutes, seconds }: { hours: number, minutes: number, seconds: number }) => {
@@ -50,6 +51,16 @@ const CountdownTimer = ({ hours, minutes, seconds }: { hours: number, minutes: n
   );
 };
 
+// Default store settings (matches worker defaults)
+const DEFAULT_STORE_SETTINGS = {
+  heroLabel: 'Limited Time Launch Offer',
+  heroTitle: 'Super Discount for early birds',
+  promoCode: 'FREE256MAC',
+  promoCodeEnabled: true,
+  countdownHours: 12,
+  countdownMinutes: 45,
+  countdownSeconds: 30,
+};
 
 export default function Products() {
   const { products, productsLoading, addSubscriber } = useData();
@@ -58,6 +69,15 @@ export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [storeSettings, setStoreSettings] = useState(DEFAULT_STORE_SETTINGS);
+
+  // Fetch dynamic store hero settings
+  useEffect(() => {
+    fetch(`${STORAGE_WORKER_URL}/api/store/settings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setStoreSettings({ ...DEFAULT_STORE_SETTINGS, ...data }); })
+      .catch(() => {}); // Silently fall back to defaults
+  }, []);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -328,27 +348,37 @@ export default function Products() {
              
              <div className="flex flex-col md:flex-row items-center gap-8 z-10">
                 <div className="flex flex-col items-center md:items-start">
-                   <p className="text-[10px] font-black text-brand-cyan tracking-widest uppercase mb-1">Limited Time Launch Offer</p>
-                   <h2 className="text-2xl md:text-3xl font-black text-white uppercase leading-none">Super Discount for early birds</h2>
+                   <p className="text-[10px] font-black text-brand-cyan tracking-widest uppercase mb-1">{storeSettings.heroLabel}</p>
+                   <h2 className="text-2xl md:text-3xl font-black text-white uppercase leading-none">{storeSettings.heroTitle}</h2>
                 </div>
 
                 <div className="flex items-center gap-4 border-l border-white/10 pl-8 hidden md:flex">
                    <div className="text-center">
                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Remains Until End</p>
-                     <CountdownTimer hours={12} minutes={45} seconds={30} />
+                     <CountdownTimer
+                       hours={storeSettings.countdownHours}
+                       minutes={storeSettings.countdownMinutes}
+                       seconds={storeSettings.countdownSeconds}
+                     />
                    </div>
                 </div>
              </div>
 
-             <div className="flex flex-col items-center md:items-end gap-3 z-10">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Use code at checkout</p>
-                <div className="flex items-center gap-2 bg-white/5 border border-dashed border-brand-cyan/50 px-6 py-3 rounded-xl">
-                   <span className="text-lg font-black text-brand-cyan tracking-tighter">FREE256MAC</span>
-                   <button className="p-2 hover:bg-white/10 rounded-lg transition" title="Copy Code">
-                      <Copy size={16} className="text-white/60" />
-                   </button>
-                </div>
-             </div>
+             {storeSettings.promoCodeEnabled && (
+               <div className="flex flex-col items-center md:items-end gap-3 z-10">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Use code at checkout</p>
+                  <div className="flex items-center gap-2 bg-white/5 border border-dashed border-brand-cyan/50 px-6 py-3 rounded-xl">
+                     <span className="text-lg font-black text-brand-cyan tracking-tighter">{storeSettings.promoCode}</span>
+                     <button
+                       className="p-2 hover:bg-white/10 rounded-lg transition"
+                       title="Copy Code"
+                       onClick={() => { navigator.clipboard.writeText(storeSettings.promoCode); toast.success('Code copied!'); }}
+                     >
+                        <Copy size={16} className="text-white/60" />
+                     </button>
+                  </div>
+               </div>
+             )}
           </div>
         </div>
 

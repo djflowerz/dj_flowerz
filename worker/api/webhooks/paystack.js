@@ -47,11 +47,36 @@ export async function handlePaystackWebhook(request, env) {
                     WHERE id = ?
                 `).bind(orderId).run();
 
+                // 1b. Handle Coupon Usage tracking
+                try {
+                    const order = await env.DB.prepare("SELECT coupon_code, customer_email, user_id FROM orders WHERE id = ?").bind(orderId).first();
+                    if (order && order.coupon_code) {
+                        const code = order.coupon_code.toUpperCase();
+                        const userIdentifier = order.user_id || order.customer_email || 'guest';
+                        
+                        // Increment global count
+                        await env.DB.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?").bind(code).run();
+                        
+                        // Record specific usage to prevent multiple uses if is_one_time_per_user is enabled
+                        await env.DB.prepare(`
+                            INSERT INTO coupon_usage (coupon_code, user_id, order_id)
+                            VALUES (?, ?, ?)
+                        `).bind(code, userIdentifier, orderId).run();
+                        
+                        console.log(`[Coupon] Recorded usage for ${code} by ${userIdentifier}`);
+                    }
+                } catch (couponErr) {
+                    console.error('[Paystack Webhook] Coupon Tracking Error:', couponErr);
+                    // Non-blocking error
+                }
+
                 // Send Order Receipt
                 try {
                     await sendEmail({
                         to: customer?.email || 'customer@djflowerz.co.ke',
                         subject: `Order Receipt - #${orderId}`,
+                        fromEmail: 'receipts@djflowerz.co.ke',
+                        fromName: 'DJ FLOWERZ Store',
                         html: `
                             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                                 <h1 style="color: #a855f7; margin-bottom: 20px;">Order Confirmed!</h1>
@@ -165,6 +190,8 @@ export async function handlePaystackWebhook(request, env) {
                         await sendEmail({
                             to: userEmail,
                             subject: '🚀 Music Pool Access Activated!',
+                            fromEmail: 'admin@djflowerz.co.ke',
+                            fromName: 'DJ Flowerz Admin',
                             html: `
                                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                                     <h1 style="color: #a855f7; margin-bottom: 20px;">Welcome to the Pool!</h1>
@@ -210,6 +237,8 @@ export async function handlePaystackWebhook(request, env) {
                     await sendEmail({
                         to: userEmail,
                         subject: 'Thank You for Your Support! 💎',
+                        fromEmail: 'noreply@djflowerz.co.ke',
+                        fromName: 'DJ FLOWERZ',
                         html: `
                             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                                 <h1 style="color: #a855f7; margin-bottom: 10px;">You're a Legend!</h1>

@@ -19,12 +19,16 @@ import { handleBookings } from './api/bookings.js';
 import { handleSupport } from './api/support.js';
 import { handleScheduled } from './utils/cron.js';
 import { AdminHub } from './utils/hub.js';
+import { handleStoreSettings } from './api/dashboard/store_settings.js';
+
+import { handleStorefrontCoupons } from './api/storefront/coupons.js';
 
 const router = new Router();
 
 // Storefront API
 router.get('/api/products', handleStorefrontProducts);
 router.get('/api/products/:id', handleStorefrontProducts);
+router.get('/api/coupons/validate', handleStorefrontCoupons);
 router.post('/api/orders', handleStorefrontOrders);
 router.get('/api/orders/track', handleStorefrontOrders);
 router.get('/api/pool/tracks', handleStorefrontPool);
@@ -83,7 +87,7 @@ router.post('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
 router.patch('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.put('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.delete('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
-router.delete('/api/admin/newsletter_subscribers/:id', handleDashboardNewsletter);
+router.delete('/api/admin/newsletter_subscribers/:email', handleDashboardNewsletter);
 router.post('/api/newsletter/subscribe', handleDashboardNewsletter);
 
 router.get('/api/admin/coupons', handleDashboardNewsletter);
@@ -97,6 +101,13 @@ router.post('/api/admin/tips', handleDashboardFinances);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);
+
+// Store Settings (public read, admin write)
+router.get('/api/store/settings', handleStoreSettings);
+router.options('/api/store/settings', handleStoreSettings);
+router.put('/api/admin/store/settings', handleStoreSettings);
+router.patch('/api/admin/store/settings', handleStoreSettings);
+router.options('/api/admin/store/settings', handleStoreSettings);
 
 // Community & Studio
 router.get('/api/studio/locations', handleCommunity);

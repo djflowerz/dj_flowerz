@@ -38,6 +38,10 @@ import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
 import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory';
 import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
 import BlackoutManager from '../components/admin/BlackoutManager';
+import AddProductForm from '../components/admin/AddProductForm';
+import { 
+   ImageUpload, MultiImageUpload, AudioUpload, FileUpload, VersionAudioUpload 
+} from '../components/admin/UploadComponents';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
    <textarea
@@ -116,288 +120,7 @@ const CountdownTimer: React.FC<{ expiryDate: string }> = ({ expiryDate }) => {
    );
 };
 
-const ImageUpload: React.FC<{
-   label: string;
-   value: string;
-   onChange: (v: string) => void;
-   required?: boolean;
-}> = ({ label, value, onChange, required }) => {
-   const [isUploading, setIsUploading] = useState(false);
-
-   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-         setIsUploading(true);
-         try {
-            const result = await uploadFileToR2(file, 'images');
-            if (result?.url) {
-               onChange(result.url);
-            } else {
-               alert("Failed to upload image. Server did not return a URL.");
-            }
-         } catch (err: any) {
-            console.error("Upload error:", err);
-            alert("Upload error: " + (err.message || "Unknown error"));
-         } finally {
-            setIsUploading(false);
-         }
-      }
-   };
-
-
-   return (
-      <div className="mb-6">
-         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 pl-1">
-            {label} {required && <span className="text-brand-purple inline-block animate-pulse">*</span>}
-         </label>
-         <div className="relative group max-w-sm">
-            <div className="absolute inset-0 bg-brand-purple/20 blur-2xl rounded-[2.5rem] opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
-            <div className="relative bg-[#0B0B0F] border-2 border-dashed border-white/5 rounded-[2.5rem] p-8 hover:border-brand-purple/30 transition-all duration-300">
-               {isUploading ? (
-                  <div className="flex flex-col items-center justify-center h-48">
-                     <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin mb-4" />
-                     <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest animate-pulse">Uploading to R2...</span>
-                  </div>
-               ) : value ? (
-                  <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-lg">
-                     <img src={value} alt="Preview" className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                        <label className="bg-brand-purple text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-purple-600 transition-all shadow-xl shadow-brand-purple/20">
-                           Replace Matrix
-                           <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
-                        </label>
-                     </div>
-                  </div>
-               ) : (
-                  <label className="flex flex-col items-center justify-center h-48 cursor-pointer group/inner">
-                     <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-600 group-hover/inner:text-brand-purple group-hover/inner:border-brand-purple/30 transition-all duration-300">
-                        <Upload size={32} />
-                     </div>
-                     <span className="mt-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Upload to CF R2</span>
-                     <span className="text-[9px] text-gray-700 mt-1 uppercase tracking-tighter">Click to Upload</span>
-                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
-                  </label>
-               )}
-            </div>
-         </div>
-      </div>
-   );
-};
-
-const MultiImageUpload: React.FC<{
-   label: string;
-   values: string[];
-   onChange: (values: string[]) => void;
-}> = ({ label, values, onChange }) => {
-   const removeImage = (index: number) => {
-      const newValues = [...values];
-      newValues.splice(index, 1);
-      onChange(newValues);
-   }
-
-   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) {
-         const files = Array.from(e.target.files);
-         let failedCount = 0;
-         const uploadPromises = files.map(async (file: File) => {
-            try {
-               const result = await uploadFileToR2(file, 'images');
-               return result?.url || '';
-            } catch (err) {
-               console.error("Multi upload error:", err);
-               failedCount++;
-               return '';
-            }
-         });
-
-         const urls = await Promise.all(uploadPromises);
-         const validUrls = urls.filter(url => url !== '');
-
-         if (failedCount > 0) {
-            alert(`Uploaded ${validUrls.length} images. ${failedCount} files failed to upload.`);
-         } else if (validUrls.length > 0) {
-            // Success alert usually not needed for multi-upload as the images appear
-         }
-
-         onChange([...values, ...validUrls]);
-      }
-   };
-
-
-   return (
-      <div className="mb-4">
-         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{label}</label>
-         <div className="grid grid-cols-4 gap-4 mb-2">
-            {values.map((img, idx) => (
-               <div key={idx} className="relative aspect-square bg-black/20 rounded-lg overflow-hidden group border border-white/10">
-                  <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
-                  <button
-                     type="button"
-                     onClick={() => removeImage(idx)}
-                     className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition hover:bg-red-600"
-                  >
-                     <X size={12} />
-                  </button>
-               </div>
-            ))}
-
-            <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:bg-white/5 transition bg-black/20 min-h-[80px]">
-               <div className="flex flex-col items-center justify-center text-gray-400">
-                  <Plus size={24} className="mb-1" />
-                  <span className="text-[10px] text-center">Add</span>
-               </div>
-               <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFiles}
-               />
-            </label>
-         </div>
-      </div>
-   );
-};
-
-const AudioUpload: React.FC<{
-   label: string;
-   value: string;
-   onChange: (v: string) => void;
-   required?: boolean;
-   helperText?: string;
-}> = ({ label, value, onChange, required, helperText }) => {
-   const [isUploading, setIsUploading] = useState(false);
-
-   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-         setIsUploading(true);
-         try {
-            const result = await uploadFileToR2(file, 'audio');
-            if (result?.url) {
-               onChange(result.url);
-            }
-         } catch (err: any) {
-            alert("Upload error: " + (err.message || "Unknown error"));
-         } finally {
-            setIsUploading(false);
-         }
-      }
-   };
-
-   return (
-      <div className="mb-6">
-         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 pl-1">
-            {label} {required && <span className="text-brand-purple inline-block animate-pulse">*</span>}
-         </label>
-         <div className="bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 hover:border-brand-purple/20 transition-all">
-            {isUploading ? (
-               <div className="flex items-center gap-4 py-2">
-                  <RefreshCw className="animate-spin text-brand-purple" size={20} />
-                  <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Uploading to R2...</span>
-               </div>
-            ) : (
-               <div className="space-y-3">
-                  <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl px-1 py-1">
-                     <input
-                        type="text"
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                        className="flex-1 bg-transparent px-3 py-2 text-xs text-white outline-none placeholder:text-gray-700"
-                        placeholder="Paste URL or upload MP3..."
-                     />
-                     <label className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-widest cursor-pointer transition-all border border-white/5 whitespace-nowrap">
-                        Choose MP3
-                        <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
-                     </label>
-                  </div>
-                  {helperText && <p className="text-[9px] text-gray-600 font-medium px-1 uppercase tracking-wider">{helperText}</p>}
-               </div>
-            )}
-         </div>
-      </div>
-   );
-};
-
-const FileUpload: React.FC<{
-   label: string;
-   value: string;
-   onChange: (v: string) => void;
-   required?: boolean;
-   accept?: string;
-}> = ({ label, value, onChange, required, accept = "*" }) => {
-   const [isUploading, setIsUploading] = useState(false);
-
-   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-         setIsUploading(true);
-         try {
-            const result = await uploadFileToR2(file, 'digital-products');
-            if (result?.url) {
-               onChange(result.url);
-            }
-         } catch (err: any) {
-            alert("Upload error: " + (err.message || "Unknown error"));
-         } finally {
-            setIsUploading(false);
-         }
-      }
-   };
-
-   return (
-      <div className="mb-4">
-         <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2 pl-1">
-            {label} {required && <span className="text-brand-purple">*</span>}
-         </label>
-         <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-xl p-2">
-            <input
-               type="text"
-               value={value}
-               onChange={(e) => onChange(e.target.value)}
-               className="flex-1 bg-transparent px-2 text-xs text-white outline-none"
-               placeholder="URL or Uploaded Link"
-            />
-            <label className="bg-brand-purple hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-2">
-               {isUploading ? <RefreshCw className="animate-spin" size={12} /> : <Upload size={12} />}
-               {isUploading ? "..." : "Upload"}
-               <input type="file" className="hidden" accept={accept} onChange={handleFileChange} />
-            </label>
-         </div>
-      </div>
-   );
-};
-
-const VersionAudioUpload: React.FC<{
-   onUpload: (url: string) => void;
-}> = ({ onUpload }) => {
-   const [isUploading, setIsUploading] = useState(false);
-
-   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-         setIsUploading(true);
-         try {
-            const result = await uploadFileToR2(file, 'audio');
-            if (result?.url) {
-               onUpload(result.url);
-            }
-         } catch (err: any) {
-            alert("Upload error: " + (err.message || "Unknown error"));
-         } finally {
-            setIsUploading(false);
-         }
-      }
-   };
-
-   return (
-      <label className="bg-brand-purple hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold uppercase cursor-pointer transition-all flex items-center gap-1">
-         {isUploading ? <RefreshCw className="animate-spin" size={14} /> : <Upload size={14} />}
-         {isUploading ? "..." : "Upload"}
-         <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
-      </label>
-   );
-};
+// Shared Modals and Input Groups removed here as they are partially extracted or kept below
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl' }> = ({ isOpen, onClose, title, children, size = 'md' }) => {
    if (!isOpen) return null;
@@ -555,6 +278,49 @@ const AdminDashboard: React.FC = () => {
    const [studioSubTab, setStudioSubTab] = useState<'services' | 'equipment' | 'rooms' | 'maintenance' | 'studio-bookings' | 'gigs'>('services');
    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'genres' | 'updates'>('tracks');
 
+   // --- Store Hero Settings ---
+   const DEFAULT_STORE_SETTINGS_ADMIN = {
+     heroLabel: 'Limited Time Launch Offer',
+     heroTitle: 'Super Discount for early birds',
+     promoCode: 'FREE256MAC',
+     promoCodeEnabled: true,
+     countdownHours: 12,
+     countdownMinutes: 45,
+     countdownSeconds: 30,
+   };
+   const [storeHeroSettings, setStoreHeroSettings] = useState(DEFAULT_STORE_SETTINGS_ADMIN);
+   const [heroSaving, setHeroSaving] = useState(false);
+
+   useEffect(() => {
+     fetch(`${WORKER_URL}/api/store/settings`)
+       .then(r => r.ok ? r.json() : null)
+       .then(data => { if (data) setStoreHeroSettings(s => ({ ...s, ...data })); })
+       .catch(() => {});
+   }, []);
+
+   const saveHeroSettings = async () => {
+     setHeroSaving(true);
+     try {
+       const session = (await import('../utils/supabase')).supabase.auth;
+       const { data: { session: sess } } = await session.getSession();
+       const token = sess?.access_token;
+       const resp = await fetch(`${WORKER_URL}/api/admin/store/settings`, {
+         method: 'PUT',
+         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+         body: JSON.stringify(storeHeroSettings),
+       });
+       if (resp.ok) {
+         (await import('sonner')).toast.success('Store hero settings saved!');
+       } else {
+         (await import('sonner')).toast.error('Failed to save settings.');
+       }
+     } catch (e) {
+       (await import('sonner')).toast.error('Error saving settings.');
+     } finally {
+       setHeroSaving(false);
+     }
+   };
+
    // --- Scanned Updates state ---
    const [scanSince, setScanSince] = useState('2026-03-02');
    const [isManualScanning, setIsManualScanning] = useState(false);
@@ -595,7 +361,7 @@ const AdminDashboard: React.FC = () => {
    const [isSending, setIsSending] = useState(false);
 
    // Form States
-   const [productFormTab, setProductFormTab] = useState('basic');
+
    const [newProduct, setNewProduct] = useState<Product>(INITIAL_PRODUCT_STATE);
    const [mixtapeFormTab, setMixtapeFormTab] = useState('basic');
    const [notificationsDropdownOpen, setNotificationsDropdownOpen] = useState(false);
@@ -654,7 +420,7 @@ const AdminDashboard: React.FC = () => {
    const [orderSearchQuery, setOrderSearchQuery] = useState('');
    const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | Order['status']>('all');
 
-   const [variantsInput, setVariantsInput] = useState('');
+
    const {
       siteConfig, products, mixtapes, bookings, sessionTypes, studioEquipment, shippingZones, subscribers, poolTracks, loadMorePoolTracks, genres, subscriptions, orders, newsletterCampaigns,
       subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users,
@@ -1202,17 +968,55 @@ const AdminDashboard: React.FC = () => {
       try {
          const res = await fetch(`${WORKER_URL}/api/admin/r2-sync`, {
             method: 'POST',
-            body: JSON.stringify({ action: 'importFromR2' })
+            body: JSON.stringify({ action: 'importFromR2', collection: 'products' })
          });
          const data = await res.json();
          if (data.success) {
             toast.success(data.message);
-            if (typeof refreshProducts === 'function') refreshProducts();
+            if (typeof dataContext.refreshProducts === 'function') dataContext.refreshProducts();
          } else {
             throw new Error(data.error || 'Failed to sync products');
          }
       } catch (e: any) {
          toast.error("Sync Error: " + e.message);
+      } finally {
+         setIsSyncing(false);
+         setSyncMessage('');
+      }
+   };
+
+   const handleExportToR2 = async () => {
+      if (!confirm("⚠️ This will overwrite the R2 storage with current D1 database products. Continue?")) return;
+      setIsSyncing(true);
+      setSyncMessage('Exporting products to R2 storage...');
+      try {
+         const success = await saveToR2('products', dataContext.products);
+         if (success) {
+            toast.success("Products exported to R2 successfully!");
+         } else {
+            throw new Error('Failed to export products');
+         }
+      } catch (e: any) {
+         toast.error("Export Error: " + e.message);
+      } finally {
+         setIsSyncing(false);
+         setSyncMessage('');
+      }
+   };
+
+   const handleExportMixtapesToR2 = async () => {
+      if (!confirm("⚠️ This will overwrite the R2 storage with current D1 database mixtapes. Continue?")) return;
+      setIsSyncing(true);
+      setSyncMessage('Exporting mixtapes to R2 storage...');
+      try {
+         const success = await saveToR2('mixtapes', dataContext.mixtapes);
+         if (success) {
+            toast.success("Mixtapes exported to R2 successfully!");
+         } else {
+            throw new Error('Failed to export mixtapes');
+         }
+      } catch (e: any) {
+         toast.error("Export Error: " + e.message);
       } finally {
          setIsSyncing(false);
          setSyncMessage('');
@@ -1263,7 +1067,7 @@ const AdminDashboard: React.FC = () => {
       }));
    };
 
-   const updateProductField = (field: keyof Product, value: any) => setNewProduct(prev => ({ ...prev, [field]: value }));
+
 
    const handleDeleteProduct = async (e: React.MouseEvent, product: Product) => {
       e.stopPropagation();
@@ -1369,52 +1173,48 @@ const AdminDashboard: React.FC = () => {
    const openAddProduct = () => {
       setIsEditing(false);
       setNewProduct(INITIAL_PRODUCT_STATE);
-      setVariantsInput('');
-      setProductFormTab('type');
+
       setActiveModal('addProduct');
    };
 
    const openEditProduct = (product: Product) => {
       setIsEditing(true);
       setNewProduct(product);
-      setVariantsInput((product.variants || []).join(', '));
-      setProductFormTab('basic');
+
       setActiveModal('addProduct');
    };
 
-   const handleSaveProduct = async () => {
+   const handleSaveProduct = async (productData: Product) => {
       if (isSavingProduct) return;
       setIsSavingProduct(true);
       try {
          const now = new Date().toISOString();
 
          // Auto-generate SEO fields if empty
-         const meta_title = newProduct.meta_title || newProduct.name;
-         const meta_description = newProduct.meta_description || (newProduct.description?.substring(0, 160) || '');
-         const meta_keywords = newProduct.meta_keywords || `${newProduct.name}, ${newProduct.category}, DJ Flowerz`;
+         const meta_title = productData.meta_title || productData.name;
+         const meta_description = productData.meta_description || (productData.description?.substring(0, 160) || '');
+         const meta_keywords = productData.meta_keywords || `${productData.name}, ${productData.category}, DJ Flowerz`;
 
          const productToSave: Product = {
-            ...newProduct,
+            ...productData,
             meta_title,
             meta_description,
             meta_keywords,
-            variantGroups: newProduct.variantGroups || [],
-            whatsappEnabled: true,
-            hasVariants: (newProduct.variantGroups || []).some(g => (g.variants || []).length > 0),
+            variantGroups: productData.variantGroups || [],
+            whatsappEnabled: productData.whatsappEnabled !== false,
+            hasVariants: (productData.variantGroups || []).some(g => (g.variants || []).length > 0),
             updatedAt: now
          };
 
          if (isEditing) {
             console.log("Saving Edited Product Payload:", productToSave);
-            await updateProduct(newProduct.id, productToSave);
+            await updateProduct(productToSave.id, productToSave);
          } else {
             const finalProduct = {
                ...productToSave,
-               id: `p${Date.now()}`,
-               slug: newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+               id: productToSave.id || `p${Date.now()}`,
+               slug: productToSave.slug || productToSave.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
                createdAt: now
-               // image_url is managed by updateProduct/addProduct implementation internally or db triggers if needed,
-               // but TS complains about it on the frontend Product interface. We'll leave it as `image` in `productToSave`.
             };
             console.log("Saving New Product Payload:", finalProduct);
             await addProduct(finalProduct);
@@ -2195,11 +1995,6 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'newsletters' && (
-                  <div className="animate-fade-in-up space-y-8">
-                     <p className="text-gray-400">Loading Newsletter Manager...</p>
-                  </div>
-               )}
                {activeTab === 'interactions' && <InteractionsTab />}
                {activeTab === 'analytics' && <AnalyticsTab />}
 
@@ -3116,6 +2911,81 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'store' && (
                   <div className="animate-fade-in-up space-y-8">
+                     {/* ---- Store Hero Settings Editor ---- */}
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 p-8 shadow-xl">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                           <div>
+                              <h4 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                                 <Zap size={18} className="text-brand-cyan" /> Store Hero Banner
+                              </h4>
+                              <p className="text-xs text-gray-500 mt-1 font-medium">Edit the promo banner text, code, and countdown timer on the store page.</p>
+                           </div>
+                           <button
+                              onClick={saveHeroSettings}
+                              disabled={heroSaving}
+                              className="px-6 py-3 bg-brand-cyan text-black text-[10px] font-black uppercase tracking-widest rounded-2xl hover:opacity-90 transition disabled:opacity-50 shrink-0 flex items-center gap-2"
+                           >
+                              {heroSaving ? 'Saving…' : '💾 Save Settings'}
+                           </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Label (cyan badge text)</label>
+                              <input
+                                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium focus:border-brand-cyan/50 outline-none"
+                                 value={storeHeroSettings.heroLabel}
+                                 onChange={e => setStoreHeroSettings(s => ({ ...s, heroLabel: e.target.value }))}
+                               />
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Headline</label>
+                              <input
+                                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium focus:border-brand-cyan/50 outline-none"
+                                 value={storeHeroSettings.heroTitle}
+                                 onChange={e => setStoreHeroSettings(s => ({ ...s, heroTitle: e.target.value }))}
+                               />
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Promo Code</label>
+                              <input
+                                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono font-black focus:border-brand-cyan/50 outline-none uppercase"
+                                 value={storeHeroSettings.promoCode}
+                                 onChange={e => setStoreHeroSettings(s => ({ ...s, promoCode: e.target.value.toUpperCase() }))}
+                               />
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Show Promo Code</label>
+                              <button
+                                 onClick={() => setStoreHeroSettings(s => ({ ...s, promoCodeEnabled: !s.promoCodeEnabled }))}
+                                 className={`w-full py-3 rounded-xl border text-xs font-black uppercase tracking-widest transition ${
+                                    storeHeroSettings.promoCodeEnabled
+                                    ? 'bg-brand-cyan/10 border-brand-cyan/30 text-brand-cyan'
+                                    : 'bg-white/5 border-white/10 text-gray-500'
+                                 }`}
+                              >
+                                 {storeHeroSettings.promoCodeEnabled ? '✓ Enabled' : '✗ Hidden'}
+                              </button>
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Countdown (H / M / S)</label>
+                              <div className="flex gap-2">
+                                 {(['countdownHours', 'countdownMinutes', 'countdownSeconds'] as const).map(field => (
+                                    <input
+                                       key={field}
+                                       type="number"
+                                       min={0}
+                                       max={field === 'countdownHours' ? 99 : 59}
+                                       className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white text-sm font-black focus:border-brand-cyan/50 outline-none w-full text-center"
+                                       value={storeHeroSettings[field]}
+                                       onChange={e => setStoreHeroSettings(s => ({ ...s, [field]: Number(e.target.value) }))}
+                                    />
+                                 ))}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
                            <h3 className="text-3xl font-black text-white tracking-tight">Merchandise Catalog</h3>
@@ -5104,14 +4974,31 @@ const AdminDashboard: React.FC = () => {
                               </div>
                               <p className="text-sm text-gray-500 font-medium leading-relaxed">Restore all 53+ platform products from Cloudflare R2 backup. Use this if products are missing in the storefront or admin list.</p>
 
-                              <button
-                                 onClick={handleR2ProductSync}
-                                 disabled={isSyncing}
-                                 className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-emerald-500/10 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 disabled:opacity-50"
-                              >
-                                 {isSyncing ? <RefreshCw className="animate-spin" size={18} /> : <CloudUpload size={18} />}
-                                 {isSyncing ? 'Synchronizing...' : 'Sync Products from R2'}
-                              </button>
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                       onClick={handleR2ProductSync}
+                                       disabled={isSyncing}
+                                       className="py-4 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                       {isSyncing ? <RefreshCw className="animate-spin" size={16} /> : <CloudUpload size={16} />}
+                                       Sync from R2
+                                    </button>
+                                    <button
+                                       onClick={handleExportToR2}
+                                       disabled={isSyncing}
+                                       className="py-4 bg-[#15151A] hover:bg-emerald-500 hover:text-white text-emerald-500 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                       {isSyncing ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
+                                       Export to R2
+                                    </button>
+                                 </div>
+                                 <button
+                                    onClick={handleExportMixtapesToR2}
+                                    disabled={isSyncing}
+                                    className="w-full py-3 bg-brand-purple/5 hover:bg-brand-purple/10 text-brand-purple text-[9px] font-black uppercase tracking-widest rounded-xl border border-brand-purple/10 transition-all flex items-center justify-center gap-2"
+                                 >
+                                    <Music size={14} /> Export Mixtapes to R2
+                                 </button>
                            </div>
                         </div>
 
@@ -5340,518 +5227,13 @@ const AdminDashboard: React.FC = () => {
                )}
             </Modal>
 
-            <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="lg">
-               <div className="space-y-8">
-                  {/* Step Indicators */}
-                  <div className="flex bg-black p-1.5 rounded-2xl border border-white/5 overflow-x-auto scrollbar-hide">
-                     <button onClick={() => setProductFormTab('type')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'type' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <Box size={14} /> Type
-                     </button>
-                     <button onClick={() => setProductFormTab('basic')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'basic' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <FileText size={14} /> Basic
-                     </button>
-                     <button onClick={() => setProductFormTab('variants')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'variants' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <List size={14} /> Variants
-                     </button>
-                     {newProduct.type === 'physical' && (
-                        <button onClick={() => setProductFormTab('shipping')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'shipping' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                           <Truck size={14} /> Shipping
-                        </button>
-                     )}
-                     {newProduct.type === 'digital' && (
-                        <button onClick={() => setProductFormTab('digital')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'digital' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                           <Download size={14} /> Digital
-                        </button>
-                     )}
-                     <button onClick={() => setProductFormTab('images')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'images' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <ImageIcon size={14} /> Images
-                     </button>
-                     <button onClick={() => setProductFormTab('marketing')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'marketing' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <Zap size={14} /> Marketing
-                     </button>
-                     <button onClick={() => setProductFormTab('advanced')} className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${productFormTab === 'advanced' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
-                        <Settings size={14} /> Advanced
-                     </button>
-                  </div>
-
-                  {productFormTab === 'type' && (
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div
-                           onClick={() => updateProductField('type', 'physical')}
-                           className={`p-8 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center gap-4 text-center group ${newProduct.type === 'physical' ? 'bg-brand-purple/10 border-brand-purple shadow-xl shadow-brand-purple/10' : 'bg-black/20 border-white/5 hover:border-white/10'}`}
-                        >
-                           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-2 transition-transform group-hover:scale-110 ${newProduct.type === 'physical' ? 'bg-brand-purple text-white' : 'bg-white/5 text-gray-400'}`}>
-                              <Package size={32} />
-                           </div>
-                           <h3 className={`text-lg font-bold ${newProduct.type === 'physical' ? 'text-white' : 'text-gray-400'}`}>Physical Product</h3>
-                           <p className="text-sm text-gray-500 leading-relaxed max-w-[200px]">Perfect for apparel, hardware, equipment, and physical merchandise.</p>
-                           <div className={`mt-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${newProduct.type === 'physical' ? 'border-brand-purple bg-brand-purple text-white' : 'border-white/10'}`}>
-                              {newProduct.type === 'physical' && <Check size={14} />}
-                           </div>
-                        </div>
-                        <div
-                           onClick={() => updateProductField('type', 'digital')}
-                           className={`p-8 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center gap-4 text-center group ${newProduct.type === 'digital' ? 'bg-brand-cyan/10 border-brand-cyan shadow-xl shadow-brand-cyan/10' : 'bg-black/20 border-white/5 hover:border-white/10'}`}
-                        >
-                           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-2 transition-transform group-hover:scale-110 ${newProduct.type === 'digital' ? 'bg-brand-cyan text-white' : 'bg-white/5 text-gray-400'}`}>
-                              <Download size={32} />
-                           </div>
-                           <h3 className={`text-lg font-bold ${newProduct.type === 'digital' ? 'text-white' : 'text-gray-400'}`}>Digital Product</h3>
-                           <p className="text-sm text-gray-500 leading-relaxed max-w-[200px]">Best for music, samples, software downloads, and virtual services.</p>
-                           <div className={`mt-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${newProduct.type === 'digital' ? 'border-brand-cyan bg-brand-cyan text-white' : 'border-white/10'}`}>
-                              {newProduct.type === 'digital' && <Check size={14} />}
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {productFormTab === 'basic' && (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <InputGroup label="Product Name" value={newProduct.name} onChange={v => updateProductField('name', v)} required placeholder="Enter a catchy name..." />
-                           <InputGroup label="Brand" value={newProduct.brand || ''} onChange={v => updateProductField('brand', v)} placeholder="e.g. Pioneer DJ, Yamaha, Apple..." />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black p-6 rounded-3xl border border-white/5">
-                           <InputGroup label="Base Price (KES)" type="number" value={newProduct.price} onChange={v => updateProductField('price', Number(v))} required />
-                           <InputGroup label="Discount Price" type="number" value={newProduct.discountPrice || 0} onChange={v => updateProductField('discountPrice', Number(v))} helperText="Leave 0 for no discount" />
-                           <InputGroup label="Compare At Price" type="number" value={newProduct.compareAtPrice || 0} onChange={v => updateProductField('compareAtPrice', Number(v))} />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                           <InputGroup label="Release Date" type="date" value={newProduct.releaseDate || ''} onChange={v => updateProductField('releaseDate', v)} />
-                           <InputGroup
-                              label="Category"
-                              options={[
-                                 'All', 'Audio Equipment', 'DJ Equipment', 'Laptops', 'Mobile Phones',
-                                 'Mobile Accessories', 'Software', 'Samples', 'Apparel', 'Accessories', 'Other'
-                              ]}
-                              value={newProduct.category}
-                              onChange={v => updateProductField('category', v)}
-                           />
-                           <InputGroup label="Status" options={['draft', 'published', 'hidden']} value={newProduct.status} onChange={v => updateProductField('status', v)} />
-                           <div className="flex items-end pb-4 col-span-1 md:col-span-3">
-                              <InputGroup label="Standard Logistics" type="checkbox" checked={newProduct.requiresShipping} onChange={v => updateProductField('requiresShipping', v)} helperText="Check this if the item needs physical delivery." />
-                           </div>
-                        </div>
-
-                        {newProduct.category === 'Software' && (
-                           <div className="bg-brand-purple/5 p-6 rounded-3xl border border-brand-purple/10 flex items-center gap-6">
-                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
-                                 <Monitor size={24} />
-                              </div>
-                              <div className="flex-1">
-                                 <InputGroup
-                                    label="Operating System Support"
-                                    options={['macOS', 'Windows', 'Android', 'iOS', 'Linux', 'None']}
-                                    value={newProduct.os || 'None'}
-                                    onChange={v => updateProductField('os', v)}
-                                 />
-                              </div>
-                           </div>
-                        )}
-
-                        {newProduct.type === 'physical' && (
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <InputGroup label="Condition" options={['new', 'refurbished']} value={newProduct.condition || 'new'} onChange={v => updateProductField('condition', v)} />
-                              <InputGroup label="Stock Quantity" type="number" value={newProduct.stock} onChange={v => updateProductField('stock', Number(v))} />
-                           </div>
-                        )}
-
-                        <div className="space-y-4">
-                           <div className="flex justify-between items-center mb-4">
-                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">Product Details / Rich Description</label>
-                           </div>
-                           <div className="quill-container bg-[#050507] border-2 border-white/5 rounded-2xl overflow-hidden focus-within:border-brand-purple/50 transition-all">
-                              <ReactQuill
-                                 theme="snow"
-                                 value={newProduct.description || ''}
-                                 onChange={(content) => updateProductField('description', content)}
-                                 placeholder="Inject product description logic / specs / delivery details..."
-                                 modules={{
-                                    toolbar: [
-                                       [{ 'header': [1, 2, 3, false] }],
-                                       ['bold', 'italic', 'underline', 'strike'],
-                                       [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                                       ['link', 'clean']
-                                    ]
-                                 }}
-                              />
-                           </div>
-                           <style>{`
-                               .quill-container .ql-toolbar {
-                                  background: rgba(255,255,255,0.02);
-                                  border: none !important;
-                                  border-bottom: 2px solid rgba(255,255,255,0.05) !important;
-                                  padding: 12px 20px;
-                                }
-                               .quill-container .ql-container {
-                                  border: none !important;
-                                  min-height: 250px;
-                                  font-family: inherit;
-                                  font-size: 0.95rem;
-                               }
-                               .quill-container .ql-editor {
-                                  padding: 24px;
-                                  color: #d1d5db;
-                                  line-height: 1.6;
-                               }
-                               .quill-container .ql-editor.ql-blank::before {
-                                  color: #374151;
-                                  font-style: normal;
-                                  left: 24px;
-                               }
-                               .quill-container .ql-snow.ql-toolbar button {
-                                  color: #9ca3af;
-                               }
-                               .quill-container .ql-snow.ql-toolbar button:hover,
-                               .quill-container .ql-snow.ql-toolbar button.ql-active {
-                                  color: #a855f7;
-                               }
-                               .quill-container .ql-snow.ql-toolbar button.ql-active .ql-stroke {
-                                  stroke: #a855f7;
-                               }
-                               .quill-container .ql-snow.ql-toolbar .ql-stroke {
-                                  stroke: #9ca3af;
-                                }
-                               .quill-container .ql-snow.ql-toolbar .ql-fill {
-                                  fill: #9ca3af;
-                               }
-                            `}</style>
-                        </div>
-                     </div>
-                  )}
-
-                  {productFormTab === 'variants' && (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="flex justify-between items-center">
-                           <div>
-                              <h4 className="font-bold text-white tracking-tight">Product Variants</h4>
-                              <p className="text-xs text-gray-500">Configure size, color, or other options</p>
-                           </div>
-                           <button
-                              type="button"
-                              onClick={() => {
-                                 const next = [...(newProduct.variantGroups || [])];
-                                 next.push({ name: 'New Group', variants: [] });
-                                 updateProductField('variantGroups', next);
-                              }}
-                              className="px-4 py-2 bg-brand-purple/10 text-brand-purple rounded-xl text-xs font-bold hover:bg-brand-purple/20 transition-all flex items-center gap-2 border border-brand-purple/20"
-                           >
-                              <Plus size={14} /> Add Group
-                           </button>
-                        </div>
-
-                        {(newProduct.variantGroups || []).length === 0 && (
-                           <div className="text-center py-12 bg-black rounded-3xl border-2 border-dashed border-white/5">
-                              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-600 mx-auto mb-3">
-                                 <List size={24} />
-                              </div>
-                              <p className="text-gray-500 text-sm font-medium">No variants defined yet.</p>
-                           </div>
-                        )}
-
-                        {(newProduct.variantGroups || []).map((group, gIdx) => (
-                           <div key={gIdx} className="bg-black p-6 rounded-3xl border border-white/5 space-y-4">
-                              <div className="flex justify-between items-start gap-4">
-                                 <div className="flex-1">
-                                    <InputGroup
-                                       label="Group Name (e.g. Size)"
-                                       value={group.name}
-                                       onChange={v => {
-                                          const next = [...(newProduct.variantGroups || [])];
-                                          next[gIdx].name = v;
-                                          updateProductField('variantGroups', next);
-                                       }}
-                                    />
-                                 </div>
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const next = (newProduct.variantGroups || []).filter((_, i) => i !== gIdx);
-                                       updateProductField('variantGroups', next);
-                                    }}
-                                    className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-all mt-7"
-                                 >
-                                    <Trash2 size={20} />
-                                 </button>
-                              </div>
-
-                              <div className="space-y-3">
-                                 <div className="flex justify-between items-center px-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Variant Options</label>
-                                    <button
-                                       type="button"
-                                       onClick={() => {
-                                          const next = [...(newProduct.variantGroups || [])];
-                                          next[gIdx].variants.push({
-                                             id: `v${Date.now()}`,
-                                             name: '',
-                                             price: newProduct.price,
-                                             discountPrice: newProduct.discountPrice || 0,
-                                             compareAtPrice: newProduct.compareAtPrice || 0,
-                                             stock: newProduct.stock || 0
-                                          });
-                                          updateProductField('variantGroups', next);
-                                       }}
-                                       className="text-brand-purple text-[10px] font-bold hover:underline"
-                                    >
-                                       + Add Option
-                                    </button>
-                                 </div>
-
-                                 <div className="space-y-2">
-                                    {group.variants.map((variant, vIdx) => (
-                                       <div key={vIdx} className="grid grid-cols-1 shadow-sm md:grid-cols-12 gap-3 items-center bg-black p-4 rounded-2xl border border-white/5">
-                                          <div className="md:col-span-2">
-                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Name</label>
-                                             <input
-                                                type="text"
-                                                placeholder="Name"
-                                                value={variant.name}
-                                                onChange={v => {
-                                                   const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].name = v.target.value;
-                                                   updateProductField('variantGroups', next);
-                                                }}
-                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
-                                             />
-                                          </div>
-                                          <div className="md:col-span-2">
-                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Color/Hex</label>
-                                             <input
-                                                type="text"
-                                                placeholder="Hex"
-                                                value={variant.color || ''}
-                                                onChange={v => {
-                                                   const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].color = v.target.value;
-                                                   updateProductField('variantGroups', next);
-                                                }}
-                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
-                                             />
-                                          </div>
-                                          <div className="md:col-span-2">
-                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Price</label>
-                                             <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl px-2">
-                                                <input
-                                                   type="number"
-                                                   value={variant.price}
-                                                   onChange={v => {
-                                                      const next = [...(newProduct.variantGroups || [])];
-                                                      next[gIdx].variants[vIdx].price = Number(v.target.value);
-                                                      updateProductField('variantGroups', next);
-                                                   }}
-                                                   className="w-full bg-transparent p-2 text-xs text-white outline-none"
-                                                />
-                                             </div>
-                                          </div>
-                                          <div className="md:col-span-2">
-                                             <label className="block text-[8px] font-bold text-cyan-500/80 uppercase mb-1">Disc. Price</label>
-                                             <div className="flex items-center gap-1 bg-black/40 border border-cyan-500/20 rounded-xl px-2">
-                                                <input
-                                                   type="number"
-                                                   placeholder="Discount"
-                                                   value={variant.discountPrice || 0}
-                                                   onChange={v => {
-                                                      const next = [...(newProduct.variantGroups || [])];
-                                                      next[gIdx].variants[vIdx].discountPrice = Number(v.target.value);
-                                                      updateProductField('variantGroups', next);
-                                                   }}
-                                                   className="w-full bg-transparent p-2 text-xs text-brand-cyan outline-none"
-                                                />
-                                             </div>
-                                          </div>
-                                          <div className="md:col-span-2">
-                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Compare At</label>
-                                             <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl px-2">
-                                                <input
-                                                   type="number"
-                                                   placeholder="Old Price"
-                                                   value={variant.compareAtPrice || 0}
-                                                   onChange={v => {
-                                                      const next = [...(newProduct.variantGroups || [])];
-                                                      next[gIdx].variants[vIdx].compareAtPrice = Number(v.target.value);
-                                                      updateProductField('variantGroups', next);
-                                                   }}
-                                                   className="w-full bg-transparent p-2 text-xs text-gray-500 outline-none"
-                                                />
-                                             </div>
-                                          </div>
-                                          <div className="md:col-span-1">
-                                             <label className="block text-[8px] font-bold text-gray-500 uppercase mb-1">Stock</label>
-                                             <input
-                                                type="number"
-                                                placeholder="Stock"
-                                                value={variant.stock}
-                                                onChange={v => {
-                                                   const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants[vIdx].stock = Number(v.target.value);
-                                                   updateProductField('variantGroups', next);
-                                                }}
-                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-brand-purple"
-                                             />
-                                          </div>
-                                          <div className="md:col-span-1 flex justify-center mt-4 md:mt-0">
-                                             <button
-                                                type="button"
-                                                onClick={() => {
-                                                   const next = [...(newProduct.variantGroups || [])];
-                                                   next[gIdx].variants = next[gIdx].variants.filter((_, i) => i !== vIdx);
-                                                   updateProductField('variantGroups', next);
-                                                }}
-                                                className="text-gray-600 hover:text-red-500 transition-colors p-2"
-                                             >
-                                                <X size={16} />
-                                             </button>
-                                          </div>
-                                       </div>
-                                    ))}
-                                 </div>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-                  )}
-
-                  {productFormTab === 'digital' && (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="bg-brand-cyan/5 p-8 rounded-3xl border border-brand-cyan/10 space-y-6">
-                           <div className="flex items-center gap-4 mb-2">
-                              <div className="w-10 h-10 rounded-xl bg-brand-cyan/20 flex items-center justify-center text-brand-cyan">
-                                 <Download size={20} />
-                              </div>
-                              <h4 className="font-bold text-white tracking-tight">Delivery Configuration</h4>
-                           </div>
-                           <FileUpload
-                              label="File Download URL"
-                              value={newProduct.digitalFileUrl}
-                              onChange={v => updateProductField('digitalFileUrl', v)}
-                              placeholder="S3/R2 direct link or external URL"
-                           />
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <InputGroup label="Access Password" value={newProduct.downloadPassword} onChange={v => updateProductField('downloadPassword', v)} placeholder="Optional" />
-                              <InputGroup label="Visibility" options={['public', 'members_only']} value={newProduct.visibility} onChange={v => updateProductField('visibility', v)} />
-                           </div>
-                           <InputGroup
-                              label="Free Download"
-                              type="checkbox"
-                              checked={newProduct.isFree || false}
-                              onChange={v => updateProductField('isFree', v)}
-                              helperText="The 'Buy' button will be replaced with 'Free Download'"
-                           />
-                        </div>
-                     </div>
-                  )}
-
-                  {productFormTab === 'shipping' && (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0B0B0F] p-8 rounded-3xl border border-white/5">
-                           <InputGroup label="Weight (kg)" value={newProduct.weight} onChange={v => updateProductField('weight', v)} placeholder="e.g. 0.5" />
-                           <InputGroup label="Dimensions" value={newProduct.dimensions} onChange={v => updateProductField('dimensions', v)} placeholder="e.g. 21x15x5 cm" />
-                           <InputGroup label="SKU / Model #" value={newProduct.sku} onChange={v => updateProductField('sku', v)} placeholder="Stock keeping unit" />
-                           <div className="flex items-center gap-3 p-4 bg-brand-purple/5 rounded-2xl border border-brand-purple/10">
-                              <Truck size={18} className="text-brand-purple" />
-                              <div>
-                                 <p className="text-[10px] font-bold text-brand-purple uppercase tracking-widest mb-0.5">Physical Product Setup</p>
-                                 <p className="text-xs text-brand-purple/70">Enable 'Standard Logistics' in the Basic tab to activate shipping options for this item.</p>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {productFormTab === 'images' && (
-                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                           <div className="md:col-span-1">
-                              <h4 className="font-bold text-white mb-2 tracking-tight">Main Cover</h4>
-                              <p className="text-xs text-gray-500 mb-6">This image will be used in lists and search results.</p>
-                              <ImageUpload label="" value={newProduct.image} onChange={v => updateProductField('image', v)} required />
-                           </div>
-                           <div className="md:col-span-2">
-                              <h4 className="font-bold text-white mb-2 tracking-tight">Gallery Preview</h4>
-                              <p className="text-xs text-gray-500 mb-6">Add multiple angles or features (max 8 images).</p>
-                              <MultiImageUpload label="" values={newProduct.images || []} onChange={v => updateProductField('images', v)} />
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {productFormTab === 'marketing' && (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="bg-black/20 p-8 rounded-[3rem] border border-white/5 space-y-8">
-                           <div className="flex items-center gap-4 mb-2">
-                              <div className="w-12 h-12 rounded-2xl bg-brand-purple/20 flex items-center justify-center text-brand-purple">
-                                 <Zap size={24} />
-                              </div>
-                              <div>
-                                 <h4 className="text-xl font-black text-white tracking-tight">Marketing & Visibility</h4>
-                                 <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Control where this product appears</p>
-                              </div>
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <InputGroup 
-                                 label="Hot & New" 
-                                 type="checkbox" 
-                                 checked={newProduct.isHot} 
-                                 onChange={v => updateProductField('isHot', v)} 
-                                 placeholder="Show in 'Hot Items' section" 
-                              />
-                              <InputGroup 
-                                 label="Featured Product" 
-                                 type="checkbox" 
-                                 checked={newProduct.isFeatured} 
-                                 onChange={v => updateProductField('isFeatured', v)} 
-                                 placeholder="Feature on Homepage Hero" 
-                              />
-                              <InputGroup 
-                                 label="Best Seller" 
-                                 type="checkbox" 
-                                 checked={newProduct.isBestSeller} 
-                                 onChange={v => updateProductField('isBestSeller', v)} 
-                                 placeholder="Add 'Best Seller' badge" 
-                              />
-                              <InputGroup 
-                                 label="Trending" 
-                                 type="checkbox" 
-                                 checked={newProduct.isTrending} 
-                                 onChange={v => updateProductField('isTrending', v)} 
-                                 placeholder="Show in Trending section" 
-                              />
-                              <InputGroup 
-                                 label="Special Offer" 
-                                 type="checkbox" 
-                                 checked={newProduct.isSpecialOffer} 
-                                 onChange={v => updateProductField('isSpecialOffer', v)} 
-                                 placeholder="Show in Special Offers" 
-                              />
-                              <InputGroup 
-                                 label="Offer Expiry" 
-                                 type="date" 
-                                 value={newProduct.offerExpiry || ''} 
-                                 onChange={v => updateProductField('offerExpiry', v)} 
-                                 helperText="When the special offer badge expires"
-                              />
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {/* Modal Footer */}
-                  <div className="flex items-center justify-between pt-6 border-t border-white/5 sticky bottom-0 bg-black z-10 -m-8 mt-2 p-8 rounded-b-3xl">
-                     <button onClick={() => setActiveModal(null)} className="px-6 py-3.5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
-                     <button
-                        onClick={handleSaveProduct}
-                        disabled={isSavingProduct}
-                        className="bg-brand-purple hover:bg-purple-600 px-10 py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-brand-purple/20 transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
-                     >
-                        {isSavingProduct ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
-                        {isSavingProduct ? "Processing..." : "Save Product"}
-                     </button>
-                  </div>
-               </div>
+            <Modal isOpen={activeModal === 'addProduct'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Product" : "Add New Product"} size="xl">
+               <AddProductForm
+                  initialData={isEditing ? newProduct : null}
+                  onSave={handleSaveProduct}
+                  onCancel={() => setActiveModal(null)}
+                  isSaving={isSavingProduct}
+               />
             </Modal>
 
             <Modal isOpen={activeModal === 'addMixtape'} onClose={() => setActiveModal(null)} title={isEditing ? "Edit Mixtape" : "Upload New Mixtape"} size="lg">

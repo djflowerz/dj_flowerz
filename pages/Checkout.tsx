@@ -95,6 +95,9 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedDownloads, setCompletedDownloads] = useState<DownloadItem[] | null>(null);
   const [completedEmail, setCompletedEmail] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [activeCoupon, setActiveCoupon] = useState<any>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   // We initialize Paystack with the public key at the top level to ensure it's valid
   const [currentPaystackConfig, setCurrentPaystackConfig] = useState<any>({
@@ -171,7 +174,42 @@ export default function Checkout() {
   
   // Ensure we sum up all prices correctly, handling potentially missing prices on sub items
   const subtotal = useMemo(() => items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0), [items]);
-  const finalTotal = subtotal + shippingCost;
+
+  const discountAmount = useMemo(() => {
+    if (!activeCoupon) return 0;
+    if (activeCoupon.discount_type === 'percentage') {
+      return (subtotal * activeCoupon.discount_value) / 100;
+    } else {
+      return activeCoupon.discount_value;
+    }
+  }, [activeCoupon, subtotal]);
+
+  const finalTotal = Math.max(0, subtotal - discountAmount + shippingCost);
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setIsValidatingCoupon(true);
+    try {
+      const resp = await fetch(`${STORAGE_WORKER_URL}/api/coupons/validate?code=${couponCode.trim().toUpperCase()}`);
+      const data = await resp.json();
+      if (data.success) {
+        if (data.min_spend && subtotal < data.min_spend) {
+          toast.error(`Minimum spend for this coupon is KES ${data.min_spend.toLocaleString()}`);
+          return;
+        }
+        setActiveCoupon(data);
+        toast.success(`Coupon "${data.code}" applied!`);
+      } else {
+        toast.error(data.error || 'Invalid coupon code');
+        setActiveCoupon(null);
+      }
+    } catch (e) {
+      toast.error('Failed to validate coupon');
+      setActiveCoupon(null);
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
 
   const handleZoneChange = (zoneId: string) => {
     const zone = INITIAL_SHIPPING_ZONES.find(z => z.id === zoneId);
@@ -219,6 +257,8 @@ export default function Checkout() {
         order_type: isDigitalOnly ? 'digital' : (hasDigital ? 'mixed' : 'physical'),
         payment_method: 'Paystack',
         total_amount: finalTotal,
+        coupon_code: activeCoupon?.code || null,
+        discount_amount: discountAmount,
         order_notes: data.orderNotes || '',
         status: 'processing',
         created_at: new Date().toISOString(),
@@ -560,6 +600,41 @@ export default function Checkout() {
                   </div>
                 ))}
               </div>
+ 
+              {/* Coupon Code Section */}
+              <div className="space-y-4 pt-6 border-t border-white/5">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Promo Code</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    placeholder="ENTER CODE"
+                    className="flex-1 bg-[#0B0B0F] border border-white/10 rounded-2xl py-3 px-6 focus:ring-2 focus:ring-brand-purple focus:border-transparent outline-none transition-all placeholder:text-gray-700 font-bold text-white text-xs"
+                    disabled={activeCoupon || isValidatingCoupon}
+                  />
+                  <button
+                    type="button"
+                    onClick={activeCoupon ? () => { setActiveCoupon(null); setCouponCode(''); } : applyCoupon}
+                    disabled={isValidatingCoupon || (!couponCode && !activeCoupon)}
+                    className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${
+                      activeCoupon 
+                        ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' 
+                        : 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                    } disabled:opacity-50`}
+                  >
+                    {isValidatingCoupon ? '...' : (activeCoupon ? 'Remove' : 'Apply')}
+                  </button>
+                </div>
+                {activeCoupon && (
+                  <div className="flex items-center gap-2 px-2 text-green-500 animate-in fade-in slide-in-from-top-1">
+                    <Check size={12} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      {activeCoupon.code} applied (-KES {discountAmount.toLocaleString()})
+                    </span>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-3 pt-6 border-t border-white/5">
                 <div className="flex justify-between items-center px-2">
@@ -572,6 +647,12 @@ export default function Checkout() {
                     {isDigitalOnly ? 'FREE' : `KES ${shippingCost.toLocaleString()}`}
                   </span>
                 </div>
+                {activeCoupon && (
+                  <div className="flex justify-between items-center px-2">
+                    <span className="text-xs font-black text-green-600 uppercase tracking-widest">Discount</span>
+                    <span className="text-sm font-bold text-green-500">- KES {discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center px-4 py-6 bg-brand-purple/10 rounded-[2rem] border border-brand-purple/20 shadow-inner">
                   <span className="text-sm font-black text-white uppercase tracking-widest leading-none">Total Payment</span>
                   <span className="text-2xl font-black text-white tracking-tighter leading-none">KES {finalTotal.toLocaleString()}</span>

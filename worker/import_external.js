@@ -21,6 +21,9 @@ async function main() {
     }
     const safeTrackId = 'ext_' + Math.abs(trackId);
 
+    // Some URLs need encoding because of spaces
+    const r2Url = `https://r2.vicknickvideopool.com/${item.key.split('/').map(encodeURIComponent).join('/')}`;
+
     if (!tracksMap.has(safeTrackId)) {
         let artist = 'Unknown';
         let title = item.baseTitle;
@@ -36,6 +39,8 @@ async function main() {
             artist: artist.replace(/'/g, "''"),
             genre: (item.month || 'General').replace(/'/g, "''"),
             collection_hub: (item.year || 'Collection').replace(/'/g, "''"),
+            audio_url: r2Url.replace(/'/g, "''"),
+            download_url: r2Url.replace(/'/g, "''"),
             created_at: item.uploaded || new Date().toISOString()
         });
     }
@@ -47,9 +52,6 @@ async function main() {
     }
     const safeVersionId = 'ver_' + Math.abs(versionId);
 
-    // Some URLs need encoding because of spaces
-    const r2Url = `https://r2.vicknickvideopool.com/${item.key.split('/').map(encodeURIComponent).join('/')}`;
-    
     versionsData.push({
         id: safeVersionId,
         track_id: safeTrackId,
@@ -66,12 +68,12 @@ async function main() {
   
   // Prepare Tracks SQL
   const trackValues = Array.from(tracksMap.values()).map(t => 
-    `('${t.id}', '${t.title}', '${t.artist}', '${t.genre}', '${t.collection_hub}', '${t.created_at}', '${t.created_at}')`
+    `('${t.id}', '${t.title}', '${t.artist}', '${t.genre}', '${t.collection_hub}', '${t.audio_url}', '${t.download_url}', '${t.created_at}', '${t.created_at}')`
   );
 
   for (let i = 0; i < trackValues.length; i += batchSize) {
       const chunk = trackValues.slice(i, i + batchSize);
-      sqlLines.push(`INSERT OR IGNORE INTO tracks (id, title, artist, genre, collection_hub, created_at, updated_at) VALUES ${chunk.join(', ')};`);
+      sqlLines.push(`INSERT OR IGNORE INTO tracks (id, title, artist, genre, collection_hub, audio_url, download_url, created_at, updated_at) VALUES ${chunk.join(', ')};`);
   }
 
   // Prepare Versions SQL

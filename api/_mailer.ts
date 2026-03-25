@@ -9,10 +9,11 @@ export interface EmailOptions {
     html: string;
     text?: string;
     fromName?: string;
+    fromEmail?: string;
     replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, text, fromName, replyTo }: EmailOptions) {
+export async function sendEmail({ to, subject, html, text, fromName, fromEmail, replyTo }: EmailOptions) {
     try {
         const nodemailer = await import("nodemailer");
 
@@ -37,8 +38,8 @@ export async function sendEmail({ to, subject, html, text, fromName, replyTo }: 
         });
 
         const mailOptions = {
-            from: `"${fromName || DEFAULT_SENDER_NAME}" <${GMAIL_USER}>`,
-            replyTo: replyTo || DEFAULT_REPLY_TO,
+            from: `"${fromName || DEFAULT_SENDER_NAME}" <${fromEmail || GMAIL_USER}>`,
+            replyTo: replyTo || fromEmail || DEFAULT_REPLY_TO,
             to: Array.isArray(to) ? to.join(', ') : to,
             subject: subject,
             html: html,

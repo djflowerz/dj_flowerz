@@ -31,11 +31,7 @@ async function checkAndIncrementDownloads(user, env, isAdminEmail) {
             limit = 200;
         }
     } else {
-        if (daysSinceCreated <= 7) {
-            limit = 10;
-        } else {
-            limit = 0;
-        }
+        limit = 0; // Unsubscribed users get 0 downloads
     }
     
     if (limit === 0) {
@@ -168,14 +164,14 @@ async function handleGetPoolTracks(request, env) {
     const query = `
         SELECT 
             t.*,
-            t.file_url as previewUrl,
+            t.audio_url as previewUrl,
             json_group_array(
                 CASE WHEN v.id IS NOT NULL THEN
                     json_object(
                         'id', v.id,
                         'version_name', v.version_name,
-                        'preview_url', v.file_url,
-                        'download_url', v.download_url,
+                        'preview_url', COALESCE(v.preview_url, v.file_url, v.download_url),
+                        'download_url', COALESCE(v.download_url, v.file_url, v.preview_url),
                         'is_main_version', v.is_main_version
                     )
                 ELSE NULL END
@@ -209,12 +205,7 @@ async function handleGetPoolTracks(request, env) {
             dailyLimit = 200;
         }
     } else {
-        // Free/Trial: 10 downloads/day for 1 week
-        if (daysSinceCreated <= 7) {
-            dailyLimit = 10;
-        } else {
-            dailyLimit = 0;
-        }
+        dailyLimit = 0; // Unsubscribed users get 0 downloads
     }
 
     const responsePayload = {
@@ -405,14 +396,14 @@ export async function handleStorefrontPool(request, env) {
             const query = `
                 SELECT 
                     t.*,
-                    t.file_url as previewUrl,
+                    t.audio_url as previewUrl,
                     json_group_array(
                         CASE WHEN v.id IS NOT NULL THEN
                             json_object(
                                 'id', v.id,
                                 'version_name', v.version_name,
-                                'preview_url', v.file_url,
-                                'download_url', v.download_url,
+                                'preview_url', COALESCE(v.preview_url, v.file_url, v.download_url),
+                                'download_url', COALESCE(v.download_url, v.file_url, v.preview_url),
                                 'is_main_version', v.is_main_version
                             )
                         ELSE NULL END
@@ -446,12 +437,7 @@ export async function handleStorefrontPool(request, env) {
                     dailyLimit = 200;
                 }
             } else {
-                // Free/Trial: 10 downloads/day for 1 week
-                if (daysSinceCreated <= 7) {
-                    dailyLimit = 10;
-                } else {
-                    dailyLimit = 0;
-                }
+                dailyLimit = 0; // Unsubscribed users get 0 downloads
             }
 
             const responsePayload = {

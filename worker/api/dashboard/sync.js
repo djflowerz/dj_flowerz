@@ -83,9 +83,10 @@ export async function handleR2Sync(request, env, ctx, params) { // Verify admin 
                             track_inventory, has_variants, low_stock_threshold, shipping_class,
                             secure_download_link, download_limit, expiry_days, allow_redownload,
                             whatsapp_enabled, compare_at_price, currency, is_hot, video_url,
+                            features, technical_details, use_cases,
                             image_alt, track_stock, size, og_image, condition, rating,
                             comments_count, shares_count, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             name=excluded.name, slug=excluded.slug, type=excluded.type, price=excluded.price,
                             sale_price=excluded.sale_price, description=excluded.description,
@@ -102,7 +103,10 @@ export async function handleR2Sync(request, env, ctx, params) { // Verify admin 
                             download_limit=excluded.download_limit, expiry_days=excluded.expiry_days,
                             allow_redownload=excluded.allow_redownload, whatsapp_enabled=excluded.whatsapp_enabled,
                             compare_at_price=excluded.compare_at_price, currency=excluded.currency,
-                            is_hot=excluded.is_hot, video_url=excluded.video_url, image_alt=excluded.image_alt,
+                            is_hot=excluded.is_hot, video_url=excluded.video_url, 
+                            features=excluded.features, technical_details=excluded.technical_details, 
+                            use_cases=excluded.use_cases,
+                            image_alt=excluded.image_alt,
                             track_stock=excluded.track_stock, size=excluded.size, og_image=excluded.og_image,
                             condition=excluded.condition, rating=excluded.rating,
                             comments_count=excluded.comments_count, shares_count=excluded.shares_count,
@@ -115,6 +119,7 @@ export async function handleR2Sync(request, env, ctx, params) { // Verify admin 
                         p.track_inventory ? 1 : 0, p.has_variants ? 1 : 0, p.low_stock_threshold, p.shipping_class,
                         p.secure_download_link, p.download_limit, p.expiry_days, p.allow_redownload ? 1 : 0,
                         p.whatsapp_enabled ? 1 : 0, p.compare_at_price, p.currency, p.is_hot ? 1 : 0, p.video_url,
+                        JSON.stringify(p.features || []), JSON.stringify(p.technical_details || []), JSON.stringify(p.use_cases || []),
                         p.image_alt, p.track_stock ? 1 : 0, p.size, p.og_image, p.condition, p.rating || 0,
                         p.comments_count || 0, p.shares_count || 0, p.created_at || new Date().toISOString(), p.updated_at || new Date().toISOString()
                     ));

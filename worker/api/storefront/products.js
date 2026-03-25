@@ -4,6 +4,16 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
     const url = new URL(request.url);
     const id = params?.id;
 
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    };
+
+    if (request.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
+    }
+
     if (id) {
         try {
             const product = await env.DB.prepare("SELECT * FROM products WHERE id = ? OR slug = ?")
@@ -11,7 +21,10 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 .first();
 
             if (!product) {
-                return new Response(JSON.stringify({ error: "Product not found" }), { status: 404 });
+                return new Response(JSON.stringify({ error: "Product not found" }), { 
+                    status: 404,
+                    headers: { "Content-Type": "application/json", ...corsHeaders }
+                });
             }
 
             const { results: variants } = await env.DB.prepare("SELECT * FROM product_variants WHERE product_id = ?")
@@ -28,12 +41,16 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             return new Response(JSON.stringify(enrichedProduct), {
                 headers: {
                     "Content-Type": "application/json",
-                    "Cache-Control": "public, max-age=60"
+                    "Cache-Control": "public, max-age=60",
+                    ...corsHeaders
                 }
             });
         } catch (e) {
             console.error("[Storefront Product GET ID Error]", e);
-            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+            return new Response(JSON.stringify({ error: e.message }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
         }
     } else {
         try {
@@ -60,12 +77,16 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             return new Response(JSON.stringify(mappedResults), {
                 headers: {
                     "Content-Type": "application/json",
-                    "Cache-Control": "public, max-age=60"
+                    "Cache-Control": "public, max-age=60",
+                    ...corsHeaders
                 }
             });
         } catch (e) {
             console.error("[Storefront Products GET Error]", e);
-            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+            return new Response(JSON.stringify({ error: e.message }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
         }
     }
 }

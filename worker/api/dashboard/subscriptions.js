@@ -68,8 +68,10 @@ export async function handleDashboardSubscriptions(request, env) {
                     try {
                         await sendEmail({
                             to: targetEmail,
-                            subject: 'Subscription Status Update - DJ FLOWERZ',
-                            html: `
+                        subject: 'Subscription Status Update - DJ FLOWERZ',
+                        fromEmail: 'admin@djflowerz.co.ke',
+                        fromName: 'DJ Flowerz Admin',
+                        html: `
                                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                                     <h1 style="color: #ef4444; margin-bottom: 20px;">Subscription Revoked</h1>
                                     <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${targetName}, your premium subscription has been revoked by the administrator.</p>
@@ -119,8 +121,10 @@ export async function handleDashboardSubscriptions(request, env) {
                     try {
                         await sendEmail({
                             to: targetEmail,
-                            subject: 'Premium Access Activated! 🚀',
-                            html: `
+                        subject: 'Premium Access Activated! 🚀',
+                        fromEmail: 'admin@djflowerz.co.ke',
+                        fromName: 'DJ Flowerz Admin',
+                        html: `
                                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
                                     <h1 style="color: #a855f7; margin-bottom: 20px;">Welcome to Premium!</h1>
                                     <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${targetName}, your <strong>${plan.toUpperCase()}</strong> plan is now active.</p>

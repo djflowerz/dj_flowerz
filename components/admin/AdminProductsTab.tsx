@@ -23,48 +23,9 @@ export default function AdminProductsTab() {
     await updateProduct(product.id, { isActive: !isCurrentlyActive });
   };
 
-  const handleSave = async (formData: FormData) => {
-    setLoading(true); // Using a local loading state might be good, but we can rely on context if it exists
+  const handleSave = async (productData: Product) => {
+    setLoading(true);
     try {
-      const data = Object.fromEntries(formData.entries());
-      const variants = data.variants ? JSON.parse(data.variants as string) : [];
-      const imageFile = formData.get('image') as File | null;
-
-      let imageUrl = editingProduct?.image || '';
-
-      // Upload new image if provided
-      if (imageFile && imageFile.size > 0) {
-        try {
-          const uploadResult = await uploadFileToR2(imageFile, 'products');
-          if (uploadResult?.url) {
-            imageUrl = uploadResult.url;
-          }
-        } catch (uploadErr) {
-          console.error("Image upload failed:", uploadErr);
-          alert("Failed to upload product image. The product will be saved without the new image.");
-        }
-      }
-
-      const productData: Partial<Product> = {
-        name: data.name as string,
-        description: data.description as string,
-        price: parseFloat(data.price as string),
-        category: data.category as string,
-        stock: parseInt(data.stock as string) || 0,
-        sku: data.sku as string,
-        weight: data.weight ? (data.weight as string) : undefined,
-        dimensions: data.dimensions as string,
-        compareAtPrice: data.compare_at_price ? parseFloat(data.compare_at_price as string) : undefined,
-        isActive: data.status === 'active',
-        isFeatured: data.is_featured === 'on',
-        isFree: data.is_free === 'on',
-        whatsappEnabled: data.whatsapp_enabled === 'on',
-        variants: variants,
-        shippingPrice: data.shipping_price ? parseFloat(data.shipping_price as string) : 0,
-        image: imageUrl, // Now correctly setting the image URL
-        type: (data.type || 'physical') as 'physical' | 'digital' | 'subscription'
-      };
-
       if (editingProduct) {
         await updateProduct(editingProduct.id, productData);
       } else {

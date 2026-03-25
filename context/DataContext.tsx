@@ -752,8 +752,12 @@ const getTableName = (colName: string): string => {
     'mixtape_comments': 'mixtape_comments',
     'contactMessages': 'support/tickets',
     'contact_messages': 'support/tickets',
-    'bookings': 'bookings/gigs', // Default for legacy bookings collection
-    'syncNotifications': 'pool/sync-notifications'
+    'bookings': 'bookings/gigs',
+    'syncNotifications': 'pool/sync-notifications',
+    // --- Subscription plans (critical fix: camelCase → snake_case route) ---
+    'subscriptionPlans': 'subscription_plans',
+    'shippingZones': 'shipping_zones',
+    'youtubeVideos': 'youtube_videos',
   };
   return mapping[colName] || colName;
 };
@@ -1460,6 +1464,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res) {
         setProducts(prev => [newProduct as Product, ...prev]);
         console.log("[DataContext] Product cataloged successfully in matrix!");
+        
+        // Background Sync to R2 for storefront consistency
+        addR2Item('products', newProduct).catch(e => console.error("[R2 Sync] Failed to add product:", e));
+        
         refreshProducts();
         return true;
       }
@@ -1483,6 +1491,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res) {
         setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
         console.log(`[DataContext] Product updated in matrix!`);
+        
+        // Background Sync to R2 for storefront consistency
+        updateR2Item('products', id, updatedData).catch(e => console.error("[R2 Sync] Failed to update product:", e));
+        
         refreshProducts();
         return true;
       }
@@ -1498,6 +1510,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
       await saveToD1('products', 'DELETE', undefined, id);
+      
+      // Sync to R2
+      removeR2Item('products', id).catch(e => console.error("[R2 Sync] Failed to delete product:", e));
+      
       console.log(`[DataContext] Product deleted successfully!`);
     } catch (err: any) {
       console.error("Delete product failed:", err.message);
@@ -1522,6 +1538,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const ok = await saveToD1('mixtapes', 'POST', mapped);
       if (!ok) throw new Error("Database insertion failed");
 
+      // Sync to R2
+      addR2Item('mixtapes', mapped).catch(e => console.error("[R2 Sync] Failed to add mixtape:", e));
+
       alert("Mixtape added successfully!");
       refreshMixtapes();
     } catch (err: any) {
@@ -1536,6 +1555,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const ok = await saveToD1('mixtapes', 'PUT', data, id);
       if (!ok) throw new Error("Database update failed");
 
+      // Sync to R2
+      updateR2Item('mixtapes', id, data).catch(e => console.error("[R2 Sync] Failed to update mixtape:", e));
+
       alert("Mixtape updated successfully!");
       refreshMixtapes();
     } catch (err: any) {
@@ -1548,6 +1570,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedMixtapes = mixtapes.filter(m => m.id !== id);
       setMixtapes(updatedMixtapes);
       await saveToD1('mixtapes', 'DELETE', undefined, id);
+      
+      // Sync to R2
+      removeR2Item('mixtapes', id).catch(e => console.error("[R2 Sync] Failed to delete mixtape:", e));
       alert("Mixtape deleted successfully!");
       if (typeof refreshMixtapes === 'function') refreshMixtapes();
     } catch (err: any) {
@@ -2157,7 +2182,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      const response = await fetch('/api/newsletter/subscribe', {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/newsletter/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, source }),

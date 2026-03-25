@@ -47,13 +47,17 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
         const items = body.items || [];
         const totalAmount = body.total_amount || 0;
 
+        const couponCode = body.coupon_code || null;
+        const discountAmount = body.discount_amount || 0;
+
         await env.DB.prepare(`
             INSERT INTO orders (
                 id, customer_email, customer_name, 
                 total_amount, status, payment_status, payment_method,
-                items, address, customer_phone, created_at, updated_at
+                items, address, customer_phone, coupon_code, discount_amount,
+                created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
             orderId, 
             body.customer_email || body.customer?.email || null, 
@@ -64,7 +68,9 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
             body.payment_method || 'Paystack',
             JSON.stringify(items),
             body.shipping_address || null,
-            body.customer_phone || body.customer?.phone || null
+            body.customer_phone || body.customer?.phone || null,
+            couponCode,
+            discountAmount
         ).run();
 
         return new Response(JSON.stringify({ 
