@@ -530,7 +530,7 @@ const AdminDashboard: React.FC = () => {
          // If it's a tip, also track it to avoid duplicates from liveTips
          if (displayType === 'Tip') {
             const email = o.customerEmail || o.user_email || o.email || 'Guest';
-            const dateStr = o.date || (o.createdAt || '').split('T')[0];
+            const dateStr = o.date || (o.createdAt || '').split(/[T ]/)[0];
             const tipSig = `${email.toLowerCase()}-${o.total}-${dateStr}`;
             seenTips.add(tipSig);
          }
@@ -538,7 +538,7 @@ const AdminDashboard: React.FC = () => {
          all.push({
             id: o.id,
             ref: ref,
-            date: o.date || (o.createdAt || '').split('T')[0],
+            date: o.date || (o.createdAt || '').split(/[T ]/)[0],
             time: o.time || '',
             name: o.customerName,
             items: Array.isArray(o.items) ? o.items.map((i: any) => i.productName).join(', ') : 'Direct Payment',
@@ -562,8 +562,8 @@ const AdminDashboard: React.FC = () => {
 
          // If it's a tip payment, track it
          if (p.payment_type === 'tip') {
-            const email = p.user_email || p.email || p.customerEmail || 'Guest';
-            const dateStr = p.createdAt ? p.createdAt.split('T')[0] : '';
+            const email = p.customerEmail || p.user_email || p.email || 'Guest';
+            const dateStr = p.createdAt ? p.createdAt.split(/[T ]/)[0] : '';
             const tipSig = `${email.toLowerCase()}-${p.amount}-${dateStr}`;
             seenTips.add(tipSig);
          }
@@ -571,7 +571,7 @@ const AdminDashboard: React.FC = () => {
          all.push({
             id: p.id,
             ref: ref,
-            date: p.createdAt ? p.createdAt.split('T')[0] : '',
+            date: p.createdAt ? p.createdAt.split(/[T ]/)[0] : '',
             time: p.createdAt ? new Date(p.createdAt).toLocaleTimeString() : '',
             name: p.user_email || 'Guest',
             items: p.payment_type === 'tip' ? 'Tip Jar' : (isSubscription ? 'Subscription Payment' : 'Direct Payment'),
@@ -585,8 +585,8 @@ const AdminDashboard: React.FC = () => {
       // Add tips (avoiding duplicates already in orders or payments)
       (liveTips || []).forEach(t => {
          const createdAtStr = t.createdAt || '';
-         const dateStr = createdAtStr.split('T')[0];
-         const emailLabel = t.email || t.user_email || t.customerEmail || 'Guest';
+         const dateStr = createdAtStr.split(/[T ]/)[0];
+         const emailLabel = t.customerEmail || t.user_email || t.email || 'Guest';
          const tipSig = `${emailLabel.toLowerCase()}-${t.amount}-${dateStr}`;
 
          if (!seenTips.has(tipSig)) {
@@ -595,7 +595,7 @@ const AdminDashboard: React.FC = () => {
                ref: t.id,
                date: dateStr,
                time: createdAtStr ? new Date(createdAtStr).toLocaleTimeString() : '',
-               name: t.user_name || t.name || emailLabel,
+               name: t.customerName || t.user_name || t.name || emailLabel,
                email: emailLabel,
                items: 'Tip Jar',
                amount: t.amount,

@@ -725,9 +725,9 @@ const mapR2Notification = (n: any): AppNotification => ({
 
 const mapR2Tip = (t: any): any => ({
   ...t,
-  customerName: t.customer_name || t.customerName,
-  customerEmail: t.customer_email || t.customerEmail,
-  userEmail: t.user_email || t.userEmail,
+  customerName: t.donor_name || t.customer_name || t.customerName || t.name,
+  customerEmail: t.donor_email || t.customer_email || t.customerEmail || t.user_email || t.email,
+  userEmail: t.donor_email || t.user_email || t.userEmail || t.email,
   createdAt: t.created_at || t.createdAt
 });
 

@@ -70,7 +70,7 @@ export async function handlePaystackWebhook(request, env) {
                     // Non-blocking error
                 }
 
-                // Send Order Receipt
+                // Order Receipt
                 try {
                     await sendEmail({
                         to: customer?.email || 'customer@djflowerz.co.ke',
@@ -97,6 +97,7 @@ export async function handlePaystackWebhook(request, env) {
                     console.error('[Order Receipt Email Error]', e);
                 }
 
+                // Inventory Update (Subtract Stock)
                 try {
                     const { results: items } = await env.DB.prepare("SELECT * FROM order_line_items WHERE order_id = ?").bind(orderId).all();
                     for (const item of items) {
@@ -104,10 +105,36 @@ export async function handlePaystackWebhook(request, env) {
                             UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id = ? AND track_inventory = 1
                         `).bind(item.quantity, item.variant_id).run();
                     }
-                } catch(e) { /* ignore if order_line_items doesn't exist */ }
+                } catch(e) { console.error('[Inventory Update Error]', e); }
             } catch (err) {
                 console.error('[Order Update Error]', err);
             }
+        }
+
+        // 1c. Admin Notification for ANY successful payment
+        try {
+            const adminEmail = env.GMAIL_USER || 'djflowerz254@gmail.com';
+            await sendEmail({
+                to: adminEmail,
+                subject: `💰 New Payment: KSh ${(amount / 100).toLocaleString()}`,
+                fromEmail: 'admin@djflowerz.co.ke',
+                fromName: 'DJ FLOWERZ Hub',
+                html: `
+                    <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff;">
+                        <h2 style="color: #a855f7;">New Payment Received</h2>
+                        <div style="background: #15151a; padding: 20px; border-radius: 8px; border: 1px solid #ffffff08;">
+                            <p><strong>Amount:</strong> KSh ${(amount / 100).toLocaleString()}</p>
+                            <p><strong>Reference:</strong> ${reference}</p>
+                            <p><strong>Type:</strong> ${type || (orderId ? 'Store Order' : 'Payment')}</p>
+                            <p><strong>Customer:</strong> ${customer?.email}</p>
+                            ${orderId ? `<p><strong>Order ID:</strong> ${orderId}</p>` : ''}
+                        </div>
+                    </div>
+                `,
+                text: `New Payment: KSh ${(amount / 100).toLocaleString()} from ${customer?.email} (${reference})`
+            }, env);
+        } catch (adminErr) {
+            console.error('[Admin Notify Error]', adminErr);
         }
 
         // 2. Handle Subscription Activation (if type is subscription OR planId is present)
@@ -236,19 +263,43 @@ export async function handlePaystackWebhook(request, env) {
                 try {
                     await sendEmail({
                         to: userEmail,
-                        subject: 'Thank You for Your Support! 💎',
+                        subject: 'You’re a Legend! 💎 Your Support for DJ FLOWERZ Received',
                         fromEmail: 'admin@djflowerz.co.ke',
                         fromName: 'DJ FLOWERZ',
                         html: `
-                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                <h1 style="color: #a855f7; margin-bottom: 10px;">You're a Legend!</h1>
-                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Your contribution of <strong>KSh ${(amount / 100).toLocaleString()}</strong> was received with deep gratitude.</p>
-                                <p style="color: #9ca3af; font-size: 14px;">Support like yours keeps the music flowing and the mixtapes dropping. Thank you for being part of the journey.</p>
-                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ OFFICIAL</p>
+                            <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff; border-radius: 16px;">
+                                <div style="text-align: center; margin-bottom: 30px;">
+                                    <h2 style="letter-spacing: 4px; color: #ffffff; margin: 0;">[ DJ FLOWERZ ]</h2>
+                                    <p style="color: #a855f7; font-weight: bold; margin-top: 5px;">Mr Flow Finnesse 🎧</p>
+                                </div>
+                                <h1 style="color: #ffffff; font-size: 24px; text-align: center; margin-bottom: 20px; line-height: 1.2;">YO! YOU JUST LEVELED UP THE SOUND.</h1>
+                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6; text-align: center;">I just received your contribution of <strong>KSh ${(amount / 100).toLocaleString()}</strong>, and I wanted to reach out personally to say thank you.</p>
+                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6; text-align: center;">Support like yours is the fuel behind every beat, every late-night studio session, and every mixtape drop. You aren't just a listener—you’re officially part of the journey. 🇰🇪✨</p>
+                                
+                                <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff08;">
+                                    <h3 style="color: #ffffff; margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Transaction Details:</h3>
+                                    <p style="margin: 8px 0; color: #9ca3af;">💰 <strong>Amount:</strong> KSh ${(amount / 100).toLocaleString()}</p>
+                                    <p style="margin: 8px 0; color: #9ca3af;">✅ <strong>Status:</strong> Confirmed</p>
+                                    <p style="margin: 8px 0; color: #9ca3af;">📩 <strong>Sent to:</strong> admin@djflowerz.co.ke</p>
+                                </div>
+
+                                <div style="text-align: center; margin-top: 40px;">
+                                    <h3 style="color: #ffffff; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">Stay Connected:</h3>
+                                    <p style="margin: 10px 0;">
+                                        <a href="https://youtube.com/@dj_flowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">📺 YouTube</a> |
+                                        <a href="https://instagram.com/djflowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">📸 Instagram</a> |
+                                        <a href="https://tiktok.com/@dj.flowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">🎵 TikTok</a>
+                                    </p>
+                                </div>
+
+                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 40px 0;">
+                                <div style="text-align: center;">
+                                    <p style="color: #9ca3af; line-height: 1.6;">Keep the volume up and the energy high.</p>
+                                    <p style="font-weight: bold; color: #ffffff; margin-top: 10px;">Stay Legendary,<br>DJ FLOWERZ</p>
+                                </div>
                             </div>
                         `,
-                        text: `Thank You for Your Support! Your tip of KSh ${(amount / 100).toLocaleString()} was received.`
+                        text: `YO! YOU JUST LEVELED UP THE SOUND. I just received your contribution of KSh ${(amount / 100).toLocaleString()}, and I wanted to reach out personally to say thank you. Support like yours is the fuel behind every beat. STAY CONNECTED: YouTube: @dj_flowerz | Instagram: @djflowerz | TikTok: @dj.flowerz. Stay Legendary, DJ FLOWERZ`
                     }, env);
                 } catch (e) {
                     console.error('[Tip Receipt Email Error]', e);

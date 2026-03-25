@@ -8,7 +8,10 @@ export async function sendEmail(options, env) {
     const { to, subject, html, text, fromName = 'DJ FLOWERZ', fromEmail } = options;
     
     try {
-        const res = await fetch("https://djflowerz.co.ke/api/send-email", {
+        const baseUrl = env?.VITE_APP_URL ? env.VITE_APP_URL.replace(/\/$/, '') : "https://djflowerz.co.ke";
+        const endpoint = `${baseUrl}/api/send-email`;
+        
+        const res = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
