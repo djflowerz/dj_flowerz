@@ -228,16 +228,16 @@ export async function handlePaystackWebhook(request, env) {
 
             try {
                 await env.DB.prepare(`
-                    INSERT INTO tips (id, user_id, amount, message, created_at, status, email, name)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'completed', ?, ?)
-                `).bind(`tip_${Date.now()}`, userId, amount / 100, message, userEmail, customerName).run();
+                    INSERT INTO tips (id, amount, message, donor_name, donor_email, user_id, status)
+                    VALUES (?, ?, ?, ?, ?, ?, 'completed')
+                `).bind(reference, amount / 100, message, customerName, userEmail, userId).run();
 
                 // Send Tip Receipt
                 try {
                     await sendEmail({
                         to: userEmail,
                         subject: 'Thank You for Your Support! 💎',
-                        fromEmail: 'noreply@djflowerz.co.ke',
+                        fromEmail: 'admin@djflowerz.co.ke',
                         fromName: 'DJ FLOWERZ',
                         html: `
                             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
