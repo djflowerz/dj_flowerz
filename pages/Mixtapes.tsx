@@ -138,7 +138,7 @@ const Mixtapes: React.FC = () => {
                            </div>
                            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
                            {mix.isExclusive && (
-                              <span className="absolute top-3 right-3 bg-[#E8C053] text-black text-[9px] font-black px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(232,192,83,0.3)] uppercase tracking-widest z-20 backdrop-blur-md">
+                              <span className="absolute top-3 right-3 bg-brand-pink text-white text-[9px] font-black px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(255,40,126,0.3)] uppercase tracking-widest z-20 backdrop-blur-md">
                                  PREMIUM
                               </span>
                            )}
@@ -150,7 +150,7 @@ const Mixtapes: React.FC = () => {
                         </div>
                         <div className="p-5 flex-1 flex flex-col bg-gradient-to-b from-transparent to-black/20 z-10">
                            <Link to={`/mixtapes/${mix.id}`} className="block hover:text-brand-cyan transition-colors mb-2">
-                              <h3 className="font-black text-white line-clamp-2 text-lg md:text-xl uppercase tracking-tight leading-tight">{mix.title}</h3>
+                              <h3 className="font-outfit font-black text-white line-clamp-2 text-lg md:text-xl uppercase tracking-tight leading-tight">{mix.title}</h3>
                            </Link>
                            <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-4">
                               <span className="border border-white/10 px-2.5 py-1 rounded-full bg-white/5">{mix.genre}</span>

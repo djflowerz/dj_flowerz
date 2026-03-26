@@ -27,6 +27,7 @@ interface AuthContextType {
   mfaResolver: any;
   setMfaResolver: (resolver: any) => void;
   checkEmailVerification: () => Promise<boolean>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,198 +43,202 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [mfaResolver, setMfaResolver] = useState<any>(null);
 
+  // Helper to fetch profile and set user
+  const fetchProfileAndSetUser = async (session: any) => {
+    if (!session?.user) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    const sbUser = session.user;
+    const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
+    const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim();
+    const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv || normalizeEmail(sbUser.email) === 'testadmin@example.com';
+
+    try {
+      // Fetch Profiles from R2
+      const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
+      const profile = profiles.find(p => p.id === sbUser.id);
+
+      let userData: User;
+
+      if (profile) {
+        // Profile exists
+        // Update last seen in R2 (Optimistic/Background)
+        updateR2Item('profiles', sbUser.id, {
+          last_seen: new Date().toISOString(),
+          presence_status: 'online'
+        }).catch(err => console.error("Error updating last_seen:", err));
+
+        userData = {
+          id: sbUser.id,
+          name: profile.name || sbUser.user_metadata?.full_name || 'User',
+          email: sbUser.email || '',
+          role: profile.role || (isAdminEmail ? 'admin' : 'user'),
+          isAdmin: (profile.role === 'admin') || isAdminEmail,
+          isSubscriber: (profile.role === 'admin') || isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
+          subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
+          subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
+          avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
+          referralCode: profile.referral_code || profile.referralCode,
+          balance: profile.balance || 0,
+          auraPoints: profile.aura_points || profile.auraPoints || 0,
+          auraLevel: profile.aura_level || profile.auraLevel || 1,
+          phoneNumber: profile.phone_number || profile.phoneNumber || '',
+          hasUsedTrial: Boolean(profile.has_used_trial || profile.hasUsedTrial),
+          createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
+          updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
+          referralCount: profile.referral_count || profile.referralCount || 0,
+          downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0,
+          downloadsToday: profile.downloads_today || profile.downloadsToday || 0,
+          lastDownloadDate: profile.last_download_date || profile.lastDownloadDate
+        };
+      } else {
+        // Profile doesn't exist, create it in R2
+        const now = new Date().toISOString();
+        const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
+
+        let referrerId = null;
+        const refCode = localStorage.getItem('referralCode');
+        if (refCode) {
+          const refProfile = profiles.find(p => p.referral_code === refCode || p.referralCode === refCode);
+          if (refProfile) referrerId = refProfile.id;
+        }
+
+        // Check for existing active subscription (from R2)
+        let initialSubscriberStatus = false;
+        let initialSubscriptionPlan = null;
+        let initialSubscriptionExpiry = null;
+
+        const subscriptions = await fetchFromR2<any[]>('subscriptions').catch(() => []);
+        const existingSub = subscriptions.find(s => s.user_email === sbUser.email && s.status === 'active');
+
+        if (existingSub) {
+          initialSubscriberStatus = true;
+          initialSubscriptionPlan = existingSub.plan_id;
+          initialSubscriptionExpiry = existingSub.expiry_date;
+        }
+
+        const newProfile = {
+          id: sbUser.id,
+          name: sbUser.user_metadata?.full_name || 'User',
+          email: sbUser.email || '',
+          role: isAdminEmail ? 'admin' : 'user',
+          is_subscriber: initialSubscriberStatus,
+          subscription_plan: initialSubscriptionPlan,
+          subscription_expiry: initialSubscriptionExpiry,
+          avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
+          phone_number: sbUser.user_metadata?.phone_number || '',
+          referral_code: referralCode,
+          referred_by: referrerId,
+          balance: 0,
+          aura_points: 0,
+          aura_level: 1,
+          created_at: now,
+          updated_at: now,
+          last_seen: now,
+          presence_status: 'online',
+          referral_count: 0,
+          download_count_total: 0
+        };
+
+        // Save to local state
+        userData = {
+          id: newProfile.id,
+          name: newProfile.name,
+          email: newProfile.email,
+          role: newProfile.role as any,
+          isSubscriber: (newProfile.role === 'admin') || newProfile.is_subscriber,
+          subscriptionPlan: newProfile.subscription_plan as any,
+          subscriptionExpiry: newProfile.subscription_expiry as string,
+          avatarUrl: newProfile.avatar_url,
+          phoneNumber: newProfile.phone_number,
+          referralCode: newProfile.referral_code,
+          balance: newProfile.balance,
+          auraPoints: newProfile.aura_points,
+          auraLevel: newProfile.aura_level,
+          createdAt: newProfile.created_at,
+          updatedAt: newProfile.updated_at,
+          referralCount: newProfile.referral_count,
+          downloadCountTotal: newProfile.download_count_total
+        };
+
+        // Save to R2
+        await addR2Item('profiles', newProfile).catch(err => {
+          console.error("Error creating profile in R2:", err);
+        });
+
+        // Notify Admin
+        addAdminNotification(
+          "New User Signed Up!",
+          `${newProfile.name} (${newProfile.email}) has just registered.`,
+          'success'
+        ).catch(err => console.error("Admin notification failed:", err));
+
+        userData = {
+          id: newProfile.id,
+          name: newProfile.name,
+          email: newProfile.email,
+          role: newProfile.role as any,
+          isAdmin: newProfile.role === 'admin',
+          isSubscriber: newProfile.is_subscriber,
+          subscriptionPlan: newProfile.subscription_plan as any,
+          subscriptionExpiry: newProfile.subscription_expiry as string,
+          avatarUrl: newProfile.avatar_url,
+          referralCode: newProfile.referral_code,
+          balance: 0,
+          auraPoints: 0,
+          auraLevel: 1,
+          hasUsedTrial: false,
+          createdAt: newProfile.created_at,
+          updatedAt: newProfile.updated_at
+        };
+      }
+
+      setUser(userData);
+      setLoading(false);
+    } catch (err) {
+      console.error("Auth sync error:", err);
+      // Even if R2 profile fetch fails, keep user logged in with minimal data from session
+      if (sbUser) {
+        const isAdminEmail2 = normalizeEmail(sbUser.email) === adminEmailFromEnv;
+        setUser({
+          id: sbUser.id,
+          name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+          email: sbUser.email || '',
+          role: isAdminEmail2 ? 'admin' : 'user',
+          isAdmin: isAdminEmail2,
+          isSubscriber: false,
+          avatarUrl: sbUser.user_metadata?.avatar_url || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setLoading(false);
+    }
+  };
+
+  const refreshProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await fetchProfileAndSetUser(session);
+    }
+  };
+
   // Sync with Supabase Auth state
   useEffect(() => {
     let mounted = true;
 
-    // Helper to fetch profile and set user
-    const fetchProfileAndSetUser = async (session: any) => {
-      if (!session?.user) {
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const sbUser = session.user;
-      const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
-      const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim();
-      const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv || normalizeEmail(sbUser.email) === 'testadmin@example.com';
-
-      try {
-        // Fetch Profiles from R2
-        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
-        const profile = profiles.find(p => p.id === sbUser.id);
-
-        let userData: User;
-
-        if (profile) {
-          // Profile exists
-          // Update last seen in R2 (Optimistic/Background)
-          updateR2Item('profiles', sbUser.id, {
-            last_seen: new Date().toISOString(),
-            presence_status: 'online'
-          }).catch(err => console.error("Error updating last_seen:", err));
-
-          userData = {
-            id: sbUser.id,
-            name: profile.name || sbUser.user_metadata?.full_name || 'User',
-            email: sbUser.email || '',
-            role: profile.role || (isAdminEmail ? 'admin' : 'user'),
-            isAdmin: (profile.role === 'admin') || isAdminEmail,
-            isSubscriber: (profile.role === 'admin') || isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
-            subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
-            subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
-            avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
-            referralCode: profile.referral_code || profile.referralCode,
-            balance: profile.balance || 0,
-            auraPoints: profile.aura_points || profile.auraPoints || 0,
-            auraLevel: profile.aura_level || profile.auraLevel || 1,
-            phoneNumber: profile.phone_number || profile.phoneNumber || '',
-            hasUsedTrial: Boolean(profile.has_used_trial || profile.hasUsedTrial),
-            createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
-            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
-            referralCount: profile.referral_count || profile.referralCount || 0,
-            downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0,
-            downloadsToday: profile.downloads_today || profile.downloadsToday || 0,
-            lastDownloadDate: profile.last_download_date || profile.lastDownloadDate
-          };
-        } else {
-          // Profile doesn't exist, create it in R2
-          const now = new Date().toISOString();
-          const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
-
-          let referrerId = null;
-          const refCode = localStorage.getItem('referralCode');
-          if (refCode) {
-            const refProfile = profiles.find(p => p.referral_code === refCode || p.referralCode === refCode);
-            if (refProfile) referrerId = refProfile.id;
-          }
-
-          // Check for existing active subscription (from R2)
-          let initialSubscriberStatus = false;
-          let initialSubscriptionPlan = null;
-          let initialSubscriptionExpiry = null;
-
-          const subscriptions = await fetchFromR2<any[]>('subscriptions').catch(() => []);
-          const existingSub = subscriptions.find(s => s.user_email === sbUser.email && s.status === 'active');
-
-          if (existingSub) {
-            initialSubscriberStatus = true;
-            initialSubscriptionPlan = existingSub.plan_id;
-            initialSubscriptionExpiry = existingSub.expiry_date;
-          }
-
-          const newProfile = {
-            id: sbUser.id,
-            name: sbUser.user_metadata?.full_name || 'User',
-            email: sbUser.email || '',
-            role: isAdminEmail ? 'admin' : 'user',
-            is_subscriber: initialSubscriberStatus,
-            subscription_plan: initialSubscriptionPlan,
-            subscription_expiry: initialSubscriptionExpiry,
-            avatar_url: sbUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sbUser.user_metadata?.full_name || 'User')}&background=random`,
-            phone_number: sbUser.user_metadata?.phone_number || '',
-            referral_code: referralCode,
-            referred_by: referrerId,
-            balance: 0,
-            aura_points: 0,
-            aura_level: 1,
-            created_at: now,
-            updated_at: now,
-            last_seen: now,
-            presence_status: 'online',
-            referral_count: 0,
-            download_count_total: 0
-          };
-
-          // Save to local state
-          userData = {
-            id: newProfile.id,
-            name: newProfile.name,
-            email: newProfile.email,
-            role: newProfile.role as any,
-            isSubscriber: (newProfile.role === 'admin') || newProfile.is_subscriber,
-            subscriptionPlan: newProfile.subscription_plan as any,
-            subscriptionExpiry: newProfile.subscription_expiry as string,
-            avatarUrl: newProfile.avatar_url,
-            phoneNumber: newProfile.phone_number,
-            referralCode: newProfile.referral_code,
-            balance: newProfile.balance,
-            auraPoints: newProfile.aura_points,
-            auraLevel: newProfile.aura_level,
-            createdAt: newProfile.created_at,
-            updatedAt: newProfile.updated_at,
-            referralCount: newProfile.referral_count,
-            downloadCountTotal: newProfile.download_count_total
-          };
-
-          // Save to R2
-          await addR2Item('profiles', newProfile).catch(err => {
-            console.error("Error creating profile in R2:", err);
-          });
-
-          // Notify Admin
-          addAdminNotification(
-            "New User Signed Up!",
-            `${newProfile.name} (${newProfile.email}) has just registered.`,
-            'success'
-          ).catch(err => console.error("Admin notification failed:", err));
-
-          userData = {
-            id: newProfile.id,
-            name: newProfile.name,
-            email: newProfile.email,
-            role: newProfile.role as any,
-            isAdmin: newProfile.role === 'admin',
-            isSubscriber: newProfile.is_subscriber,
-            subscriptionPlan: newProfile.subscription_plan as any,
-            subscriptionExpiry: newProfile.subscription_expiry as string,
-            avatarUrl: newProfile.avatar_url,
-            referralCode: newProfile.referral_code,
-            balance: 0,
-            auraPoints: 0,
-            auraLevel: 1,
-            hasUsedTrial: false,
-            createdAt: newProfile.created_at,
-            updatedAt: newProfile.updated_at
-          };
-        }
-
-        if (mounted) {
-          setUser(userData);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Auth sync error:", err);
-        // Even if R2 profile fetch fails, keep user logged in with minimal data from session
-        if (mounted && sbUser) {
-          const isAdminEmail2 = normalizeEmail(sbUser.email) === adminEmailFromEnv;
-          setUser({
-            id: sbUser.id,
-            name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
-            email: sbUser.email || '',
-            role: isAdminEmail2 ? 'admin' : 'user',
-            isAdmin: isAdminEmail2,
-            isSubscriber: false,
-            avatarUrl: sbUser.user_metadata?.avatar_url || '',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-        }
-        if (mounted) setLoading(false);
-      }
-    };
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchProfileAndSetUser(session);
+      if (mounted) fetchProfileAndSetUser(session);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      fetchProfileAndSetUser(session);
+      if (mounted) fetchProfileAndSetUser(session);
     });
 
     // Capture referral code from URL
@@ -580,7 +585,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user,
       mfaResolver,
       setMfaResolver,
-      checkEmailVerification
+      checkEmailVerification,
+      refreshProfile
     } as any}>
       {children}
     </AuthContext.Provider>

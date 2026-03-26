@@ -452,10 +452,6 @@ export default function MusicPool() {
                   data={poolTracks}
                   endReached={loadMore}
                   itemContent={(index, track) => {
-                    const isHype = track?.genre?.toLowerCase()?.includes('hype') || 
-                                  track?.display_genre?.toLowerCase()?.includes('hype') || 
-                                  track?.sub_genre?.toLowerCase()?.includes('hype');
-                    
                     // Logic for "NEW" badge: March 2026 or added from today (March 22, 2026) onwards
                     const trackDate = track.created_at ? new Date(track.created_at) : null;
                     const today = new Date('2026-03-22');
@@ -465,39 +461,14 @@ export default function MusicPool() {
                     const isFromTodayOnwards = trackDate && trackDate >= today;
 
                     const isActuallyNew = track.is_featured || isMarch2026 || isFromTodayOnwards;
-
-                    if (isHype && activeGenre !== 'All') {
-                      return (
-                        <div className="mb-2" key={track.id}>
-                          <HypeTrackRow
-                            title={track.title}
-                            artist={track.artist}
-                            bpm={track.bpm}
-                            genre={track.genre || track.display_genre || track.collection_hub || 'Hype'}
-                            videoUrl={track.videoUrl}
-                            previewUrl={track.previewUrl || track.versions?.[0]?.previewUrl}
-                            versions={track.versions || []}
-                            isNew={isActuallyNew}
-                            isExpanded={expandedTrackId === track.id}
-                            isPlaying={expandedTrackId === track.id && player.isPlaying}
-                            playingUrl={expandedTrackId === track.id ? player.url : null}
-                            playingType={expandedTrackId === track.id ? player.type : null}
-                            isSubscriber={isSubscriber}
-                            onPlay={(url, title, type) => handlePlay(url, title, type, track.id)}
-                            onDownload={handleDownload}
-                            onDownloadAll={() => handleDownloadAll(track)}
-                            onFindSimilar={() => handleFindSimilar(track)}
-                            onSkipNext={() => handleSkip('next')}
-                            onSkipPrev={() => handleSkip('prev')}
-                            onCloseInline={() => setExpandedTrackId(null)}
-                          />
-                        </div>
-                      );
-                    }
+                    const isHype = track?.genre?.toLowerCase()?.includes('hype') || 
+                                  track?.display_genre?.toLowerCase()?.includes('hype') || 
+                                  track?.sub_genre?.toLowerCase()?.includes('hype');
 
                     return (
                       <div className="mb-2" key={track.id}>
                         <TrackRow
+                          id={track.id}
                           title={track.title}
                           artist={track.artist}
                           bpm={track.bpm}
@@ -506,6 +477,7 @@ export default function MusicPool() {
                           previewUrl={track.previewUrl || track.versions?.[0]?.previewUrl}
                           versions={track.versions || []}
                           isNew={isActuallyNew}
+                          isHype={isHype}
                           isExpanded={expandedTrackId === track.id}
                           isPlaying={expandedTrackId === track.id && player.isPlaying}
                           playingUrl={expandedTrackId === track.id ? player.url : null}

@@ -75,7 +75,7 @@ const Home: React.FC = () => {
                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-[10px] font-black uppercase tracking-widest mb-4">
                         <ShoppingBag size={12} /> Premium Gear
                      </div>
-                     <h2 className="text-4xl md:text-5xl font-display font-black text-white uppercase italic tracking-tighter">
+                     <h2 className="text-4xl md:text-5xl font-outfit font-black text-white uppercase italic tracking-tighter">
                         Featured <span className="text-brand-cyan">Products</span>
                      </h2>
                      <p className="text-gray-400 mt-4 font-medium max-w-xl leading-relaxed">
@@ -103,10 +103,10 @@ const Home: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="flex justify-between items-end mb-12">
                   <div>
-                     <h2 className="text-3xl md:text-4xl font-display font-black text-white uppercase italic">Featured Mixtapes</h2>
+                     <h2 className="text-3xl md:text-4xl font-outfit font-black text-white uppercase italic">Featured Mixtapes</h2>
                      <p className="text-gray-400 mt-2 font-medium">Curated sets for the ultimate listening experience.</p>
                   </div>
-                  <Link to="/mixtapes" className="text-brand-cyan flex items-center gap-2 hover:underline font-black uppercase text-xs tracking-widest transition">
+                  <Link to="/mixtapes" className="text-brand-pink flex items-center gap-2 hover:underline font-black uppercase text-xs tracking-widest transition">
                      Explore All <ArrowRight size={16} />
                   </Link>
                </div>
@@ -136,8 +136,8 @@ const Home: React.FC = () => {
                               <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{mix.title}</h3>
                            </Link>
                            <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold uppercase tracking-widest">
-                              <span className="flex items-center gap-1.5"><Disc size={12} className="text-brand-purple" /> {mix.tracksCount || 12} Tracks</span>
-                              <span className="flex items-center gap-1.5"><Headphones size={12} className="text-brand-cyan" /> {mix.duration}</span>
+                               <span className="flex items-center gap-1.5"><Disc size={12} className="text-brand-pink" /> {mix.tracksCount || 12} Tracks</span>
+                               <span className="flex items-center gap-1.5"><Headphones size={12} className="text-brand-cyan" /> {mix.duration}</span>
                            </div>
                         </div>
                      </div>
@@ -186,7 +186,7 @@ const Home: React.FC = () => {
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="bg-gradient-to-br from-[#1A1A24] to-[#0B0B0F] p-8 md:p-12 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center gap-12">
                   <div className="w-full md:w-1/2">
-                     <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">{home.studioPromo.title}</h2>
+                     <h2 className="text-3xl md:text-4xl font-outfit font-black text-white mb-4">{home.studioPromo.title}</h2>
                      <p className="text-gray-400 mb-8 leading-relaxed">
                         {home.studioPromo.description}
                      </p>
@@ -195,13 +195,13 @@ const Home: React.FC = () => {
                      </Link>
                   </div>
                   <div className="w-full md:w-1/2 grid grid-cols-2 gap-4">
-                     <Link to="/bookings" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-cyan/50 transition cursor-pointer group">
-                        <Disc size={32} className="text-brand-cyan mx-auto mb-3 group-hover:scale-110 transition" />
+                     <Link to="/bookings" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-pink/50 transition cursor-pointer group">
+                        <Disc size={32} className="text-brand-pink mx-auto mb-3 group-hover:scale-110 transition" />
                         <h3 className="text-white font-bold">DJ Sets</h3>
                         <p className="text-xs text-gray-500 mt-1">Weddings, Clubs, Corporate</p>
                      </Link>
-                     <Link to="/sessions" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-purple/50 transition cursor-pointer group">
-                        <Music size={32} className="text-brand-purple mx-auto mb-3 group-hover:scale-110 transition" />
+                     <Link to="/sessions" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-cyan/50 transition cursor-pointer group">
+                        <Music size={32} className="text-brand-cyan mx-auto mb-3 group-hover:scale-110 transition" />
                         <h3 className="text-white font-bold">Studio</h3>
                         <p className="text-xs text-gray-500 mt-1">Mixing & Mastering</p>
                      </Link>
@@ -214,14 +214,14 @@ const Home: React.FC = () => {
          <section className="py-20 bg-[#0F0F13]">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                <div className="mb-16">
-                  <Star size={40} className="text-brand-cyan mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold text-white mb-4">{home.tipJar.title}</h2>
+                   <Star size={40} className="text-brand-cyan mx-auto mb-4" />
+                  <h2 className="text-3xl font-outfit font-black text-white mb-4">{home.tipJar.title}</h2>
                   <p className="text-gray-400 max-w-lg mx-auto mb-8">
                      {home.tipJar.message}
                   </p>
-                  <Link to="/tip-jar" className="px-8 py-3 border-2 border-brand-cyan text-brand-cyan font-bold rounded-full hover:bg-brand-cyan hover:text-black transition">
-                     {home.tipJar.ctaText}
-                  </Link>
+                   <Link to="/tip-jar" className="px-8 py-3 border-2 border-brand-pink text-brand-pink font-bold rounded-full hover:bg-brand-pink hover:text-white transition">
+                      {home.tipJar.ctaText}
+                   </Link>
                </div>
             </div>
          </section>

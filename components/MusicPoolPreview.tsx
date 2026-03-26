@@ -85,8 +85,17 @@ const MusicPoolPreview: React.FC = () => {
         // Only auto-play the audio ref for pure audio (not mp4, not YouTube)
         const track = recentTracks.find(t => t.id === playingId);
         if (playingId && audioRef.current && track) {
-            const previewUrl = track.previewUrl || track.versions?.[0]?.downloadUrl;
-            if (!track.videoUrl && !isMp4Url(previewUrl)) {
+            // Check both camelCase and snake_case URL properties from versions
+            const firstVersion = track.versions?.[0];
+            const resolvedUrl = track.previewUrl ||
+                firstVersion?.preview_url || firstVersion?.previewUrl ||
+                firstVersion?.download_url || firstVersion?.downloadUrl;
+            const hasYouTube = !!track.videoUrl;
+            // Check if any version is a video
+            const hasVideoVersion = track.versions?.some((v: any) =>
+                isMp4Url(v.preview_url || v.previewUrl || v.download_url || v.downloadUrl)
+            );
+            if (!hasYouTube && !isMp4Url(resolvedUrl) && !hasVideoVersion) {
                 audioRef.current.play().catch(err => {
                     console.error("Audio playback error:", err);
                     setPlayingId(null);
@@ -150,10 +159,29 @@ const MusicPoolPreview: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     {recentTracks.map((track) => {
                         const isThisPlaying = playingId === track.id;
-                        const previewUrl = track.previewUrl || track.versions?.[0]?.downloadUrl;
-                        // hasVideo = has YouTube URL OR direct MP4/video CDN URL
+                        
                         const hasYouTube = !!track.videoUrl;
-                        const hasMp4 = isMp4Url(previewUrl);
+                        let playUrl = track.previewUrl;
+                        let hasMp4 = isMp4Url(playUrl);
+
+                        if (!playUrl && track.versions && track.versions.length > 0) {
+                            const videoVer = track.versions.find((v: any) => 
+                                (v.version_name || v.type || '').toLowerCase().includes('video') ||
+                                (v.version_name || v.type || '').toLowerCase().includes('visual') ||
+                                isMp4Url(v.preview_url || v.previewUrl) ||
+                                isMp4Url(v.download_url || v.downloadUrl)
+                            );
+                            
+                            if (videoVer) {
+                                playUrl = videoVer.preview_url || videoVer.previewUrl || videoVer.download_url || videoVer.downloadUrl;
+                                hasMp4 = true;
+                            } else {
+                                const mainVer = track.versions.find((v: any) => v.is_main_version) || track.versions[0];
+                                playUrl = mainVer.preview_url || mainVer.previewUrl || mainVer.download_url || mainVer.downloadUrl;
+                                hasMp4 = isMp4Url(playUrl);
+                            }
+                        }
+
                         const hasVideo = hasYouTube || hasMp4;
 
                         return (
@@ -183,7 +211,7 @@ const MusicPoolPreview: React.FC = () => {
                                     ) : isThisPlaying && hasMp4 ? (
                                         <div className="absolute inset-0 bg-black">
                                             <video
-                                                src={previewUrl}
+                                                src={playUrl}
                                                 autoPlay
                                                 controls
                                                 playsInline
@@ -275,7 +303,7 @@ const MusicPoolPreview: React.FC = () => {
                                         <div className="flex items-center gap-3">
                                             {isUserSubscriber(user) ? (
                                                 <button
-                                                    onClick={() => window.open(previewUrl, '_blank')}
+                                                    onClick={() => window.open(playUrl, '_blank')}
                                                     className="p-2 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white rounded-lg transition-colors group/dl relative"
                                                     title="Download Original"
                                                 >
@@ -300,7 +328,7 @@ const MusicPoolPreview: React.FC = () => {
                                 {isThisPlaying && !hasYouTube && !hasMp4 && (
                                     <audio
                                         ref={audioRef}
-                                        src={previewUrl}
+                                        src={playUrl}
                                         onEnded={() => setPlayingId(null)}
                                         className="hidden"
                                     />

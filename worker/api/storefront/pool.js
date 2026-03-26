@@ -164,7 +164,7 @@ async function handleGetPoolTracks(request, env) {
     const query = `
         SELECT 
             t.*,
-            t.audio_url as previewUrl,
+            (SELECT COALESCE(preview_url, file_url, download_url) FROM track_versions WHERE track_id = t.id ORDER BY is_main_version DESC LIMIT 1) as previewUrl,
             json_group_array(
                 CASE WHEN v.id IS NOT NULL THEN
                     json_object(
@@ -396,7 +396,7 @@ export async function handleStorefrontPool(request, env) {
             const query = `
                 SELECT 
                     t.*,
-                    t.audio_url as previewUrl,
+                    (SELECT COALESCE(preview_url, file_url, download_url) FROM track_versions WHERE track_id = t.id ORDER BY is_main_version DESC LIMIT 1) as previewUrl,
                     json_group_array(
                         CASE WHEN v.id IS NOT NULL THEN
                             json_object(

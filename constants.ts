@@ -10,18 +10,32 @@ export const KENYAN_COUNTIES = [
   'Busia', 'Siaya', 'Kisumu', 'Homa Bay', 'Migori', 'Kisii', 'Nyamira'
 ];
 
-export const COUNTY_TO_ZONE_MAP: Record<string, string> = {
-  'Nairobi': 'nairobi',
-  'Kiambu': 'greater_nairobi',
-  'Machakos': 'greater_nairobi',
-  'Kajiado': 'greater_nairobi',
-  'Mombasa': 'major_towns',
-  'Kisumu': 'major_towns',
-  'Nakuru': 'major_towns',
-  'Uasin Gishu': 'major_towns',
-  'Kilifi': 'major_towns',
-  // Default for others will be 'upcountry'
+// --- SHIPPING DATA ---
+export const SHIPPING_ZONES_CONFIG = {
+  'zone1': { name: 'Zone 1 (Nairobi)', towns: ['Nairobi'] },
+  'zone2': { name: 'Zone 2 (Greater Nairobi)', towns: ['Kitengela', 'Kangundo', 'Kiambu', 'Tala', 'Gatundu', 'Athi River', 'Kikuyu', 'Thika'] },
+  'zone3': { name: 'Zone 3 (Central / Rift / Lake)', towns: ['Limuru', 'Nanyuki', 'Naivasha', 'Meru', 'Gilgil', 'Chogoria', 'Nakuru', 'Maua', 'Kisumu', 'Kajiado', 'Eldoret'] },
+  'zone4': { name: 'Zone 4 (Western / Central)', towns: ['Kericho', 'Kakamega', 'Embu', 'Karatina', 'Kerugoya', 'Kianyaga', 'Kutus', 'Nyeri'] },
+  'zone5': { name: 'Zone 5 (Upcountry)', towns: ['Awendo', 'Bungoma', 'Busia', 'Homabay', 'Iten', 'Kaviani', 'Kilgore', 'Kimilili', 'Kisii', 'Litein', 'Mariakani', 'Migori', 'Mojo', 'Mumias', 'Oyugis', 'Rongo', 'Siaya', 'Sotik', 'Suneka', 'Webuye', 'Wundanyi'] },
+  'zone6': { name: 'Zone 6 (Coast)', towns: ['Diani', 'Kilifi', 'Malindi', 'Mombasa', 'Ukunda', 'Vipingo', 'Watamu'] }
 };
+
+export const SHIPPING_RATES_MATRIX: Record<string, Record<string, number>> = {
+  'zone1': { 'small': 160, 'medium': 250, 'large': 700 },
+  'zone2': { 'small': 210, 'medium': 320, 'large': 850 },
+  'zone3': { 'small': 260, 'medium': 400, 'large': 1000 },
+  'zone4': { 'small': 310, 'medium': 480, 'large': 1150 },
+  'zone5': { 'small': 360, 'medium': 560, 'large': 1300 },
+  'zone6': { 'small': 410, 'medium': 650, 'large': 1450 }
+};
+
+// Map important towns to zones for auto-selection
+export const TOWN_TO_ZONE_MAP: Record<string, string> = Object.entries(SHIPPING_ZONES_CONFIG).reduce((acc, [id, config]) => {
+  config.towns.forEach(town => {
+    acc[town.toLowerCase()] = id;
+  });
+  return acc;
+}, {} as Record<string, string>);
 
 // --- MUSIC POOL DATA ---
 export const POSTER_URL = 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=1600&h=600&fit=crop&q=80';
@@ -234,44 +248,13 @@ export const YOUTUBE_VIDEOS = [];
 
 export const INITIAL_STUDIO_EQUIPMENT: StudioEquipment[] = [];
 
-export const INITIAL_SHIPPING_ZONES: ShippingZone[] = [
-  {
-    id: 'nairobi',
-    name: 'Nairobi Region',
-    description: 'CBD, Westlands, Upperhill, Kilimani, Embakasi, and surrounding estates.',
-    rates: [
-      { id: 'nr1', type: 'instant', price: 600, label: 'Express (4hrs)', timeline: 'Within 4 Hours' },
-      { id: 'nr2', type: 'express', price: 400, label: 'Next Day Delivery', timeline: '24 Hours' },
-      { id: 'nr3', type: 'standard', price: 200, label: 'Pickup (CBD)', timeline: 'Instant' }
-    ]
-  },
-  {
-    id: 'greater_nairobi',
-    name: 'Greater Nairobi',
-    description: 'Kiambu, Thika, Syokimau, Athi River, Kitengela, Rongai.',
-    rates: [
-      { id: 'gn1', type: 'express', price: 500, label: 'Door-to-Door', timeline: '1 Day' },
-      { id: 'gn2', type: 'standard', price: 300, label: 'Standard Shipping', timeline: '2 Days' }
-    ]
-  },
-  {
-    id: 'major_towns',
-    name: 'Major Towns',
-    description: 'Mombasa, Kisumu, Nakuru, Eldoret, Malindi.',
-    rates: [
-      { id: 'mt1', type: 'express', price: 750, label: 'Door-to-Door', timeline: '1-2 Days' },
-      { id: 'mt2', type: 'standard', price: 450, label: 'Pickup Point', timeline: '2-3 Days' }
-    ]
-  },
-  {
-    id: 'upcountry',
-    name: 'Upcountry / Other Regions',
-    description: 'All other counties and remote areas across Kenya.',
-    rates: [
-      { id: 'up1', type: 'express', price: 950, label: 'Door-to-Door', timeline: '2-3 Days' },
-      { id: 'up2', type: 'standard', price: 650, label: 'Standard Shipping', timeline: '3-5 Days' }
-    ]
-  }
-];
+export const INITIAL_SHIPPING_ZONES: ShippingZone[] = Object.entries(SHIPPING_ZONES_CONFIG).map(([id, config]) => ({
+  id,
+  name: config.name,
+  description: `Delivery to ${config.towns.slice(0, 3).join(', ')} and surrounding areas.`,
+  rates: [
+    { id: `${id}_door`, type: 'express', price: SHIPPING_RATES_MATRIX[id].small, label: 'Door-to-Door Delivery', timeline: '1-3 Business Days' }
+  ]
+}));
 
 export const INITIAL_SUBSCRIBERS: NewsletterSubscriber[] = [];

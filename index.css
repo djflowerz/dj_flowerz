@@ -1,15 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-    --brand-cyan: #28E6DC;
+    --brand-primary: #7B5CFF;
+    --brand-secondary: #28E6DC;
     --brand-purple: #7B5CFF;
+    --brand-cyan: #28E6DC;
     --brand-pink: #FF287E;
-    --bg-dark: #0B0B0F;
-    --bg-card: #15151A;
+    --brand-red: #f42c37;
+    --brand-gold: #fbbf24;
+    --bg-dark: #131313;
+    --bg-card: #1a1a1a;
     --glass-bg: rgba(255, 255, 255, 0.03);
     --glass-border: rgba(255, 255, 255, 0.08);
 }
@@ -20,7 +24,7 @@ html {
 }
 
 body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Poppins', sans-serif;
     color: white;
     -webkit-font-smoothing: antialiased;
     background-color: var(--bg-dark);
@@ -36,7 +40,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--brand-cyan);
+    background: var(--brand-primary);
     border-radius: 10px;
 }
 
@@ -156,18 +160,18 @@ body {
 .btn-premium {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, var(--brand-purple), #5a3edb);
+    background: var(--brand-primary);
     color: white;
-    padding: 0.75rem 1.5rem;
-    border-radius: 12px;
-    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border-radius: 9999px;
+    font-weight: 600;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn-premium:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 30px rgba(123, 92, 255, 0.4);
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(123, 92, 255, 0.4);
     border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -193,20 +197,21 @@ body {
 
 .btn-cyber-outline {
     background: transparent;
-    border: 1px solid var(--brand-cyan);
-    color: var(--brand-cyan);
-    padding: 0.75rem 1.5rem;
-    border-radius: 12px;
-    font-weight: 700;
+    border: 1px solid var(--brand-primary);
+    color: var(--brand-primary);
+    padding: 0.75rem 2rem;
+    border-radius: 9999px;
+    font-weight: 600;
     transition: all 0.3s ease;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
 }
 
 .btn-cyber-outline:hover {
-    background: var(--brand-cyan);
-    color: black;
-    box-shadow: 0 0 20px rgba(40, 230, 220, 0.4);
+    background: var(--brand-primary);
+    color: white;
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(123, 92, 255, 0.3);
 }
 
 /* Audio Visualizer */
@@ -220,7 +225,7 @@ body {
 
 .visualizer-bar {
     width: 3px;
-    background: var(--brand-cyan);
+    background: var(--brand-primary);
     border-radius: 1px;
     animation: visualizer-bounce 0.5s ease-in-out infinite alternate;
     min-height: 4px;

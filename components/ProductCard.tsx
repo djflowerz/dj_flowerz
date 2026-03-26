@@ -71,30 +71,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         {/* Content Section */}
         <div className="flex-1 p-6 flex flex-col justify-between">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-              <span>{product.category}</span>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 tracking-wide">
+              <span className="capitalize">{product.category?.toLowerCase()}</span>
               {product.brand && (
                 <>
-                  <span className="w-1 h-1 bg-white/20 rounded-full"></span>
-                  <span>{product.brand}</span>
+                  <span className="text-white/20">·</span>
+                  <span className="capitalize">{product.brand?.toLowerCase()}</span>
                 </>
               )}
             </div>
 
-            <h3 className="text-xl font-display font-black text-white group-hover:text-brand-cyan transition-colors uppercase">
+            <h3 className="text-xl font-outfit font-black text-white group-hover:text-brand-cyan transition-colors uppercase">
               <Link to={`/store/${product.slug || product.id}`}>
                 {product.name}
               </Link>
             </h3>
 
-            <div className="flex items-center gap-1 text-brand-yellow">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={12} fill="currentColor" className={i < 4 ? 'text-brand-cyan' : 'text-gray-600'} />
-              ))}
-              <span className="text-[10px] text-gray-500 ml-1">(12 reviews)</span>
-            </div>
-
-            <p className="text-sm text-gray-400 font-medium line-clamp-3 md:line-clamp-2">
+            <p className="text-[13px] leading-relaxed text-gray-400/90 font-light line-clamp-3 md:line-clamp-2" style={{fontStyle: 'normal', letterSpacing: '0.01em'}}>
               {product.shortDescription || product.description}
             </p>
           </div>
@@ -181,7 +174,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
       <div className="flex-1 p-5 space-y-3 flex flex-col bg-gradient-to-b from-transparent to-black/20 z-10">
         <div className="space-y-1">
           <div className="flex justify-between items-start">
-            <h3 className="text-lg font-display font-black text-white truncate pr-2 group-hover:text-brand-cyan transition-colors uppercase tracking-tight">
+            <h3 className="text-lg font-outfit font-black text-white truncate pr-2 group-hover:text-brand-cyan transition-colors uppercase tracking-tight">
               <Link to={`/store/${product.slug || product.id}`}>
                 {product.name}
               </Link>

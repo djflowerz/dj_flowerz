@@ -75,17 +75,19 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             const body = await request.json();
             if (url.pathname.includes('/campaigns')) {
                 const id = crypto.randomUUID();
+                const now = new Date().toISOString();
                 await env.DB.prepare(`
-                    INSERT INTO newsletter_campaigns (id, subject, content, target_audience, status)
-                    VALUES (?, ?, ?, ?, ?)
-                `).bind(id, body.subject, body.content, body.target_audience || 'all', body.status || 'draft').run();
+                    INSERT INTO newsletter_campaigns (id, subject, content, target_audience, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `).bind(id, body.subject, body.content, body.target_audience || 'all', body.status || 'draft', now).run();
                 return Response.json({ success: true, id });
             }
             if (url.pathname.includes('/coupons')) {
                 const id = crypto.randomUUID();
+                const now = new Date().toISOString();
                 await env.DB.prepare(`
-                    INSERT INTO coupons (id, code, scope, discount_type, discount_value, min_spend, expiry_date, max_uses_total, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO coupons (id, code, scope, discount_type, discount_value, min_spend, expiry_date, usage_limit, is_one_time_per_user, applicable_plans, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                     id, 
                     body.code.toUpperCase(), 
@@ -94,8 +96,11 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
                     body.discount_value, 
                     body.min_spend || 0, 
                     body.expiry_date, 
-                    body.max_uses_total || null, 
-                    body.is_active ?? 1
+                    body.max_uses_total || body.usage_limit || null, 
+                    body.is_one_time_per_user ? 1 : 0,
+                    body.applicable_plans || null,
+                    body.is_active ?? 1,
+                    now
                 ).run();
                 return Response.json({ success: true, id });
             }
@@ -115,7 +120,7 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             if (url.pathname.includes('/coupons/')) {
                 await env.DB.prepare(`
                     UPDATE coupons 
-                    SET code = ?, scope = ?, discount_type = ?, discount_value = ?, min_spend = ?, expiry_date = ?, max_uses_total = ?, is_active = ?
+                    SET code = ?, scope = ?, discount_type = ?, discount_value = ?, min_spend = ?, expiry_date = ?, usage_limit = ?, is_one_time_per_user = ?, applicable_plans = ?, is_active = ?
                     WHERE id = ?
                 `).bind(
                     body.code.toUpperCase(), 
@@ -124,7 +129,9 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
                     body.discount_value, 
                     body.min_spend, 
                     body.expiry_date, 
-                    body.max_uses_total, 
+                    body.max_uses_total || body.usage_limit, 
+                    body.is_one_time_per_user ? 1 : 0,
+                    body.applicable_plans,
                     body.is_active, 
                     id
                 ).run();

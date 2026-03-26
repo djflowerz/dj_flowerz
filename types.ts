@@ -71,6 +71,8 @@ export interface ProductVariantGroup {
   variants?: ProductVariant[]; // Detailed/Nested structure from Admin
 }
 
+export type ShippingSize = 'small' | 'medium' | 'large';
+
 export interface Product {
   id: string;
   name: string;
@@ -103,13 +105,18 @@ export interface Product {
   inventory?: number;
   lowStockThreshold?: number;
   sku?: string;
-  weight?: string;
-  dimensions?: string;
+  weight?: number; // in kg
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  shippingSize?: ShippingSize;
   shippingClass?: string;
-  requiresShipping: boolean;
+  requiresShipping?: boolean;
   size?: string;
-  digitalFileUrl?: string;
-  downloadPassword?: string;
+  digital_file_url?: string;
+  download_password?: string;
   secureDownloadLink?: string;
   downloadLimit?: number;
   expiryDays?: number;
@@ -123,7 +130,10 @@ export interface Product {
   technicalDetails?: { title: string; description: string }[];
   hotspots?: { x: number; y: number; title: string; description: string }[];
   useCases?: { title: string; description: string; icon?: string }[];
-  shippingPrice?: number;
+  shipping_cost?: number;
+  shipping_size?: ShippingSize;
+  shipping_zone_id?: string;
+  delivery_time?: string;
   meta_title?: string;
   meta_description?: string;
   meta_keywords?: string;
@@ -270,6 +280,7 @@ export interface Coupon {
   usageLimit: number;
   usageCount: number;
   active: boolean;
+  isOneTimePerUser?: boolean;
   isSingleUse?: boolean;
   assignedUserId?: string; // If set, only this user can use it
   minSpend?: number;
@@ -281,9 +292,11 @@ export interface ReferralStats {
   userName: string;
   referralCode: string;
   totalReferrals: number;
-  totalEarned: number;
+  totalEarnedKes: number;
+  totalEarnedDays: number;
   pendingPayout: number;
-  createdAt?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface NewsletterCampaign {
@@ -612,14 +625,11 @@ export interface ReferralSettings {
 export interface ReferralLog {
   id: string;
   referrerId: string;
-  refereeId: string;
-  referrerName: string;
-  refereeName: string;
-  planPurchased: string;
-  discountApplied: number;
-  rewardIssued: boolean;
+  referredId: string;
+  actionType: 'signup' | 'subscription' | 'purchase';
+  rewardType?: 'kes' | 'days';
+  rewardAmount?: number;
   createdAt: string;
-  status: 'pending' | 'completed';
 }
 
 export interface ContactMessage {

@@ -150,7 +150,8 @@ export const subscriptions = sqliteTable('subscriptions', {
 
 // 11. COUPONS
 export const coupons = sqliteTable('coupons', {
-    code: text('code').primaryKey(),
+    id: text('id').primaryKey(),
+    code: text('code').notNull().unique(),
     description: text('description'),
     scope: text('scope').default('all'), // all, tracks, mixtapes
     discountType: text('discount_type').notNull(), // percentage, fixed
@@ -158,16 +159,19 @@ export const coupons = sqliteTable('coupons', {
     minSpend: real('min_spend').default(0),
     expiryDate: text('expiry_date'),
     usageLimit: integer('usage_limit'), // total max uses
+    usageCount: integer('usage_count').default(0),
     isOneTimePerUser: integer('is_one_time_per_user', { mode: 'boolean' }).default(false),
+    applicablePlans: text('applicable_plans'), // JSON array of subscription plan IDs
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
     createdByRefUserId: text('created_by_ref_user_id'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
 // 12. COUPON USAGE
 export const couponUsage = sqliteTable('coupon_usage', {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    couponCode: text('coupon_code').references(() => coupons.code),
+    couponId: text('coupon_id').references(() => coupons.id),
     userId: text('user_id').references(() => profiles.id),
     orderId: text('order_id').references(() => orders.id),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),

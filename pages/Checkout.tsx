@@ -7,7 +7,8 @@ import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
 } from 'lucide-react';
-import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, COUNTY_TO_ZONE_MAP } from '../constants';
+import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, TOWN_TO_ZONE_MAP, SHIPPING_RATES_MATRIX, SHIPPING_ZONES_CONFIG } from '../constants';
+import { ShippingSize } from '../types';
 import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
@@ -151,7 +152,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!loading && !user) {
       toast.error('Please sign in to continue checkout');
-      navigate('/login', { state: { returnTo: '/checkout' } });
+      navigate('/login', { state: { from: '/checkout' } });
     }
   }, [user, loading, navigate]);
 
@@ -164,13 +165,28 @@ export default function Checkout() {
 
   const selectedZone = useMemo(() =>
     INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId) || INITIAL_SHIPPING_ZONES[0]
-    , [selectedZoneId]);
+  , [selectedZoneId]);
 
   const selectedRate = useMemo(() =>
     selectedZone.rates.find(r => r.id === selectedRateId) || selectedZone.rates[0]
-    , [selectedZone, selectedRateId]);
+  , [selectedZone, selectedRateId]);
 
-  const shippingCost = isDigitalOnly ? 0 : selectedRate.price;
+  // Determine the largest shipping size in the cart to fetch the correct base rate.
+  const orderShippingSize = useMemo<ShippingSize>(() => {
+    let size: ShippingSize = 'small';
+    for (const item of items) {
+      if (item.shippingSize === 'large') return 'large'; // Max size reached
+      if (item.shippingSize === 'medium') size = 'medium';
+    }
+    return size;
+  }, [items]);
+
+  const shippingCost = useMemo(() => {
+    if (isDigitalOnly) return 0;
+    const rates = SHIPPING_RATES_MATRIX[selectedZoneId];
+    return rates ? rates[orderShippingSize] : 0;
+  }, [isDigitalOnly, selectedZoneId, orderShippingSize]);
+
   
   // Ensure we sum up all prices correctly, handling potentially missing prices on sub items
   const subtotal = useMemo(() => items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0), [items]);
@@ -220,12 +236,30 @@ export default function Checkout() {
   };
 
   React.useEffect(() => {
-    if (selectedCounty && !isDigitalOnly) {
-      const mappedZoneId = COUNTY_TO_ZONE_MAP[selectedCounty] || 'upcountry';
-      if (mappedZoneId !== selectedZoneId) handleZoneChange(mappedZoneId);
-    }
-  }, [selectedCounty]);
+    if (isDigitalOnly) return;
+    
+    // Auto-select zone based on town first, fallback to county if town not found
+    const townValue = watch('town')?.trim()?.toLowerCase() || '';
+    const countyValue = watch('county');
+    
+    let mappedZoneId = 'zone5'; // Default to Upcountry
 
+    if (townValue && TOWN_TO_ZONE_MAP[townValue]) {
+      mappedZoneId = TOWN_TO_ZONE_MAP[townValue];
+    } else if (countyValue === 'Nairobi') {
+      mappedZoneId = 'zone1';
+    } else if (countyValue === 'Mombasa' || countyValue === 'Kilifi') {
+      mappedZoneId = 'zone6';
+    } else if (countyValue === 'Kiambu' || countyValue === 'Machakos' || countyValue === 'Kajiado') {
+      mappedZoneId = 'zone2';
+    } else if (countyValue === 'Nakuru' || countyValue === 'Kisumu' || countyValue === 'Uasin Gishu') {
+      mappedZoneId = 'zone3';
+    }
+
+    if (mappedZoneId !== selectedZoneId) {
+      handleZoneChange(mappedZoneId);
+    }
+  }, [watch('town'), selectedCounty]);
   const onSubmit = async (data: any) => {
     setIsProcessing(true);
     try {

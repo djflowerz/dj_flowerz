@@ -30,8 +30,8 @@ export const FolderSwitcher: React.FC<FolderSwitcherProps> = ({
           {currentHub.icon}
         </div>
         <div className="flex flex-col items-start min-w-0">
-          <span className="text-[10px] uppercase font-black text-zinc-500 tracking-widest leading-none mb-1">Source Hub</span>
-          <span className="text-sm font-bold text-white truncate">{currentHub.label}</span>
+          <span className="text-[11px] uppercase font-black text-zinc-500 tracking-[0.15em] leading-none mb-1.5">Source Hub</span>
+          <span className="text-[15px] font-bold text-white truncate">{currentHub.label}</span>
         </div>
         <ChevronDown size={18} className={`ml-auto text-zinc-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>

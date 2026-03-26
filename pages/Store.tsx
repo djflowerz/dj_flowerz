@@ -246,7 +246,7 @@ export default function Products() {
                 {stars === 'All' ? <span className="text-xs font-bold">All Ratings</span> : (
                   <>
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} size={10} fill={i < parseInt(stars) ? "currentColor" : "none"} className={i < parseInt(stars) ? "text-yellow-400" : "text-gray-600"} />
+                      <Star key={i} size={10} fill={i < parseInt(stars as string) ? "currentColor" : "none"} className={i < parseInt(stars as string) ? "text-brand-cyan" : "text-gray-600"} />
                     ))}
                     <span className="text-[10px] font-bold ml-1">& Up</span>
                   </>
@@ -290,12 +290,12 @@ export default function Products() {
                 <Flame size={12} />
                 Season Launch 2024
               </div>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-black text-white leading-[0.9] uppercase tracking-tighter">
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-outfit font-black text-white leading-[0.9] uppercase tracking-tighter">
                 ELEVATE YOUR <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan via-brand-white to-brand-purple">SONIC REALM</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple via-white to-brand-cyan">SONIC REALM</span>
               </h1>
-              <p className="text-gray-400 text-sm md:text-lg font-medium max-w-xl">
-                Experience the precision of the next-generation DJ Controller Pro X2. Engineered for the masters of the night.
+              <p className="text-gray-400 text-sm md:text-base font-light leading-relaxed max-w-xl">
+                Gear picked for people who take their sound seriously. New drops, pro setups, merch — all in one place.
               </p>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-4">
                 <button className="px-8 py-4 bg-brand-cyan text-black font-black rounded-xl hover:shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all flex items-center gap-2 group/btn">
@@ -323,7 +323,7 @@ export default function Products() {
                       <h3 className="text-lg font-black text-white uppercase">Pro X2 Controller</h3>
                       <span className="text-brand-cyan font-black">$1,499</span>
                     </div>
-                    <div className="flex items-center gap-1 text-yellow-400 mb-4">
+                    <div className="flex items-center gap-1 text-brand-cyan mb-4">
                       <Star size={12} fill="currentColor" />
                       <Star size={12} fill="currentColor" />
                       <Star size={12} fill="currentColor" />
@@ -386,7 +386,7 @@ export default function Products() {
         <section className="mb-20">
           <div className="flex items-end justify-between mb-8 border-b border-white/5 pb-4">
             <div>
-              <h2 className="text-3xl font-display font-black text-white uppercase tracking-tight">Best Sellers</h2>
+              <h2 className="text-3xl font-outfit font-black text-white uppercase tracking-tight">Best Sellers</h2>
               <p className="text-gray-500 text-sm mt-1 font-medium">Top performing gear chosen by the community.</p>
             </div>
             <Link to="/store?sort=hot" className="text-xs font-black text-brand-cyan hover:text-white transition-colors flex items-center gap-2 uppercase tracking-widest">
@@ -406,7 +406,7 @@ export default function Products() {
                       alt="Best Seller" 
                    />
                    <div className="absolute top-4 left-4">
-                      <div className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                      <div className="bg-brand-purple text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
                         TOP RATED
                       </div>
                    </div>
@@ -418,7 +418,7 @@ export default function Products() {
                   </div>
                   <div className="flex items-center justify-between">
                      <span className="text-2xl font-black text-white">KES {products.filter(p => p.isBestSeller)[0]?.price.toLocaleString()}</span>
-                     <div className="flex items-center gap-1 text-yellow-400">
+                     <div className="flex items-center gap-1 text-brand-cyan">
                        <Star size={10} fill="currentColor" />
                        <span className="text-[10px] font-bold">5.0</span>
                      </div>
@@ -451,7 +451,7 @@ export default function Products() {
            {/* Special Offer Column */}
            <div className="lg:col-span-4 h-full">
               <div className="flex items-center gap-2 mb-6">
-                <Zap size={20} className="text-yellow-400" />
+                <Zap size={20} className="text-brand-cyan" />
                 <h2 className="text-xl font-black text-white uppercase tracking-tight border-b-2 border-brand-cyan pb-1">Special Offer</h2>
               </div>
               
@@ -568,7 +568,7 @@ export default function Products() {
 
         {/* BROWSE ALL PRODUCTS HEADER */}
         <div id="all-products" className="mb-8 border-b border-white/5 pb-4">
-            <h2 className="text-3xl font-display font-black text-white uppercase tracking-tight">Browse All Gear</h2>
+            <h2 className="text-3xl font-outfit font-black text-white uppercase tracking-tight">Browse All Gear</h2>
             <p className="text-gray-500 text-sm mt-1 font-medium">Explore our complete catalog of professional musical equipment.</p>
         </div>
 
@@ -720,7 +720,7 @@ export default function Products() {
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto shadow-inner">
               <Mail className="text-brand-purple w-8 h-8" />
             </div>
-            <h2 className="text-3xl md:text-5xl font-display font-black text-white mb-4 tracking-tight">Stay in the Loop</h2>
+            <h2 className="text-3xl md:text-5xl font-outfit font-black text-white mb-4 tracking-tight">Stay in the Loop</h2>
             <p className="text-gray-400 text-lg mb-10 leading-relaxed font-medium">Join our newsletter to get exclusive deals, early access to new drops, and the latest gear news straight to your inbox.</p>
 
              <form className="flex flex-col sm:flex-row gap-3 w-full max-w-lg mx-auto" onSubmit={async (e) => { 

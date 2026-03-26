@@ -71,6 +71,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const sku = body.sku || null;
             const weight = body.weight || null;
             const dimensions = body.dimensions || null;
+            const shippingSize = body.shippingSize || body.shipping_size || 'medium';
             const features = body.features ? (Array.isArray(body.features) ? JSON.stringify(body.features) : body.features) : null;
 
             const requiresShipping = body.requiresShipping !== undefined ? (body.requiresShipping ? 1 : 0) : (body.requires_shipping !== undefined ? (body.requires_shipping ? 1 : 0) : (body.type === 'physical' ? 1 : 0));
@@ -88,10 +89,10 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, type, 
                     is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images,
-                    weight, dimensions, features,
+                    weight, dimensions, features, shipping_size,
                     requires_shipping, whatsapp_enabled, digital_file_url, download_password, currency, video_url, visibility, os
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -124,6 +125,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 weight,
                 dimensions,
                 features,
+                shippingSize,
                 requiresShipping,
                 whatsappEnabled,
                 digitalFileUrl,
@@ -191,6 +193,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const sku = body.sku || null;
             const weight = body.weight || null;
             const dimensions = body.dimensions || null;
+            const shippingSize = body.shippingSize || body.shipping_size || 'medium';
             const features = body.features ? (Array.isArray(body.features) ? JSON.stringify(body.features) : body.features) : null;
 
             const requiresShipping = body.requiresShipping !== undefined ? (body.requiresShipping ? 1 : 0) : (body.requires_shipping !== undefined ? (body.requires_shipping ? 1 : 0) : (body.type === 'physical' ? 1 : 0));
@@ -207,7 +210,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
-                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?, weight = ?, dimensions = ?, features = ?,
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?, weight = ?, dimensions = ?, features = ?, shipping_size = ?,
                     requires_shipping = ?, whatsapp_enabled = ?, digital_file_url = ?, download_password = ?, currency = ?, video_url = ?, visibility = ?, os = ?
                 WHERE id = ?
             `).bind(
@@ -240,6 +243,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 weight,
                 dimensions,
                 features,
+                shippingSize,
                 requiresShipping,
                 whatsappEnabled,
                 digitalFileUrl,

@@ -8,9 +8,11 @@ import { handleDashboardUsers } from './api/dashboard/users.js';
 import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
 import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
 import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
+import { handleDashboardReferrals } from './api/dashboard/referrals.js';
 import { handleDashboardFinances } from './api/dashboard/finances.js';
 import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
 import { handleStorefrontPool, handleGetSyncNotifications } from './api/storefront/pool.js';
+import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleLegacy } from './api/legacy.js';
 import { handleCommunity } from './api/community.js';
@@ -35,6 +37,7 @@ router.get('/api/pool/tracks', handleStorefrontPool);
 router.get('/api/pool/filters', handleStorefrontPool);
 router.get('/api/pool/download', handleStorefrontPool);
 router.post('/api/pool/download', handleStorefrontPool);
+router.get('/api/referrals/stats', handleStorefrontReferrals);
 router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
 
@@ -95,6 +98,9 @@ router.post('/api/admin/coupons', handleDashboardNewsletter);
 router.patch('/api/admin/coupons/:id', handleDashboardNewsletter);
 router.put('/api/admin/coupons/:id', handleDashboardNewsletter);
 router.delete('/api/admin/coupons/:id', handleDashboardNewsletter);
+
+router.get('/api/admin/referrals/stats', handleDashboardReferrals);
+router.get('/api/admin/referrals/logs', handleDashboardReferrals);
 
 router.get('/api/admin/tips', handleDashboardFinances);
 router.post('/api/admin/tips', handleDashboardFinances);
@@ -162,22 +168,43 @@ export { AdminHub };
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
+        const origin = request.headers.get("Origin");
+
+        // Allowed origins for CORS
+        const allowedOrigins = [
+            "https://djflowerz.co.ke",
+            "https://www.djflowerz.co.ke",
+            "https://dj-flowerz.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ];
+
+        // Simplified CORS logic: check if origin is in whitelist or is a vercel preview
+        const isAllowedOrigin = origin && (
+            allowedOrigins.includes(origin) || 
+            origin.endsWith(".vercel.app")
+        );
+
+        // If origin is allowed, echo it. Otherwise, use the first allowed origin as default if not a credentialed request,
+        // but since we want to be strict with credentials, we MUST return the specific origin.
+        const corsOrigin = isAllowedOrigin ? origin : (origin ? "null" : allowedOrigins[0]);
         
-        // Handle CORS
+        // Handle CORS PREFLIGHT
         if (request.method === "OPTIONS") {
             return new Response(null, {
                 headers: {
-                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Origin": corsOrigin,
                     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
                     "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name",
                     "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Max-Age": "86400",
                 }
             });
         }
 
         try {
             // --- PUBLIC FILE PROXY: GET /files/* ---
-            // Proxies track media (mp3, mp4, etc.) from the correct origin R2/worker CDN
             if (request.method === "GET" && url.pathname.startsWith("/files/")) {
                 const filePath = decodeURIComponent(url.pathname.replace("/files/", ""));
                 const originParam = url.searchParams.get("origin");
@@ -203,7 +230,7 @@ export default {
                 });
 
                 const headers = new Headers();
-                headers.set("Access-Control-Allow-Origin", "*");
+                headers.set("Access-Control-Allow-Origin", corsOrigin);
                 headers.set("Content-Type", originRes.headers.get("Content-Type") || "application/octet-stream");
                 headers.set("Cache-Control", "public, max-age=86400"); // 1 day cache
                 headers.set("Accept-Ranges", "bytes");
@@ -222,14 +249,15 @@ export default {
 
             const response = await router.handle(request, env, ctx);
 
-            // Special handling for WebSockets: return the original response if status is 101
+            // Special handling for WebSockets
             if (response.status === 101) {
                 return response;
             }
 
             // Add CORS headers to all responses
             const newHeaders = new Headers(response.headers);
-            newHeaders.set("Access-Control-Allow-Origin", "*");
+            newHeaders.set("Access-Control-Allow-Origin", corsOrigin);
+            newHeaders.set("Access-Control-Allow-Credentials", "true");
 
             return new Response(response.body, {
                 status: response.status,
@@ -240,7 +268,11 @@ export default {
             console.error("[Worker Error]", e);
             return new Response(JSON.stringify({ error: e.message }), {
                 status: 500,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Access-Control-Allow-Origin": corsOrigin,
+                    "Access-Control-Allow-Credentials": "true"
+                }
             });
         }
     },

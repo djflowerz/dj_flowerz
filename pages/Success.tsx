@@ -43,6 +43,7 @@ const Success: React.FC = () => {
                         amount: amount,
                         message: message || 'Generous Tip',
                         email: email || 'guest@djflowerz.co.ke',
+                        customerName: customerName || 'Guest Tipper',
                         status: 'completed',
                         createdAt: new Date().toISOString()
                      };

@@ -42,8 +42,8 @@ export async function handleStorefrontCoupons(request, env, ctx, params) {
             });
         }
 
-        // Check max uses
-        if (coupon.max_uses_total !== null && coupon.used_count >= coupon.max_uses_total) {
+        // Check usage limit
+        if (coupon.usage_limit !== null && coupon.usage_count >= coupon.usage_limit) {
             return new Response(JSON.stringify({ error: "Coupon has reached its usage limit" }), { 
                 status: 400,
                 headers: { "Content-Type": "application/json", ...corsHeaders }
@@ -52,11 +52,14 @@ export async function handleStorefrontCoupons(request, env, ctx, params) {
 
         return new Response(JSON.stringify({
             success: true,
+            id: coupon.id,
             code: coupon.code,
             discount_type: coupon.discount_type,
             discount_value: coupon.discount_value,
             min_spend: coupon.min_spend,
-            scope: coupon.scope
+            scope: coupon.scope,
+            is_one_time_per_user: Boolean(coupon.is_one_time_per_user),
+            applicable_plans: coupon.applicable_plans ? JSON.parse(coupon.applicable_plans) : null
         }), {
             headers: { "Content-Type": "application/json", ...corsHeaders }
         });

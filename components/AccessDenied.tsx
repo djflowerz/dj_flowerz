@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, MessageCircle, CreditCard, ShieldAlert, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -7,13 +7,15 @@ import { SUBSCRIPTION_PLANS } from '../constants';
 import { toast } from 'sonner';
 import { useCart } from '../context/CartContext';
 import { Product } from '../types';
+import { usePaystackPayment } from 'react-paystack';
+import { STORAGE_WORKER_URL } from '../utils/r2';
 
 interface AccessDeniedProps {
     onJoinSuccess?: () => void;
 }
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
-    const { user, activateTrial } = useAuth() as any;
+    const { user, activateTrial, refreshProfile } = useAuth() as any;
     const navigate = useNavigate();
     const location = useLocation();
     const { addToCart } = useCart();
@@ -21,37 +23,64 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     const eligiblePlans = SUBSCRIPTION_PLANS.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
     const [selectedPlanId, setSelectedPlanId] = useState<string>(eligiblePlans[0]?.id || SUBSCRIPTION_PLANS[0].id);
     const selectedPlan = eligiblePlans.find(p => p.id === selectedPlanId) || eligiblePlans[0] || SUBSCRIPTION_PLANS[0];
+    
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Paystack Configuration State
+    const [paystackConfig, setPaystackConfig] = useState<any>({
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
+        email: '',
+        amount: 0,
+        reference: '',
+    });
+
+    const initializePayment = usePaystackPayment(paystackConfig);
+
+    // Trigger Paystack after config is updated
+    useEffect(() => {
+        if (paystackConfig.email && paystackConfig.amount > 0 && paystackConfig.reference && isProcessing) {
+            const onSuccess = async (reference: any) => {
+                const verifyingToast = toast.loading("Verifying payment and activating your subscription...");
+                
+                try {
+                    // Give the webhook a moment to process (3 seconds)
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Refresh user profile to get updated subscription status
+                    await refreshProfile();
+                    
+                    toast.success("Subscription activated! Welcome to the Music Pool.", { id: verifyingToast });
+                    
+                    if (onJoinSuccess) {
+                        onJoinSuccess();
+                    } else {
+                        window.location.reload();
+                    }
+                } catch (error) {
+                    console.error("Profile refresh error:", error);
+                    toast.error("Payment successful but profile refresh failed. Please refresh manually.", { id: verifyingToast });
+                } finally {
+                    setIsProcessing(false);
+                }
+            };
+
+            const onClose = () => {
+                setIsProcessing(false);
+                toast.error('Payment cancelled.');
+            };
+
+            initializePayment({ onSuccess, onClose } as any);
+        }
+    }, [paystackConfig, isProcessing, refreshProfile, onJoinSuccess]);
 
     const handleJoinNow = async () => {
-        // Create a product object for the subscription plan
-        const planProduct: Product = {
-            id: selectedPlan.id,
-            name: selectedPlan.name,
-            slug: `sub-${selectedPlan.id}`,
-            type: 'subscription',
-            category: 'Subscription',
-            shortDescription: `Access to Music Pool for ${selectedPlan.period}`,
-            description: selectedPlan.features.join('. '),
-            price: selectedPlan.price,
-            currency: 'KES',
-            isActive: true,
-            visibility: 'public',
-            tags: ['subscription', 'music-pool'],
-            image: 'https://images.unsplash.com/photo-1514525253361-bee8a48790c3?w=400&h=400&fit=crop&q=80',
-            hasVariants: false,
-            requiresShipping: false,
-            whatsappEnabled: false,
-            status: 'published',
-            trackStock: false,
-            stock: 999
-        };
+        if (!user) {
+            toast.info("Please sign in to subscribe.");
+            navigate('/login', { state: { from: location } });
+            return;
+        }
 
         if (selectedPlan.price === 0) {
-            if (!user) {
-                toast.info("Please sign in to activate your free trial.");
-                navigate('/login', { state: { from: location } });
-                return;
-            }
             // Free Trial
             const trialToast = toast.loading("Activating your free trial...");
             try {
@@ -65,15 +94,22 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
             return;
         }
 
-        // Add to cart and head to checkout
-        addToCart(planProduct, 1);
+        // Direct Paystack Payment
+        setIsProcessing(true);
+        const ref = `sub_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         
-        if (!user) {
-            toast.info("Plan added to cart. Please sign in to complete your checkout.");
-            navigate('/login', { state: { from: '/checkout' } });
-        } else {
-            navigate('/checkout');
-        }
+        setPaystackConfig({
+            publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
+            email: user.email,
+            amount: selectedPlan.price * 100, // Paystack expects amount in sub-units (kobo/cents)
+            reference: ref,
+            metadata: {
+                type: 'subscription',
+                planId: selectedPlan.id,
+                userId: user.id,
+                customerName: user.name || user.email.split('@')[0]
+            }
+        });
     };
 
     const handleWhatsAppHelp = () => {
@@ -147,9 +183,15 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                 <div className="max-w-md mx-auto space-y-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
                     <button
                         onClick={handleJoinNow}
-                        className="w-full py-5 bg-gradient-to-r from-brand-purple to-brand-cyan hover:from-purple-500 hover:to-brand-cyan text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-brand-purple/20"
+                        disabled={isProcessing}
+                        className="w-full py-5 bg-gradient-to-r from-brand-purple to-brand-cyan hover:from-purple-500 hover:to-brand-cyan text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {user ? (
+                        {isProcessing ? (
+                            <div className="flex items-center gap-3">
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Initializing Payment...</span>
+                            </div>
+                        ) : user ? (
                             <>
                                 <CreditCard className="w-6 h-6" />
                                 Pay KES {selectedPlan.price.toLocaleString()} via Paystack

@@ -46,8 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Layers size={20} />
             </div>
             <div className="flex flex-col items-start translate-y-0.5">
-              <span className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] leading-none mb-1">Browse Genre</span>
-              <span className="text-sm font-bold text-white leading-none">{activeGenre}</span>
+              <span className="text-[11px] uppercase font-black text-zinc-500 tracking-[0.15em] leading-none mb-1.5">Browse Genre</span>
+              <span className="text-[15px] font-bold text-white leading-none">{activeGenre}</span>
             </div>
           </div>
           <motion.div
@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     <Folder size={16} className={activeHub === hubData.hub ? 'text-blue-400' : 'text-zinc-500 group-hover:text-zinc-300'} />
-                    <span className="text-sm font-bold truncate">{hubData.hub}</span>
+                    <span className="text-[15px] font-bold truncate">{hubData.hub}</span>
                   </div>
                   <ChevronDown 
                     size={16} 

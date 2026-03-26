@@ -13,15 +13,21 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Poppins', 'sans-serif'],
         display: ['Poppins', 'sans-serif'],
+        outfit: ['Outfit', 'sans-serif'],
       },
       colors: {
         brand: {
-          dark: '#0B0B0F',
-          card: '#15151A',
+          primary: '#7B5CFF',
+          secondary: '#28E6DC',
+          dark: '#131313',
+          card: '#1a1a1a',
           purple: '#7B5CFF',
-          cyan: '#00E5FF',
+          cyan: '#28E6DC',
+          pink: '#FF287E',
+          red: '#f42c37',
+          gold: '#fbbf24',
         }
       }
     }

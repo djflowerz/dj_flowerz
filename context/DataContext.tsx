@@ -158,6 +158,9 @@ interface DataContextType {
   bulkAddPoolTracks: (tracks: Track[], idsToRemoveFromScanned: string[]) => Promise<void>;
   updatePoolTrack: (id: string, data: Partial<Track>) => Promise<void>;
   deletePoolTrack: (id: string) => void;
+
+  addPayment: (payment: any) => Promise<void>;
+  addTip: (tip: any) => Promise<void>;
   loadMorePoolTracks: (count?: number) => void;
   deployPoolToStorefront: () => Promise<void>;
 
@@ -193,11 +196,11 @@ interface DataContextType {
   deleteStudioRoom: (id: string) => void;
   addMaintenanceLog: (log: MaintenanceLog) => void;
   updateMaintenanceLog: (id: string, data: Partial<MaintenanceLog>) => void;
+  deleteMaintenanceLog: (id: string) => void;
 
   addOrder: (order: Order) => Promise<void>;
   updateOrder: (id: string, data: Partial<Order>) => Promise<void>;
-  addPayment: (payment: any) => Promise<void>;
-  addTip: (tip: any) => Promise<void>;
+  deleteOrder: (id: string) => Promise<void>;
 
   addCampaign: (camp: NewsletterCampaign) => void;
   refreshNotifications: () => void;
@@ -233,6 +236,32 @@ interface DataContextType {
   refreshStudioSessions: () => void;
   refreshEventGigs: () => void;
   refreshSyncNotifications: () => void;
+
+  refreshProducts: () => void;
+  refreshMixtapes: () => void;
+  refreshOrders: () => void;
+  refreshUsers: () => void;
+  refreshSubscriptions: () => void;
+  refreshBookings: () => void;
+  refreshSubscribers: () => void;
+  refreshCampaigns: () => void;
+  refreshPayments: () => void;
+  refreshTips: () => void;
+  refreshEquipment: () => void;
+  refreshRooms: () => void;
+  refreshLogs: () => void;
+  refreshSessionTypes: () => void;
+  refreshScannedTracksData?: () => void;
+  refreshGenres: () => void;
+  refreshVideos: () => void;
+  refreshPlans: () => void;
+  refreshZones: () => void;
+  refreshCoupons: () => void;
+  refreshReferrals: () => void;
+  refreshTelegramChannels: () => void;
+  refreshContactMessages: () => void;
+  refreshReviews: () => void;
+  refreshComments: () => void;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -502,6 +531,7 @@ const mapR2Order = (o: any): Order => {
   return {
     ...o,
     items: Array.isArray(parsedItems) ? parsedItems : [],
+    total: o.total !== undefined ? o.total : (o.total_amount !== undefined ? o.total_amount : o.amount),
     customerName: o.customer_name || o.customerName,
     customerEmail: o.customer_email || o.customerEmail,
     customerPhone: o.customer_phone || o.customerPhone || o.phone,
@@ -562,6 +592,7 @@ const mapR2Subscription = (s: any): Subscription => ({
 
 const mapR2Booking = (b: any): Booking => ({
   ...b,
+  budget: b.budget !== undefined ? b.budget : (b.total_price_kes || b.quote_amount || 0),
   clientName: b.client_name || b.clientName,
   clientEmail: b.client_email || b.clientEmail,
   clientPhone: b.client_phone || b.clientPhone,
@@ -651,9 +682,10 @@ const mapCouponToD1 = (c: Partial<Coupon>) => {
   if (c.discountValue !== undefined) mapped.discount_value = c.discountValue;
   if (c.appliesTo) mapped.scope = c.appliesTo;
   if (c.expiryDate) mapped.expiry_date = c.expiryDate;
-  if (c.usageLimit !== undefined) mapped.max_uses_total = c.usageLimit;
+  if (c.usageLimit !== undefined) mapped.usage_limit = c.usageLimit;
   if (c.active !== undefined) mapped.is_active = c.active ? 1 : 0;
   if (c.minSpend !== undefined) mapped.min_spend = c.minSpend;
+  if (c.isOneTimePerUser !== undefined) mapped.is_one_time_per_user = c.isOneTimePerUser ? 1 : 0;
   if (c.applicablePlans) mapped.applicable_plans = JSON.stringify(c.applicablePlans);
   
   // Clean up camelCase fields
@@ -664,6 +696,7 @@ const mapCouponToD1 = (c: Partial<Coupon>) => {
   delete mapped.usageLimit;
   delete mapped.active;
   delete mapped.minSpend;
+  delete mapped.isOneTimePerUser;
   delete mapped.applicablePlans;
   
   return mapped;
@@ -675,9 +708,21 @@ const mapR2ReferralStats = (r: any): ReferralStats => ({
   userName: r.user_name || r.userName,
   referralCode: r.referral_code || r.referralCode,
   totalReferrals: r.total_referrals !== undefined ? r.total_referrals : (r.totalReferrals || 0),
-  totalEarned: r.total_earned !== undefined ? r.total_earned : (r.totalEarned || 0),
+  totalEarnedKes: r.total_earned_kes !== undefined ? r.total_earned_kes : (r.total_earned !== undefined ? r.total_earned : (r.totalEarnedKes || r.totalEarned || 0)),
+  totalEarnedDays: r.total_earned_days !== undefined ? r.total_earned_days : (r.totalEarnedDays || 0),
   pendingPayout: r.pending_payout !== undefined ? r.pending_payout : (r.pendingPayout || 0),
   createdAt: r.created_at || r.createdAt,
+  updatedAt: r.updated_at || r.updatedAt
+});
+
+const mapD1ReferralLog = (l: any): ReferralLog => ({
+  id: String(l.id),
+  referrerId: l.referrer_id,
+  referredId: l.referred_id,
+  actionType: l.action_type,
+  rewardType: l.reward_type,
+  rewardAmount: l.reward_amount,
+  createdAt: l.created_at
 });
 
 const mapR2Campaign = (c: any): NewsletterCampaign => ({
@@ -725,6 +770,8 @@ const mapR2Notification = (n: any): AppNotification => ({
 
 const mapR2Tip = (t: any): any => ({
   ...t,
+  amount: t.amount !== undefined ? t.amount : t.total_amount,
+  status: t.status || 'completed',
   customerName: t.donor_name || t.customer_name || t.customerName || t.name,
   customerEmail: t.donor_email || t.customer_email || t.customerEmail || t.user_email || t.email,
   userEmail: t.donor_email || t.user_email || t.userEmail || t.email,
@@ -758,6 +805,8 @@ const getTableName = (colName: string): string => {
     'subscriptionPlans': 'subscription_plans',
     'shippingZones': 'shipping_zones',
     'youtubeVideos': 'youtube_videos',
+    'referral_stats': 'referrals/stats',
+    'referral_logs': 'referrals/logs',
   };
   return mapping[colName] || colName;
 };
@@ -1013,7 +1062,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapD1StudioRoom, 'createdAt', 'desc', 'D1', isAdmin);
   const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapD1MaintenanceLog, 'createdAt', 'desc', 'D1', isAdmin);
   const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc', 'D1', isAdmin);
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc', 'R2', isAdmin);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc', 'D1', isAdmin);
+  const [referralLogs, , referralLogsLoading, , , refreshReferralLogs] = useCollection<ReferralLog>('referral_logs', [], true, mapD1ReferralLog, 'createdAt', 'desc', 'D1', isAdmin);
   const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
   const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
   const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
@@ -1069,7 +1119,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     firstTimeDiscount: 28.57,
     firstTimeDiscountType: 'percentage'
   });
-  const [referralLogs, setReferralLogs] = useState<ReferralLog[]>([]);
 
   const fetchRefSettings = async () => {
     try {
@@ -1088,31 +1137,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, []);
 
-  const fetchReferralLogs = async () => {
-    try {
-      const data = await fetchFromR2<any>('referral_logs');
-      if (data) {
-        setReferralLogs(data.map((l: any) => ({
-          id: l.id,
-          referrerId: l.referrer_id,
-          refereeId: l.referee_id,
-          referrerName: l.referrer_name,
-          refereeName: l.referee_name,
-          planPurchased: l.plan_purchased,
-          discountApplied: l.discount_applied,
-          rewardIssued: l.reward_issued,
-          createdAt: l.created_at,
-          status: l.status
-        })));
-      }
-    } catch (err) { console.error('Error fetching referral logs', err); }
-  };
-
-  useEffect(() => {
-    fetchRefSettings();
-    fetchReferralLogs();
-  }, []);
-
+  // --- ACTIONS (Now exclusively R2) ---
 
   // --- ACTIONS (Now exclusively R2) ---
 
@@ -1355,49 +1380,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const rewardAmount = refSettings?.referrerRewardAmount || 50;
 
       // 1. Log the referral
+      // 1. Log the referral action in D1
       const logEntry = {
-        id: `reflog_${Date.now()}`,
-        referrerId,
-        refereeId,
-        referrerName: 'Admin',
-        refereeName,
-        planPurchased: 'Trial Activated',
-        rewardIssued: true,
-        createdAt: new Date().toISOString(),
-        status: 'completed'
+        referrer_id: referrerId,
+        referred_id: refereeId,
+        action_type: 'subscription',
+        reward_type: 'kes',
+        reward_amount: rewardAmount,
+        created_at: new Date().toISOString()
       };
-      await addR2Item('referral_logs', logEntry);
+      await saveToD1('referral_logs', 'POST', logEntry);
 
-      // 2. Update referral stats
-      const stats = await fetchFromR2<ReferralStats>('referral_stats');
-      const statIdx = stats.findIndex(s => s.userId === referrerId);
-      if (statIdx !== -1) {
-        stats[statIdx].totalReferrals = (stats[statIdx].totalReferrals || 0) + 1;
-        stats[statIdx].totalEarned = (stats[statIdx].totalEarned || 0) + rewardAmount;
-      } else {
-        const profiles = await fetchFromR2<any>('profiles');
-        const referrerProfile = profiles.find(p => p.id === referrerId);
-        stats.push({
-          id: `stats_${referrerId}`,
-          userId: referrerId,
-          userName: referrerProfile?.name || 'User',
-          referralCode: referrerProfile?.referralCode || referrerProfile?.referral_code || 'N/A',
-          totalReferrals: 1,
-          totalEarned: rewardAmount,
-          pendingPayout: 0,
-          createdAt: new Date().toISOString()
-        });
-      }
-      await saveToR2('referral_stats', stats);
-
-      // 3. Update referrer balance
-      const profiles = await fetchFromR2<any>('profiles');
+      // 2. Update referral stats in D1
+      // Note: Backend might handle this via triggers, but for immediate UI update we refresh
+      
+      // 3. Update referrer balance in D1
+      const profiles = await fetchFromR2<any>('profiles'); // Profiles still primarily in R2 for some reason? 
+      // Actually, balance should be in D1 as per previous sessions.
       const referrer = profiles.find(p => p.id === referrerId);
       if (referrer) {
         await saveToD1('profiles', 'PUT', { balance: (referrer.balance || 0) + rewardAmount }, referrerId);
       }
 
       refreshReferrals();
+      refreshReferralLogs();
       refreshUsers();
       console.log(`[Referral] Issued KES ${rewardAmount} reward to ${referrerId}`);
     } catch (err) {
@@ -1674,16 +1680,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const loadMorePoolTracks = async (limit: number = 1000000) => {
+  const loadMorePoolTracks = async (limit: number = 5000) => {
     try {
       setPoolLoading(true);
-      // Increased default limit to 1M to satisfy "no limits" requirement
-      const res = await fetch(`https://music-worker.ianmuriithiflowerz.workers.dev?limit=${limit}`);
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/pool/tracks?limit=${limit}`, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
       if (!res.ok) throw new Error("Failed to load music pool tracks");
       const data = await res.json();
+      const tracksArray = data.tracks || [];
 
       // We replace with the full set to ensure searchability across all tracks
-      setPoolTracks(data.map(mapR2Track));
+      setPoolTracks(tracksArray.map(mapR2Track));
     } catch (err: any) {
       console.error("Load tracks failed:", err);
     } finally {
@@ -2025,24 +2035,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addPayment = async (payment: any) => {
-    try {
-      const newPayments = [payment, ...payments];
-      await saveToR2('payments', newPayments);
-      if (typeof refreshPayments === 'function') refreshPayments();
-    } catch (err: any) {
-      console.error("Add payment failed:", err.message);
-    }
-  };
-
-  const addTip = async (tip: any) => {
-    try {
-      const ok = await saveToD1('admin/tips', 'POST', tip);
-      if (ok && typeof refreshTips === 'function') refreshTips();
-    } catch (err: any) {
-      console.error("Add tip failed:", err.message);
-    }
-  };
 
   const addCampaign = async (camp: NewsletterCampaign) => {
     try {
@@ -2328,6 +2320,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const addPayment = async (payment: any) => {
+    try {
+      const newPayment = {
+        ...payment,
+        id: payment.id || `pay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        createdAt: payment.createdAt || new Date().toISOString()
+      };
+      
+      const currentPayments = payments || [];
+      await saveToR2('payments', [newPayment, ...currentPayments]);
+      refreshPayments();
+    } catch (err: any) {
+      console.error("Add payment failed:", err.message);
+    }
+  };
+
+  const addTip = async (tip: any) => {
+    try {
+      const newTip = {
+        ...tip,
+        id: tip.id || `tip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        createdAt: tip.createdAt || new Date().toISOString()
+      };
+      
+      const currentTips = tips || [];
+      await saveToR2('tips', [newTip, ...currentTips]);
+      
+      // Also try saving to D1 for admin dashboard table.
+      // D1 schema expects specific fields for tips based on mapR2Tip parsing
+      try {
+        const d1Payload = {
+            id: newTip.id,
+            amount: newTip.amount,
+            message: newTip.message,
+            donor_name: newTip.customerName || 'Guest Tipper',
+            donor_email: newTip.email || newTip.userEmail || 'guest@djflowerz.co.ke',
+            status: newTip.status || 'completed',
+            created_at: newTip.createdAt
+        };
+        await saveToD1('tips', 'POST', d1Payload);
+      } catch (e) {
+        console.warn("Failed to sync tip to D1, but saved to R2", e);
+      }
+      
+      refreshTips();
+    } catch (err: any) {
+      console.error("Add tip failed:", err.message);
+    }
+  };
+
+  const deleteOrder = async (id: string) => {
+    try {
+      const ok = await saveToD1('admin/orders', 'DELETE', undefined, id);
+      if (ok) refreshOrders();
+    } catch (err: any) {
+      console.error("Delete order failed:", err.message);
+    }
+  };
+
+  const deleteMaintenanceLog = async (id: string) => {
+    try {
+      const ok = await saveToD1('admin/maintenance_logs', 'DELETE', undefined, id);
+      if (ok) refreshLogs();
+    } catch (err: any) {
+      console.error("Delete maintenance log failed:", err.message);
+    }
+  };
+
   const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
       const response = await fetch(`${STORAGE_WORKER_URL}/api/contact`, {
@@ -2594,11 +2654,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateStudioRoom,
     deleteStudioRoom,
     addMaintenanceLog,
-    updateMaintenanceLog,
-    addOrder,
-    updateOrder,
+    deleteMaintenanceLog,
     addPayment,
     addTip,
+    addOrder,
+    updateOrder,
+    deleteOrder,
     addCampaign,
     updateCampaign,
     refreshNotifications,

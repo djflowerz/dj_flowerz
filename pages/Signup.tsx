@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
@@ -15,12 +15,14 @@ const Signup: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   React.useEffect(() => {
     if (user && !authLoading) {
-      navigate('/', { replace: true });
+      const from = (location.state as any)?.from || '/';
+      navigate(from, { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +64,8 @@ const Signup: React.FC = () => {
         navigate('/login', {
           state: {
             email,
-            message: "Account created successfully! Please sign in."
+            message: "Account created successfully! Please sign in.",
+            from: (location.state as any)?.from
           }
         });
       } else {
@@ -70,7 +73,8 @@ const Signup: React.FC = () => {
         navigate('/login', {
           state: {
             email,
-            message: "Account created! Please check your email to confirm."
+            message: "Account created! Please check your email to confirm.",
+            from: (location.state as any)?.from
           }
         });
       }

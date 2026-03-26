@@ -1,5 +1,6 @@
 // worker/api/webhooks/paystack.js
 import { sendEmail } from '../../utils/email.js';
+import { templates } from '../../utils/templates.js';
 
 export async function handlePaystackWebhook(request, env) {
     const signature = request.headers.get('x-paystack-signature');
@@ -72,26 +73,48 @@ export async function handlePaystackWebhook(request, env) {
 
                 // Order Receipt
                 try {
+                    // Fetch items to determine if digital or physical
+                    const { results: items } = await env.DB.prepare(`
+                        SELECT oli.*, pt.is_digital, pv.metadata as variant_metadata
+                        FROM order_line_items oli
+                        JOIN product_variants pv ON oli.variant_id = pv.id
+                        JOIN products_new p ON pv.product_id = p.id
+                        JOIN product_types pt ON p.product_type_id = pt.id
+                        WHERE oli.order_id = ?
+                    `).bind(orderId).all();
+
+                    const isDigital = items.length > 0 && items.some(i => i.is_digital);
+                    const customerName = metadata?.customerName || customer?.first_name || 'Legend';
+                    const amountFormatted = (amount / 100).toLocaleString();
+                    
+                    let htmlContent;
+                    let textContent;
+
+                    if (isDigital) {
+                        const digitalProducts = items.filter(i => i.is_digital).map(i => {
+                            let metadataObj = {};
+                            try { metadataObj = JSON.parse(i.variant_metadata || '{}'); } catch(e) {}
+                            return {
+                                name: i.product_name,
+                                downloadUrl: metadataObj.download_url || metadataObj.file_url || 'https://djflowerz.co.ke/account/downloads',
+                                password: metadataObj.password || 'FLOWERZ_VIP_254'
+                            };
+                        });
+                        htmlContent = templates.storeReceiptDigital(orderId, amountFormatted, customerName, digitalProducts);
+                        textContent = `Order confirmed! Your digital products are ready. Visit your account or check the link: ${digitalProducts[0].downloadUrl}`;
+                    } else {
+                        const itemsSummary = items.map(i => `${i.quantity}x ${i.product_name}`).join(', ');
+                        htmlContent = templates.storeReceiptPhysical(orderId, amountFormatted, customerName, itemsSummary);
+                        textContent = `Order confirmed! Your gear is being prepped. Order #${orderId} for KSh ${amountFormatted}.`;
+                    }
+
                     await sendEmail({
                         to: customer?.email || 'customer@djflowerz.co.ke',
-                        subject: `Order Receipt - #${orderId}`,
+                        subject: isDigital ? `Your VIP Drop is Ready! ⚡️ Order #${orderId}` : `Fresh Gear Alert! 💎 Order #${orderId}`,
                         fromEmail: 'receipts@djflowerz.co.ke',
                         fromName: 'DJ FLOWERZ Store',
-                        html: `
-                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                <h1 style="color: #a855f7; margin-bottom: 20px;">Order Confirmed!</h1>
-                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Thank you for your purchase. Your order <strong>#${orderId}</strong> is now being processed.</p>
-                                <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff10;">
-                                    <h3 style="color: #ffffff; margin-top: 0;">Order Summary</h3>
-                                    <p style="margin: 5px 0; color: #9ca3af;">Status: <span style="color: #4ade80;">Paid</span></p>
-                                    <p style="margin: 5px 0; color: #9ca3af;">Amount: KSh ${(amount / 100).toLocaleString()}</p>
-                                </div>
-                                <p style="color: #9ca3af; font-size: 14px;">We'll notify you once your order has been dispatched.</p>
-                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                <p style="font-size: 10px; color: #4b5563; text-align: center; text-transform: uppercase;">DJ FLOWERZ • Nairobi, Kenya</p>
-                            </div>
-                        `,
-                        text: `Order Confirmed! Your order #${orderId} for KSh ${(amount / 100).toLocaleString()} is being processed.`
+                        html: htmlContent,
+                        text: textContent
                     }, env);
                 } catch (e) {
                     console.error('[Order Receipt Email Error]', e);
@@ -214,27 +237,14 @@ export async function handlePaystackWebhook(request, env) {
                     const userName = metadata?.userName || customer?.first_name || 'Member';
 
                     try {
+                        const amountFormatted = (amount / 100).toLocaleString();
                         await sendEmail({
                             to: userEmail,
-                            subject: '🚀 Music Pool Access Activated!',
+                            subject: 'Welcome to the VIP Circle! 🎟️ Your DJ FLOWERZ Subscription is ACTIVE',
                             fromEmail: 'admin@djflowerz.co.ke',
-                            fromName: 'DJ Flowerz Admin',
-                            html: `
-                                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                    <h1 style="color: #a855f7; margin-bottom: 20px;">Welcome to the Pool!</h1>
-                                    <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${userName}, your <strong>${planName}</strong> is now active.</p>
-                                    <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff10;">
-                                        <h3 style="color: #ffffff; margin-top: 0;">Access Details</h3>
-                                        <p style="margin: 5px 0; color: #9ca3af;">Plan: ${planName}</p>
-                                        <p style="margin: 5px 0; color: #9ca3af;">Expiry: ${expiryDate.toLocaleDateString()}</p>
-                                    </div>
-                                    <p style="color: #9ca3af; font-size: 14px;">You now have full access to the Music Pool and exclusive mixtapes. Happy listening!</p>
-                                    <a href="https://djflowerz.co.ke/music-pool" style="display: inline-block; background: #a855f7; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px;">Enter Music Pool</a>
-                                    <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                    <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ • Nairobi, Kenya</p>
-                                </div>
-                            `,
-                            text: `Hello ${userName}, your ${planName} is now active! Visit djflowerz.co.ke/music-pool to start.`
+                            fromName: 'DJ FLOWERZ VIP',
+                            html: templates.subscriptionActivation(userName, planName, expiryDate.toLocaleDateString()),
+                            text: `Welcome to the Inner Circle, ${userName}! Your ${planName} is now active. Renewal date: ${expiryDate.toLocaleDateString()}.`
                         }, env);
                     } catch (emailErr) {
                         console.error('[Subscription Activation Email Error]', emailErr);
@@ -261,45 +271,14 @@ export async function handlePaystackWebhook(request, env) {
 
                 // Send Tip Receipt
                 try {
+                    const amountFormatted = (amount / 100).toLocaleString();
                     await sendEmail({
                         to: userEmail,
                         subject: 'You’re a Legend! 💎 Your Support for DJ FLOWERZ Received',
                         fromEmail: 'admin@djflowerz.co.ke',
                         fromName: 'DJ FLOWERZ',
-                        html: `
-                            <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff; border-radius: 16px;">
-                                <div style="text-align: center; margin-bottom: 30px;">
-                                    <h2 style="letter-spacing: 4px; color: #ffffff; margin: 0;">[ DJ FLOWERZ ]</h2>
-                                    <p style="color: #a855f7; font-weight: bold; margin-top: 5px;">Mr Flow Finnesse 🎧</p>
-                                </div>
-                                <h1 style="color: #ffffff; font-size: 24px; text-align: center; margin-bottom: 20px; line-height: 1.2;">YO! YOU JUST LEVELED UP THE SOUND.</h1>
-                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6; text-align: center;">I just received your contribution of <strong>KSh ${(amount / 100).toLocaleString()}</strong>, and I wanted to reach out personally to say thank you.</p>
-                                <p style="font-size: 16px; color: #9ca3af; line-height: 1.6; text-align: center;">Support like yours is the fuel behind every beat, every late-night studio session, and every mixtape drop. You aren't just a listener—you’re officially part of the journey. 🇰🇪✨</p>
-                                
-                                <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff08;">
-                                    <h3 style="color: #ffffff; margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Transaction Details:</h3>
-                                    <p style="margin: 8px 0; color: #9ca3af;">💰 <strong>Amount:</strong> KSh ${(amount / 100).toLocaleString()}</p>
-                                    <p style="margin: 8px 0; color: #9ca3af;">✅ <strong>Status:</strong> Confirmed</p>
-                                    <p style="margin: 8px 0; color: #9ca3af;">📩 <strong>Sent to:</strong> admin@djflowerz.co.ke</p>
-                                </div>
-
-                                <div style="text-align: center; margin-top: 40px;">
-                                    <h3 style="color: #ffffff; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">Stay Connected:</h3>
-                                    <p style="margin: 10px 0;">
-                                        <a href="https://youtube.com/@dj_flowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">📺 YouTube</a> |
-                                        <a href="https://instagram.com/djflowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">📸 Instagram</a> |
-                                        <a href="https://tiktok.com/@dj.flowerz" style="color: #a855f7; text-decoration: none; margin: 0 10px;">🎵 TikTok</a>
-                                    </p>
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 40px 0;">
-                                <div style="text-align: center;">
-                                    <p style="color: #9ca3af; line-height: 1.6;">Keep the volume up and the energy high.</p>
-                                    <p style="font-weight: bold; color: #ffffff; margin-top: 10px;">Stay Legendary,<br>DJ FLOWERZ</p>
-                                </div>
-                            </div>
-                        `,
-                        text: `YO! YOU JUST LEVELED UP THE SOUND. I just received your contribution of KSh ${(amount / 100).toLocaleString()}, and I wanted to reach out personally to say thank you. Support like yours is the fuel behind every beat. STAY CONNECTED: YouTube: @dj_flowerz | Instagram: @djflowerz | TikTok: @dj.flowerz. Stay Legendary, DJ FLOWERZ`
+                        html: templates.tipReceipt(customerName, amountFormatted),
+                        text: `YO! YOU JUST LEVELED UP THE SOUND. I just received your contribution of KSh ${amountFormatted}, and I wanted to reach out personally to say thank you.`
                     }, env);
                 } catch (e) {
                     console.error('[Tip Receipt Email Error]', e);

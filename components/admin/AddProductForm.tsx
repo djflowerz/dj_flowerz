@@ -34,6 +34,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     releaseDate: initialData?.releaseDate || '',
     weight: initialData?.weight || '',
     dimensions: initialData?.dimensions || '',
+    shippingSize: initialData?.shippingSize || 'medium',
     features: initialData?.features || [],
     image: initialData?.image || '',
     images: initialData?.images || [],
@@ -68,7 +69,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
     }));
   };
 
-  const updateField = (name: keyof Product, value: any) => {
+  const updateField = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -437,7 +438,21 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <Truck className="text-brand-purple" size={20} />
                   <h3 className="text-lg font-black text-white tracking-tight">Shipping Settings</h3>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Package Size</label>
+                    <select
+                      name="shippingSize"
+                      value={formData.shippingSize}
+                      onChange={handleInputChange}
+                      className="w-full bg-[#111116] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                    >
+                      <option value="small">Small (e.g., cables, needles)</option>
+                      <option value="medium">Medium (e.g., headphones, small mixers)</option>
+                      <option value="large">Large (e.g., controllers, studio monitors)</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Weight (kg)</label>
                     <input
@@ -448,6 +463,9 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
                   <div>
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Dimensions</label>
                     <input
@@ -458,16 +476,16 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
                     />
                   </div>
-                </div>
-                <div>
-                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SKU / Model #</label>
-                   <input
-                     name="sku"
-                     value={formData.sku}
-                     onChange={handleInputChange}
-                     placeholder="e.g. DJ-FLX10-BLK"
-                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
-                   />
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SKU / Model #</label>
+                    <input
+                      name="sku"
+                      value={formData.sku}
+                      onChange={handleInputChange}
+                      placeholder="e.g. DJ-FLX10-BLK"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-gray-700 focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
+                    />
+                  </div>
                 </div>
               </div>
 

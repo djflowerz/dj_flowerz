@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown
+  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown, Flame, Zap
 } from 'lucide-react';
 
 interface TrackVersion {
@@ -34,6 +34,7 @@ interface TrackRowProps {
   onSkipNext?: () => void;
   onSkipPrev?: () => void;
   isSubscriber?: boolean;
+  isHype?: boolean;
 }
 
 export const TrackRow: React.FC<TrackRowProps> = ({
@@ -55,7 +56,8 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   onDownloadAll,
   onFindSimilar,
   onCloseInline,
-  isSubscriber = false
+  isSubscriber = false,
+  isHype = false
 }) => {
   const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
     const name = (v?.version_name || '').toLowerCase();
@@ -88,15 +90,24 @@ export const TrackRow: React.FC<TrackRowProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`group relative flex flex-col p-4 mb-2 rounded-2xl transition-all duration-500 ${
-        isPlaying ? 'bg-brand-purple/10 border-brand-purple/40 shadow-[0_0_30px_rgba(168,85,247,0.12)]' : 'bg-zinc-900/40 border-white/5 hover:bg-zinc-800/60 hover:border-white/10'
-      } border backdrop-blur-md`}
+      className={`group relative flex flex-col p-5 mb-3 rounded-[1.5rem] transition-all duration-500 ${
+        isPlaying 
+          ? 'bg-brand-purple/10 border-brand-purple/40 shadow-[0_0_30px_rgba(168,85,247,0.15)]' 
+          : isHype 
+            ? 'bg-orange-500/5 border-orange-500/20 hover:bg-orange-500/10 hover:border-orange-500/30'
+            : 'bg-zinc-900/40 border-white/5 hover:bg-zinc-800/60 hover:border-white/10'
+      } border backdrop-blur-md overflow-hidden`}
     >
+      {/* Subtle Hype Background Glow */}
+      {isHype && (
+        <div className="absolute -top-12 -right-12 w-24 h-24 bg-orange-500/10 blur-[40px] rounded-full pointer-events-none" />
+      )}
+
       {/* Top Row: Track Info */}
-      <div className="flex items-center gap-4 mb-3">
+      <div className="flex items-center gap-5">
         {/* Thumbnail / Play button */}
         <div
-          className="relative flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden bg-zinc-800/80 flex items-center justify-center group/play cursor-pointer border border-white/5"
+          className="relative flex-shrink-0 w-14 h-14 rounded-2xl overflow-hidden bg-zinc-800/80 flex items-center justify-center group/play cursor-pointer border border-white/10 shadow-lg"
           onClick={() => {
             if (mainVersion) {
               const vType = getVersionType(mainVersion);
@@ -105,36 +116,47 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             }
           }}
         >
-          <div className={`w-full h-full flex items-center justify-center text-sm ${isVideo ? 'bg-brand-purple/20 text-brand-purple' : 'bg-white/10 text-white'}`}>
-            {isVideo ? <Video size={20} /> : <Music size={20} />}
+          <div className={`w-full h-full flex items-center justify-center ${
+            isVideo ? 'bg-brand-purple/20 text-brand-purple' : isHype ? 'bg-orange-500/20 text-orange-500' : 'bg-white/10 text-white'
+          }`}>
+            {isVideo ? <Video size={24} /> : isHype ? <Zap size={24} className="animate-pulse" /> : <Music size={24} />}
           </div>
-          <div className={`absolute inset-0 flex items-center justify-center bg-brand-purple/80 transition-all duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover/play:opacity-100'}`}>
-            {isPlaying ? <Pause size={16} fill="currentColor" className="text-white" /> : <Play size={16} fill="currentColor" className="text-white ml-0.5" />}
+          <div className={`absolute inset-0 flex items-center justify-center bg-brand-purple/90 transition-all duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover/play:opacity-100'}`}>
+            {isPlaying ? <Pause size={20} fill="currentColor" className="text-white" /> : <Play size={20} fill="currentColor" className="text-white ml-0.5" />}
           </div>
         </div>
 
         {/* Title, Artist, Meta */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-white group-hover:text-brand-purple transition-colors truncate">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-base md:text-[17px] font-bold text-white group-hover:text-brand-purple transition-colors truncate tracking-tight">
               {title}
             </h3>
-            {isNew && (
-              <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[8px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-rose-500/20">
-                NEW
-              </span>
-            )}
+            <div className="flex gap-2">
+              {isNew && (
+                <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-rose-500/20">
+                  NEW
+                </span>
+              )}
+              {isHype && (
+                <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-orange-500/20">
+                  <Flame size={10} fill="currentColor" />
+                  HYPE
+                </span>
+              )}
+            </div>
           </div>
-          <p className="text-[12px] text-zinc-500 font-medium truncate mt-0.5">
+          <p className="text-[13px] text-zinc-400 font-medium truncate mt-0.5 group-hover:text-zinc-300 transition-colors">
             {artist}
           </p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 flex items-center gap-2">
+              <span className="w-1 h-1 rounded-full bg-zinc-600" />
               {genre}
             </span>
             {bpm > 0 && (
-              <span className="text-[9px] font-black uppercase tracking-[0.1em] text-brand-purple/50 flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-brand-purple/40 inline-block" />
+              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-brand-purple/60 flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full bg-brand-purple/40 animate-pulse" />
                 {bpm} BPM
               </span>
             )}
