@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/utils/utils";
+import { cn } from "@/utils";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
   Brain,
@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCallback, useId, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 interface Agent {
   id: string;
@@ -112,6 +113,11 @@ export function FloatingChatWidget() {
   const [selectedAgent, setSelectedAgent] = useState<string>(AI_AGENTS[0].id);
   const [message, setMessage] = useState("");
   const widgetId = useId();
+  const { user } = useAuth();
+
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'ME';
 
   const toggleOpen = useCallback(() => setIsOpen((prev) => !prev), []);
 
@@ -244,20 +250,19 @@ export function FloatingChatWidget() {
                 </div>
               </motion.div>
 
-              {/* User Message Mock */}
               <motion.div
                 variants={messageVariants}
                 className="flex flex-row-reverse gap-3 self-end"
               >
                 <Avatar className="h-8 w-8 border border-white/10 shadow-sm">
-                  <AvatarImage src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=64" />
-                  <AvatarFallback className="bg-brand-primary text-white font-semibold">
-                    ME
+                  {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+                  <AvatarFallback className="bg-brand-primary text-white font-semibold text-xs">
+                    {userInitials}
                   </AvatarFallback>
-            </Avatar>
+                </Avatar>
                 <div className="flex max-w-[85%] flex-col items-end gap-1">
                   <div className="rounded-2xl rounded-tr-none bg-brand-primary px-4 py-2.5 text-sm text-white shadow-md">
-                    <p>I need help optimizing my dashboard performance.</p>
+                    <p>Ask me anything about beats, mixtapes, or the store 🎵</p>
                   </div>
                 </div>
               </motion.div>
