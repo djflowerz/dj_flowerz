@@ -1946,7 +1946,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
     try {
-      const ok = await saveToD1('admin/subscription_plans', 'POST', plan);
+      const ok = await saveToD1('subscription_plans', 'POST', plan);
       if (ok) refreshPlans();
     } catch (err: any) {
       console.error("Add plan failed:", err.message);
@@ -1955,7 +1955,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
     try {
-      const ok = await saveToD1('admin/subscription_plans', 'PATCH', data, id);
+      const ok = await saveToD1('subscription_plans', 'PATCH', data, id);
       if (ok) refreshPlans();
     } catch (error: any) {
       console.error("Update plan failed:", error.message);
@@ -1964,7 +1964,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteSubscriptionPlan = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/subscription_plans', 'DELETE', undefined, id);
+      const ok = await saveToD1('subscription_plans', 'DELETE', undefined, id);
       if (ok) refreshPlans();
     } catch (err: any) {
       console.error("Delete plan failed:", err.message);
@@ -2050,7 +2050,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addCampaign = async (camp: NewsletterCampaign) => {
     try {
-      const ok = await saveToD1('admin/newsletter_campaigns', 'POST', camp);
+      const ok = await saveToD1('newsletter_campaigns', 'POST', camp);
       if (ok) refreshCampaigns();
     } catch (err: any) {
       console.error("Add campaign failed:", err.message);
@@ -2059,7 +2059,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => {
     try {
-      const ok = await saveToD1('admin/newsletter_campaigns', 'PATCH', data, id);
+      const ok = await saveToD1('newsletter_campaigns', 'PATCH', data, id);
       if (ok) refreshCampaigns();
     } catch (err: any) {
       console.error("Update campaign failed:", err.message);
@@ -2069,7 +2069,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addCoupon = async (coupon: Partial<Coupon>) => {
     try {
       const dbCoupon = mapCouponToD1(coupon);
-      const ok = await saveToD1('admin/coupons', 'POST', dbCoupon);
+      const ok = await saveToD1('coupons', 'POST', dbCoupon);
       if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Add coupon failed:", err.message);
@@ -2079,7 +2079,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateCoupon = async (id: string, data: Partial<Coupon>) => {
     try {
       const dbCoupon = mapCouponToD1(data);
-      const ok = await saveToD1('admin/coupons', 'PATCH', dbCoupon, id);
+      const ok = await saveToD1('coupons', 'PATCH', dbCoupon, id);
       if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Update coupon failed:", err.message);
@@ -2088,7 +2088,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteCoupon = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/coupons', 'DELETE', undefined, id);
+      const ok = await saveToD1('coupons', 'DELETE', undefined, id);
       if (ok) refreshCoupons();
     } catch (err: any) {
       console.error("Delete coupon failed:", err.message);
@@ -2325,7 +2325,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUser = async (id: string, data: Partial<User>) => {
     try {
-      const ok = await saveToD1('admin/users', 'PUT', data, id);
+      const ok = await saveToD1('users', 'PUT', data, id);
       if (ok) refreshUsers();
     } catch (err: any) {
       console.error("Update user failed:", err.message);
@@ -2384,7 +2384,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteOrder = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/orders', 'DELETE', undefined, id);
+      const ok = await saveToD1('orders', 'DELETE', undefined, id);
       if (ok) refreshOrders();
     } catch (err: any) {
       console.error("Delete order failed:", err.message);
@@ -2393,7 +2393,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteMaintenanceLog = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/maintenance_logs', 'DELETE', undefined, id);
+      const ok = await saveToD1('maintenance_logs', 'DELETE', undefined, id);
       if (ok) refreshLogs();
     } catch (err: any) {
       console.error("Delete maintenance log failed:", err.message);
@@ -2422,7 +2422,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteMessage = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/support/tickets', 'DELETE', undefined, id);
+      const ok = await saveToD1('support/tickets', 'DELETE', undefined, id);
       if (ok) refreshContactMessages();
     } catch (err: any) {
       console.error("Delete message failed:", err.message);
@@ -2431,7 +2431,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
     try {
-      const res = await saveToD1('admin/support/tickets', 'PATCH', updates, id);
+      const res = await saveToD1('support/tickets', 'PATCH', updates, id);
       if (res) {
         alert("Message updated in D1");
         refreshContactMessages();
@@ -2443,7 +2443,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const removeUser = async (id: string) => {
     try {
-      const ok = await saveToD1('admin/users', 'DELETE', undefined, id);
+      const ok = await saveToD1('users', 'DELETE', undefined, id);
       if (ok) refreshUsers();
     } catch (err: any) {
       console.error("Remove user failed:", err.message);
