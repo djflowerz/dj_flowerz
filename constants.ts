@@ -220,7 +220,7 @@ export const SUBSCRIPTION_PLANS = [
   {
     id: 'weekly',
     name: '🎧 1 Week Remix & Fresh Drops Access',
-    price: 200,
+    price: 300,
     period: 'wk',
     features: [
       '30 DJ-Ready Downloads Per Day',
