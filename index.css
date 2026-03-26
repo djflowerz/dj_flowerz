@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 :root {
+    /* Brand tokens */
     --brand-primary: #7B5CFF;
     --brand-secondary: #28E6DC;
     --brand-purple: #7B5CFF;
@@ -16,6 +17,28 @@
     --bg-card: #1a1a1a;
     --glass-bg: rgba(255, 255, 255, 0.03);
     --glass-border: rgba(255, 255, 255, 0.08);
+
+    /* shadcn/ui tokens — mapped to dark brand palette */
+    --background: 0 0% 7.5%;        /* #131313 */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 9.8%;              /* #191919 */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 9.8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 254 100% 68%;        /* #7B5CFF */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 86% 57%;       /* #f42c37 */
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 100% / 0.08;
+    --input: 0 0% 100% / 0.10;
+    --ring: 254 100% 68%;           /* #7B5CFF */
+    --radius: 0.5rem;
 }
 
 html {

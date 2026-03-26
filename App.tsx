@@ -33,6 +33,7 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
+import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -110,6 +111,7 @@ const App: React.FC = () => {
             <Router>
               <ScrollToTop />
               <Toaster position="top-right" richColors closeButton theme="dark" />
+              <FloatingChatWidget />
               <Layout>
                 <Routes>
                   <Route path="/" element={<Home />} />

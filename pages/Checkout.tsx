@@ -167,10 +167,6 @@ export default function Checkout() {
     INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId) || INITIAL_SHIPPING_ZONES[0]
   , [selectedZoneId]);
 
-  const selectedRate = useMemo(() =>
-    selectedZone.rates.find(r => r.id === selectedRateId) || selectedZone.rates[0]
-  , [selectedZone, selectedRateId]);
-
   // Determine the largest shipping size in the cart to fetch the correct base rate.
   const orderShippingSize = useMemo<ShippingSize>(() => {
     let size: ShippingSize = 'small';
@@ -181,11 +177,35 @@ export default function Checkout() {
     return size;
   }, [items]);
 
-  const shippingCost = useMemo(() => {
+  // Determine the base shipping rate from the zone and the largest item size
+  const baseShippingRate = useMemo(() => {
     if (isDigitalOnly) return 0;
     const rates = SHIPPING_RATES_MATRIX[selectedZoneId];
     return rates ? rates[orderShippingSize] : 0;
   }, [isDigitalOnly, selectedZoneId, orderShippingSize]);
+
+  // Generate dynamic delivery speed options
+  const deliverySpeedOptions = useMemo(() => {
+    if (isDigitalOnly) return [];
+    
+    // Only offer Same-Day Priority for Nairobi (zone1) and Greater Nairobi (zone2)
+    const isLocal = selectedZoneId === 'zone1' || selectedZoneId === 'zone2';
+    
+    return [
+      { id: 'standard', type: 'standard', label: 'Standard Delivery', timeline: '3-5 Business Days', price: baseShippingRate },
+      { id: 'express', type: 'express', label: 'Express Delivery', timeline: '1-3 Business Days', price: baseShippingRate + 200 },
+      ...(isLocal ? [
+        { id: 'sameday', type: 'instant', label: 'Same-Day Priority', timeline: 'Within 24 Hours', price: baseShippingRate + 500 }
+      ] : [])
+    ];
+  }, [isDigitalOnly, baseShippingRate, selectedZoneId]);
+
+  // Safe fallback to 'standard' if the selected rate ID is not in the generated list
+  const selectedSpeed = useMemo(() => {
+    return deliverySpeedOptions.find(o => o.id === selectedRateId) || deliverySpeedOptions[0];
+  }, [deliverySpeedOptions, selectedRateId]);
+
+  const shippingCost = selectedSpeed ? selectedSpeed.price : 0;
 
   
   // Ensure we sum up all prices correctly, handling potentially missing prices on sub items
@@ -274,7 +294,7 @@ export default function Checkout() {
           shipping_details: data.buildingDetails,
           shipping_address: `${data.buildingDetails}, ${data.landmark}, ${data.town}, ${data.county}`,
           shipping_provider: selectedZone.name,
-          shipping_method: selectedRate.label,
+          shipping_method: selectedSpeed.label,
           shipping_cost: shippingCost,
           whatsapp_updates: data.whatsappUpdates,
           delivery_time: data.deliveryTime,
@@ -559,7 +579,7 @@ export default function Checkout() {
                   <div className="space-y-3 pt-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Delivery Speed</label>
                     <div className="grid grid-cols-1 gap-4">
-                      {selectedZone.rates.map((rate) => (
+                      {deliverySpeedOptions.map((rate) => (
                         <button key={rate.id} type="button" onClick={() => setSelectedRateId(rate.id)}
                           className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all duration-300 ${selectedRateId === rate.id ? 'border-brand-purple bg-brand-purple/5 ring-4 ring-brand-purple/10' : 'border-white/5 bg-[#0B0B0F] hover:border-white/20'}`}>
                           <div className="flex items-center gap-4">
