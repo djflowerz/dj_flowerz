@@ -14,18 +14,37 @@ import { VirtuosoGrid } from 'react-virtuoso';
 import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
+import { CountdownTimer as GlobalCountdownTimer } from '../components/CountdownTimer';
 
 // Simple countdown timer for sections
-const CountdownTimer = ({ hours, minutes, seconds }: { hours: number, minutes: number, seconds: number }) => {
-  const [timeLeft, setTimeLeft] = React.useState({ h: hours, m: minutes, s: seconds });
+const CountdownTimer = ({ hours, minutes, seconds, id = "default_timer" }: { hours: number, minutes: number, seconds: number, id?: string }) => {
+  const [timeLeft, setTimeLeft] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem(`timer_${id}`);
+      if (saved) {
+        const targetTime = parseInt(saved, 10);
+        const diff = Math.floor((targetTime - Date.now()) / 1000);
+        if (diff > 0) {
+          return { h: Math.floor(diff / 3600), m: Math.floor((diff % 3600) / 60), s: diff % 60 };
+        }
+      }
+    } catch(e) {}
+    
+    // Set new target
+    const targetTime = Date.now() + (hours * 3600 + minutes * 60 + seconds) * 1000;
+    localStorage.setItem(`timer_${id}`, targetTime.toString());
+    return { h: hours, m: minutes, s: seconds };
+  });
 
   React.useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev.s > 0) return { ...prev, s: prev.s - 1 };
-        if (prev.m > 0) return { ...prev, m: prev.m - 1, s: 59 };
-        if (prev.h > 0) return { h: prev.h - 1, m: 59, s: 59 };
-        return prev;
+        if (prev.h === 0 && prev.m === 0 && prev.s === 0) return prev;
+        let newS = prev.s - 1; let newM = prev.m; let newH = prev.h;
+        if (newS < 0) { newS = 59; newM -= 1; }
+        if (newM < 0) { newM = 59; newH -= 1; }
+        if (newH < 0) return { h: 0, m: 0, s: 0 };
+        return { h: newH, m: newM, s: newS };
       });
     }, 1000);
     return () => clearInterval(timer);
@@ -356,6 +375,7 @@ export default function Products() {
                    <div className="text-center">
                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Remains Until End</p>
                      <CountdownTimer
+                       id={`promo_${storeSettings.promoCode}`}
                        hours={storeSettings.countdownHours}
                        minutes={storeSettings.countdownMinutes}
                        seconds={storeSettings.countdownSeconds}
@@ -501,8 +521,7 @@ export default function Products() {
                                     <span>Hurry Up! Offer ends in:</span>
                                  </div>
                                  <div className="flex justify-center pt-2">
-                                    {/* TODO: Pass actual expiry to CountdownTimer if it supported real dates */}
-                                    <CountdownTimer hours={24} minutes={0} seconds={0} />
+                                    <GlobalCountdownTimer expiryDate={offer.offerExpiry} />
                                  </div>
                               </>
                             )}
