@@ -104,29 +104,22 @@ CREATE TABLE session_types (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TABLE products (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    price REAL DEFAULT 0.0,
-    category TEXT,
-    image TEXT,
-    images TEXT,
-    inventory INTEGER DEFAULT 10,
-    is_active BOOLEAN DEFAULT TRUE,
-    is_featured BOOLEAN DEFAULT FALSE,
-    currency TEXT DEFAULT 'KES',
-    technical_details TEXT,
-    hotspots TEXT,
-    use_cases TEXT,
-    variant_groups TEXT,
-    is_best_seller BOOLEAN DEFAULT FALSE,
-    is_special_offer BOOLEAN DEFAULT FALSE,
-    is_trending BOOLEAN DEFAULT FALSE,
-    offer_expiry DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+CREATE TABLE `products` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`price` real NOT NULL,
+	`currency` text DEFAULT 'KES',
+	`category` text,
+	`image` text,
+	`images` text,
+	`stock` integer DEFAULT 0,
+	`is_active` integer DEFAULT true,
+	`rating` real DEFAULT 0,
+	`reviews_count` integer DEFAULT 0,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP
+, inventory INTEGER DEFAULT 10, is_featured BOOLEAN DEFAULT FALSE, technical_details TEXT, hotspots TEXT, use_cases TEXT, variant_groups TEXT, brand TEXT, compare_at_price REAL, status TEXT DEFAULT 'active', release_date TEXT, logistics TEXT, slug TEXT, type TEXT DEFAULT 'physical', sku TEXT, is_hot BOOLEAN DEFAULT 0, is_best_seller BOOLEAN DEFAULT 0, is_special_offer BOOLEAN DEFAULT 0, is_trending BOOLEAN DEFAULT 0, offer_expiry TEXT, weight REAL, dimensions TEXT, features TEXT, requires_shipping INTEGER DEFAULT 1, whatsapp_enabled INTEGER DEFAULT 1, digital_file_url TEXT, download_password TEXT, video_url TEXT, visibility TEXT DEFAULT 'public', os TEXT DEFAULT 'None', shipping_size TEXT);
 CREATE TABLE mixtapes (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -425,7 +418,7 @@ CREATE TABLE products_new (
     offer_expiry DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-, brand TEXT, type TEXT, release_date DATETIME, image_url TEXT, short_description TEXT, visibility TEXT DEFAULT 'public', status TEXT DEFAULT 'published', tag_list TEXT, os TEXT, requires_shipping BOOLEAN DEFAULT 1, track_stock BOOLEAN DEFAULT 1, whatsapp_enabled BOOLEAN DEFAULT 1);
+, brand TEXT, type TEXT, release_date DATETIME, image_url TEXT, short_description TEXT, visibility TEXT DEFAULT 'public', status TEXT DEFAULT 'published', tag_list TEXT, os TEXT, requires_shipping BOOLEAN DEFAULT 1, track_stock BOOLEAN DEFAULT 1, whatsapp_enabled BOOLEAN DEFAULT 1, shipping_size TEXT);
 CREATE TABLE product_variants (
     id TEXT PRIMARY KEY,
     product_id TEXT REFERENCES products_new(id) ON DELETE CASCADE,

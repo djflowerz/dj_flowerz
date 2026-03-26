@@ -1604,9 +1604,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 1. Send the new tracks in an addBatch request
       await addBatchR2Items('pool_tracks', newTracks);
 
-      // 2. Sync to D1
-      for (const track of newTracks) {
-        await syncPoolTrackToD1(track);
+      // 2. Sync to D1 in chunks of 50 to avoid worker timeouts/payload limits
+      const chunkSize = 50;
+      const authHeader = await getAuthHeader();
+      for (let i = 0; i < newTracks.length; i += chunkSize) {
+        const chunk = newTracks.slice(i, i + chunkSize);
+        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/bulk-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({ tracks: chunk }),
+        });
+        if (!response.ok) {
+           const errText = await response.text();
+           console.error(`Bulk sync failed for chunk ${i / chunkSize}:`, errText);
+           throw new Error(`Bulk sync failed for chunk ${i / chunkSize}`);
+        }
       }
 
       // 3. Update local poolTracks state

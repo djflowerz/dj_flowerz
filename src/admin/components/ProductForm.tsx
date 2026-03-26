@@ -38,11 +38,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         variants: [
             { id: crypto.randomUUID(), name: 'Default', sku: '', price: 0, compare_at_price: 0, stock_quantity: 10, weight: 0 }
         ],
-        metadata: {
-            dimensions: '',
-            model: '',
-            material: ''
-        }
+        dimensions: '',
+        model: '',
+        material: '',
+        shippingSize: '',
+        weight: 0,
+        sku: ''
     });
 
     useEffect(() => {
@@ -64,11 +65,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 variants: product.variants?.length > 0 ? product.variants : [
                     { id: crypto.randomUUID(), name: 'Default', sku: '', price: 0, compare_at_price: 0, stock_quantity: 10, weight: 0 }
                 ],
-                metadata: {
-                    dimensions: product.metadata?.dimensions || '',
-                    model: product.metadata?.model || '',
-                    material: product.metadata?.material || ''
-                }
+                dimensions: product.dimensions || '',
+                model: product.model || '',
+                material: product.material || '',
+                shippingSize: product.shipping_size || product.shippingSize || '',
+                weight: product.weight || 0,
+                sku: product.sku || ''
             });
         }
     }, [product]);
@@ -702,8 +704,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Dimensions (L*W*H)</label>
                                     <input
                                         type="text"
-                                        value={formData.metadata.dimensions}
-                                        onChange={e => setFormData({ ...formData, metadata: { ...formData.metadata, dimensions: e.target.value } })}
+                                        value={formData.dimensions}
+                                        onChange={e => setFormData({ ...formData, dimensions: e.target.value })}
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
                                         placeholder="e.g., 129.5*32*11 mm"
                                     />
@@ -726,8 +728,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Model Number</label>
                                     <input
                                         type="text"
-                                        value={formData.metadata.model}
-                                        onChange={e => setFormData({ ...formData, metadata: { ...formData.metadata, model: e.target.value } })}
+                                        value={formData.model}
+                                        onChange={e => setFormData({ ...formData, model: e.target.value })}
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
                                         placeholder="e.g., OUH-511"
                                     />
@@ -736,11 +738,28 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Material</label>
                                     <input
                                         type="text"
-                                        value={formData.metadata.material}
-                                        onChange={e => setFormData({ ...formData, metadata: { ...formData.metadata, material: e.target.value } })}
+                                        value={formData.material}
+                                        onChange={e => setFormData({ ...formData, material: e.target.value })}
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
                                         placeholder="e.g., Aluminum alloy"
                                     />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-8">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Shipping Size Category</label>
+                                    <select
+                                        value={formData.shippingSize}
+                                        onChange={e => setFormData({ ...formData, shippingSize: e.target.value })}
+                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                    >
+                                        <option value="">Select Category</option>
+                                        <option value="small">Small (Accessory, Cable, etc.)</option>
+                                        <option value="medium">Medium (Headphones, Compact Controller)</option>
+                                        <option value="large">Large (Studio Monitors, Large Controller)</option>
+                                        <option value="extra_large">Extra Large (Flight cases, Speakers)</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>

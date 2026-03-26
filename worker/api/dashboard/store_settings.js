@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
   countdownHours: 12,
   countdownMinutes: 45,
   countdownSeconds: 30,
+  shippingMethods: [],
 };
 
 export async function handleStoreSettings(request, env) {

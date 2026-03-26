@@ -11,6 +11,7 @@ import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
 import { handleDashboardReferrals } from './api/dashboard/referrals.js';
 import { handleDashboardFinances } from './api/dashboard/finances.js';
 import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
+import { handleSyncTrack, handleSyncGenres, handleDeleteTrack, handleBulkSync } from './api/dashboard/pool.js';
 import { handleStorefrontPool, handleGetSyncNotifications } from './api/storefront/pool.js';
 import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
@@ -65,6 +66,10 @@ router.patch('/api/admin/support/tickets/:id', handleSupport);
 
 router.post('/api/admin/r2-sync', handleR2Sync);
 router.post('/api/admin/r2-upload', handleR2Upload);
+router.post('/api/admin/pool/sync-track', handleSyncTrack);
+router.post('/api/admin/pool/bulk-sync', handleBulkSync);
+router.post('/api/admin/pool/sync-genres', handleSyncGenres);
+router.delete('/api/admin/pool/track', handleDeleteTrack);
 router.get('/api/admin/orders', handleDashboardOrders);
 router.get('/api/admin/orders/:id', handleDashboardOrders);
 router.put('/api/admin/orders/:id', handleDashboardOrders);

@@ -85,14 +85,14 @@ export async function handleDashboardProducts(request, env, ctx, params) {
 
             await env.DB.prepare(`
                 INSERT INTO products (
-                    id, name, description, price, image, category, inventory, created_at, 
+                    id, name, description, price, image, category, inventory, stock, created_at, 
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, type, 
                     is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images,
                     weight, dimensions, features, shipping_size,
                     requires_shipping, whatsapp_enabled, digital_file_url, download_password, currency, video_url, visibility, os
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -101,6 +101,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 image,
                 category,
                 inventory,
+                inventory, // Use same value for stock
                 new Date().toISOString(),
                 body.brand || null,
                 compareAtPrice,
@@ -207,7 +208,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
 
             await env.DB.prepare(`
                 UPDATE products 
-                SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, 
+                SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, stock = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
                     is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?, weight = ?, dimensions = ?, features = ?, shipping_size = ?,
@@ -220,6 +221,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 image,
                 category,
                 inventory,
+                inventory, // Use same value for stock
                 body.brand || null,
                 compareAtPrice,
                 status,
