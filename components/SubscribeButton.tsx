@@ -1,7 +1,7 @@
 import React from 'react';
-import { usePaystackPayment } from 'react-paystack';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
 interface SubscribeButtonProps {
@@ -59,57 +59,43 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
 
     const finalAmount = calculateAmount();
 
-    const config = {
-        reference: `sub_${plan.id}_${new Date().getTime()}`,
-        email: user?.email || 'guest@djflowerz.co.ke',
-        amount: finalAmount, // KES cents
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || '',
-        currency: 'KES',
-        metadata: {
-            type: 'subscription',
-            userId: user?.id,
-            userEmail: user?.email,
-            customerName: user?.name || 'Guest',
-            plan: plan.name,
-            planId: plan.id,
-            referralCode: referralInfo?.code,
-            referrerId: referralInfo?.referrerId,
-            discount: referralInfo?.discount || (isFirstTimer ? referralSettings?.firstTimeDiscount : 0),
-            discountType: referralInfo?.discountType || referralSettings?.firstTimeDiscountType || 'percentage',
-            custom_fields: [
-                {
-                    display_name: "Plan Name",
-                    variable_name: "plan_name",
-                    value: plan.name
-                },
-                {
-                    display_name: "Referral Code",
-                    variable_name: "referral_code",
-                    value: referralInfo?.code || ""
-                }
-            ]
-        }
-    };
+    const handleSubscribe = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/payments/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'subscription',
+                    amount: finalAmount, // KES kobo
+                    email: user?.email,
+                    metadata: {
+                        userId: user?.id,
+                        userEmail: user?.email,
+                        customerName: user?.name || 'Guest',
+                        plan: plan.name,
+                        planId: plan.id,
+                        referralCode: referralInfo?.code,
+                        referrerId: referralInfo?.referrerId,
+                        discount: referralInfo?.discount || (isFirstTimer ? referralSettings?.firstTimeDiscount : 0),
+                        discountType: referralInfo?.discountType || referralSettings?.firstTimeDiscountType || 'percentage',
+                    },
+                    callback_url: `${window.location.origin}/success`
+                })
+            });
 
-    const initializePayment = usePaystackPayment(config);
-
-    const onSuccess = (reference: any) => {
-        navigate('/success', {
-            state: {
-                type: 'subscription',
-                reference: reference.reference,
-                amount: plan.price,
-                plan: plan.name,
-                email: user?.email,
-                discount: referralInfo?.discount || (isFirstTimer ? referralSettings.firstTimeDiscount : 0),
-                referrerId: referralInfo?.referrerId,
-                date: new Date().toLocaleDateString()
+            const data = await response.json();
+            if (data.authorizationUrl) {
+                window.location.href = data.authorizationUrl;
+            } else {
+                throw new Error(data.error || "Failed to initialize payment");
             }
-        });
-    };
-
-    const onClose = () => {
-        console.log('Payment closed');
+        } catch (error: any) {
+            console.error('Payment Error:', error);
+            toast.error(error.message || "Payment initialization failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleTrialActivation = async () => {
@@ -151,18 +137,12 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
             return;
         }
 
-        if (!config.publicKey) {
-            alert("Payment configuration error: Missing Public Key");
-            return;
-        }
-
         if (!user) {
-            // Store return url?
             navigate('/login', { state: { from: '/music-pool' } });
             return;
         }
 
-        initializePayment({ onSuccess, onClose });
+        handleSubscribe();
     };
 
     return (

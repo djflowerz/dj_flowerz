@@ -1,130 +1,257 @@
+// components/ui/floating-chat-widget-shadcnui.tsx
+// Live chat widget — real bi-directional messaging with admin via WhatsApp/Admin Panel
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/utils";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
-  Brain,
-  Code,
   MessageSquare,
   Send,
-  Sparkles,
   X,
-  Zap,
+  User,
+  Headphones,
+  ChevronDown,
 } from "lucide-react";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-interface Agent {
-  id: string;
-  name: string;
-  role: string;
-  avatar: string;
-  status: "online" | "busy" | "offline";
-  icon: React.ElementType;
-  gradient: string;
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const POLL_INTERVAL = 3000; // 3 seconds
+
+interface ChatMessage {
+  id: number;
+  session_id?: string;
+  sender: 'user' | 'agent' | 'bot';
+  text: string;
+  created_at: string;
 }
 
-const AI_AGENTS: Agent[] = [
-  {
-    id: "gpt4",
-    name: "GPT-4",
-    role: "Advanced Reasoning",
-    avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=64",
-    status: "online",
-    icon: Sparkles,
-    gradient: "from-green-500/20 to-emerald-500/20",
-  },
-  {
-    id: "claude",
-    name: "Claude 3.5",
-    role: "Creative Writing",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=64",
-    status: "online",
-    icon: Brain,
-    gradient: "from-orange-500/20 to-amber-500/20",
-  },
-  {
-    id: "gemini",
-    name: "Gemini Pro",
-    role: "Multimodal Analysis",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=64",
-    status: "busy",
-    icon: Zap,
-    gradient: "from-blue-500/20 to-cyan-500/20",
-  },
-  {
-    id: "copilot",
-    name: "Copilot",
-    role: "Code Assistant",
-    avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=64",
-    status: "online",
-    icon: Code,
-    gradient: "from-purple-500/20 to-violet-500/20",
-  },
-];
+interface ChatSession {
+  id: string;
+  visitor_name: string | null;
+  visitor_email: string | null;
+  status: 'bot' | 'human' | 'closed';
+}
+
+// ── Animation variants ──────────────────────────────────────────────────────
 
 const containerVariants: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 20,
-    scale: 0.95,
-    transformOrigin: "bottom right",
-  },
+  hidden: { opacity: 0, y: 20, scale: 0.95, transformOrigin: "bottom right" },
   visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: "spring",
-      damping: 25,
-      stiffness: 300,
-      staggerChildren: 0.05,
-    },
+    opacity: 1, y: 0, scale: 1,
+    transition: { type: "spring", damping: 25, stiffness: 300, staggerChildren: 0.04 },
   },
-  exit: {
-    opacity: 0,
-    y: 20,
-    scale: 0.95,
-    transition: {
-      duration: 0.2,
-    },
-  },
+  exit: { opacity: 0, y: 20, scale: 0.95, transition: { duration: 0.18 } },
 };
 
 const messageVariants: Variants = {
-  hidden: { opacity: 0, y: 10, x: -10 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    x: 0,
-    transition: { type: "spring", stiffness: 500, damping: 30 },
-  },
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 400, damping: 30 } },
 };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+}
+
+// Simple markdown bold: **text** → <strong>text</strong>
+function renderText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) =>
+    p.startsWith('**') && p.endsWith('**')
+      ? <strong key={i}>{p.slice(2, -2)}</strong>
+      : <span key={i}>{p}</span>
+  );
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<string>(AI_AGENTS[0].id);
-  const [message, setMessage] = useState("");
-  const widgetId = useId();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [session, setSession] = useState<ChatSession | null>(null);
+  const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const [lastPolledAt, setLastPolledAt] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
   const { user } = useAuth();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatAreaRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const userInitials = user?.name
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'ME';
 
-  const toggleOpen = useCallback(() => setIsOpen((prev) => !prev), []);
+  // ── Auto-scroll ─────────────────────────────────────────────────────────
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setHasUnread(false);
+  }, []);
 
-  const currentAgent =
-    AI_AGENTS.find((a) => a.id === selectedAgent) || AI_AGENTS[0];
-  const AgentIcon = currentAgent.icon;
+  useEffect(() => {
+    if (isOpen) scrollToBottom();
+  }, [messages, isOpen, scrollToBottom]);
 
+  const handleChatScroll = useCallback(() => {
+    const el = chatAreaRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setShowScrollBtn(!atBottom);
+    if (atBottom) setHasUnread(false);
+  }, []);
+
+  // ── Session init ─────────────────────────────────────────────────────────
+  const startSession = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${WORKER_URL}/api/chat/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user?.name || user?.email?.split('@')[0] || 'Visitor',
+          email: user?.email || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        setSession(prev => prev ?? { id: data.sessionId, visitor_name: null, visitor_email: null, status: 'bot' });
+        // Fetch initial messages
+        await pollMessages(data.sessionId, null, true);
+      }
+    } catch (err) {
+      console.error('[Chat] startSession failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // ── Poll for new messages ────────────────────────────────────────────────
+  const pollMessages = useCallback(async (
+    sid: string,
+    since: string | null,
+    initial = false
+  ) => {
+    try {
+      const url = `${WORKER_URL}/api/chat/session/${sid}${since ? `?since=${encodeURIComponent(since)}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (initial) {
+        setMessages(data.messages || []);
+      } else if (data.messages?.length) {
+        setMessages(prev => [...prev, ...data.messages]);
+        // Show unread badge if chat is closed or user scrolled up
+        const el = chatAreaRef.current;
+        const atBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+        if (!atBottom) setHasUnread(true);
+      }
+
+      if (data.session) {
+        setSession(data.session);
+      }
+
+      if (data.messages?.length) {
+        const last = data.messages[data.messages.length - 1];
+        setLastPolledAt(last.created_at);
+      }
+    } catch (err) {
+      console.error('[Chat] pollMessages failed:', err);
+    }
+  }, []);
+
+  // Open / close
+  const toggleOpen = useCallback(async () => {
+    setIsOpen(prev => {
+      const next = !prev;
+      if (next && !session) {
+        // Start session on first open
+        setTimeout(() => startSession(), 0);
+      }
+      return next;
+    });
+    setHasUnread(false);
+  }, [session, startSession]);
+
+  // Start polling when session is active
+  useEffect(() => {
+    if (!session || !isOpen) return;
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      pollMessages(session.id, lastPolledAt);
+    }, POLL_INTERVAL);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [session, isOpen, lastPolledAt, pollMessages]);
+
+  // ── Send message ─────────────────────────────────────────────────────────
+  const handleSend = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = inputText.trim();
+    if (!text || !session || isSending) return;
+
+    setInputText('');
+    setIsSending(true);
+
+    // Optimistic update
+    const optimistic: ChatMessage = {
+      id: Date.now(),
+      sender: 'user',
+      text,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimistic]);
+
+    try {
+      await fetch(`${WORKER_URL}/api/chat/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id, text }),
+      });
+      // Poll immediately to get bot/agent response
+      await pollMessages(session.id, optimistic.created_at);
+    } catch (err) {
+      console.error('[Chat] sendMessage failed:', err);
+    } finally {
+      setIsSending(false);
+    }
+  }, [inputText, session, isSending, pollMessages]);
+
+  // ── Request human agent ──────────────────────────────────────────────────
+  const handleRequestHuman = useCallback(async () => {
+    if (!session || isEscalating || session.status === 'human') return;
+    setIsEscalating(true);
+    try {
+      await fetch(`${WORKER_URL}/api/chat/human`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id }),
+      });
+      // Poll immediately to get the confirmation bot message
+      await pollMessages(session.id, lastPolledAt);
+      setSession(prev => prev ? { ...prev, status: 'human' } : prev);
+    } catch (err) {
+      console.error('[Chat] requestHuman failed:', err);
+    } finally {
+      setIsEscalating(false);
+    }
+  }, [session, isEscalating, lastPolledAt, pollMessages]);
+
+  const isHumanMode = session?.status === 'human';
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4">
       <AnimatePresence>
@@ -135,46 +262,27 @@ export function FloatingChatWidget() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="w-[380px] overflow-hidden rounded-2xl border border-white/10 bg-[#131313]/90 shadow-2xl backdrop-blur-xl ring-1 ring-white/10"
+            className="w-[360px] sm:w-[380px] overflow-hidden rounded-2xl border border-white/10 bg-[#131313]/95 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 flex flex-col"
+            style={{ height: '520px' }}
           >
-            {/* Header */}
-            <div className="relative border-b border-white/10 bg-white/5 p-4 overflow-hidden">
-              <div
-                className={cn(
-                  "absolute inset-0 bg-gradient-to-br opacity-50",
-                  currentAgent.gradient
-                )}
-              />
-              <div className="relative flex items-center justify-between z-10">
+            {/* ── Header ── */}
+            <div className="relative border-b border-white/10 bg-gradient-to-r from-[#e91e8c]/20 to-[#9c27b0]/20 p-4 shrink-0">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <Avatar className="h-10 w-10 border-2 border-[#131313] shadow-sm">
-                      <AvatarImage
-                        src={currentAgent.avatar}
-                        alt={currentAgent.name}
-                      />
-                      <AvatarFallback>AI</AvatarFallback>
-                    </Avatar>
-                    <span
-                      className={cn(
-                        "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#131313]",
-                        currentAgent.status === "online"
-                          ? "bg-emerald-500"
-                          : currentAgent.status === "busy"
-                            ? "bg-amber-500"
-                            : "bg-slate-400"
-                      )}
-                    />
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#e91e8c] to-[#9c27b0] flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-sm">DJ</span>
+                    </div>
+                    <span className={cn(
+                      "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#131313]",
+                      isHumanMode ? "bg-emerald-500" : "bg-amber-400"
+                    )} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-white">
-                      {currentAgent.name}
-                    </h3>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-white/60">
-                        {currentAgent.role}
-                      </span>
-                    </div>
+                    <h3 className="text-sm font-bold text-white">DJ Flowerz Support</h3>
+                    <p className="text-xs text-white/60">
+                      {isHumanMode ? '🟢 Human agent connected' : '🤖 AI Assistant'}
+                    </p>
                   </div>
                 </div>
                 <Button
@@ -188,130 +296,154 @@ export function FloatingChatWidget() {
               </div>
             </div>
 
-            {/* Agent Selector */}
-            <div className="border-b border-white/10 p-3">
-              <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                <SelectTrigger className="w-full border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 text-lg font-medium h-auto hover:bg-white/5 text-white px-2 py-4 cursor-pointer">
-                  <SelectValue placeholder="Select an agent" />
-                </SelectTrigger>
-                <SelectContent className="backdrop-blur-xl bg-[#1a1a1a]/95 border-white/10 text-white">
-                  {AI_AGENTS.map((agent) => {
-                    const Icon = agent.icon;
-                    return (
-                      <SelectItem
-                        key={agent.id}
-                        value={agent.id}
-                        className="cursor-pointer focus:bg-white/10 focus:text-white"
-                      >
-                        <div className="flex items-center gap-3 py-1">
-                          <div
-                            className={cn(
-                              "flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br",
-                              agent.gradient
-                            )}
-                          >
-                            <Icon className="h-4 w-4 text-white/80" />
-                          </div>
-                          <div className="flex flex-col text-left">
-                            <span className="text-sm font-medium">
-                              {agent.name}
-                            </span>
-                            <span className="text-[10px] text-white/60">
-                              {agent.role}
-                            </span>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+            {/* ── Chat Area ── */}
+            <div
+              ref={chatAreaRef}
+              onScroll={handleChatScroll}
+              className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-gradient-to-b from-white/5 to-[#131313]/40 relative"
+            >
+              {isLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2].map(i => (
+                      <span
+                        key={i}
+                        className="h-2 w-2 rounded-full bg-[#e91e8c]/60 animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!isLoading && messages.map((msg) => {
+                const isUser = msg.sender === 'user';
+                const isAgent = msg.sender === 'agent';
+                const isBot = msg.sender === 'bot';
+
+                return (
+                  <motion.div
+                    key={msg.id}
+                    variants={messageVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className={cn(
+                      "flex gap-2.5 max-w-[90%]",
+                      isUser ? "self-end flex-row-reverse" : "self-start"
+                    )}
+                  >
+                    {/* Avatar */}
+                    {!isUser && (
+                      <div className={cn(
+                        "h-7 w-7 rounded-full shrink-0 flex items-center justify-center mt-1",
+                        isAgent
+                          ? "bg-emerald-500/20 border border-emerald-500/30"
+                          : "bg-[#e91e8c]/20 border border-[#e91e8c]/30"
+                      )}>
+                        {isAgent
+                          ? <Headphones className="h-3.5 w-3.5 text-emerald-400" />
+                          : <span className="text-[10px] font-bold text-[#e91e8c]">DJ</span>
+                        }
+                      </div>
+                    )}
+                    {isUser && (
+                      <Avatar className="h-7 w-7 shrink-0 mt-1">
+                        {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+                        <AvatarFallback className="bg-[#e91e8c] text-white font-bold text-[10px]">
+                          {userInitials}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+
+                    {/* Bubble */}
+                    <div className="flex flex-col gap-0.5">
+                      {!isUser && (
+                        <span className="text-[10px] text-white/40 ml-1">
+                          {isAgent ? 'DJ Flowerz' : 'Assistant'}
+                        </span>
+                      )}
+                      <div className={cn(
+                        "px-3.5 py-2 text-sm leading-relaxed shadow-sm",
+                        isUser
+                          ? "bg-gradient-to-br from-[#e91e8c] to-[#c2185b] text-white rounded-2xl rounded-tr-sm"
+                          : isAgent
+                            ? "bg-emerald-500/10 border border-emerald-500/20 text-white rounded-2xl rounded-tl-sm"
+                            : "bg-white/5 border border-white/10 text-white/90 rounded-2xl rounded-tl-sm"
+                      )}>
+                        {renderText(msg.text)}
+                      </div>
+                      <span className={cn(
+                        "text-[10px] text-white/30",
+                        isUser ? "text-right" : "text-left ml-1"
+                      )}>
+                        {formatTime(msg.created_at)}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Chat Area */}
-            <div className="flex h-[320px] flex-col gap-4 overflow-y-auto p-4 bg-gradient-to-b from-white/5 to-[#131313]/40">
-              <motion.div variants={messageVariants} className="flex gap-3">
-                <Avatar className="h-8 w-8 border border-white/10 shadow-sm">
-                  <AvatarImage src={currentAgent.avatar} />
-                  <AvatarFallback className="bg-brand-primary/20 text-brand-primary">
-                    AI
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex max-w-[85%] flex-col gap-1">
-                  <span className="text-xs font-medium text-white/60">
-                    {currentAgent.name}
-                  </span>
-                  <div className="rounded-2xl rounded-tl-none bg-white/5 px-4 py-2.5 text-sm shadow-sm backdrop-blur-sm border border-white/10 text-white">
-                    <p>
-                      Hello! I'm {currentAgent.name}. How can I assist you with
-                      your project today?
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
+            {/* Scroll to bottom button */}
+            <AnimatePresence>
+              {showScrollBtn && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={scrollToBottom}
+                  className="absolute bottom-[88px] right-4 h-8 w-8 rounded-full bg-[#e91e8c] text-white shadow-lg flex items-center justify-center z-10"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                  {hasUnread && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-[#131313]" />
+                  )}
+                </motion.button>
+              )}
+            </AnimatePresence>
 
-              <motion.div
-                variants={messageVariants}
-                className="flex flex-row-reverse gap-3 self-end"
-              >
-                <Avatar className="h-8 w-8 border border-white/10 shadow-sm">
-                  {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-                  <AvatarFallback className="bg-brand-primary text-white font-semibold text-xs">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex max-w-[85%] flex-col items-end gap-1">
-                  <div className="rounded-2xl rounded-tr-none bg-brand-primary px-4 py-2.5 text-sm text-white shadow-md">
-                    <p>Ask me anything about beats, mixtapes, or the store 🎵</p>
-                  </div>
-                </div>
-              </motion.div>
+            {/* ── Human Agent CTA Banner ── */}
+            {!isHumanMode && !isLoading && (
+              <div className="shrink-0 border-t border-white/5 bg-white/3 px-4 py-2">
+                <button
+                  onClick={handleRequestHuman}
+                  disabled={isEscalating}
+                  className="w-full text-xs text-white/50 hover:text-[#e91e8c] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  {isEscalating ? 'Connecting…' : 'Speak to a Human Agent'}
+                </button>
+              </div>
+            )}
 
-              {/* Typing Indicator Mock */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="flex gap-3"
-              >
-                <Avatar className="h-8 w-8 border border-white/10 shadow-sm">
-                  <AvatarImage src={currentAgent.avatar} />
-                  <AvatarFallback className="bg-brand-primary/20 text-brand-primary">
-                    AI
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col gap-1">
-                  <div className="rounded-2xl rounded-tl-none bg-white/5 px-4 py-3 shadow-sm backdrop-blur-sm border border-white/10 w-16 flex items-center justify-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:-0.3s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:-0.15s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce" />
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Input Area */}
-            <div className="border-t border-white/10 bg-[#131313]/60 p-3 backdrop-blur-md">
+            {/* ── Input Area ── */}
+            <div className="border-t border-white/10 bg-[#131313]/80 p-3 shrink-0">
               <form
-                className="relative flex items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setMessage("");
-                }}
+                className="flex items-center gap-2"
+                onSubmit={handleSend}
               >
                 <input
                   type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={`Message ${currentAgent.name}...`}
-                  className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition-all placeholder:text-white/40 text-white focus:border-brand-primary/50 focus:bg-[#131313] focus:ring-2 focus:ring-brand-primary/20"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder={isHumanMode ? "Message DJ Flowerz…" : "Ask me anything…"}
+                  disabled={isSending || isLoading || !session}
+                  autoComplete="off"
+                  className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition-all placeholder:text-white/30 text-white focus:border-[#e91e8c]/50 focus:ring-2 focus:ring-[#e91e8c]/20 disabled:opacity-50"
                 />
                 <Button
+                  type="submit"
                   size="icon"
-                  className="h-10 w-10 rounded-full bg-brand-primary text-white shadow-lg transition-transform hover:scale-105 hover:shadow-brand-primary/25"
-                  disabled={!message.trim()}
+                  disabled={!inputText.trim() || isSending || isLoading || !session}
+                  className="h-10 w-10 rounded-full bg-[#e91e8c] text-white shadow-lg transition-all hover:bg-[#c2185b] hover:scale-105 disabled:opacity-40"
                 >
-                  <Send className="h-4 w-4" />
+                  {isSending ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </form>
             </div>
@@ -319,22 +451,26 @@ export function FloatingChatWidget() {
         )}
       </AnimatePresence>
 
+      {/* ── Toggle Button ── */}
       <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.07 }}
+        whileTap={{ scale: 0.93 }}
         onClick={toggleOpen}
         className={cn(
-          "cursor-pointer group relative flex h-14 w-14 items-center justify-center rounded-full shadow-2xl transition-all duration-300",
+          "cursor-pointer relative flex h-14 w-14 items-center justify-center rounded-full shadow-2xl transition-all duration-300",
           isOpen
-            ? "bg-brand-red text-white rotate-90"
-            : "bg-brand-primary text-white hover:shadow-brand-primary/25"
+            ? "bg-red-600 text-white"
+            : "bg-gradient-to-br from-[#e91e8c] to-[#9c27b0] text-white"
         )}
       >
-        <span className="absolute inset-0 -z-10 rounded-full bg-inherit opacity-20 blur-xl transition-opacity duration-300 group-hover:opacity-40" />
-        {isOpen ? (
-          <X className="h-6 w-6 text-white" />
-        ) : (
-          <MessageSquare className="h-6 w-6" />
+        <span className="absolute inset-0 -z-10 rounded-full bg-inherit opacity-30 blur-xl" />
+        {isOpen
+          ? <X className="h-6 w-6" />
+          : <MessageSquare className="h-6 w-6" />
+        }
+        {/* Unread badge */}
+        {!isOpen && hasUnread && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 border-2 border-[#0a0a0a] animate-pulse" />
         )}
       </motion.button>
     </div>

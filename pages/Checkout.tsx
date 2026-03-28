@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { usePaystackPayment } from 'react-paystack';
 import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
@@ -100,69 +99,6 @@ export default function Checkout() {
   const [activeCoupon, setActiveCoupon] = useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
-  // We initialize Paystack with the public key at the top level to ensure it's valid
-  const [currentPaystackConfig, setCurrentPaystackConfig] = useState<any>({
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
-    email: '',
-    amount: 0,
-    reference: '',
-  });
-
-  const paystackInitialize = usePaystackPayment(currentPaystackConfig);
-
-  // Trigger Paystack after config is updated
-  useEffect(() => {
-    if (currentPaystackConfig.email && currentPaystackConfig.amount > 0 && currentPaystackConfig.reference && isProcessing) {
-      const onSuccess = (reference: any) => {
-        setIsProcessing(false);
-        if (isDigitalOnly) {
-          const downloads: DownloadItem[] = items
-            .filter((item: any) => item.type === 'digital' && item.digitalFileUrl)
-            .map((item: any) => ({
-              name: item.name,
-              url: item.digitalFileUrl,
-              password: item.downloadPassword || undefined,
-            }));
-          setCompletedEmail(currentPaystackConfig.email);
-          setCompletedDownloads(downloads);
-        } else {
-          navigate('/success', {
-            state: {
-              type: 'order',
-              reference: reference.reference,
-              amount: currentPaystackConfig.amount / 100,
-              email: currentPaystackConfig.email,
-              customerName: currentPaystackConfig.metadata?.customerName
-            }
-          });
-        }
-      };
-
-      const onClose = () => {
-        setIsProcessing(false);
-        toast.error('Payment cancelled. Your order has been placed but remains unpaid.');
-        navigate('/account');
-      };
-
-      paystackInitialize({ onSuccess, onClose } as any);
-    }
-  }, [currentPaystackConfig, isProcessing, items, isDigitalOnly, navigate]);
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !user) {
-      toast.error('Please sign in to continue checkout');
-      navigate('/login', { state: { from: '/checkout' } });
-    }
-  }, [user, loading, navigate]);
-
-  // Redirect if cart is empty
-  useEffect(() => {
-    if (items.length === 0 && !completedDownloads) {
-      navigate('/store');
-    }
-  }, [items, navigate, completedDownloads]);
-
   const selectedZone = useMemo(() =>
     INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId) || INITIAL_SHIPPING_ZONES[0]
   , [selectedZoneId]);
@@ -207,20 +143,40 @@ export default function Checkout() {
 
   const shippingCost = selectedSpeed ? selectedSpeed.price : 0;
 
-  
-  // Ensure we sum up all prices correctly, handling potentially missing prices on sub items
+  // Price Calculations
   const subtotal = useMemo(() => items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0), [items]);
 
   const discountAmount = useMemo(() => {
     if (!activeCoupon) return 0;
-    if (activeCoupon.discount_type === 'percentage') {
-      return (subtotal * activeCoupon.discount_value) / 100;
+    // Map both old 'type' and new 'discount_type' fields for compatibility
+    const type = activeCoupon.discount_type || activeCoupon.type;
+    const value = activeCoupon.discount_value || activeCoupon.value;
+    
+    if (type === 'percentage') {
+      return (subtotal * value) / 100;
     } else {
-      return activeCoupon.discount_value;
+      return value;
     }
   }, [activeCoupon, subtotal]);
 
-  const finalTotal = Math.max(0, subtotal - discountAmount + shippingCost);
+  const finalTotal = useMemo(() => Math.max(0, subtotal - discountAmount + shippingCost), [subtotal, discountAmount, shippingCost]);
+
+
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      toast.error('Please sign in to continue checkout');
+      navigate('/login', { state: { from: '/checkout' } });
+    }
+  }, [user, loading, navigate]);
+
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (items.length === 0 && !completedDownloads) {
+      navigate('/store');
+    }
+  }, [items, navigate, completedDownloads]);
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -337,51 +293,13 @@ export default function Checkout() {
 
       clearCart();
 
-      // Detect if there's a subscription in the cart to help with auto-activation
-      const subscriptionItem = items.find((item: any) => item.type === 'subscription');
-
-      // Paystack configuration
-      const paystackConfig = {
-        reference: `ord_${new Date().getTime()}`,
-        email: data.email || 'buyer@djflowerz.co.ke',
-        amount: Math.round(finalTotal * 100), // in KES cents
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
-        currency: 'KES',
-        metadata: {
-          type: subscriptionItem ? 'subscription' : 'order',
-          order_id: result.orderId,
-          customerName: data.name,
-          order_type: isDigitalOnly ? 'digital' : (hasDigital ? 'mixed' : 'physical'),
-          // Include plan info if it's a subscription
-          ...(subscriptionItem && {
-            plan: subscriptionItem.name,
-            planId: subscriptionItem.id,
-            userId: user?.id,
-          }),
-          custom_fields: [
-            {
-              display_name: 'Order ID',
-              variable_name: 'order_id',
-              value: result.orderId
-            }
-          ]
-        }
-      };
-
-  // Ensure paystackConfig is valid
-      if (!paystackConfig.publicKey || paystackConfig.publicKey === 'pk_test_placeholder') {
-        toast.error('Paystack Public Key is missing or invalid. Please contact the administrator.');
-        console.error('Paystack Public Key is not configured correctly in environment variables.');
+      // Redirect to Paystack instead of using Popup
+      if (result.authorizationUrl) {
+        window.location.href = result.authorizationUrl;
+      } else {
+        toast.error('Payment initialization failed: Missing authorization URL');
         setIsProcessing(false);
-        return;
       }
-
-      // Update state to trigger useEffect which calls paystackInitialize
-      setCurrentPaystackConfig({
-        ...paystackConfig,
-        onSuccess: (res: any) => console.log('Paystack Success:', res), // Handled by useEffect
-        onClose: () => console.log('Paystack Closed'), // Handled by useEffect
-      });
 
     } catch (err: any) {
       setIsProcessing(false);

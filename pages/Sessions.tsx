@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Mic, Speaker, Cpu, Music, Wifi, Coffee, Gamepad, Zap, ArrowRight, Camera, HardDrive, Cable, Layers, Sliders, Headphones, Check, Calendar } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { usePaystackPayment } from 'react-paystack';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
@@ -10,55 +10,53 @@ const Sessions: React.FC = () => {
    const [selectedService, setSelectedService] = useState('vocal');
    const [selectedDate, setSelectedDate] = useState('');
    const [selectedTime, setSelectedTime] = useState('');
+   const [loading, setLoading] = useState(false);
    const { user } = useAuth();
    const navigate = useNavigate();
 
-   // Paystack Config
-   const config = {
-      reference: `session_simple_${(new Date()).getTime()}`,
-      email: user?.email || 'guest@example.com',
-      amount: 1000 * 100, // Deposit KES 1000
-      publicKey: (import.meta as any).env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_live_default',
-      currency: 'KES',
-      metadata: {
-         type: 'booking',
-         customerName: user?.name || 'Guest Artist',
-         service: selectedService,
-         date: selectedDate,
-         time: selectedTime,
-         custom_fields: [
-            {
-               display_name: "Service Type",
-               variable_name: "service_type",
-               value: selectedService
-            },
-            {
-               display_name: "Date & Time",
-               variable_name: "booking_time",
-               value: `${selectedDate} @ ${selectedTime}`
-            }
-         ]
-      }
-   };
-
-   const initializePayment = usePaystackPayment(config);
-
-   const onSuccess = (reference: any) => {
-      console.log('Payment success:', reference);
-      navigate('/success?type=booking&ref=' + reference.reference);
-   };
-
-   const onClose = () => {
-      console.log('Payment closed');
-   };
-
-   const handleSubmit = (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user) {
          navigate('/login');
          return;
       }
-      initializePayment({ onSuccess, onClose });
+      
+      if (!selectedDate || !selectedTime) {
+         toast.error("Please select a date and time.");
+         return;
+      }
+
+      setLoading(true);
+      try {
+         const response = await fetch('/api/payments/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               type: 'booking',
+               amount: 1000 * 100, // Deposit KES 1000 in kobo
+               email: user?.email || '',
+               metadata: {
+                  customerName: user?.name || 'Guest Artist',
+                  service: selectedService,
+                  date: selectedDate,
+                  time: selectedTime,
+               },
+               callback_url: `${window.location.origin}/success`
+            })
+         });
+
+         const data = await response.json();
+         if (data.authorizationUrl) {
+            window.location.href = data.authorizationUrl;
+         } else {
+            throw new Error(data.error || "Failed to initialize payment");
+         }
+      } catch (err: any) {
+         console.error('Payment Error:', err);
+         toast.error(err.message || "Payment initialization failed. Please try again.");
+      } finally {
+         setLoading(false);
+      }
    };
 
    // Group equipment by category for display
@@ -385,8 +383,12 @@ const Sessions: React.FC = () => {
                                  <p className="text-sm text-gray-500">Deposit Required</p>
                                  <p className="text-xl font-bold text-white">KES 1,000</p>
                               </div>
-                              <button type="submit" className="px-8 py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition">
-                                 Book Session
+                              <button 
+                                 type="submit" 
+                                 disabled={loading}
+                                 className="px-8 py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition disabled:opacity-50"
+                              >
+                                 {loading ? 'Processing...' : 'Book Session'}
                               </button>
                            </div>
                         </form>

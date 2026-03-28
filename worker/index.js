@@ -20,9 +20,11 @@ import { handleCommunity } from './api/community.js';
 import { handleTrialActivation, handleTrialStatus } from './api/user/trial.js';
 import { handleBookings } from './api/bookings.js';
 import { handleSupport } from './api/support.js';
+import { handleChat } from './api/chat.js';
 import { handleScheduled } from './utils/cron.js';
 import { AdminHub } from './utils/hub.js';
 import { handleStoreSettings } from './api/dashboard/store_settings.js';
+import { handlePaymentInitialize } from './api/storefront/payments.js';
 
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
 
@@ -41,6 +43,7 @@ router.post('/api/pool/download', handleStorefrontPool);
 router.get('/api/referrals/stats', handleStorefrontReferrals);
 router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
+router.post('/api/payments/initialize', handlePaymentInitialize);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -151,6 +154,18 @@ router.post('/api/contact', handleSupport);
 router.get('/api/admin/support/tickets', handleSupport);
 router.patch('/api/admin/support/tickets/:id', handleSupport);
 router.delete('/api/admin/support/tickets/:id', handleSupport);
+
+// Live Chat
+router.post('/api/chat/start', handleChat);
+router.post('/api/chat/message', handleChat);
+router.post('/api/chat/human', handleChat);
+router.post('/api/chat/reply', handleChat);
+router.get('/api/chat/session/:id', handleChat);
+router.get('/api/admin/chat/sessions', handleChat);
+router.patch('/api/admin/chat/sessions/:id', handleChat);
+
+// WhatsApp Webhook (Twilio)
+router.post('/api/webhooks/whatsapp', handleChat);
 
 // User Profile
 router.post('/api/user/trial', handleTrialActivation);

@@ -3,12 +3,9 @@ import { Lock, MessageCircle, CreditCard, ShieldAlert, Check } from 'lucide-reac
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { SUBSCRIPTION_PLANS } from '../constants';
+import { useData } from '../context/DataContext';
 import { toast } from 'sonner';
 import { useCart } from '../context/CartContext';
-import { Product } from '../types';
-import { usePaystackPayment } from 'react-paystack';
-import { STORAGE_WORKER_URL } from '../utils/r2';
 
 interface AccessDeniedProps {
     onJoinSuccess?: () => void;
@@ -16,63 +13,24 @@ interface AccessDeniedProps {
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     const { user, activateTrial, refreshProfile } = useAuth() as any;
+    const { subscriptionPlans, plansLoading } = useData();
     const navigate = useNavigate();
     const location = useLocation();
     const { addToCart } = useCart();
-
-    const eligiblePlans = SUBSCRIPTION_PLANS.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
-    const [selectedPlanId, setSelectedPlanId] = useState<string>(eligiblePlans[0]?.id || SUBSCRIPTION_PLANS[0].id);
-    const selectedPlan = eligiblePlans.find(p => p.id === selectedPlanId) || eligiblePlans[0] || SUBSCRIPTION_PLANS[0];
-    
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // Paystack Configuration State
-    const [paystackConfig, setPaystackConfig] = useState<any>({
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
-        email: '',
-        amount: 0,
-        reference: '',
-    });
-
-    const initializePayment = usePaystackPayment(paystackConfig);
-
-    // Trigger Paystack after config is updated
+    const eligiblePlans = subscriptionPlans.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
+    const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+    
+    // Set initial selection when plans load
     useEffect(() => {
-        if (paystackConfig.email && paystackConfig.amount > 0 && paystackConfig.reference && isProcessing) {
-            const onSuccess = async (reference: any) => {
-                const verifyingToast = toast.loading("Verifying payment and activating your subscription...");
-                
-                try {
-                    // Give the webhook a moment to process (3 seconds)
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    
-                    // Refresh user profile to get updated subscription status
-                    await refreshProfile();
-                    
-                    toast.success("Subscription activated! Welcome to the Music Pool.", { id: verifyingToast });
-                    
-                    if (onJoinSuccess) {
-                        onJoinSuccess();
-                    } else {
-                        window.location.reload();
-                    }
-                } catch (error) {
-                    console.error("Profile refresh error:", error);
-                    toast.error("Payment successful but profile refresh failed. Please refresh manually.", { id: verifyingToast });
-                } finally {
-                    setIsProcessing(false);
-                }
-            };
-
-            const onClose = () => {
-                setIsProcessing(false);
-                toast.error('Payment cancelled.');
-            };
-
-            initializePayment({ onSuccess, onClose } as any);
+        if (eligiblePlans.length > 0 && !selectedPlanId) {
+            setSelectedPlanId(eligiblePlans[0].id);
         }
-    }, [paystackConfig, isProcessing, refreshProfile, onJoinSuccess]);
+    }, [eligiblePlans, selectedPlanId]);
 
+    const selectedPlan = eligiblePlans.find(p => p.id === selectedPlanId) || eligiblePlans[0];
+    
     const handleJoinNow = async () => {
         if (!user) {
             toast.info("Please sign in to subscribe.");
@@ -94,22 +52,37 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
             return;
         }
 
-        // Direct Paystack Payment
+        // Direct Paystack Redirect Payment
         setIsProcessing(true);
-        const ref = `sub_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        
-        setPaystackConfig({
-            publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
-            email: user.email,
-            amount: selectedPlan.price * 100, // Paystack expects amount in sub-units (kobo/cents)
-            reference: ref,
-            metadata: {
-                type: 'subscription',
-                planId: selectedPlan.id,
-                userId: user.id,
-                customerName: user.name || user.email.split('@')[0]
+        try {
+            const response = await fetch('/api/payments/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'subscription',
+                    planId: selectedPlan?.id,
+                    amount: Math.round((selectedPlan?.price || 0) * 100),
+                    email: user?.email || '',
+                    metadata: {
+                        userId: user?.id,
+                        customerName: user?.name || user?.email?.split('@')[0],
+                        planName: selectedPlan?.name
+                    },
+                    callback_url: `${window.location.origin}/success`
+                })
+            });
+
+            const data = await response.json();
+            if (data.authorizationUrl) {
+                window.location.href = data.authorizationUrl;
+            } else {
+                throw new Error(data.error || "Failed to initialize payment");
             }
-        });
+        } catch (err: any) {
+            console.error('Payment Error:', err);
+            toast.error(err.message || "Payment initialization failed. Please try again.");
+            setIsProcessing(false);
+        }
     };
 
     const handleWhatsAppHelp = () => {
@@ -133,7 +106,14 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                     </p>
                 </div>
 
-                {/* Plans Grid */}
+                {plansLoading && eligiblePlans.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-12 h-12 border-4 border-brand-cyan/20 border-t-brand-cyan rounded-full animate-spin" />
+                        <p className="text-gray-400 font-medium animate-pulse">Loading subscription plans...</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Plans Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
                     {eligiblePlans.map((plan, index) => (
                         <motion.div
@@ -212,6 +192,9 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                         Contact Admin for Support / M-Pesa Till
                     </button>
                 </div>
+
+                    </>
+                )}
 
                 <div className="mt-12 pt-8 border-t border-white/5 flex items-center justify-center gap-2 text-xs text-gray-500">
                     <ShieldAlert className="w-4 h-4 opacity-50" />

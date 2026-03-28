@@ -3,6 +3,7 @@ import { useLocation, Link, Navigate, useParams, useNavigate } from 'react-route
 import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, ShoppingBag, Copy, CreditCard, Calendar, Loader2, ExternalLink, MessageCircle, Zap, ShieldCheck, Heart, Sparkles, Share2, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,25 +11,85 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Success: React.FC = () => {
    const { clearCart } = useCart();
    const { siteConfig, issueReferralReward, addSubscriber, addOrder, addPayment, addTip, orders, ordersLoading, tips, payments } = useData();
-   const { id } = useParams<{ id: string }>();
-   const location = useLocation();
-   const navigate = useNavigate();
-   const [loading, setLoading] = useState(!!id);
-   const [orderData, setOrderData] = useState<any>(location.state);
-   const [copied, setCopied] = useState(false);
+    const { id } = useParams<{ id: string }>();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { user, refreshProfile } = useAuth();
+    
+    // Parse query params for redirect support
+    const queryParams = new URLSearchParams(location.search);
+    const queryRef = queryParams.get('reference') || queryParams.get('trxref');
+    const queryType = queryParams.get('type') || queryParams.get('metadata_type');
 
-   useEffect(() => {
-      if (location.pathname.includes('/success') && !location.state && !id) {
-         navigate('/store');
-      }
-   }, [location.pathname, location.state, id, navigate]);
+    const [loading, setLoading] = useState(true);
+    const [orderData, setOrderData] = useState<any>(location.state);
+    const [isActivating, setIsActivating] = useState(false);
+    const [activationAttempts, setActivationAttempts] = useState(0);
+    const [copied, setCopied] = useState(false);
 
-   useEffect(() => {
-      if (location.state?.type === 'store' || location.state?.items) {
-         clearCart();
-      }
+    useEffect(() => {
+        // 1. Initial Data Setup
+        if (location.state) {
+            setOrderData(location.state);
+            setLoading(false);
+        } else if (id) {
+            // If we have an ID but no state, we'll wait for the orders to load (handled in the next effect)
+            setLoading(true);
+        } else if (queryRef) {
+            // Handle redirect from Paystack
+            console.log("Success: Detected Paystack redirect with ref:", queryRef);
+            const mockState = {
+                reference: queryRef,
+                type: queryType || 'store', // Default to store if unknown
+                amount: queryParams.get('amount') ? parseInt(queryParams.get('amount')!) / 100 : 0,
+                email: user?.email,
+                customerName: user?.user_metadata?.full_name || 'Member'
+            };
+            setOrderData(mockState);
+            setLoading(false);
+            
+            if (queryType === 'subscription') {
+                setIsActivating(true);
+            }
+        } else if (!location.pathname.includes('/success') || (!location.state && !id && !queryRef)) {
+            navigate('/store');
+        }
+    }, [location.pathname, location.state, id, queryRef, queryType, navigate]);
 
-      if (location.state && location.state.reference) {
+    // Handle Polling for Subscription Activation
+    useEffect(() => {
+        let pollInterval: any;
+        
+        const type = orderData?.type || queryType;
+        const isSub = type === 'subscription';
+
+        if (isSub && !user?.isSubscriber && activationAttempts < 10) {
+            setIsActivating(true);
+            pollInterval = setInterval(async () => {
+                console.log(`Polling for activation... attempt ${activationAttempts + 1}`);
+                const updatedUser = await refreshProfile();
+                setActivationAttempts(prev => prev + 1);
+                
+                if (updatedUser?.isSubscriber) {
+                    console.log("Subscription activation confirmed!");
+                    setIsActivating(false);
+                    clearInterval(pollInterval);
+                }
+            }, 3000); // Poll every 3 seconds
+        } else if (user?.isSubscriber && isActivating) {
+            setIsActivating(false);
+        }
+
+        return () => clearInterval(pollInterval);
+    }, [orderData, queryType, user?.isSubscriber, activationAttempts, isActivating, refreshProfile]);
+
+    useEffect(() => {
+        const stateToUse = orderData || location.state;
+        if (stateToUse?.type === 'store' || stateToUse?.items) {
+           clearCart();
+        }
+
+        if (stateToUse && stateToUse.reference) {
          const syncToR2 = async () => {
             const { reference, type, amount, email, customerName, message, items } = location.state;
 
@@ -195,11 +256,37 @@ const Success: React.FC = () => {
                      {/* Core Status Message */}
                      <div className="text-center">
                         <p className="text-gray-400 text-lg font-medium leading-relaxed italic">
-                           {isTip ? 'Your support has been successfully transmitted to the DJ console.' :
-                              isSubscription ? 'Access granted. Your Premium ID is now broadcasting.' :
-                                 `Connection established. Processing shipment protocols for ${state.customerName || 'User'}.`}
+                           {isActivating ? (
+                               <span className="flex items-center justify-center gap-2 text-brand-purple animate-pulse">
+                                   <Loader2 className="w-5 h-5 animate-spin" />
+                                   Activating your VIP access protocols...
+                               </span>
+                           ) : isTip ? 'Your support has been successfully transmitted to the DJ console.' :
+                               isSubscription ? 'Access granted. Your Premium ID is now broadcasting.' :
+                                  `Connection established. Processing shipment protocols for ${state.customerName || 'User'}.`}
                         </p>
                      </div>
+
+                     {/* Instant Music Pool Access for Subscriptions */}
+                     {isSubscription && user?.isSubscriber && (
+                         <motion.div 
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-brand-purple/10 border border-brand-purple/30 rounded-3xl p-6 text-center"
+                         >
+                             <div className="flex items-center justify-center gap-2 mb-2">
+                                 <Sparkles className="text-brand-purple w-5 h-5 animate-pulse" />
+                                 <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Instant Activation Success</span>
+                             </div>
+                             <h3 className="text-xl font-black text-white italic mb-4 uppercase tracking-tighter">VIP Access Granted</h3>
+                             <Link 
+                                to="/music-pool"
+                                className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-brand-purple/80 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]"
+                             >
+                                <Zap size={18} /> Enter Music Pool
+                             </Link>
+                         </motion.div>
+                     )}
 
                      {/* Digital Download Hub */}
                      {state.items && state.items.some((item: any) => item.type === 'digital') && (

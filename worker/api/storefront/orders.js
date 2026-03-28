@@ -73,11 +73,57 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
             discountAmount
         ).run();
 
+        // 2. Initialize Paystack Transaction for Redirect
+        const amountInKobo = Math.round(totalAmount * 100);
+        const email = body.customer_email || body.customer?.email;
+        
+        if (!email) {
+            return new Response(JSON.stringify({ error: "Email is required for payment initialization" }), { status: 400, headers: { "Access-Control-Allow-Origin": "*" } });
+        }
+
+        const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email,
+                amount: amountInKobo,
+                reference: orderId,
+                callback_url: body.callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/success`,
+                metadata: {
+                    order_id: orderId,
+                    type: 'store_order',
+                    customerName: body.customer_name || body.customer?.name || "Customer",
+                    custom_fields: [
+                        { display_name: "Order ID", variable_name: "order_id", value: orderId }
+                    ]
+                }
+            })
+        });
+
+        const paystackData = await paystackRes.json();
+        
+        if (!paystackRes.ok) {
+            console.error('[Paystack Init Error]', paystackData);
+            return new Response(JSON.stringify({ error: "Failed to initialize payment: " + (paystackData.message || "Unknown error") }), { 
+                status: 500,
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            });
+        }
+
         return new Response(JSON.stringify({ 
             success: true,
             orderId, 
             totalAmount, 
-            message: "Order created successfully" 
+            authorizationUrl: paystackData.data.authorization_url,
+            accessCode: paystackData.data.access_code,
+            reference: paystackData.data.reference,
+            message: "Order created, redirecting to payment..." 
         }), {
             status: 201,
             headers: { 

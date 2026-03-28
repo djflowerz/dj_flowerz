@@ -2565,11 +2565,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     poolPagination,
     genres,
     studioEquipment,
+    studioGear: studioEquipment, // Alias for component compatibility
     shippingZones,
     subscribers,
     subscriptions,
     subscriptionPlans,
     studioRooms,
+    studioLocations: studioRooms, // Alias for component compatibility
     maintenanceLogs,
     orders,
     newsletterCampaigns,
@@ -2608,7 +2610,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     syncNotificationsLoading: syncNotificationsLoading || false,
     addNotification,
     studioEquipmentLoading: equipmentLoading || false,
+    studioGearLoading: equipmentLoading || false, // Alias
     studioRoomsLoading: studioRoomsLoading || false,
+    studioLocationsLoading: studioRoomsLoading || false, // Alias
     maintenanceLogsLoading: maintenanceLogsLoading || false,
     sessionTypesLoading: sessionTypesLoading || false,
     reviewsLoading,

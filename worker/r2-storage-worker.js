@@ -13,6 +13,8 @@
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
+import { handleStorefrontOrders } from './api/storefront/orders';
+import { handlePaymentInitialize } from './api/storefront/payments';
 
 async function syncProductsToR2(env, db) {
     try {
@@ -647,6 +649,21 @@ export default {
                 }
             }
 
+            // --- PAYMENTS & ORDERS HUB ---
+
+            // Storefront track/create: call sub-handler
+            if (path.startsWith("/api/orders")) {
+                if (method === "POST" || path.includes("/track")) {
+                    return await handleStorefrontOrders(request, env, ctx);
+                }
+                // For GET /api/orders, we use the original logic for admin view
+            }
+
+            // Payment Initialization for Subscriptions/Bookings/Tips
+            if (method === "POST" && path === "/api/payments/initialize") {
+                return await handlePaymentInitialize(request, env);
+            }
+
             // --- ORDERS (Drizzle) ---
             if (path === "/api/orders") {
                 if (method === "GET") {
@@ -661,31 +678,8 @@ export default {
                 }
 
                 if (method === "POST") {
-                    try {
-                        const order = await request.json();
-                        const orderId = order.id || `order_${Date.now()}`;
-                        await db.insert(schema.orders)
-                            .values({
-                                id: orderId,
-                                customerId: order.userId || order.user_id,
-                                customerName: order.customerName || order.customer_name,
-                                customerEmail: order.customerEmail || order.customer_email,
-                                totalAmount: order.totalAmount || order.total_amount,
-                                items: JSON.stringify(order.items || []),
-                                status: order.status || 'pending',
-                                paymentStatus: order.paymentStatus || order.payment_status || 'unpaid',
-                                paymentMethod: order.paymentMethod || order.payment_method,
-                                address: order.address || order.shippingAddress || order.shipping_address,
-                                city: order.city,
-                                customerPhone: order.phoneNumber || order.customerPhone || order.customer_phone,
-                            })
-                            .run();
-
-                        await syncCollectionToR2(env, 'orders', db.query.orders.findMany({ orderBy: (o, { desc }) => [desc(o.createdAt)] }));
-                        return Response.json({ success: true, id: orderId }, { headers: corsHeaders });
-                    } catch (e) {
-                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
-                    }
+                    // This is now handled above by handleStorefrontOrders for redirect flow
+                    return new Response("Use handleStorefrontOrders for POST", { status: 400 });
                 }
             }
 

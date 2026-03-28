@@ -183,9 +183,7 @@ export async function handlePaystackWebhook(request, env) {
                 const durationDays = durations[planId] || 30;
                 
                 const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-                const expiryIso = expiryDate.toISOString().replace('T', ' ').substring(0, 19); // YYYY-MM-DD HH:MM:SS format
-                // Actually, let's keep ISO for R2 consistency, but D1 might expect the ' ' format if it's text.
-                // handleTrialActivation used `.replace('T', ' ').substring(0, 19)`
+                const expiryIso = expiryDate.toISOString();
                 
                 try {
                     // 1. Update D1 Profile

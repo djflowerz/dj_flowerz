@@ -1,66 +1,55 @@
 import React, { useState } from 'react';
 import { Heart, Coffee } from 'lucide-react';
-import { usePaystackPayment } from 'react-paystack';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
 
 const TipJar: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [amount, setAmount] = useState<number | ''>('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const presets = [100, 200, 500, 1000];
 
-  const paystackConfig = {
-    reference: `tip_${(new Date()).getTime()}`,
-    email: user?.email || "guest_tipper@djflowerz.co.ke",
-    amount: (Number(amount) || 0) * 100, // Amount in KES cents
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder', // Fallback
-    currency: 'KES',
-    metadata: {
-      type: 'tip', // Added for webhook processing
-      userId: user?.id,
-      userEmail: user?.email,
-      customerName: user?.name || 'Guest Tipper',
-      message: message, // Flattened for easier access
-      custom_fields: [
-        {
-          display_name: "Message",
-          variable_name: "message",
-          value: message
-        }
-      ]
-    }
-  };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
-
-  const onSuccess = (reference: any) => {
-    navigate('/success', {
-      state: {
-        type: 'tip',
-        reference: reference.reference,
-        amount: Number(amount),
-        message: message,
-        email: user?.email,
-        customerName: user?.name || 'Guest Tipper'
-      }
-    });
-    setAmount('');
-    setMessage('');
-  };
-
-  const onClose = () => {
-    console.log('Payment closed');
-  };
-
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (!amount || Number(amount) <= 0) {
-      alert("Please enter a valid amount.");
+      toast.error("Please enter a valid amount.");
       return;
     }
-    initializePayment({ onSuccess, onClose });
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/payments/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'tip',
+          amount: Number(amount) * 100, // Amount in KES kobo
+          email: user?.email || "guest_tipper@djflowerz.co.ke",
+          metadata: {
+            userId: user?.id,
+            userEmail: user?.email,
+            customerName: user?.name || 'Guest Tipper',
+            message: message,
+          },
+          callback_url: `${window.location.origin}/success`
+        })
+      });
+
+      const data = await response.json();
+      if (data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
+      } else {
+        throw new Error(data.error || "Failed to initialize payment");
+      }
+    } catch (err: any) {
+      console.error('Payment Error:', err);
+      toast.error(err.message || "Payment initialization failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -113,9 +102,10 @@ const TipJar: React.FC = () => {
 
           <button
             onClick={handlePayment}
-            className="w-full py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold text-lg rounded-xl shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 transition transform active:scale-[0.98] hover:-translate-y-1"
+            disabled={loading}
+            className="w-full py-4 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold text-lg rounded-xl shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 transition transform active:scale-[0.98] hover:-translate-y-1 disabled:opacity-50"
           >
-            Send Tip
+            {loading ? 'Processing...' : 'Send Tip'}
           </button>
 
           <p className="text-center text-xs text-gray-500 mt-6 flex items-center justify-center gap-1.5 opacity-80">

@@ -34,6 +34,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
+import AccessDenied from './components/AccessDenied';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -131,6 +132,7 @@ const App: React.FC = () => {
                   <Route path="/tip-jar" element={<TipJar />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/about" element={<About />} />
+                   <Route path="/premium" element={<AccessDenied />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />

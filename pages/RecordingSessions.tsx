@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Mic, Music, Sliders, Calendar, Clock, Check, Play, Headphones, ArrowRight, Star, Info, MapPin, Cpu, AlertCircle, ChevronRight, ChevronLeft, CreditCard } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { usePaystackPayment } from 'react-paystack';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
@@ -47,6 +47,7 @@ const RecordingSessions: React.FC = () => {
    const [duration, setDuration] = useState(2);
    const [selectedGear, setSelectedGear] = useState<string[]>([]);
    const [showMpesa, setShowMpesa] = useState(false);
+   const [loading, setLoading] = useState(false);
    const navigate = useNavigate();
 
    const selectedLocation = useMemo(() => {
@@ -66,45 +67,6 @@ const RecordingSessions: React.FC = () => {
    }, [selectedLocation, duration, selectedGear, studioGear]);
 
    // Paystack Config
-   const config = {
-      reference: `session_${(new Date()).getTime()}`,
-      email: user?.email || 'guest@example.com',
-      amount: 1000 * 100, // Deposit KES 1000
-      publicKey: (import.meta as any).env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_live_default',
-      currency: 'KES',
-      metadata: {
-         type: 'booking',
-         userId: user?.id,
-         userEmail: user?.email,
-         customerName: user?.name || 'Guest Artist',
-         location: selectedLocation.name,
-         date: selectedDate,
-         time: selectedTime,
-         duration: `${duration} hrs`,
-         gear: selectedGear.join(', '),
-         totalAmount: calculateTotal,
-         custom_fields: [
-            {
-               display_name: "Session Type",
-               variable_name: "session_type",
-               value: selectedLocation.name
-            },
-            {
-               display_name: "Date & Time",
-               variable_name: "booking_time",
-               value: `${selectedDate} @ ${selectedTime}`
-            }
-         ]
-      }
-   };
-
-   const initializePayment = usePaystackPayment(config);
-
-   const onSuccess = (reference: any) => {
-      console.log('Payment success:', reference);
-      navigate('/success?type=booking&ref=' + reference.reference);
-   };
-
    const onClose = () => {
       console.log('Payment closed');
    };
@@ -115,13 +77,8 @@ const RecordingSessions: React.FC = () => {
          return;
       }
 
+      setLoading(true);
       try {
-         if (!config.publicKey || config.publicKey === 'pk_live_default') {
-            alert('Paystack Public Key is missing or invalid. Please contact the administrator.');
-            console.error('Paystack Public Key is not configured correctly in environment variables.');
-            return;
-         }
-
          // 1. Create pending booking in D1
          const response = await fetch('/api/bookings/studio', {
             method: 'POST',
@@ -140,33 +97,44 @@ const RecordingSessions: React.FC = () => {
          const data = await response.json();
          if (!data.success) throw new Error('Failed to create booking');
 
-         // 2. Open Paystack with the booking ID
-         const paystackConfig = {
-            ...config,
-            metadata: {
-               ...config.metadata,
-               bookingId: data.id,
-               type: 'studio_session'
-            }
-         };
-
-         // Note: we can't easily update usePaystackPayment hook on the fly 
-         // without re-rendering or using a strategy that takes the new metadata.
-         // A better way is to pass the metadata directly if the hook allows or 
-         // just use the manual trigger if we had it. 
-         // Given the hook constraints, we'll use the pre-calculated config and 
-         // ensure metadata is passed.
-
-         const handler = (window as any).PaystackPop.setup({
-            ...paystackConfig,
-            callback: (response: any) => onSuccess(response),
-            onClose: () => onClose(),
+         // 2. Initialize Paystack Transaction for Redirect
+         const depositAmount = 1000 * 100; // Deposit KES 1000 in kobo
+         
+         const paystackResponse = await fetch('/api/payments/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               type: 'booking',
+               amount: depositAmount,
+               email: user.email,
+               metadata: {
+                  bookingId: data.id,
+                  userId: user.id,
+                  userEmail: user.email,
+                  customerName: user.name || 'Guest Artist',
+                  location: selectedLocation.name,
+                  date: selectedDate,
+                  time: selectedTime,
+                  duration: `${duration} hrs`,
+                  gear: selectedGear.join(', '),
+                  totalAmount: calculateTotal,
+               },
+               callback_url: `${window.location.origin}/success`
+            })
          });
-         handler.openIframe();
 
-      } catch (err) {
+         const paystackData = await paystackResponse.json();
+         if (paystackData.authorizationUrl) {
+            window.location.href = paystackData.authorizationUrl;
+         } else {
+            throw new Error(paystackData.error || "Failed to initialize payment");
+         }
+
+      } catch (err: any) {
          console.error('Booking Error:', err);
-         alert('Failed to initiate booking. Please try again.');
+         toast.error(err.message || 'Failed to initiate booking. Please try again.');
+      } finally {
+         setLoading(false);
       }
    };
 
@@ -452,9 +420,10 @@ const RecordingSessions: React.FC = () => {
                                  </button>
                                  <button
                                     onClick={handleBooking}
-                                    className="px-8 py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition flex items-center gap-2"
+                                    disabled={loading}
+                                    className="px-8 py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition flex items-center gap-2 disabled:opacity-50"
                                  >
-                                    <CreditCard size={18} /> Pay Deposit (KES 1,000)
+                                    <CreditCard size={18} /> {loading ? 'Processing...' : 'Pay Deposit (KES 1,000)'}
                                  </button>
                               </div>
                            )}

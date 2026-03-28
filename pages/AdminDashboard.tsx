@@ -38,6 +38,7 @@ import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
 import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory';
 import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
 import BlackoutManager from '../components/admin/BlackoutManager';
+import { AdminLiveChatTab } from '../components/admin/AdminLiveChatTab';
 import AddProductForm from '../components/admin/AddProductForm';
 import { 
    ImageUpload, MultiImageUpload, AudioUpload, FileUpload, VersionAudioUpload 
@@ -248,7 +249,8 @@ const AdminDashboard: React.FC = () => {
    const tabs = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'orders', label: 'Orders', icon: Package },
-      { id: 'subscriptions', label: 'Subscriptions', icon: Timer },
+      { id: 'subscriptions', label: 'Subscriptions', icon: Users },
+      { id: 'plans', label: 'Plans', icon: Timer },
       { id: 'expiry-watch', label: 'Expiry Watch', icon: Clock },
       { id: 'pool', label: 'Music Pool', icon: Headphones },
       { id: 'bookings', label: 'Studio Bookings', icon: Calendar },
@@ -262,6 +264,7 @@ const AdminDashboard: React.FC = () => {
       { id: 'users', label: 'Users', icon: Users },
       { id: 'referrals', label: 'Referrals', icon: Gift },
       { id: 'payments', label: 'Payments', icon: CreditCard },
+      { id: 'live-chat', label: 'Live Chat', icon: MessageSquare },
       { id: 'shipping', label: 'Shipping', icon: Truck },
       { id: 'newsletters', label: 'Newsletters', icon: Mail },
       { id: 'interactions', label: 'Interactions', icon: MessageSquare },
@@ -1992,16 +1995,71 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'analytics' && <AnalyticsTab />}
 
                {activeTab === 'orders' && <AdminOrdersTab />}
+               
+               {activeTab === 'plans' && (
+                  <div className="animate-fade-in-up space-y-8">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                           <h3 className="text-3xl font-black text-white tracking-tight">Access Tiers</h3>
+                           <p className="text-sm text-gray-500 font-medium mt-1">Configure and manage subscription packages for the music pool</p>
+                        </div>
+                        <button onClick={openAddPlan} className="px-6 py-3 bg-brand-purple text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple/80 transition-all flex items-center gap-2 shadow-xl shadow-brand-purple/20">
+                           <Plus size={16} /> New Plan
+                        </button>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {(subscriptionPlans || []).map(plan => (
+                           <div key={plan.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-purple/20 transition-all duration-500 overflow-hidden shadow-2xl">
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-brand-purple/10 transition-colors" />
+                              {plan.isBestValue && (
+                                 <div className="absolute top-6 right-6">
+                                    <span className="bg-brand-purple text-white text-[9px] font-black px-4 py-2 rounded-full tracking-[0.2em] shadow-lg shadow-brand-purple/20">ELITE CHOICE</span>
+                                 </div>
+                              )}
+                              <div className="relative z-10">
+                                 <h3 className="text-2xl font-black text-white mb-2 tracking-tight">{plan.name}</h3>
+                                 <div className="flex items-baseline gap-1 mb-6">
+                                    <span className="text-3xl font-black text-brand-cyan">KES {(plan.price ?? plan.price_kes ?? 0).toLocaleString()}</span>
+                                    <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">/{plan.period}</span>
+                                 </div>
+                                 <div className="space-y-4 mb-8">
+                                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em] border-b border-white/5 pb-2">Included Protocols</p>
+                                    {(plan.features || []).map((f, i) => (
+                                       <div key={i} className="text-xs text-gray-400 font-medium flex items-center gap-3">
+                                          <div className="w-5 h-5 rounded-lg bg-brand-cyan/10 flex items-center justify-center shrink-0">
+                                             <Check size={12} className="text-brand-cyan" />
+                                          </div>
+                                          {f}
+                                       </div>
+                                    ))}
+                                 </div>
+                                 <div className="flex gap-3">
+                                    <button onClick={() => openEditPlan(plan)} className="flex-1 py-4 bg-white/5 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 border border-white/10 transition-all">Configure</button>
+                                    <button onClick={() => { if (confirm('Purge this tier?')) deleteSubscriptionPlan(plan.id) }} className="py-4 px-5 bg-red-500/5 text-red-500 rounded-2xl border border-red-500/10 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
+                                 </div>
+                              </div>
+                           </div>
+                        ))}
+                        <div
+                           onClick={openAddPlan}
+                           className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-600 hover:bg-white/[0.02] hover:border-brand-purple/40 hover:text-brand-purple cursor-pointer transition-all duration-500 min-h-[400px] group shadow-2xl"
+                        >
+                           <div className="w-20 h-20 rounded-[2rem] bg-white/5 group-hover:bg-brand-purple/10 flex items-center justify-center mb-6 transition-colors shadow-inner">
+                              <Plus size={48} className="group-hover:scale-125 transition-transform" />
+                           </div>
+                           <span className="font-black uppercase tracking-[0.2em] text-xs">Architect New Tier</span>
+                        </div>
+                     </div>
+                  </div>
+               )}
+
                {activeTab === 'subscriptions' && (
                   <div className="animate-fade-in-up space-y-8">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
                            <h3 className="text-3xl font-black text-white tracking-tight">VIP Network</h3>
                            <p className="text-sm text-gray-500 font-medium mt-1">Manage music pool memberships and recurring revenue</p>
-                        </div>
-                        <div className="flex gap-4 p-1.5 bg-black/40 rounded-[1.25rem] border border-white/5">
-                           <button onClick={() => setSubscriptionSubTab('overview')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionSubTab === 'overview' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Member Registry</button>
-                           <button onClick={() => setSubscriptionSubTab('plans')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionSubTab === 'plans' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-gray-500 hover:text-white'}`}>Access Tiers</button>
                         </div>
                      </div>
 
@@ -2012,129 +2070,81 @@ const AdminDashboard: React.FC = () => {
                         <StatCard label="Recurrent" value={`KES ${(activeSubsAmt || 0).toLocaleString()}`} icon={DollarSign} color="text-brand-purple" trend="STABLE" trendUp={true} subtext="Projected monthly" />
                      </div>
 
-                     {subscriptionSubTab === 'overview' && (
-                        <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                           <div className="overflow-x-auto">
-                              <table className="w-full text-left whitespace-nowrap">
-                                 <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left whitespace-nowrap">
+                              <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                 <tr>
+                                    <th className="px-8 py-6">Identity</th>
+                                    <th className="px-8 py-6">Access Tier</th>
+                                    <th className="px-8 py-6">Investment</th>
+                                    <th className="px-8 py-6">Expiration</th>
+                                    <th className="px-8 py-6">Signal Status</th>
+                                    <th className="px-8 py-6 text-right">Protocol</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/[0.03] text-sm">
+                                 {subsLoading ? (
+                                    <tr><td colSpan={6} className="px-8 py-20 text-center text-gray-500 font-black uppercase tracking-widest animate-pulse">Scanning Registry...</td></tr>
+                                 ) : (liveSubscriptions || []).length === 0 ? (
                                     <tr>
-                                       <th className="px-8 py-6">Identity</th>
-                                       <th className="px-8 py-6">Access Tier</th>
-                                       <th className="px-8 py-6">Investment</th>
-                                       <th className="px-8 py-6">Expiration</th>
-                                       <th className="px-8 py-6">Signal Status</th>
-                                       <th className="px-8 py-6 text-right">Protocol</th>
-                                    </tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {subsLoading ? (
-                                       <tr><td colSpan={6} className="px-8 py-20 text-center text-gray-500 font-black uppercase tracking-widest animate-pulse">Scanning Registry...</td></tr>
-                                    ) : (liveSubscriptions || []).length === 0 ? (
-                                       <tr>
-                                          <td colSpan={6} className="px-8 py-20 text-center">
-                                             <div className="flex flex-col items-center gap-4 opacity-50">
-                                                <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
-                                                   <Users size={40} className="text-gray-500" />
-                                                </div>
-                                                <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No Signal Detected</p>
+                                       <td colSpan={6} className="px-8 py-20 text-center">
+                                          <div className="flex flex-col items-center gap-4 opacity-50">
+                                             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
+                                                <Users size={40} className="text-gray-500" />
                                              </div>
-                                          </td>
-                                       </tr>
-                                    ) : (
-                                       (liveSubscriptions || []).map((sub) => {
-                                          const isExpired = new Date() > new Date(sub.expiryDate);
-                                          return (
-                                             <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                <td className="px-8 py-6">
-                                                   <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{sub.userName}</div>
-                                                   <div className="text-[11px] text-gray-500 font-medium">{sub.userEmail}</div>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                   <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{sub.planId}</span>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                   <div className="text-white font-black">KES {sub.amount?.toLocaleString() || '0'}</div>
-                                                </td>
-                                                <td className="px-8 py-6 font-black font-display text-xs tracking-wider text-gray-400">
-                                                   {new Date(sub.expiryDate).toLocaleDateString()}
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                   <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${!isExpired && sub.status === 'active'
-                                                      ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20'
-                                                      : 'bg-red-500/5 text-red-500 border-red-500/20'
-                                                      }`}>
-                                                      {!isExpired && sub.status === 'active' ? 'Locked On' : 'Frequency Lost'}
-                                                   </span>
-                                                </td>
-                                                <td className="px-8 py-6 text-right">
-                                                   <div className="flex justify-end gap-3">
-                                                      {sub.status === 'active' && !isExpired && (
-                                                         <>
-                                                            <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110">
-                                                               <RefreshCw size={18} />
-                                                            </button>
-                                                            <button onClick={() => handleRevokeSubscription(sub.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all">
-                                                               <UserX size={18} />
-                                                            </button>
-                                                         </>
-                                                      )}
-                                                   </div>
-                                                </td>
-                                             </tr>
-                                          );
-                                       })
-                                    )}
-                                 </tbody>
-                              </table>
-                           </div>
-                        </div>
-                     )}
-
-                     {subscriptionSubTab === 'plans' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                           {(subscriptionPlans || []).map(plan => (
-                              <div key={plan.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-purple/20 transition-all duration-500 overflow-hidden shadow-2xl">
-                                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-brand-purple/10 transition-colors" />
-                                 {plan.isBestValue && (
-                                    <div className="absolute top-6 right-6">
-                                       <span className="bg-brand-purple text-white text-[9px] font-black px-4 py-2 rounded-full tracking-[0.2em] shadow-lg shadow-brand-purple/20">ELITE CHOICE</span>
-                                    </div>
-                                 )}
-                                 <div className="relative z-10">
-                                    <h3 className="text-2xl font-black text-white mb-2 tracking-tight">{plan.name}</h3>
-                                    <div className="flex items-baseline gap-1 mb-6">
-                                       <span className="text-3xl font-black text-brand-cyan">KES {(plan.price ?? plan.price_kes ?? 0).toLocaleString()}</span>
-                                       <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">/{plan.period}</span>
-                                    </div>
-                                    <div className="space-y-4 mb-8">
-                                       <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em] border-b border-white/5 pb-2">Included Protocols</p>
-                                       {(plan.features || []).map((f, i) => (
-                                          <div key={i} className="text-xs text-gray-400 font-medium flex items-center gap-3 active:scale-95 transition-transform">
-                                             <div className="w-5 h-5 rounded-lg bg-brand-cyan/10 flex items-center justify-center shrink-0">
-                                                <Check size={12} className="text-brand-cyan" />
-                                             </div>
-                                             {f}
+                                             <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No Signal Detected</p>
                                           </div>
-                                       ))}
-                                    </div>
-                                    <div className="flex gap-3">
-                                       <button onClick={() => openEditPlan(plan)} className="flex-1 py-4 bg-white/5 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 border border-white/10 transition-all">Configure</button>
-                                       <button onClick={() => { if (confirm('Purge this tier?')) deleteSubscriptionPlan(plan.id) }} className="py-4 px-5 bg-red-500/5 text-red-500 rounded-2xl border border-red-500/10 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
-                                    </div>
-                                 </div>
-                              </div>
-                           ))}
-                           <div
-                              onClick={openAddPlan}
-                              className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-dashed border-white/10 flex flex-col items-center justify-center text-gray-600 hover:bg-white/[0.02] hover:border-brand-purple/40 hover:text-brand-purple cursor-pointer transition-all duration-500 min-h-[400px] group shadow-2xl"
-                           >
-                              <div className="w-20 h-20 rounded-[2rem] bg-white/5 group-hover:bg-brand-purple/10 flex items-center justify-center mb-6 transition-colors shadow-inner">
-                                 <Plus size={48} className="group-hover:scale-125 transition-transform" />
-                              </div>
-                              <span className="font-black uppercase tracking-[0.2em] text-xs">Architect New Tier</span>
-                           </div>
+                                       </td>
+                                    </tr>
+                                 ) : (
+                                    (liveSubscriptions || []).map((sub) => {
+                                       const isExpired = new Date() > new Date(sub.expiryDate);
+                                       return (
+                                          <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
+                                             <td className="px-8 py-6">
+                                                <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{sub.userName}</div>
+                                                <div className="text-[11px] text-gray-500 font-medium">{sub.userEmail}</div>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{sub.planId}</span>
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <div className="text-white font-black">KES {sub.amount?.toLocaleString() || '0'}</div>
+                                             </td>
+                                             <td className="px-8 py-6 font-black font-display text-xs tracking-wider text-gray-400">
+                                                {new Date(sub.expiryDate).toLocaleDateString()}
+                                             </td>
+                                             <td className="px-8 py-6">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${!isExpired && sub.status === 'active'
+                                                   ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20'
+                                                   : 'bg-red-500/5 text-red-500 border-red-500/20'
+                                                   }`}>
+                                                   {!isExpired && sub.status === 'active' ? 'Locked On' : 'Frequency Lost'}
+                                                </span>
+                                             </td>
+                                             <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-3">
+                                                   {sub.status === 'active' && !isExpired && (
+                                                      <>
+                                                         <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110">
+                                                            <RefreshCw size={18} />
+                                                         </button>
+                                                         <button onClick={() => handleRevokeSubscription(sub.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all">
+                                                            <UserX size={18} />
+                                                         </button>
+                                                      </>
+                                                   )}
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       );
+                                    })
+                                 )}
+                              </tbody>
+                           </table>
                         </div>
-                     )}
+                     </div>
                   </div>
                )}
 
@@ -4560,6 +4570,8 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'payments' && <AdminPaymentsTab liveSales={liveSales} />}
 
+               {activeTab === 'live-chat' && <AdminLiveChatTab />}
+
                {activeTab === 'usage-monitor' && <AdminUsageMonitor />}
                {activeTab === 'expiry-watch' && <AdminExpiryWatch />}
 
@@ -5705,6 +5717,30 @@ const AdminDashboard: React.FC = () => {
                      <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
                      <button onClick={handleSaveChannel} className="bg-brand-purple hover:bg-purple-600 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all uppercase tracking-widest text-[10px]">
                         Save Network
+                     </button>
+                  </div>
+               </div>
+            </Modal>
+
+            <Modal isOpen={activeModal === 'addPlan'} onClose={() => setActiveModal(null)} title={isEditing ? "Neural Interface: Update Tier" : "Architect New Access Tier"}>
+               <div className="space-y-6">
+                  <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                     <InputGroup label="Tier Label" value={editingPlan.name} onChange={v => setEditingPlan({ ...editingPlan, name: v })} required />
+                     <div className="grid grid-cols-2 gap-6">
+                        <InputGroup label="Investment (KES)" type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} />
+                        <InputGroup label="Cycle Period" options={['wk', 'mo', '3mo', '6mo', 'yr']} value={editingPlan.period} onChange={v => setEditingPlan({ ...editingPlan, period: v as any })} />
+                     </div>
+                     <InputGroup label="Protocol Features (One per line)" type="textarea" value={planFeaturesInput} onChange={v => setPlanFeaturesInput(v)} placeholder="Weekly High-Quality Drops&#10;Exclusive Edits & Remixes" />
+                     <InputGroup label="Active Signal" type="checkbox" checked={editingPlan.active} onChange={v => setEditingPlan({ ...editingPlan, active: v })} />
+                  </div>
+                  <div className="flex justify-end pt-6 border-t border-white/5">
+                     <button onClick={() => setActiveModal(null)} className="px-8 py-4 text-gray-500 font-bold hover:text-white transition-colors mr-4">Cancel</button>
+                     <button
+                        onClick={handleSavePlan}
+                        disabled={isSavingPlan}
+                        className="bg-brand-purple hover:bg-purple-600 disabled:opacity-50 px-12 py-4 rounded-2xl font-black text-white shadow-xl shadow-brand-purple/20 transition-all uppercase tracking-widest text-[10px]"
+                     >
+                        {isSavingPlan ? 'Syncing...' : 'Save Tier Proto'}
                      </button>
                   </div>
                </div>
