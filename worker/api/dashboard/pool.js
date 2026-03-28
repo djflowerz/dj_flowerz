@@ -132,6 +132,9 @@ export async function handleBulkSync(request, env, ctx, params) {
         for (const track of tracks) {
             if (!track.id) continue;
 
+            // Helper: convert undefined to null for D1 compatibility
+            const s = (v) => (v === undefined ? null : v ?? null);
+
             // 1. Upsert Track
             queries.push(env.DB.prepare(`
                 INSERT INTO tracks (
@@ -153,20 +156,20 @@ export async function handleBulkSync(request, env, ctx, params) {
                     is_active=excluded.is_active,
                     updated_at=excluded.updated_at
             `).bind(
-                track.id,
-                track.title,
-                track.artist,
-                track.displayGenre || track.display_genre,
-                track.collectionHub || track.collection_hub,
-                track.subGenre || track.sub_genre,
-                track.vibe,
-                track.bpm,
-                track.releaseYear || track.release_year,
-                track.releaseMonth || track.release_month,
+                s(track.id),
+                s(track.title),
+                s(track.artist),
+                s(track.displayGenre ?? track.display_genre),
+                s(track.collectionHub ?? track.collection_hub),
+                s(track.subGenre ?? track.sub_genre),
+                s(track.vibe),
+                s(track.bpm),
+                s(track.releaseYear ?? track.release_year),
+                s(track.releaseMonth ?? track.release_month),
                 track.isFeatured ? 1 : 0,
                 track.isActive !== false ? 1 : 0,
-                track.dateAdded || track.date_added || timestamp,
-                track.createdAt || track.created_at || timestamp,
+                s(track.dateAdded ?? track.date_added ?? timestamp),
+                s(track.createdAt ?? track.created_at ?? timestamp),
                 timestamp
             ));
 
@@ -186,14 +189,14 @@ export async function handleBulkSync(request, env, ctx, params) {
                             file_size=excluded.file_size,
                             is_main_version=excluded.is_main_version
                     `).bind(
-                        v.id,
-                        track.id,
-                        v.versionName || v.version_name,
-                        v.previewUrl || v.preview_url,
-                        v.downloadUrl || v.download_url,
-                        v.fileSize || v.file_size,
+                        s(v.id ?? `${track.id}-${v.versionName ?? v.version_name ?? 'original'}`),
+                        s(track.id),
+                        s(v.versionName ?? v.version_name ?? 'Original'),
+                        s(v.previewUrl ?? v.preview_url),
+                        s(v.downloadUrl ?? v.download_url),
+                        s(v.fileSize ?? v.file_size ?? 0),
                         v.isMainVersion ? 1 : 0,
-                        v.createdAt || v.created_at || timestamp
+                        s(v.createdAt ?? v.created_at ?? timestamp)
                     ));
                 }
             }
