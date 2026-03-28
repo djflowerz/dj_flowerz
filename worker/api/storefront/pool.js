@@ -412,7 +412,7 @@ export async function handleStorefrontPool(request, env) {
                 LEFT JOIN track_versions v ON t.id = v.track_id
                 ${whereClause}
                 GROUP BY t.id 
-                ORDER BY t.release_year DESC, t.created_at DESC 
+                ORDER BY t.date_added DESC, t.created_at DESC 
                 LIMIT ? OFFSET ?
             `;
 
