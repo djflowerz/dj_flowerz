@@ -2569,14 +2569,16 @@ const AdminDashboard: React.FC = () => {
                                     }
 
                                     const newBatch: any[] = finalToAdd.map((track: any) => {
-                                       const versions: any[] = [];
-                                       if (track.downloadUrl) {
+                                       const versions: any[] = track.versions?.length ? track.versions : [];
+                                       if (versions.length === 0 && track.downloadUrl) {
                                           versions.push({
                                              id: `v_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                                             type: track.downloadUrl.includes('.mp4') ? 'mp4' : 'mp3',
-                                             storagePath: '',
-                                             duration: 0,
+                                             versionName: 'Original',
+                                             previewUrl: track.previewUrl || track.downloadUrl || '',
                                              downloadUrl: track.downloadUrl,
+                                             fileSize: '0MB',
+                                             isMainVersion: true,
+                                             createdAt: new Date().toISOString()
                                           });
                                        }
                                        return {
