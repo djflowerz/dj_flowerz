@@ -2581,10 +2581,16 @@ const AdminDashboard: React.FC = () => {
                                        }
                                        return {
                                           ...INITIAL_POOL_TRACK_STATE,
-                                          id: `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                                          id: track.id || `pt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
                                           title: track.title,
                                           artist: track.artist || 'Unknown Artist',
                                           genre: track.genre || genres[0]?.name || 'Afrobeats',
+                                          displayGenre: track.displayGenre || track.display_genre,
+                                          collectionHub: track.collectionHub || track.collection_hub,
+                                          subGenre: track.subGenre || track.sub_genre,
+                                          vibe: track.vibe,
+                                          releaseYear: track.releaseYear || track.release_year,
+                                          releaseMonth: track.releaseMonth || track.release_month,
                                           key: track.key || '',
                                           bpm: track.bpm || 100,
                                           previewUrl: track.previewUrl || track.downloadUrl || '',
