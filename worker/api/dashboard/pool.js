@@ -200,9 +200,11 @@ export async function handleBulkSync(request, env, ctx, params) {
         }
 
         if (queries.length > 0) {
-            // Split into smaller batches if needed, but 50 tracks * versions should fit in D1 batch limit (approx 100 queries)
-            // If it exceeds, we might need further chunking here, but DataContext already chunks by 50.
-            await env.DB.batch(queries);
+            const BATCH_LIMIT = 100;
+            for (let i = 0; i < queries.length; i += BATCH_LIMIT) {
+                const chunk = queries.slice(i, i + BATCH_LIMIT);
+                await env.DB.batch(chunk);
+            }
         }
 
         return new Response(JSON.stringify({ 
