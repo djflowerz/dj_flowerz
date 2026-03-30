@@ -142,9 +142,12 @@ const Hero: React.FC<HeroProps> = ({
                                 <Mail className="text-gray-500 group-focus-within:text-brand-purple transition-colors" size={18} />
                                 <input
                                     type="email"
+                                    id="hero-newsletter-email"
+                                    name="hero_email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="Enter terminal email..."
+                                    autoComplete="email"
                                     className="bg-transparent border-none focus:ring-0 text-white w-full placeholder:text-gray-600 outline-none text-sm font-medium"
                                 />
                             </div>

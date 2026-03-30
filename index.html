@@ -6,6 +6,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DJ FLOWERZ | Premium Music Experience</title>
   <link rel="canonical" href="https://djflowerz.co.ke" />
+  <!-- Content Security Policy: allowlists trusted origins for scripts, styles, media & connections -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' blob: https://js.paystack.co https://api.paystack.co https://www.googletagmanager.com https://fonts.googleapis.com;
+    script-src-elem 'self' 'unsafe-inline' blob: https://js.paystack.co https://api.paystack.co https://www.googletagmanager.com https://fonts.googleapis.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' data: https://fonts.gstatic.com;
+    img-src 'self' data: blob: https: http:;
+    media-src 'self' blob: https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com https://djflowerz-worker.ianmuriithiflowerz.workers.dev;
+    connect-src 'self' https://djflowerz-worker.ianmuriithiflowerz.workers.dev https://api.paystack.co https://checkout.paystack.com https://*.supabase.co wss://*.supabase.co https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com;
+    frame-src 'self' https://www.youtube.com https://checkout.paystack.com;
+    worker-src 'self' blob:;
+    object-src 'none';
+  " />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Poppins:wght@500;600;700;800&display=swap"
     rel="stylesheet">

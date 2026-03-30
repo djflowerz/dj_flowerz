@@ -1,10 +1,11 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
 import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
+import { supabase } from '../utils/supabase';
 
 
 
@@ -115,6 +116,8 @@ interface DataContextType {
   syncNotificationsLoading: boolean;
   studioSessions: StudioSession[];
   eventGigs: EventGig[];
+  installmentPlans: InstallmentPlan[];
+  installmentPayments: InstallmentPayment[];
   mixtapesError: string | null;
   mixtapesLoading: boolean;
   poolError: string | null;
@@ -135,6 +138,7 @@ interface DataContextType {
   sessionTypesLoading: boolean;
   studioSessionsLoading: boolean;
   eventGigsLoading: boolean;
+  installmentsLoading: boolean;
   productsError: string | null;
   ordersError: string | null;
   usersError: string | null;
@@ -206,10 +210,14 @@ interface DataContextType {
   refreshNotifications: () => void;
   updateCampaign: (id: string, data: Partial<NewsletterCampaign>) => void;
 
-  addCoupon: (coupon: Coupon) => void;
-  updateCoupon: (id: string, data: Partial<Coupon>) => void;
   deleteCoupon: (id: string) => void;
   validateCoupon: (code: string) => Promise<{ success: boolean; coupon?: Coupon; message?: string }>;
+  
+  // Installment Actions
+  addInstallmentPlan: (plan: Partial<InstallmentPlan>) => Promise<boolean>;
+  updateInstallmentPlan: (id: string, data: Partial<InstallmentPlan>) => Promise<boolean>;
+  deleteInstallmentPlan: (id: string) => Promise<boolean>;
+  payInstallment: (planId: string) => Promise<boolean>;
 
   updateTelegramConfig: (config: Partial<TelegramConfig>) => void;
   addTelegramChannel: (channel: TelegramChannel) => void;
@@ -262,6 +270,7 @@ interface DataContextType {
   refreshContactMessages: () => void;
   refreshReviews: () => void;
   refreshComments: () => void;
+  refreshInstallments: () => void;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -778,6 +787,24 @@ const mapR2Tip = (t: any): any => ({
   createdAt: t.created_at || t.createdAt
 });
 
+const mapR2InstallmentPayment = (p: any): InstallmentPayment => ({
+  ...p,
+  amount: Number(p.amount || 0),
+  createdAt: p.created_at || p.createdAt
+});
+
+const mapR2InstallmentPlan = (p: any): InstallmentPlan => ({
+  ...p,
+  total_amount: Number(p.total_amount || 0),
+  deposit_amount: Number(p.deposit_amount || 0),
+  paid_amount: Number(p.paid_amount || 0),
+  balance: Number(p.balance || 0),
+  is_reminder_enabled: Boolean(p.is_reminder_enabled === 1 || p.is_reminder_enabled === true),
+  payments: Array.isArray(p.payments) ? p.payments.map(mapR2InstallmentPayment) : [],
+  createdAt: p.created_at || p.createdAt,
+  updatedAt: p.updated_at || p.updatedAt
+});
+
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
 // Added 'limit' parameter for pagination to improve performance
@@ -798,6 +825,8 @@ const getTableName = (colName: string): string => {
     'event_gigs': 'bookings/gigs',
     'mixtape_comments': 'mixtape_comments',
     'contactMessages': 'support/tickets',
+    'installmentPlans': 'installments',
+    'userInstallments': 'user/installments',
     'contact_messages': 'support/tickets',
     'bookings': 'bookings/gigs',
     'syncNotifications': 'pool/sync-notifications',
@@ -1074,6 +1103,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // NEW collections for Admin Dashboard
   const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
   const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
+  
+  const [installmentPlans, setInstallmentPlans, installmentsLoading, , installmentsError, refreshInstallments] = useCollection<InstallmentPlan>(
+    isAdmin ? 'installmentPlans' : 'userInstallments', 
+    [], 
+    true, 
+    mapR2InstallmentPlan, 
+    'createdAt', 
+    'desc', 
+    'D1', 
+    isAdmin
+  );
+
+  // Installment Payments are usually nested or fetched with plans, but we can also fetch them separately if needed for admin
+  const [installmentPayments, , , , , refreshInstallmentPayments] = useCollection<InstallmentPayment>('installment_payments', [], isAdmin, mapR2InstallmentPayment, 'createdAt', 'desc', 'D1', isAdmin);
 
   const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
   const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
@@ -2554,6 +2597,55 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const addInstallmentPlan = async (plan: Partial<InstallmentPlan>) => {
+    if (!isAdmin) return false;
+    const success = await saveToD1('installmentPlans', 'POST', plan);
+    if (success) refreshInstallments();
+    return success;
+  };
+
+  const updateInstallmentPlan = async (id: string, data: Partial<InstallmentPlan>) => {
+    if (!isAdmin) return false;
+    const success = await saveToD1('installmentPlans', 'PATCH', data, id);
+    if (success) refreshInstallments();
+    return success;
+  };
+
+  const deleteInstallmentPlan = async (id: string) => {
+    if (!isAdmin) return false;
+    const success = await saveToD1('installmentPlans', 'DELETE', undefined, id);
+    if (success) refreshInstallments();
+    return success;
+  };
+
+  const payInstallment = async (planId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/installments/pay`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ planId })
+      });
+
+      const data = await response.json();
+      if (data.success && data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
+        return true;
+      } else {
+        throw new Error(data.error || 'Failed to initialize payment');
+      }
+    } catch (err: any) {
+      console.error("Pay installment failed:", err.message);
+      alert(err.message || "Payment failed to initialize");
+      return false;
+    }
+  };
+
   const value = useMemo(() => ({
     siteConfig,
     products,
@@ -2624,10 +2716,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     usersError: usersError || null,
     subscriptionsError: subscriptionsError || null,
     bookingsError: bookingsError || null,
-    studioSessions,
     eventGigs,
+    installmentPlans,
+    installmentPayments,
     studioSessionsLoading: studioSessionsLoading || false,
     eventGigsLoading: eventGigsLoading || false,
+    installmentsLoading: installmentsLoading || false,
     hasQuotaExceeded: false,
     uploadTrackList,
     downloadTrackList,
@@ -2688,6 +2782,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addTelegramChannel,
     updateTelegramChannel,
     deleteTelegramChannel,
+    addInstallmentPlan,
+    updateInstallmentPlan,
+    deleteInstallmentPlan,
+    payInstallment,
     updateShippingZone,
     addSubscriber,
     updateUser,
@@ -2719,7 +2817,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
-    refreshStudioSessions, refreshEventGigs,
+    refreshStudioSessions, refreshEventGigs, refreshInstallments,
     refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
     messages: contactMessages // Alias for component compatibility
   }), [
@@ -2735,6 +2833,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,
     poolError, mixtapesError, productsError, ordersError, usersError, subscriptionsError, bookingsError,
     studioSessions, eventGigs, studioSessionsLoading, eventGigsLoading,
+    installmentPlans, installmentPayments, installmentsLoading,
     referralSettings
   ]);
 

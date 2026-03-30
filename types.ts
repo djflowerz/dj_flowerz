@@ -656,3 +656,33 @@ export interface AppNotification {
 }
 
 
+
+export interface InstallmentPlan {
+  id: string;
+  user_id: string;
+  product_id: string;
+  product_name: string;
+  total_amount: number;
+  deposit_amount: number;
+  paid_amount: number;
+  balance: number;
+  status: 'active' | 'completed' | 'frozen' | 'defaulted';
+  payment_interval: 'weekly' | 'monthly';
+  next_payment_date: string | null;
+  reminder_channel: 'email' | 'whatsapp' | 'both';
+  is_reminder_enabled: boolean;
+  user_email?: string;
+  user_name?: string;
+  created_at: string;
+  updated_at: string;
+  payments?: InstallmentPayment[];
+}
+
+export interface InstallmentPayment {
+  id: string;
+  plan_id: string;
+  amount: number;
+  status: 'pending' | 'success' | 'failed';
+  reference: string;
+  created_at: string;
+}

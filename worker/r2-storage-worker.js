@@ -12,7 +12,7 @@
 
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { handleStorefrontOrders } from './api/storefront/orders';
 import { handlePaymentInitialize } from './api/storefront/payments';
 
@@ -773,6 +773,86 @@ export default {
                     return Response.json({ success: true }, { headers: corsHeaders });
                 } catch (e) {
                     return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // --- 21. INSTALLMENTS (Lipa Pole Pole) ---
+            if (path.startsWith("/api/installments")) {
+                const user = await getAuthorizedUser(request, env);
+                if (!user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                // GET /api/installments - Fetch user's plans or admin all plans
+                if (method === "GET") {
+                    try {
+                        let results;
+                        if (user.role === 'admin') {
+                            results = await db.query.installmentPlans.findMany({
+                                with: { user: true },
+                                orderBy: [desc(schema.installmentPlans.createdAt)]
+                            });
+                        } else {
+                            results = await db.query.installmentPlans.findMany({
+                                where: eq(schema.installmentPlans.userId, user.id),
+                                orderBy: [desc(schema.installmentPlans.createdAt)]
+                            });
+                        }
+                        return Response.json(results, { headers: corsHeaders });
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
+                }
+
+                // POST /api/installments/pay - Initialize payment for next installment
+                if (method === "POST" && path === "/api/installments/pay") {
+                    try {
+                        const { planId } = await request.json();
+                        const plan = await db.query.installmentPlans.findFirst({
+                            where: and(eq(schema.installmentPlans.id, planId), eq(schema.installmentPlans.userId, user.id))
+                        });
+
+                        if (!plan) return Response.json({ success: false, error: "Plan not found" }, { status: 404, headers: corsHeaders });
+                        if (plan.status !== 'active') return Response.json({ success: false, error: "Plan is not active" }, { status: 400, headers: corsHeaders });
+
+                        const remaining = plan.totalAmount - plan.amountPaid;
+                        if (remaining <= 0) return Response.json({ success: false, error: "Plan already fully paid" }, { status: 400, headers: corsHeaders });
+
+                        // Calculate installment amount
+                        const installmentAmount = Math.ceil(plan.totalAmount / plan.installmentsCount);
+                        const actualPayAmount = Math.min(installmentAmount, remaining);
+
+                        // Initialize Paystack
+                        const paystackKey = env.PAYSTACK_SECRET_KEY;
+                        const resp = await fetch("https://api.paystack.co/transaction/initialize", {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${paystackKey}`,
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                email: user.email,
+                                amount: actualPayAmount * 100, // Paystack uses kobo
+                                callback_url: `${env.SUCCESS_URL || 'https://djflowerz.co.ke/success'}?type=installment&plan_id=${planId}`,
+                                metadata: {
+                                    type: 'installment',
+                                    plan_id: planId,
+                                    user_id: user.id
+                                }
+                            })
+                        });
+
+                        const psData = await resp.json();
+                        if (psData.status) {
+                            return Response.json({ 
+                                success: true, 
+                                authorizationUrl: psData.data.authorization_url,
+                                reference: psData.data.reference
+                            }, { headers: corsHeaders });
+                        } else {
+                            return Response.json({ success: false, error: psData.message }, { status: 500, headers: corsHeaders });
+                        }
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
                 }
             }
 
@@ -2176,6 +2256,46 @@ export default {
                                             <p>Questions? Just reply to this email.</p>
                                         </div>
                                     `
+                                });
+                            }
+                        }
+                        else if (meta.type === "installment") {
+                            const planId = meta.plan_id;
+                            const plan = await db.query.installmentPlans.findFirst({
+                                where: eq(schema.installmentPlans.id, planId)
+                            });
+
+                            if (plan) {
+                                const newAmountPaid = (plan.amountPaid || 0) + amountKes;
+                                const isCompleted = newAmountPaid >= plan.totalAmount;
+                                
+                                // Update Plan
+                                await db.update(schema.installmentPlans).set({
+                                    amountPaid: Math.min(newAmountPaid, plan.totalAmount),
+                                    status: isCompleted ? 'completed' : 'active',
+                                    nextPaymentDate: isCompleted ? null : sql`date('now', '+1 month')`, 
+                                    updatedAt: sql`CURRENT_TIMESTAMP`
+                                }).where(eq(schema.installmentPlans.id, planId)).run();
+
+                                // Record individual payment record
+                                await db.insert(schema.installmentPayments).values({
+                                    id: `pay_${Date.now()}`,
+                                    planId: planId,
+                                    amount: amountKes,
+                                    status: 'paid',
+                                    paymentDate: new Date().toISOString(),
+                                    paystackRef: ref
+                                }).run();
+
+                                fulfillmentMsg = isCompleted ? "Installment Plan COMPLETED" : "installment Payment RECEIVED";
+
+                                // Send Receipt
+                                await sendEmail(env, {
+                                    to: email,
+                                    subject: isCompleted ? "Congratulations! Your Installment Plan is Complete" : "Payment Received - DJ Flowerz Lipa Pole Pole",
+                                    html: isCompleted 
+                                        ? `<h1>Goal Reached!</h1><p>You have fully paid for your plan (Ref: ${plan.id}).</p><p>Our team will contact you shortly regarding fulfillment.</p>`
+                                        : `<h1>Thank You!</h1><p>We've received your payment of KES ${amountKes}. Your remaining balance is KES ${Math.max(0, plan.totalAmount - newAmountPaid)}.</p><p>Next payment due around ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}.</p>`
                                 });
                             }
                         }

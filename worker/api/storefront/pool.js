@@ -68,7 +68,13 @@ async function handlePoolFilters(request, env) {
     
     // Get distinct hub and genre combinations to build hierarchy
     const filtersRaw = await db.prepare(
-      "SELECT DISTINCT collection_hub, genre FROM tracks WHERE collection_hub IS NOT NULL AND collection_hub != '' AND genre IS NOT NULL AND genre != '' ORDER BY collection_hub ASC, genre ASC"
+      `SELECT DISTINCT collection_hub, genre FROM tracks
+       WHERE is_active = 1
+         AND collection_hub IS NOT NULL AND collection_hub != ''
+         AND genre IS NOT NULL AND genre != ''
+         AND genre NOT IN ('General', 'Uncategorized')
+         AND collection_hub NOT IN ('General', 'Uncategorized')
+       ORDER BY collection_hub ASC, genre ASC`
     ).all();
 
     const hubsMap = {};

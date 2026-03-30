@@ -23,7 +23,9 @@ import { handleSupport } from './api/support.js';
 import { handleChat } from './api/chat.js';
 import { handleScheduled } from './utils/cron.js';
 import { AdminHub } from './utils/hub.js';
+import { handleUserInstallments } from './api/user/installments.js';
 import { handleStoreSettings } from './api/dashboard/store_settings.js';
+import { handleDashboardInstallments } from './api/dashboard/installments.js';
 import { handlePaymentInitialize } from './api/storefront/payments.js';
 
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
@@ -44,6 +46,7 @@ router.get('/api/referrals/stats', handleStorefrontReferrals);
 router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
 router.post('/api/payments/initialize', handlePaymentInitialize);
+router.get('/api/user/installments', handleUserInstallments);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -112,6 +115,13 @@ router.get('/api/admin/referrals/logs', handleDashboardReferrals);
 
 router.get('/api/admin/tips', handleDashboardFinances);
 router.post('/api/admin/tips', handleDashboardFinances);
+
+// Lipa Pole Pole (Installments)
+router.get('/api/admin/installments', handleDashboardInstallments);
+router.post('/api/admin/installments', handleDashboardInstallments);
+router.patch('/api/admin/installments/:id', handleDashboardInstallments);
+router.put('/api/admin/installments/:id', handleDashboardInstallments);
+router.delete('/api/admin/installments/:id', handleDashboardInstallments);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);

@@ -472,7 +472,7 @@ export default function MusicPool() {
                           title={track.title}
                           artist={track.artist}
                           bpm={track.bpm}
-                          genre={track.genre || track.display_genre || track.collection_hub || 'General'}
+                          genre={track.genre || track.display_genre || track.collection_hub || 'Uncategorized'}
                           videoUrl={track.videoUrl}
                           previewUrl={track.previewUrl || track.versions?.[0]?.previewUrl}
                           versions={track.versions || []}

@@ -145,9 +145,12 @@ const MusicPoolPreview: React.FC = () => {
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-cyan transition-colors" size={20} />
                         <input
                             type="text"
+                            id="music-pool-search"
+                            name="search"
                             placeholder="Search artist or track title..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            autoComplete="off"
                             className="relative w-full bg-[#15151A] border border-white/10 rounded-full py-4.5 pl-14 pr-6 text-white text-lg focus:border-brand-purple/50 focus:outline-none placeholder:text-gray-600 shadow-2xl transition-all"
                         />
                     </div>

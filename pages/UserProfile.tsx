@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import UserInstallments from '../components/user/UserInstallments';
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
@@ -330,6 +331,9 @@ const UserProfile: React.FC = () => {
                         </div>
                     </motion.div>
                 </div>
+
+                {/* ── Lipa Pole Pole Installments ─────────────────────────────────── */}
+                <UserInstallments />
 
                 {/* ── Referral Modular Content ─────────────────────────────────── */}
                 <motion.div

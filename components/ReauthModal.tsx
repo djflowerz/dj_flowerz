@@ -71,9 +71,12 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                         <label className="block text-xs text-gray-400 uppercase font-bold mb-2">Your Password</label>
                         <input
                             type="password"
+                            id="reauth-password"
+                            name="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••••"
+                            autoComplete="current-password"
                             className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none transition"
                             autoFocus
                             onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}

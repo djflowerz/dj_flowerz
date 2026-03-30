@@ -254,7 +254,89 @@ export async function handlePaystackWebhook(request, env) {
             }
         }
 
-        // 3. Handle Tips separately
+        // 3. Handle Installment Payments (Lipa Pole Pole)
+        if (type === 'installment' && metadata?.planId) {
+            const planId = metadata.planId;
+            const amountPaid = amount / 100; // Paystack amount is in cents
+            const reference = event.data.reference;
+
+            try {
+                // Fetch the plan
+                const plan = await env.DB.prepare(`
+                    SELECT * FROM installment_plans WHERE id = ?
+                `).bind(planId).first();
+
+                if (plan) {
+                    const currentPaid = plan.paid_amount || 0;
+                    const newPaidAmount = currentPaid + amountPaid;
+                    const isFullyPaid = newPaidAmount >= plan.total_amount;
+                    const newStatus = isFullyPaid ? 'completed' : 'active';
+                    
+                    // Calculate next payment date
+                    let nextDateStr = null;
+                    if (!isFullyPaid) {
+                        const nextDate = new Date();
+                        if (plan.payment_interval === 'monthly') {
+                            nextDate.setMonth(nextDate.getMonth() + 1);
+                        } else {
+                            // Default to weekly
+                            nextDate.setDate(nextDate.getDate() + 7);
+                        }
+                        nextDateStr = nextDate.toISOString().split('T')[0];
+                    }
+
+                    // 1. Update the plan
+                    await env.DB.prepare(`
+                        UPDATE installment_plans 
+                        SET paid_amount = ?,
+                            balance = total_amount - ?,
+                            status = ?,
+                            next_payment_date = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).bind(newPaidAmount, newPaidAmount, newStatus, nextDateStr, planId).run();
+
+                    // 2. Record the payment
+                    const paymentId = crypto.randomUUID();
+                    await env.DB.prepare(`
+                        INSERT INTO installment_payments (id, plan_id, amount, reference, status, created_at)
+                        VALUES (?, ?, ?, ?, 'success', CURRENT_TIMESTAMP)
+                    `).bind(paymentId, planId, amountPaid, reference).run();
+
+                    // 3. Send Payment Confirmation Email
+                    try {
+                        const userEmail = customer?.email || 'customer@djflowerz.co.ke';
+                        const userName = metadata?.userName || customer?.first_name || 'Legend';
+                        
+                        await sendEmail({
+                            to: userEmail,
+                            subject: isFullyPaid ? `🎉 Goal Reached! Your ${plan.product_name} is fully paid!` : `✅ Payment Received: ${plan.product_name} Update`,
+                            fromEmail: 'payments@djflowerz.co.ke',
+                            fromName: 'DJ FLOWERZ Payments',
+                            html: `
+                                <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff;">
+                                    <h2 style="color: #a855f7;">${isFullyPaid ? 'Congratulations!' : 'Payment Received'}</h2>
+                                    <p>Your payment for <strong>${plan.product_name}</strong> was successful.</p>
+                                    <div style="background: #15151a; padding: 20px; border-radius: 8px; border: 1px solid #ffffff08; margin: 20px 0;">
+                                        <p><strong>Amount Paid:</strong> KSh ${amountPaid.toLocaleString()}</p>
+                                        <p><strong>New Balance:</strong> KSh ${Math.max(0, plan.total_amount - newPaidAmount).toLocaleString()}</p>
+                                        ${!isFullyPaid ? `<p><strong>Next Payment Due:</strong> ${new Date(nextDateStr).toLocaleDateString()}</p>` : ''}
+                                    </div>
+                                    <p>${isFullyPaid ? 'Your item is now fully paid! Our team will contact you for delivery/pickup instructions.' : 'Keep going! You are closer to your goal.'}</p>
+                                </div>
+                            `,
+                            text: `Payment of KSh ${amountPaid} received for ${plan.product_name}. ${isFullyPaid ? 'You are fully paid!' : 'Next due: ' + nextDateStr}`
+                        }, env);
+                    } catch (emailErr) {
+                        console.error('[Installment Confirmation Email Error]', emailErr);
+                    }
+                }
+            } catch (pErr) {
+                console.error('[Paystack Webhook] Installment Processing Error:', pErr);
+            }
+        }
+
+        // 4. Handle Tips separately
         if (type === 'tip') {
             const userId = metadata?.userId || 'guest';
             const userEmail = metadata?.userEmail || customer?.email || 'guest_tipper@djflowerz.co.ke';

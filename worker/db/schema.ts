@@ -301,3 +301,29 @@ export const payments = sqliteTable('payments', {
     metadata: text('metadata'), // JSON string
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+// 21. INSTALLMENT PLANS (Lipa Pole Pole)
+export const installmentPlans = sqliteTable('installment_plans', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => profiles.id).notNull(),
+    productId: text('product_id'), // Optional, can be empty for custom amounts
+    totalAmount: real('total_amount').notNull(),
+    amountPaid: real('amount_paid').default(0),
+    installmentsCount: integer('installments_count').default(1),
+    status: text('status').default('active'), // active, frozen, completed, defaulted
+    paymentMethod: text('payment_method').default('Paystack'),
+    nextPaymentDate: text('next_payment_date'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 22. INSTALLMENT PAYMENTS (Individual charges)
+export const installmentPayments = sqliteTable('installment_payments', {
+    id: text('id').primaryKey(),
+    planId: text('plan_id').references(() => installmentPlans.id).notNull(),
+    amount: real('amount').notNull(),
+    status: text('status').default('pending'), // pending, paid, failed
+    paymentDate: text('payment_date'),
+    paystackRef: text('paystack_ref'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});

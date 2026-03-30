@@ -6,7 +6,7 @@ import {
 
 import {
    LayoutDashboard, ShoppingBag, Music, Users, Calendar, CreditCard, Bell, Package,
-   Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload,
+   Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload, Play,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
    History,
@@ -43,6 +43,7 @@ import AddProductForm from '../components/admin/AddProductForm';
 import { 
    ImageUpload, MultiImageUpload, AudioUpload, FileUpload, VersionAudioUpload 
 } from '../components/admin/UploadComponents';
+import AdminInstallmentsTab from '../components/admin/AdminInstallmentsTab';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
    <textarea
@@ -250,6 +251,7 @@ const AdminDashboard: React.FC = () => {
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'orders', label: 'Orders', icon: Package },
       { id: 'subscriptions', label: 'Subscriptions', icon: Users },
+      { id: 'lipa-pole-pole', label: 'Lipa Pole Pole', icon: Clock },
       { id: 'plans', label: 'Plans', icon: Timer },
       { id: 'expiry-watch', label: 'Expiry Watch', icon: Clock },
       { id: 'pool', label: 'Music Pool', icon: Headphones },
@@ -2313,6 +2315,27 @@ const AdminDashboard: React.FC = () => {
                                           </td>
                                           <td className="px-8 py-6 text-right">
                                              <div className="flex justify-end gap-3">
+                                                {/* Preview */}
+                                                <a
+                                                   href={track.previewUrl || (track.versions && track.versions[0]?.previewUrl) || track.downloadUrl}
+                                                   target="_blank"
+                                                   rel="noreferrer"
+                                                   title="Preview"
+                                                   className="p-3 text-brand-purple hover:bg-brand-purple/5 rounded-[1.25rem] border border-white/5 transition-all"
+                                                >
+                                                   <Play size={18} />
+                                                </a>
+                                                {/* Download */}
+                                                <a
+                                                   href={(track.versions && track.versions[0]?.downloadUrl) || track.downloadUrl}
+                                                   target="_blank"
+                                                   rel="noreferrer"
+                                                   title="Download"
+                                                   className="p-3 text-emerald-500 hover:bg-emerald-500/5 rounded-[1.25rem] border border-white/5 transition-all"
+                                                >
+                                                   <Download size={18} />
+                                                </a>
+
                                                 <button onClick={() => openEditPoolTrack(track)} className="p-3 text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all"><PenSquare size={18} /></button>
                                                 <button onClick={() => { if (window.confirm(`Purge signal "${track.title}"?`)) deletePoolTrack(track.id); }} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"><Trash2 size={18} /></button>
                                              </div>
@@ -2496,12 +2519,26 @@ const AdminDashboard: React.FC = () => {
                                        const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
                                        const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
 
+                                       // Improved Metadata Extraction
+                                       let collectionHub = t.collectionHub || t.collection_hub || '';
+                                       if (!collectionHub) {
+                                          if (t._origin === 'remixHub') collectionHub = 'Edits';
+                                          else if (t._origin === 'vidPool') collectionHub = 'Video Pool';
+                                       }
+
+                                       // Extract month/genre from key if missing
+                                       let genre = t.genre || t.month || 'Other';
+                                       if (key.toLowerCase().includes('march 2026')) {
+                                          genre = 'March 2026 Edits';
+                                       }
+
                                        toSave.push({
                                           id: scannedId,
                                           source: t.source || 'CloudFlare R2 (Auto)',
                                           title: displayTitle,
                                           artist,
-                                          genre: t.month || t.genre || 'Other',
+                                          genre,
+                                          collection_hub: collectionHub,
                                           bpm: t.bpm || null,
                                           downloadUrl,
                                           previewUrl: t.previewUrl || downloadUrl,
@@ -2587,8 +2624,8 @@ const AdminDashboard: React.FC = () => {
                                           title: track.title,
                                           artist: track.artist || 'Unknown Artist',
                                           genre: track.genre || genres[0]?.name || 'Afrobeats',
-                                          displayGenre: track.displayGenre || track.display_genre,
-                                          collectionHub: track.collectionHub || track.collection_hub,
+                                          displayGenre: track.genre || track.displayGenre || track.display_genre,
+                                          collectionHub: track.collection_hub || track.collectionHub || 'Edits',
                                           subGenre: track.subGenre || track.sub_genre,
                                           vibe: track.vibe,
                                           releaseYear: track.releaseYear || track.release_year,
@@ -2862,6 +2899,27 @@ const AdminDashboard: React.FC = () => {
                                                       </td>
                                                       <td className="px-6 py-5 text-right">
                                                          <div className="flex justify-end gap-2">
+                                                            {/* Preview */}
+                                                            <a
+                                                               href={track.previewUrl || track.downloadUrl}
+                                                               target="_blank"
+                                                               rel="noreferrer"
+                                                               title="Preview"
+                                                               className="p-2.5 text-brand-purple hover:bg-brand-purple/5 border border-transparent hover:border-brand-purple/20 rounded-xl transition-all"
+                                                            >
+                                                               <Play size={15} />
+                                                            </a>
+                                                            {/* Download */}
+                                                            <a
+                                                               href={track.downloadUrl}
+                                                               target="_blank"
+                                                               rel="noreferrer"
+                                                               download
+                                                               title="Download Original"
+                                                               className="p-2.5 text-emerald-400 hover:bg-emerald-400/5 border border-transparent hover:border-emerald-400/20 rounded-xl transition-all"
+                                                            >
+                                                               <Download size={15} />
+                                                            </a>
                                                             {/* Single: inject to pool */}
                                                             <button
                                                                title="Add to Pool"
@@ -4582,6 +4640,7 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'usage-monitor' && <AdminUsageMonitor />}
                {activeTab === 'expiry-watch' && <AdminExpiryWatch />}
+               {activeTab === 'lipa-pole-pole' && <AdminInstallmentsTab />}
 
                {activeTab === 'newsletters' && (
                   <div className="animate-fade-in-up space-y-8">

@@ -579,9 +579,12 @@ export default function Checkout() {
                 <div className="flex gap-2">
                   <input 
                     type="text" 
+                    id="checkout-coupon-code"
+                    name="coupon_code"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value)}
                     placeholder="ENTER CODE"
+                    autoComplete="off"
                     className="flex-1 bg-[#0B0B0F] border border-white/10 rounded-2xl py-3 px-6 focus:ring-2 focus:ring-brand-purple focus:border-transparent outline-none transition-all placeholder:text-gray-700 font-bold text-white text-xs"
                     disabled={activeCoupon || isValidatingCoupon}
                   />
