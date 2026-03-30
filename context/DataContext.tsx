@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig, WishlistItem } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
@@ -131,8 +131,11 @@ interface DataContextType {
   syncNotificationsLoading: boolean;
   studioSessions: StudioSession[];
   eventGigs: EventGig[];
-  installmentPlans: InstallmentPlan[];
   installmentPayments: InstallmentPayment[];
+  wishlist: WishlistItem[];
+  wishlistLoading: boolean;
+  toggleWishlist: (targetId: string, targetType: 'product' | 'mixtape' | 'track') => Promise<{ success: boolean; message?: string }>;
+  isInWishlist: (targetId: string) => boolean;
   mixtapesError: string | null;
   mixtapesLoading: boolean;
   poolError: string | null;
@@ -587,7 +590,7 @@ const mapR2Order = (o: any): Order => {
 const mapR2User = (u: any): User => ({
   ...u,
   fullName: u.full_name || u.name || u.fullName,
-  full_name: u.full_name || u.name || u.fullName, // Keep both for safety
+  full_name: u.full_name || u.name || u.fullName,
   isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
@@ -599,6 +602,8 @@ const mapR2User = (u: any): User => ({
   lastSeen: u.last_seen || u.lastSeen,
   referredBy: u.referred_by || u.referredBy,
   balance: u.balance !== undefined ? u.balance : (u.balance || 0),
+  loyaltyPoints: u.loyalty_points || u.loyaltyPoints || 0,
+  totalSpent: u.total_spent || u.totalSpent || 0,
   presenceStatus: u.presence_status || u.presenceStatus,
   createdAt: u.created_at || u.createdAt,
   updatedAt: u.updated_at || u.updatedAt
@@ -839,6 +844,7 @@ const getTableName = (colName: string): string => {
     'maintenance_logs': 'studio/maintenance',
     'reviews': 'reviews',
     'comments': 'mixtape_comments',
+    'wishlist': 'wishlist',
     'studio_sessions': 'bookings/studio',
     'event_gigs': 'bookings/gigs',
     'mixtape_comments': 'mixtape_comments',
@@ -1052,6 +1058,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (filters.year && filters.year !== 'All Years') params.append('year', filters.year);
       if (filters.month && filters.month !== 'All Months') params.append('month', filters.month);
       if (filters.search) params.append('search', filters.search);
+      if (filters.bpmMin) params.append('bpmMin', filters.bpmMin.toString());
+      if (filters.bpmMax) params.append('bpmMax', filters.bpmMax.toString());
+      if (filters.camelotKey && filters.camelotKey !== 'All Keys') params.append('camelotKey', filters.camelotKey);
 
       const qs = params.toString();
       const url = `${STORAGE_WORKER_URL}/api/pool/tracks${qs ? '?' + qs : ''}`;
@@ -1193,6 +1202,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'D1', isAdmin);
   const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'D1', isAdmin);
+  const [wishlist, setWishlist, wishlistLoading, , , refreshWishlist] = useCollection<WishlistItem>('wishlist', [], !!user, (w) => ({ ...w, createdAt: w.created_at || w.createdAt }), 'createdAt', 'desc', 'D1', false);
   const [syncNotifications, , syncNotificationsLoading, , , refreshSyncNotifications] = useCollection<any>('syncNotifications', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
   const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
 
@@ -2714,6 +2724,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const toggleWishlist = async (targetId: string, targetType: 'product' | 'mixtape' | 'track') => {
+    if (!user) return { success: false, message: 'Please login to save items.' };
+
+    const existing = wishlist.find(item => item.targetId === targetId);
+    try {
+      if (existing) {
+        // Remove from wishlist
+        await saveToD1('wishlist', 'DELETE', {}, existing.id);
+        setWishlist(prev => prev.filter(item => item.id !== existing.id));
+        return { success: true, message: 'Removed from wishlist.' };
+      } else {
+        // Add to wishlist
+        const newItem: WishlistItem = {
+          id: `wish_${Date.now()}`,
+          userId: user.id,
+          targetId,
+          targetType,
+          createdAt: new Date().toISOString()
+        };
+        await saveToD1('wishlist', 'POST', {
+          id: newItem.id,
+          user_id: user.id,
+          target_id: targetId,
+          target_type: targetType
+        });
+        setWishlist(prev => [newItem, ...prev]);
+        return { success: true, message: 'Saved to wishlist!' };
+      }
+    } catch (err: any) {
+      console.error("Wishlist error:", err);
+      return { success: false, message: 'Failed to update wishlist.' };
+    }
+  };
+
+  const isInWishlist = (targetId: string) => {
+    return wishlist.some(item => item.targetId === targetId);
+  };
+
   const value = useMemo(() => ({
     siteConfig,
     products,
@@ -2792,6 +2840,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     installmentsLoading: installmentsLoading || false,
     storeSettings,
     storeSettingsLoading,
+    wishlist,
+    wishlistLoading,
     hasQuotaExceeded: false,
     uploadTrackList,
     downloadTrackList,
@@ -2866,6 +2916,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     deleteMessage,
     addReview,
     addComment,
+    toggleWishlist,
+    isInWishlist,
     markNotificationAsRead,
     clearNotifications,
     incrementMixtapeDownload,
@@ -2905,6 +2957,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     poolError, mixtapesError, productsError, ordersError, usersError, subscriptionsError, bookingsError,
     studioSessions, eventGigs, studioSessionsLoading, eventGigsLoading,
     installmentPlans, installmentPayments, installmentsLoading,
+    wishlist, wishlistLoading,
     referralSettings
   ]);
 

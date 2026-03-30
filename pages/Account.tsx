@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star, FileText } from 'lucide-react';
+import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star, FileText, Heart } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Link, Navigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { downloadFileSecurely } from '../utils/downloadHelper';
 import MFAEnrollment from '../components/MFAEnrollment';
 import ReauthModal from '../components/ReauthModal';
 import SubscriptionTimer from '../components/SubscriptionTimer';
+import UserInstallments from '../components/user/UserInstallments';
 import { toast } from 'sonner';
 
 const generateOrderPDF = (order: any) => {
@@ -102,14 +103,14 @@ const generateOrderPDF = (order: any) => {
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
-  const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats } = useData();
+  const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats, wishlist, products, mixtapes, poolTracks, toggleWishlist, wishlistLoading } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
   
   // Set active tab based on query param
-  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals'>(() => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals' | 'wishlist' | 'installments'>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') as any;
-    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals'];
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments'];
     return allowed.includes(tab) ? tab : 'profile';
   });
 
@@ -117,7 +118,7 @@ const Account: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') as any;
-    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals'];
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments'];
     if (tab && allowed.includes(tab) && tab !== activeTab) {
       setActiveTab(tab);
     }
@@ -379,6 +380,8 @@ const Account: React.FC = () => {
                   { id: 'downloads', icon: Download, label: 'Direct Downloads' },
                   { id: 'subscription', icon: CreditCard, label: 'Subscription' },
                   { id: 'referrals', icon: Gift, label: 'Referrals' },
+                  { id: 'wishlist', icon: Heart, label: 'My Wishlist' },
+                  { id: 'installments', icon: CreditCard, label: 'Lipa Pole Pole' },
                   { id: 'admin', icon: Shield, label: 'Admin Panel', show: user.email === 'ianmuriithiflowerz@gmail.com', link: '/admin' },
                 ].filter(item => item.show !== false).map((item, i) => (
                   item.link ? (
@@ -832,6 +835,106 @@ const Account: React.FC = () => {
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'wishlist' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div>
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="font-bold text-white flex items-center gap-2">
+                          <Heart size={18} className="text-brand-purple fill-brand-purple" /> 
+                          My Wishlist
+                        </h3>
+                        <Link to="/store" className="text-xs text-brand-purple hover:text-brand-cyan transition font-bold">
+                          Discover More
+                        </Link>
+                      </div>
+
+                      {wishlistLoading ? (
+                        <div className="bg-black/20 rounded-xl border border-white/5 p-12 text-center">
+                          <div className="w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                          <p className="text-gray-500 text-sm">Loading your favorites...</p>
+                        </div>
+                      ) : (wishlist?.filter(item => item.customerEmail === user?.email) || []).length === 0 ? (
+                        <div className="bg-black/20 rounded-2xl border border-white/5 p-12 text-center">
+                          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Heart size={32} className="text-gray-600" />
+                          </div>
+                          <h4 className="text-white font-bold mb-2">Your wishlist is empty</h4>
+                          <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">
+                            Save products, mixtapes, and tracks to your wishlist to keep track of what you love.
+                          </p>
+                          <Link 
+                            to="/store" 
+                            className="inline-flex items-center gap-2 px-6 py-2.5 bg-brand-purple text-white rounded-xl font-bold hover:bg-brand-purple/80 transition-all shadow-lg shadow-brand-purple/20"
+                          >
+                            Explore Store
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {(wishlist?.filter(item => item && item.customerEmail === user?.email) || []).map((item) => {
+                            if (!item) return null;
+                            let details: any = null;
+                            if (item.targetType === 'product') details = products.find(p => (p.id === item.targetId || p.slug === item.targetId));
+                            if (item.targetType === 'mixtape') details = mixtapes.find(m => (m.id === item.targetId || m.slug === item.targetId));
+                            if (item.targetType === 'track') details = poolTracks.find(t => t.id === item.targetId);
+
+                            if (!details) return null;
+
+                            return (
+                              <div key={item.id || item.targetId} className="group relative bg-[#15151A] rounded-2xl border border-white/5 overflow-hidden hover:border-white/10 transition-all">
+                                <Link 
+                                  to={item.targetType === 'product' ? `/store/product/${details.slug}` : item.targetType === 'mixtape' ? `/mixtapes/${details.slug}` : '/music-pool'}
+                                  className="block aspect-square overflow-hidden bg-black/40"
+                                >
+                                  <img 
+                                    src={details.image || details.artwork || '/placeholder.jpg'} 
+                                    alt={details.name || details.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                                </Link>
+                                
+                                <div className="p-4">
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-purple">
+                                      {item.targetType}
+                                    </span>
+                                    <button 
+                                      onClick={() => toggleWishlist(item.targetId, item.targetType)}
+                                      className="p-1.5 bg-white/5 rounded-lg text-brand-purple hover:bg-white/10 transition-all"
+                                      title="Remove from wishlist"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                  <Link 
+                                    to={item.targetType === 'product' ? `/store/product/${details.slug}` : item.targetType === 'mixtape' ? `/mixtapes/${details.slug}` : '/music-pool'}
+                                    className="block font-bold text-white text-sm line-clamp-1 hover:text-brand-purple transition-colors"
+                                  >
+                                    {details.name || details.title}
+                                  </Link>
+                                  {details.price && (
+                                    <p className="text-brand-cyan text-xs font-bold mt-1">KES {details.price.toLocaleString()}</p>
+                                  )}
+                                  {details.artist && (
+                                    <p className="text-gray-500 text-xs mt-1">{details.artist}</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'installments' && (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <UserInstallments />
                   </div>
                 )}
               </div>

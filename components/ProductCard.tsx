@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { toast } from 'sonner';
 
 interface ProductCardProps {
   product: Product;
@@ -11,6 +13,19 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' }) => {
   const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useData();
+  const isWishlisted = isInWishlist(product.id);
+
+  const handleToggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const result = await toggleWishlist(product.id, 'product');
+    if (result.success) {
+      toast.success(result.message || 'Updated wishlist');
+    } else {
+      toast.error(result.message || 'Failed to update wishlist');
+    }
+  };
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -38,8 +53,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           
           {/* Action Icons - revealed on hover */}
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 translate-x-12 group-hover:translate-x-0 transition-transform duration-300 z-30">
-            <button className="w-9 h-9 flex items-center justify-center bg-white text-gray-800 rounded-full shadow-lg hover:bg-brand-purple hover:text-white transition-all">
-              <Heart size={16} />
+            <button 
+              onClick={handleToggleWishlist}
+              className={`w-9 h-9 flex items-center justify-center rounded-full shadow-lg transition-all ${
+                isWishlisted 
+                  ? 'bg-brand-purple text-white shadow-brand-purple/50' 
+                  : 'bg-white text-gray-800 hover:bg-brand-purple hover:text-white'
+              }`}
+              title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            >
+              <Heart size={16} fill={isWishlisted ? "currentColor" : "none"} />
             </button>
             <button className="w-9 h-9 flex items-center justify-center bg-white text-gray-800 rounded-full shadow-lg hover:bg-brand-purple hover:text-white transition-all">
               <RefreshCw size={16} />
@@ -135,8 +158,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         
         {/* Action Icons Overlay */}
         <div className="absolute right-4 top-4 flex flex-col gap-2 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 z-30">
-          <button className="w-10 h-10 flex items-center justify-center bg-white text-gray-800 rounded-full shadow-lg hover:bg-brand-purple hover:text-white transition-all transform hover:scale-110">
-            <Heart size={18} />
+          <button 
+            onClick={handleToggleWishlist}
+            className={`w-10 h-10 flex items-center justify-center rounded-full shadow-lg transition-all transform hover:scale-110 ${
+              isWishlisted 
+                ? 'bg-brand-purple text-white shadow-brand-purple/50' 
+                : 'bg-white text-gray-800 hover:bg-brand-purple hover:text-white'
+            }`}
+            title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          >
+            <Heart size={18} fill={isWishlisted ? "currentColor" : "none"} />
           </button>
           <button className="w-10 h-10 flex items-center justify-center bg-white text-gray-800 rounded-full shadow-lg hover:bg-brand-purple hover:text-white transition-all transform hover:scale-110">
             <RefreshCw size={18} />

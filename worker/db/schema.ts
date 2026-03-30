@@ -25,6 +25,8 @@ export const profiles = sqliteTable('profiles', {
     deviceFingerprint: text('device_fingerprint'),
     lastLogin: text('last_login'),
     presenceStatus: text('presence_status').default('offline'),
+    loyaltyPoints: integer('loyalty_points').default(0),
+    totalSpent: real('total_spent').default(0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -325,5 +327,14 @@ export const installmentPayments = sqliteTable('installment_payments', {
     status: text('status').default('pending'), // pending, paid, failed
     paymentDate: text('payment_date'),
     paystackRef: text('paystack_ref'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 23. WISHLIST
+export const wishlist = sqliteTable('wishlist', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => profiles.id).notNull(),
+    targetId: text('target_id').notNull(), // productId or mixtapeId
+    targetType: text('target_type').notNull(), // 'product' | 'mixtape'
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

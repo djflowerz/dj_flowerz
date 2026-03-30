@@ -82,14 +82,22 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
             const planId = `lpp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             const userId = body.customer_id || body.customer?.id || 'guest';
             
+            // Extract primary product info from first item if available
+            const firstItem = items[0] || {};
+            const productId = firstItem.id;
+            const productName = items.length > 1 ? `${firstItem.name} + ${items.length - 1} more` : firstItem.name;
+
             await env.DB.prepare(`
                 INSERT INTO installment_plans (
-                    id, order_id, user_id, total_amount, deposit_amount,
-                    paid_amount, balance, status, installments_count, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 0, ?, 'pending_deposit', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    id, order_id, user_id, product_id, product_name, 
+                    total_amount, deposit_amount, paid_amount, balance, 
+                    status, installments_count, payment_interval, 
+                    reminder_channel, is_reminder_enabled, 
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending_deposit', ?, 'monthly', 'sms', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `).bind(
-                planId, orderId, userId, totalAmount, depositAmount,
-                totalAmount, body.installments_count || 3
+                planId, orderId, userId, productId, productName,
+                totalAmount, depositAmount, totalAmount, body.installments_count || 3
             ).run();
         }
 

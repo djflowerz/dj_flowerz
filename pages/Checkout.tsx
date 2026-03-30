@@ -76,15 +76,16 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 export default function Checkout() {
   const { user, loading } = useAuth() as any;
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
-  const { items, cartTotal, clearCart, storeSettings } = useData();
+  const { items, cartTotal, clearCart } = useCart();
+  const { storeSettings } = useData();
   const navigate = useNavigate();
   // Determine if cart has physical items
-  const hasPhysical = useMemo(() => items.some((i: any) => 
+  const hasPhysical = useMemo(() => (items || []).some((i: any) => 
     i.type === 'physical' || 
     (i.type !== 'digital' && i.type !== 'subscription' && i.requiresShipping !== false)
   ), [items]);
   
-  const hasDigital = useMemo(() => items.some((i: any) => 
+  const hasDigital = useMemo(() => (items || []).some((i: any) => 
     i.type === 'digital' || i.type === 'subscription' || i.requiresShipping === false
   ), [items]);
 

@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, Download, Music, Video, Zap, Search, X, Volume2, Hash, Maximize2, SkipBack, SkipForward, Layers
+  Play, Pause, Download, Music, Video, Zap, Search, X, Volume2, Hash, Maximize2, SkipBack, SkipForward, Layers, Heart
 } from 'lucide-react';
+import { useData } from '../../context/DataContext';
+import { toast } from 'sonner';
 
 interface TrackVersion {
   id: string;
@@ -44,6 +46,20 @@ interface HypeTrackRowProps {
 export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
   id, title, artist, bpm, genre, videoUrl, previewUrl, versions, isNew, isExpanded, isPlaying, playingUrl, playingType, onPlay, onDownload, onDownloadAll, onFindSimilar, onCloseInline, isSubscriber = false
 }) => {
+  const { toggleWishlist, isInWishlist } = useData();
+  const isWishlisted = isInWishlist(id);
+
+  const handleToggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const result = await toggleWishlist(id, 'track');
+    if (result.success) {
+      toast.success(result.message || 'Updated wishlist');
+    } else {
+      toast.error(result.message || 'Failed to update wishlist');
+    }
+  };
+
   const isHighBpm = bpm > 130;
 
   // Build a normalized list of versions — always at least one entry if data exists
@@ -148,14 +164,25 @@ export const HypeTrackRow: React.FC<HypeTrackRowProps> = ({
                Download All
              </button>
            )}
+           <button 
+             onClick={handleToggleWishlist}
+             className={`w-14 h-14 flex items-center justify-center rounded-[1.5rem] transition-all border shadow-xl ${
+               isWishlisted 
+                 ? 'bg-brand-purple text-white shadow-brand-purple/30 border-brand-purple/40' 
+                 : 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white border-white/10'
+             }`}
+             title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+           >
+             <Heart size={22} fill={isWishlisted ? "currentColor" : "none"} />
+           </button>
            
-             <button 
-               onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
-               className="w-14 h-14 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-brand-purple rounded-[1.5rem] transition-all border border-white/10 shadow-xl group/search"
-               title="Find Similar Tracks"
-             >
-               <Search size={22} className="group-hover:scale-110 transition-transform" />
-             </button>
+           <button 
+             onClick={(e) => { e.stopPropagation(); onFindSimilar(); }}
+             className="w-14 h-14 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-brand-purple rounded-[1.5rem] transition-all border border-white/10 shadow-xl group/search"
+             title="Find Similar Tracks"
+           >
+             <Search size={22} className="group-hover:scale-110 transition-transform" />
+           </button>
         </div>
       </div>
 

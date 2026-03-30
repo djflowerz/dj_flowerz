@@ -10,10 +10,11 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import ProductReviews from '../components/ProductReviews';
 
 export default function ProductDetails() {
   const { slug } = useParams<{ slug: string }>();
-  const { products, productsLoading, reviews, reviewsLoading, addReview } = useData();
+  const { products, productsLoading, reviews, reviewsLoading, addReview, toggleWishlist, isInWishlist } = useData();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -330,8 +331,11 @@ export default function ProductDetails() {
                 >
                     <Package size={20} /> ADD TO CATALOGUE
                 </button>
-                <button className="p-4 rounded-2xl bg-[#15151A] border border-white/10 text-gray-400 hover:text-red-500 transition group">
-                    <Heart size={20} className="group-hover:fill-current" />
+                <button 
+                    onClick={() => product && toggleWishlist(product.id, 'product')}
+                    className={`p-4 rounded-2xl border transition group ${isInWishlist(product.id) ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[#15151A] border-white/10 text-gray-400 hover:text-red-500'}`}
+                >
+                    <Heart size={20} className={isInWishlist(product.id) ? 'fill-current' : 'group-hover:fill-current'} />
                 </button>
             </div>
 
@@ -476,92 +480,11 @@ export default function ProductDetails() {
                 )}
 
                 {activeTab === 'reviews' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-16">
-                            <div className="text-center md:text-left">
-                                <h3 className="text-5xl font-black text-white mb-2 tracking-tighter">4.9</h3>
-                                <div className="flex gap-1 justify-center md:justify-start text-yellow-400 mb-2">
-                                    {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
-                                </div>
-                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Based on {productReviews.length} reviews</p>
-                            </div>
-                            <div className="flex-1 max-w-md w-full space-y-3">
-                                {[5, 4, 3, 2, 1].map(rating => (
-                                    <div key={rating} className="flex items-center gap-4">
-                                        <span className="text-[10px] font-black text-gray-500 w-4">{rating}</span>
-                                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                            <div className="h-full bg-brand-purple rounded-full" style={{ width: rating >= 4 ? '90%' : '5%' }}></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Review Form */}
-                        <div className="bg-[#15151A] p-10 rounded-[40px] border border-white/5 mb-20">
-                            <h4 className="text-2xl font-black text-white mb-8 uppercase tracking-tight">Your Experience</h4>
-                            <form onSubmit={handleReviewSubmit} className="space-y-6">
-                                <div className="space-y-3">
-                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Your Rating</span>
-                                    <div className="flex gap-2">
-                                        {[1, 2, 3, 4, 5].map(star => (
-                                            <button 
-                                                key={star}
-                                                type="button"
-                                                onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
-                                                className={`p-1 transition-colors ${reviewForm.rating >= star ? 'text-yellow-400' : 'text-gray-700'}`}
-                                            >
-                                                <Star size={24} fill={reviewForm.rating >= star ? "currentColor" : "none"} />
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Review Details</span>
-                                    <textarea 
-                                        required
-                                        value={reviewForm.comment}
-                                        onChange={(e) => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
-                                        placeholder="Tell the community about your experience with this product..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-3xl p-6 text-sm focus:outline-none focus:border-brand-purple/50 min-h-[150px]"
-                                    />
-                                </div>
-                                <button 
-                                    type="submit"
-                                    disabled={isSubmittingReview}
-                                    className="btn-premium px-10 py-4 text-xs"
-                                >
-                                    {isSubmittingReview ? 'SUBMITTING...' : 'POST REVIEW'}
-                                </button>
-                            </form>
-                        </div>
-
-                        {/* Review List */}
-                        <div className="space-y-8">
-                            {productReviews.length > 0 ? (
-                                productReviews.map(review => (
-                                    <div key={review.id} className="p-8 rounded-[32px] bg-white/[0.02] border border-white/5 space-y-4">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple/20 to-transparent border border-brand-purple/20 flex items-center justify-center text-xl font-black text-brand-purple uppercase">
-                                                    {(review.userName || 'U')[0]}
-                                                </div>
-                                                <div>
-                                                    <h5 className="text-sm font-black text-white uppercase tracking-widest">{review.userName || 'Verified Artist'}</h5>
-                                                    <div className="flex gap-0.5 text-yellow-400 mt-1">
-                                                        {[...Array(review.rating)].map((_, i) => <Star key={i} size={10} fill="currentColor" />)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{new Date(review.created_at || Date.now()).toLocaleDateString()}</span>
-                                        </div>
-                                        <p className="text-gray-400 text-sm leading-relaxed">{review.comment}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-gray-500 text-center py-12 italic">No reviews yet. Be the first to share your experience!</p>
-                            )}
-                        </div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                        <ProductReviews
+                            targetId={product.id}
+                            isVerifiedPurchase={false}
+                        />
                     </motion.div>
                 )}
             </div>

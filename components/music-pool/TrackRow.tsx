@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown, Flame, Zap
+  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown, Flame, Zap, Heart
 } from 'lucide-react';
+import { useData } from '../../context/DataContext';
+import { toast } from 'sonner';
 
 interface TrackVersion {
   id: string;
@@ -59,6 +61,20 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   isSubscriber = false,
   isHype = false
 }) => {
+  const { toggleWishlist, isInWishlist } = useData();
+  const isWishlisted = isInWishlist(id);
+
+  const handleToggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const result = await toggleWishlist(id, 'track');
+    if (result.success) {
+      toast.success(result.message || 'Updated wishlist');
+    } else {
+      toast.error(result.message || 'Failed to update wishlist');
+    }
+  };
+
   const getVersionType = (v: TrackVersion): 'audio' | 'video' => {
     const name = (v?.version_name || '').toLowerCase();
     const url = (v?.preview_url || v?.download_url || '').toLowerCase();
@@ -161,6 +177,21 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               </span>
             )}
           </div>
+        </div>
+        
+        {/* Wishlist Button */}
+        <div className="flex-shrink-0 flex items-center pr-2">
+          <button
+            onClick={handleToggleWishlist}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${
+              isWishlisted 
+                ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 border-brand-purple/40' 
+                : 'bg-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 border-white/5'
+            } border`}
+            title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          >
+            <Heart size={18} fill={isWishlisted ? "currentColor" : "none"} />
+          </button>
         </div>
       </div>
 

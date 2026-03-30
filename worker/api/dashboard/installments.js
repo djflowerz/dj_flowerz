@@ -17,9 +17,15 @@ export async function handleDashboardInstallments(request, env) {
         // GET /api/admin/installments - list all installment plans
         if (method === 'GET' && url.pathname === '/api/admin/installments') {
             const { results } = await env.DB.prepare(`
-                SELECT ip.*, p.full_name, p.email, p.phone
+                SELECT 
+                    ip.*, 
+                    p.full_name, p.email, p.phone,
+                    o.items as order_items,
+                    o.status as order_status,
+                    o.payment_status as order_payment_status
                 FROM installment_plans ip
                 JOIN profiles p ON ip.user_id = p.id
+                LEFT JOIN orders o ON ip.order_id = o.id
                 ORDER BY ip.created_at DESC
             `).all();
             return Response.json(results || []);

@@ -12,19 +12,24 @@ interface InstallmentPlan {
   id: string;
   order_id: string;
   user_id: string;
+  product_id?: string;
+  product_name?: string;
   total_amount: number;
   deposit_amount: number;
   paid_amount: number;
   balance: number;
   status: string;
   installments_count: number;
+  payment_interval?: string;
   next_payment_date?: string;
   created_at: string;
   // Joined
-  customer_name?: string;
-  customer_email?: string;
-  items?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  order_items?: string;
   order_status?: string;
+  order_payment_status?: string;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -207,7 +212,7 @@ export default function AdminInstallmentsTab() {
                 && plan.status === 'active';
 
               let items: any[] = [];
-              try { items = JSON.parse(plan.items || '[]'); } catch {}
+              try { items = JSON.parse(plan.order_items || '[]'); } catch {}
 
               return (
                 <div key={plan.id} className="hover:bg-white/[0.015] transition-colors">
@@ -221,10 +226,10 @@ export default function AdminInstallmentsTab() {
                     {/* Customer & Order */}
                     <div className="flex-1 min-w-0">
                       <div className="font-black text-white text-sm truncate">
-                        {plan.customer_name || 'Unknown Customer'}
+                        {plan.full_name || 'Unknown Customer'}
                       </div>
                       <div className="text-[10px] text-gray-500 font-mono mt-0.5 truncate">
-                        {plan.customer_email} · Order: {plan.order_id}
+                        {plan.email} · Order: {plan.order_id}
                       </div>
                     </div>
 

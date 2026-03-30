@@ -11,22 +11,26 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    Clock, Wallet, Share2, Copy, Crown, Zap,
-    ExternalLink, ArrowRight, Gift, CircleDashed,
-    ArrowUpRight, Info, AlertCircle, CheckCircle2,
-    Download, Users, TrendingUp
+    Download, Users, TrendingUp, Heart, Star, Coins,
+    CircleDashed, Copy, Share2, ExternalLink, Zap, Crown,
+    Gift, AlertCircle, CheckCircle2, Info, Clock, Wallet, ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import UserInstallments from '../components/user/UserInstallments';
+import ProductCard from '../components/ProductCard';
+import { TrackRow } from '../components/music-pool/TrackRow';
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
 const UserProfile: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
+    const { wishlist, products, poolTracks, mixtapes, toggleWishlist, isInWishlist } = useData();
     const [showMpesa, setShowMpesa] = useState(false);
     const [showTOS, setShowTOS] = useState(false);
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'wishlist'>('dashboard');
 
     if (authLoading) {
         return (
@@ -246,8 +250,76 @@ const UserProfile: React.FC = () => {
                     </div>
                 </motion.div>
 
-                {/* ── Dashboard Stats Grid ───────────────────────────────────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* ── Navigation Tabs ────────────────────────────────────────────── */}
+                <motion.div variants={itemVariants} className="flex gap-4 p-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl w-fit mx-auto md:mx-0">
+                    <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-white/40 hover:text-white'}`}
+                    >
+                        Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('wishlist')}
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'wishlist' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'text-white/40 hover:text-white'}`}
+                    >
+                        Saved for Later ({wishlist.length})
+                    </button>
+                </motion.div>
+
+                <AnimatePresence mode="wait">
+                    {activeTab === 'dashboard' ? (
+                        <motion.div
+                            key="dashboard"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="space-y-12"
+                        >
+                            {/* ── Dashboard Stats Grid ───────────────────────────────────────── */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {/* Loyalty Points */}
+                                <motion.div
+                                    variants={itemVariants}
+                                    whileHover={{ y: -5 }}
+                                    className="bg-gradient-to-br from-yellow-500/10 to-orange-500/5 backdrop-blur-xl border border-yellow-500/20 p-8 rounded-[2.5rem] relative overflow-hidden group shadow-xl"
+                                >
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 blur-[40px] rounded-full transition-all group-hover:bg-yellow-500/10" />
+                                    <div className="flex justify-between items-start mb-8">
+                                        <div className="p-3 bg-yellow-500/10 rounded-xl text-yellow-500">
+                                            <Star size={20} />
+                                        </div>
+                                        <div className="px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded-full text-[8px] font-black uppercase tracking-tighter text-yellow-500">
+                                            Loyalty
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Available Points</h3>
+                                        <div className="text-3xl font-black tracking-tight">{user.loyaltyPoints || 0} PTS</div>
+                                    </div>
+                                </motion.div>
+
+                                {/* Total Spent */}
+                                <motion.div
+                                    variants={itemVariants}
+                                    whileHover={{ y: -5 }}
+                                    className="bg-gradient-to-br from-brand-cyan/10 to-blue-500/5 backdrop-blur-xl border border-brand-cyan/20 p-8 rounded-[2.5rem] relative overflow-hidden group shadow-xl"
+                                >
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 blur-[40px] rounded-full transition-all group-hover:bg-brand-cyan/10" />
+                                    <div className="flex justify-between items-start mb-8">
+                                        <div className="p-3 bg-brand-cyan/10 rounded-xl text-brand-cyan">
+                                            <Coins size={20} />
+                                        </div>
+                                        <div className="px-2 py-0.5 bg-brand-cyan/10 border border-brand-cyan/20 rounded-full text-[8px] font-black uppercase tracking-tighter text-brand-cyan">
+                                            Lifetime
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Platform Spend</h3>
+                                        <div className="text-3xl font-black tracking-tight">KES {(user.totalSpent || 0).toLocaleString()}</div>
+                                    </div>
+                                </motion.div>
+
+                                {/* Next stats continue... */}
 
                     {/* Stat Card: Wallet */}
                     <motion.div
@@ -412,6 +484,36 @@ const UserProfile: React.FC = () => {
                     ))}
                 </div>
             </motion.div>
+                    ) : (
+                        <motion.div
+                            key="wishlist"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="bg-[#0B0B0F]/80 backdrop-blur-xl border border-white/5 rounded-[3.5rem] p-12 min-h-[400px]"
+                        >
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tight">Your Saved Signals</h3>
+                                    <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Ready for compilation</p>
+                                </div>
+                            </div>
+                            
+                            {wishlist.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center p-12 text-center h-[300px]">
+                                    <Heart className="w-12 h-12 text-white/10 mb-4" />
+                                    <h4 className="text-lg font-bold text-white/40 uppercase tracking-wider mb-2">No signals intercepted</h4>
+                                    <p className="text-xs text-white/20">Explore the Music Pool to save tracks and mixtapes.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-4">
+                                    {/* Wishlist items will be mapped here */}
+                                    <p className="text-white/40 text-sm">Wishlist UI implementation in progress...</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
             {/* ── TOS Modal Overlay ─────────────────────────────────────────── */}
             <AnimatePresence>
@@ -471,6 +573,7 @@ const UserProfile: React.FC = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+            </motion.div>
         </div>
     );
 };

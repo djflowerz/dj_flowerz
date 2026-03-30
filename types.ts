@@ -200,6 +200,16 @@ export interface User {
   presenceStatus?: 'online' | 'offline';
   referralCount?: number;
   downloadCountTotal?: number;
+  loyaltyPoints?: number;
+  totalSpent?: number;
+}
+
+export interface WishlistItem {
+  id: string;
+  userId: string;
+  targetId: string;
+  targetType: 'product' | 'mixtape' | 'track';
+  createdAt: string;
 }
 
 export interface Subscription {

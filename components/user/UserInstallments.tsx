@@ -12,18 +12,19 @@ interface InstallmentPlan {
   id: string;
   order_id: string;
   user_id: string;
+  product_id?: string;
+  product_name?: string;
   total_amount: number;
   deposit_amount: number;
   paid_amount: number;
   balance: number;
   status: 'pending_deposit' | 'active' | 'completed' | 'frozen' | 'defaulted';
   installments_count: number;
+  payment_interval?: string;
   next_payment_date?: string;
   created_at: string;
-  // Joined from orders
-  customer_name?: string;
-  customer_email?: string;
-  items?: string;
+  // Metadata for the UI (if joined)
+  order_items?: string;
   order_status?: string;
 }
 
@@ -94,7 +95,7 @@ const UserInstallments: React.FC = () => {
       });
 
       const data = await res.json();
-      if (data.success && data.authorizationUrl) {
+      if (data.authorizationUrl) {
         window.location.href = data.authorizationUrl;
       } else {
         throw new Error(data.error || 'Failed to initialize payment');
@@ -162,7 +163,7 @@ const UserInstallments: React.FC = () => {
 
             // Parse items from the joined order
             let orderItems: any[] = [];
-            try { orderItems = JSON.parse(plan.items || '[]'); } catch {}
+            try { orderItems = JSON.parse(plan.order_items || plan.items || '[]'); } catch {}
 
             // Per-installment amount (balance evenly split across remaining count)
             const remainingInstallments = Math.max(1, (plan.installments_count || 3) - 1);
@@ -182,12 +183,9 @@ const UserInstallments: React.FC = () => {
                 <div className="flex justify-between items-start mb-5">
                   <div>
                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                      <Package size={10} /> Order
+                      <Package size={10} /> {plan.product_name || 'Order'}
                     </p>
                     <p className="text-xs font-black text-white font-mono">{plan.order_id}</p>
-                    {plan.customer_name && (
-                      <p className="text-[10px] text-gray-500 mt-0.5">{plan.customer_name}</p>
-                    )}
                   </div>
                   <StatusBadge status={plan.status} />
                 </div>

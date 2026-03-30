@@ -63,6 +63,7 @@ export default function MusicPool() {
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeMonth, setActiveMonth] = useState('All Months');
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
+  const [activeKey, setActiveKey] = useState<string>('All Keys');
   
   interface HubWithGenres {
     hub: string;
@@ -129,7 +130,8 @@ export default function MusicPool() {
         month: mappedMonth,
         search: searchTerm,
         bpmMin: bpmFilter[0],
-        bpmMax: bpmFilter[1]
+        bpmMax: bpmFilter[1],
+        key: activeKey === 'All Keys' ? undefined : activeKey
       });
     }, 400);
     return () => clearTimeout(timeoutId);
@@ -160,7 +162,8 @@ export default function MusicPool() {
       month: mappedMonth,
       search: searchTerm,
       bpmMin: bpmFilter[0],
-      bpmMax: bpmFilter[1]
+      bpmMax: bpmFilter[1],
+      key: activeKey === 'All Keys' ? undefined : activeKey
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination.limit]);
@@ -358,19 +361,44 @@ export default function MusicPool() {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-zinc-900/40 rounded-2xl border border-white/5">
               <div className="flex items-center gap-6">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">BPM Range</span>
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">BPM Range ({bpmFilter[0]}-{bpmFilter[1]})</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-zinc-400">{bpmFilter[0]}</span>
+                    <input 
+                      type="range" 
+                      min="60" 
+                      max="180" 
+                      value={bpmFilter[0]} 
+                      onChange={(e) => setBpmFilter([parseInt(e.target.value), bpmFilter[1]])}
+                      className="w-20 accent-blue-500 h-1 bg-zinc-800 rounded-full cursor-pointer"
+                    />
                     <input 
                       type="range" 
                       min="60" 
                       max="180" 
                       value={bpmFilter[1]} 
                       onChange={(e) => setBpmFilter([bpmFilter[0], parseInt(e.target.value)])}
-                      className="w-32 accent-blue-500 h-1 bg-zinc-800 rounded-full cursor-pointer"
+                      className="w-20 accent-blue-500 h-1 bg-zinc-800 rounded-full cursor-pointer"
                     />
-                    <span className="text-xs font-bold text-blue-400">{bpmFilter[1]}</span>
                   </div>
+                </div>
+
+                <div className="h-8 w-px bg-white/5" />
+
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Camelot Key</span>
+                  <select 
+                    value={activeKey}
+                    onChange={(e) => setActiveKey(e.target.value)}
+                    className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                  >
+                    <option>All Keys</option>
+                    {[...Array(12)].map((_, i) => (
+                      <React.Fragment key={i}>
+                        <option value={`${i + 1}A`}>{i + 1}A</option>
+                        <option value={`${i + 1}B`}>{i + 1}B</option>
+                      </React.Fragment>
+                    ))}
+                  </select>
                 </div>
                 
                 <div className="h-8 w-px bg-white/5" />

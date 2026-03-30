@@ -5,6 +5,8 @@ import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { Heart } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { MIXTAPE_GENRE_NAMES } from '../constants';
 
@@ -13,7 +15,7 @@ import Hero from '../components/Hero';
 const Mixtapes: React.FC = () => {
    const { playTrack, pauseTrack, resumeTrack, currentTrack, isPlaying } = usePlayer();
    const { user } = useAuth();
-   const { mixtapes, mixtapesError, siteConfig } = useData();
+   const { mixtapes, mixtapesError, siteConfig, toggleWishlist, isInWishlist } = useData();
    const [searchQuery, setSearchQuery] = useState('');
    const [selectedFormat, setSelectedFormat] = useState<'All' | 'Audio' | 'Video'>('All');
    const [selectedGenre, setSelectedGenre] = useState('All');
@@ -134,6 +136,28 @@ const Mixtapes: React.FC = () => {
                                        <div className="w-1 h-4 bg-black animate-bounce" style={{ animationDelay: '0.3s' }} />
                                     </div>
                                  ) : <Play size={24} fill="currentColor" className="ml-1" />}
+                              </button>
+                              
+                              <button
+                                 onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const isWishlisted = isInWishlist(mix.id);
+                                    const result = await toggleWishlist(mix.id, 'mixtape');
+                                    if (result.success) {
+                                       toast.success(result.message || 'Updated wishlist');
+                                    } else {
+                                       toast.error(result.message || 'Failed to update wishlist');
+                                    }
+                                 }}
+                                 className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${
+                                    isInWishlist(mix.id) 
+                                      ? 'bg-brand-purple text-white shadow-brand-purple/40' 
+                                      : 'bg-white/10 backdrop-blur-md text-white hover:bg-brand-purple'
+                                 }`}
+                                 title={isInWishlist(mix.id) ? "Remove from wishlist" : "Add to wishlist"}
+                              >
+                                 <Heart size={24} fill={isInWishlist(mix.id) ? "currentColor" : "none"} />
                               </button>
                            </div>
                            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />

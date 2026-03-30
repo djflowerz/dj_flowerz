@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle, Instagram, Twitter, Facebook, ChevronDown, ChevronRight, ThumbsUp, RefreshCw } from 'lucide-react';
+import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle, Instagram, Twitter, Facebook, ChevronDown, ChevronRight, ThumbsUp, RefreshCw, Heart } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { getEmbedUrl, isStreamable } from '../utils/embedHelper';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Comment } from '../types';
+import ProductReviews from '../components/ProductReviews';
 
 const timestampToSeconds = (timestamp: string): number => {
    if (!timestamp) return 0;
@@ -22,7 +23,7 @@ const timestampToSeconds = (timestamp: string): number => {
 const MixtapeDetails: React.FC = () => {
    const { id } = useParams<{ id: string }>();
    const { playTrack, currentTrack, isPlaying, pauseTrack, resumeTrack, currentTime, seek } = usePlayer();
-   const { mixtapes, siteConfig, comments, addComment } = useData();
+   const { mixtapes, siteConfig, comments, addComment, toggleWishlist, isInWishlist } = useData();
    const { user, isAuthenticated } = useAuth();
 
    const [newComment, setNewComment] = useState('');
@@ -30,7 +31,19 @@ const MixtapeDetails: React.FC = () => {
 
    // Find mix (mock logic)
    // Find mix by ID or Slug
-   const mixtape = mixtapes.find(m => m.id === id || m.slug === id) || mixtapes[0];
+   const mixtape = mixtapes.find(m => m.id === id || m.slug === id);
+   
+   if (!mixtape) {
+      return (
+         <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center pt-20 text-white">
+            <div className="text-center">
+               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-purple mx-auto mb-4"></div>
+               <p className="text-gray-400">Loading mix details...</p>
+            </div>
+         </div>
+      );
+   }
+
    const isCurrent = currentTrack?.id === mixtape.id;
 
    console.log(`[MixtapeDetails] Total mixtapes: ${mixtapes.length}`);
@@ -153,7 +166,14 @@ const MixtapeDetails: React.FC = () => {
 
                   <div className="flex flex-col sm:flex-row gap-4 mb-8">
                      <button onClick={handleShare} className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition flex items-center justify-center gap-2">
-                        <Share2 size={20} /> Share Mixtape
+                        <Share2 size={20} /> Share
+                     </button>
+                     <button 
+                        onClick={() => mixtape && toggleWishlist(mixtape.id, 'mixtape')}
+                        className={`px-6 py-4 rounded-lg border transition group flex items-center justify-center gap-2 font-bold ${isInWishlist(mixtape.id) ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[#15151A] border-white/20 text-gray-400 hover:text-red-500'}`}
+                     >
+                        <Heart size={20} className={isInWishlist(mixtape.id) ? 'fill-current' : 'group-hover:fill-current'} />
+                        {isInWishlist(mixtape.id) ? 'In Wishlist' : 'Add to Wishlist'}
                      </button>
                      {mixtape.youtubeUrl && (
                         <a
@@ -363,6 +383,11 @@ const MixtapeDetails: React.FC = () => {
                      </div>
                   </div>
                </div>
+            </div>
+
+            {/* ── Reviews & Ratings ─────────────────────────────────────────── */}
+            <div className="mt-16 pt-16 border-t border-white/5">
+               <ProductReviews targetId={mixtape.id} />
             </div>
 
          </div>
