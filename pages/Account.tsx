@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star } from 'lucide-react';
+import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star, FileText } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Link, Navigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { isUserSubscriber, getSubscriptionTimeLeft } from '../utils/authHelpers';
@@ -10,6 +12,93 @@ import MFAEnrollment from '../components/MFAEnrollment';
 import ReauthModal from '../components/ReauthModal';
 import SubscriptionTimer from '../components/SubscriptionTimer';
 import { toast } from 'sonner';
+
+const generateOrderPDF = (order: any) => {
+  const doc = new jsPDF();
+  const themeColor: [number, number, number] = [147, 51, 234]; // Brand Purple (RGB for #9333ea)
+
+  // Header - Brand
+  doc.setFontSize(24);
+  doc.setTextColor(themeColor[0], themeColor[1], themeColor[2]);
+  doc.setFont("helvetica", "bold");
+  doc.text("DJ FLOWERZ", 14, 22);
+
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.setFont("helvetica", "normal");
+  doc.text("Official Invoice / Order Summary", 14, 28);
+
+  // Invoice Details
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text(`Order ID: #${order.id.toUpperCase()}`, 14, 45);
+  doc.text(`Date: ${new Date(order.date || order.createdAt).toLocaleDateString()}`, 14, 50);
+  doc.text(`Status: ${order.status.toUpperCase()}`, 14, 55);
+  doc.text(`Payment: ${order.paymentStatus.toUpperCase()}`, 14, 60);
+
+  // Customer Info
+  doc.setFont("helvetica", "bold");
+  doc.text("Bill To:", 120, 45);
+  doc.setFont("helvetica", "normal");
+  doc.text(order.customerName || "Customer", 120, 50);
+  doc.text(order.customerEmail, 120, 55);
+  if (order.customerPhone) doc.text(order.customerPhone, 120, 60);
+  if (order.address) {
+    const splitAddress = doc.splitTextToSize(order.address, 70);
+    doc.text(splitAddress, 120, 65);
+  }
+
+  // Items Table
+  const tableData = order.items.map((item: any) => [
+    item.productName,
+    item.variant || 'Standard',
+    item.quantity.toString(),
+    `KES ${item.price.toLocaleString()}`,
+    `KES ${(item.price * item.quantity).toLocaleString()}`
+  ]);
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['Product', 'Variant', 'Qty', 'Unit Price', 'Amount']],
+    body: tableData,
+    headStyles: { fillColor: themeColor, textColor: [255, 255, 255] },
+    alternateRowStyles: { fillColor: [245, 245, 250] },
+    margin: { left: 14, right: 14 }
+  });
+
+  // Summary
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  doc.setFont("helvetica", "normal");
+  
+  const summaryX = 140;
+  doc.text("Subtotal:", summaryX, finalY);
+  doc.text(`KES ${(order.subtotal || order.total - (order.shippingCost || 0) + (order.discountAmount || 0)).toLocaleString()}`, 190, finalY, { align: 'right' });
+
+  if (order.discountAmount > 0) {
+    doc.text("Discount:", summaryX, finalY + 5);
+    doc.text(`- KES ${order.discountAmount.toLocaleString()}`, 190, finalY + 5, { align: 'right' });
+  }
+
+  if (order.shippingCost > 0) {
+    doc.text("Shipping:", summaryX, finalY + 10);
+    doc.text(`KES ${order.shippingCost.toLocaleString()}`, 190, finalY + 10, { align: 'right' });
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Total:", summaryX, finalY + 18);
+  doc.text(`KES ${order.total.toLocaleString()}`, 190, finalY + 18, { align: 'right' });
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(150);
+  doc.text("Thank you for shopping with DJ FLOWERZ!", 105, 280, { align: 'center' });
+  doc.text("www.djflowerz.co.ke", 105, 285, { align: 'center' });
+
+  doc.save(`Order_${order.id.slice(-8).toUpperCase()}.pdf`);
+  toast.success("Order PDF downloaded successfully");
+};
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
@@ -535,6 +624,15 @@ const Account: React.FC = () => {
                                     }`}>
                                     {order.status}
                                   </span>
+                                </div>
+                                <div>
+                                  <button 
+                                    onClick={() => generateOrderPDF(order)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-white text-[10px] font-bold transition-all group"
+                                  >
+                                    <FileText size={14} className="text-brand-purple group-hover:scale-110 transition-transform" />
+                                    Download PDF
+                                  </button>
                                 </div>
                               </div>
 
