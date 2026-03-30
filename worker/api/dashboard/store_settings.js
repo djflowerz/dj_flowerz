@@ -11,6 +11,18 @@ const DEFAULT_SETTINGS = {
   countdownMinutes: 45,
   countdownSeconds: 30,
   shippingMethods: [],
+  shipping: {
+    base_weight: 5,
+    base_price: 500,
+    increment_price: 50,
+    hardship_surcharge: 1000,
+    hardship_towns: ['lodwar', 'kakuma', 'lokichoggio'],
+    premium_prices: {
+      same_day: 700,
+      one_hour: 1200,
+      overnight: 400
+    }
+  }
 };
 
 export async function handleStoreSettings(request, env) {

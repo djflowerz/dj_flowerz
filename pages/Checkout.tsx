@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useCart } from '../context/CartContext';
+import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
 } from 'lucide-react';
-import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, TOWN_TO_ZONE_MAP, SHIPPING_RATES_MATRIX, SHIPPING_ZONES_CONFIG } from '../constants';
+import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, TOWN_TO_ZONE_MAP, SHIPPING_ZONES_CONFIG, COUNTY_TO_TOWNS, HARDSHIP_TOWNS, SHIPPING_BASE_WEIGHT, SHIPPING_STANDARD_BASE, SHIPPING_HARDSHIP_BASE, SHIPPING_INCREMENT_PER_KG, PREMIUM_SERVICES } from '../constants';
 import { ShippingSize } from '../types';
 import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
@@ -75,7 +76,7 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 export default function Checkout() {
   const { user, loading } = useAuth() as any;
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
-  const { items, cartTotal, clearCart } = useCart();
+  const { items, cartTotal, clearCart, storeSettings } = useData();
   const navigate = useNavigate();
   // Determine if cart has physical items
   const hasPhysical = useMemo(() => items.some((i: any) => 
@@ -90,6 +91,7 @@ export default function Checkout() {
   const isDigitalOnly = !hasPhysical;
 
   const selectedCounty = watch('county');
+  const [selectedTown, setSelectedTown] = useState<string>('');
   const [selectedZoneId, setSelectedZoneId] = useState<string>(INITIAL_SHIPPING_ZONES[0].id);
   const [selectedRateId, setSelectedRateId] = useState<string>(INITIAL_SHIPPING_ZONES[0].rates[0].id);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -98,43 +100,102 @@ export default function Checkout() {
   const [couponCode, setCouponCode] = useState('');
   const [activeCoupon, setActiveCoupon] = useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [paymentType, setPaymentType] = useState<'pay_full' | 'lipa_pole_pole'>('pay_full');
+  const [lipaDuration, setLipaDuration] = useState<number>(3);
+
+  // Towns available for the selected county
+  const availableTowns = useMemo(() => COUNTY_TO_TOWNS[selectedCounty] || [], [selectedCounty]);
+
+  // When county changes, reset the town selection
+  useEffect(() => {
+    setSelectedTown('');
+  }, [selectedCounty]);
+
+  // Reset to pay_full if cart becomes digital-only (no installments on digital goods)
+  useEffect(() => {
+    if (isDigitalOnly && paymentType === 'lipa_pole_pole') {
+      setPaymentType('pay_full');
+    }
+  }, [isDigitalOnly, paymentType]);
 
   const selectedZone = useMemo(() =>
     INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId) || INITIAL_SHIPPING_ZONES[0]
   , [selectedZoneId]);
 
-  // Determine the largest shipping size in the cart to fetch the correct base rate.
-  const orderShippingSize = useMemo<ShippingSize>(() => {
-    let size: ShippingSize = 'small';
-    for (const item of items) {
-      if (item.shippingSize === 'large') return 'large'; // Max size reached
-      if (item.shippingSize === 'medium') size = 'medium';
-    }
-    return size;
-  }, [items]);
-
-  // Determine the base shipping rate from the zone and the largest item size
-  const baseShippingRate = useMemo(() => {
+  // Calculate total weight of physical items in the cart
+  const totalWeight = useMemo(() => {
     if (isDigitalOnly) return 0;
-    const rates = SHIPPING_RATES_MATRIX[selectedZoneId];
-    return rates ? rates[orderShippingSize] : 0;
-  }, [isDigitalOnly, selectedZoneId, orderShippingSize]);
+    return items.reduce((sum, item: any) => {
+      // Default weight to 0.5kg if not specified for physical products
+      const weight = item.weight || (item.type === 'physical' ? 0.5 : 0);
+      return sum + (weight * (item.quantity || 1));
+    }, 0);
+  }, [items, isDigitalOnly]);
 
-  // Generate dynamic delivery speed options
-  const deliverySpeedOptions = useMemo(() => {
-    if (isDigitalOnly) return [];
+  // Determine if the selected town is a hardship area
+  const isHardshipArea = useMemo(() => {
+    if (!selectedTown || !storeSettings?.shipping?.hardship_towns) return false;
+    return storeSettings.shipping.hardship_towns.includes(selectedTown.toLowerCase());
+  }, [selectedTown, storeSettings]);
+
+  // Determine the base shipping rate using the linear weight formula
+  const baseShippingRate = useMemo(() => {
+    if (isDigitalOnly || !storeSettings?.shipping) return 0;
     
-    // Only offer Same-Day Priority for Nairobi (zone1) and Greater Nairobi (zone2)
-    const isLocal = selectedZoneId === 'zone1' || selectedZoneId === 'zone2';
+    const { base_price, hardship_surcharge, base_weight, increment_price } = storeSettings.shipping;
+    const baseRate = Number(base_price) || 0;
+    const surcharge = isHardshipArea ? (Number(hardship_surcharge) || 0) : 0;
+    
+    // Weight-based calculation
+    const extraWeight = Math.max(0, totalWeight - (base_weight || 0));
+    const extraCost = Math.ceil(extraWeight) * (Number(increment_price) || 0);
+    
+    return baseRate + surcharge + extraCost;
+  }, [isDigitalOnly, isHardshipArea, totalWeight, storeSettings]);
+
+  // Generate dynamic delivery speed options based on G4S / market standard tiers
+  const deliverySpeedOptions = useMemo(() => {
+    if (isDigitalOnly || !storeSettings?.shipping) return [];
+    
+    const isNairobi = selectedZoneId === 'zone1';
+    const isNearby = selectedZoneId === 'zone1' || selectedZoneId === 'zone2';
+    const { premium_services } = storeSettings.shipping;
     
     return [
-      { id: 'standard', type: 'standard', label: 'Standard Delivery', timeline: '3-5 Business Days', price: baseShippingRate },
-      { id: 'express', type: 'express', label: 'Express Delivery', timeline: '1-3 Business Days', price: baseShippingRate + 200 },
-      ...(isLocal ? [
-        { id: 'sameday', type: 'instant', label: 'Same-Day Priority', timeline: 'Within 24 Hours', price: baseShippingRate + 500 }
+      { 
+        id: 'standard', 
+        type: 'standard', 
+        label: premium_services.standard.label, 
+        timeline: premium_services.standard.timeline, 
+        price: baseShippingRate 
+      },
+      { 
+        id: 'overnight', 
+        type: 'express', 
+        label: premium_services.overnight.label, 
+        timeline: premium_services.overnight.timeline, 
+        price: baseShippingRate + (premium_services.overnight.surcharge || 150)
+      },
+      ...(isNearby ? [
+        { 
+          id: 'sameday', 
+          type: 'instant', 
+          label: premium_services.same_day.label, 
+          timeline: premium_services.same_day.timeline, 
+          price: Math.max(premium_services.same_day.min_price || 0, baseShippingRate) 
+        }
+      ] : []),
+      ...(isNairobi ? [
+        { 
+          id: 'onehour', 
+          type: 'instant', 
+          label: premium_services.one_hour.label, 
+          timeline: premium_services.one_hour.timeline, 
+          price: Math.max(premium_services.one_hour.min_price || 0, baseShippingRate)
+        }
       ] : [])
     ];
-  }, [isDigitalOnly, baseShippingRate, selectedZoneId]);
+  }, [isDigitalOnly, baseShippingRate, selectedZoneId, storeSettings]);
 
   // Safe fallback to 'standard' if the selected rate ID is not in the generated list
   const selectedSpeed = useMemo(() => {
@@ -211,44 +272,42 @@ export default function Checkout() {
     }
   };
 
-  React.useEffect(() => {
-    if (isDigitalOnly) return;
-    
-    // Auto-select zone based on town first, fallback to county if town not found
-    const townValue = watch('town')?.trim()?.toLowerCase() || '';
-    const countyValue = watch('county');
-    
-    let mappedZoneId = 'zone5'; // Default to Upcountry
+  // When a town is selected from the dropdown, auto-map it to the correct zone
+  const handleTownSelect = (town: string) => {
+    setSelectedTown(town);
+    if (!town) return;
 
-    if (townValue && TOWN_TO_ZONE_MAP[townValue]) {
-      mappedZoneId = TOWN_TO_ZONE_MAP[townValue];
-    } else if (countyValue === 'Nairobi') {
-      mappedZoneId = 'zone1';
-    } else if (countyValue === 'Mombasa' || countyValue === 'Kilifi') {
-      mappedZoneId = 'zone6';
-    } else if (countyValue === 'Kiambu' || countyValue === 'Machakos' || countyValue === 'Kajiado') {
-      mappedZoneId = 'zone2';
-    } else if (countyValue === 'Nakuru' || countyValue === 'Kisumu' || countyValue === 'Uasin Gishu') {
-      mappedZoneId = 'zone3';
+    const zoneByTown = TOWN_TO_ZONE_MAP[town.toLowerCase()];
+    // County-level fallbacks for towns not in TOWN_TO_ZONE_MAP
+    const county = selectedCounty;
+    let zoneId = zoneByTown;
+    if (!zoneId) {
+      if (county === 'Nairobi') zoneId = 'zone1';
+      else if (['Kiambu', 'Machakos', 'Kajiado'].includes(county)) zoneId = 'zone2';
+      else if (['Nakuru', 'Kisumu', 'Uasin Gishu', 'Laikipia', 'Nyandarua'].includes(county)) zoneId = 'zone3';
+      else if (['Nyeri', 'Kirinyaga', 'Murang\'a', 'Embu', 'Meru', 'Kericho', 'Kakamega'].includes(county)) zoneId = 'zone4';
+      else if (['Mombasa', 'Kilifi', 'Kwale', 'Tana River', 'Lamu'].includes(county)) zoneId = 'zone6';
+      else zoneId = 'zone5';
     }
+    handleZoneChange(zoneId);
+  };
 
-    if (mappedZoneId !== selectedZoneId) {
-      handleZoneChange(mappedZoneId);
-    }
-  }, [watch('town'), selectedCounty]);
   const onSubmit = async (data: any) => {
     setIsProcessing(true);
     try {
       const orderData = {
+        customer_id: user?.id,
         customer_name: data.name,
         customer_email: data.email,
         customer_phone: data.phone,
+        payment_type: paymentType,
+        installments_count: paymentType === 'lipa_pole_pole' ? lipaDuration : null,
         ...(isDigitalOnly ? {} : {
           shipping_county: data.county,
-          shipping_town: data.town,
+          shipping_town: selectedTown || data.town,
           shipping_landmark: data.landmark,
           shipping_details: data.buildingDetails,
-          shipping_address: `${data.buildingDetails}, ${data.landmark}, ${data.town}, ${data.county}`,
+          shipping_address: `${data.buildingDetails}, ${data.landmark}, ${selectedTown || data.town}, ${data.county}`,
           shipping_provider: selectedZone.name,
           shipping_method: selectedSpeed.label,
           shipping_cost: shippingCost,
@@ -424,8 +483,30 @@ export default function Checkout() {
 
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Town / City / Area</label>
-                        <input type="text" {...register('town', { required: 'Town is required' })} placeholder="e.g. Westlands, Nyali, Eldoret CBD" className={inputCls} />
-                        {errors.town && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.town.message as string}</span>}
+                        {availableTowns.length > 0 ? (
+                          <div className="relative">
+                            <select
+                              value={selectedTown}
+                              onChange={(e) => handleTownSelect(e.target.value)}
+                              className={inputCls + ' appearance-none cursor-pointer'}
+                            >
+                              <option value="" className="bg-[#15151A]">Select area in {selectedCounty}...</option>
+                              {availableTowns.map(t => (
+                                <option key={t} value={t} className="bg-[#15151A]">{t}</option>
+                              ))}
+                            </select>
+                            <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={selectedTown}
+                            onChange={(e) => handleTownSelect(e.target.value)}
+                            placeholder={selectedCounty ? `Enter your area in ${selectedCounty}` : 'Select a county first'}
+                            className={inputCls}
+                          />
+                        )}
+                        {!selectedTown && selectedCounty && <span className="text-amber-500 text-[10px] font-black uppercase tracking-widest pl-4">Please select your area</span>}
                       </div>
 
                       <div className="space-y-2">
@@ -474,25 +555,19 @@ export default function Checkout() {
                     <h3 className="text-xl font-black tracking-tight uppercase">Shipping Method</h3>
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Delivery Region</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {INITIAL_SHIPPING_ZONES.map((zone) => (
-                        <button key={zone.id} type="button" onClick={() => handleZoneChange(zone.id)}
-                          className={`flex flex-col items-start p-5 rounded-3xl border-2 transition-all duration-300 text-left ${selectedZoneId === zone.id ? 'border-brand-purple bg-brand-purple/5 ring-4 ring-brand-purple/10' : 'border-white/5 bg-[#0B0B0F] hover:border-white/20'}`}>
-                          <div className="flex items-center justify-between w-full mb-2">
-                            <span className="font-bold text-white tracking-tight">{zone.name}</span>
-                            {selectedZoneId === zone.id && (
-                              <div className="w-5 h-5 bg-brand-purple rounded-full flex items-center justify-center">
-                                <Check size={12} className="text-white" />
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-gray-500 leading-relaxed line-clamp-2">{zone.description}</p>
-                        </button>
-                      ))}
+                  {/* Delivery region — auto-set from town selection, shown as read-only info */}
+                  {selectedTown && (
+                    <div className="p-4 bg-brand-purple/5 border border-brand-purple/20 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Delivery Region</p>
+                        <p className="font-black text-white text-sm">{INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId)?.name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Check size={14} className="text-brand-purple" />
+                        <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Auto-Detected</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="space-y-3 pt-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Delivery Speed</label>
@@ -525,6 +600,49 @@ export default function Checkout() {
                   </div>
                   <h3 className="text-xl font-black tracking-tight uppercase">Payment Platform</h3>
                 </div>
+
+                {/* Payment method toggle — only for physical/mixed orders */}
+                {!isDigitalOnly ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button type="button" onClick={() => setPaymentType('pay_full')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'pay_full' ? 'border-brand-purple bg-brand-purple/10 text-white shadow-lg shadow-brand-purple/20' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
+                        <span className="font-black uppercase tracking-widest text-xs">Pay in Full</span>
+                        <span className="text-[10px] font-bold">100% Secure Checkout</span>
+                      </button>
+                      <button type="button" onClick={() => setPaymentType('lipa_pole_pole')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg shadow-brand-cyan/20' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
+                        <span className="font-black uppercase tracking-widest text-xs">Lipa Pole Pole</span>
+                        <span className="text-[10px] font-bold">20% Deposit Today</span>
+                      </button>
+                    </div>
+
+                    {paymentType === 'lipa_pole_pole' && (
+                      <div className="p-5 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Installment Duration</label>
+                        <div className="relative">
+                          <select value={lipaDuration} onChange={(e) => setLipaDuration(Number(e.target.value))} className={inputCls + ' appearance-none cursor-pointer bg-[#0B0B0F]/50'}>
+                            <option value="2" className="bg-[#15151A]">2 Months (Deposit + 2 Payments)</option>
+                            <option value="3" className="bg-[#15151A]">3 Months (Deposit + 3 Payments)</option>
+                            <option value="4" className="bg-[#15151A]">4 Months (Deposit + 4 Payments)</option>
+                            <option value="5" className="bg-[#15151A]">5 Months (Deposit + 5 Payments)</option>
+                            <option value="6" className="bg-[#15151A]">6 Months (Deposit + 6 Payments)</option>
+                          </select>
+                          <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        </div>
+                        <div className="flex justify-between items-center text-xs font-bold text-gray-400 bg-black/20 p-4 rounded-xl border border-white/5">
+                          <span>Deposit Due Today (20%)</span>
+                          <span className="text-brand-cyan font-black text-lg tracking-tight">KES {Math.ceil(finalTotal * 0.2).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Digital orders always pay in full */
+                  <div className="p-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl flex items-center gap-3">
+                    <Zap size={16} className="text-brand-cyan flex-shrink-0" />
+                    <p className="text-xs text-gray-400 font-bold">Digital products must be paid in full for instant delivery.</p>
+                  </div>
+                )}
+
                 <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-brand-purple/30 flex items-center gap-6 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-full blur-[60px] translate-x-12 -translate-y-12" />
                   <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl z-10">
@@ -629,8 +747,19 @@ export default function Checkout() {
                   </div>
                 )}
                 <div className="flex justify-between items-center px-4 py-6 bg-brand-purple/10 rounded-[2rem] border border-brand-purple/20 shadow-inner">
-                  <span className="text-sm font-black text-white uppercase tracking-widest leading-none">Total Payment</span>
-                  <span className="text-2xl font-black text-white tracking-tighter leading-none">KES {finalTotal.toLocaleString()}</span>
+                  <span className="text-sm font-black text-white uppercase tracking-widest leading-none">
+                    {paymentType === 'lipa_pole_pole' ? 'Deposit Due Now' : 'Total Payment'}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-white tracking-tighter leading-none">
+                      KES {paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}
+                    </span>
+                    {paymentType === 'lipa_pole_pole' && (
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                        Full Price: KES {finalTotal.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -647,8 +776,8 @@ export default function Checkout() {
                   </div>
                 ) : (
                   isDigitalOnly
-                    ? <><Zap size={20} className="mr-2" /> Pay & Download · KES {finalTotal.toLocaleString()}</>
-                    : `Pay KES ${finalTotal.toLocaleString()}`
+                    ? <><Zap size={20} className="mr-2" /> Pay & Download · KES {paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}</>
+                    : `Pay KES ${paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}`
                 )}
               </button>
 

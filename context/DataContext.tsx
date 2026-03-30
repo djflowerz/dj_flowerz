@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
@@ -8,6 +8,21 @@ import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR
 import { supabase } from '../utils/supabase';
 
 
+
+const INITIAL_STORE_SETTINGS: StoreSettings = {
+  shipping: {
+    base_weight: 5,
+    base_price: 406,
+    increment_price: 30,
+    hardship_towns: ['Lodwar', 'Kakuma', 'Lokichoggio'],
+    hardship_surcharge: 1393.68,
+    premium_prices: {
+      same_day: 1500,
+      one_hour: 2500,
+      overnight: 400
+    }
+  }
+};
 
 // Initial Site Config Data (Fallback only if DB is empty)
 const INITIAL_CONFIG: SiteConfig = {
@@ -145,10 +160,13 @@ interface DataContextType {
   subscriptionsError: string | null;
   bookingsError: string | null;
   hasQuotaExceeded: boolean;
+  storeSettings: StoreSettings;
+  storeSettingsLoading: boolean;
 
   // Actions
   seedDatabase: () => Promise<void>;
   updateSiteConfig: (data: Partial<SiteConfig>) => void;
+  updateStoreSettings: (data: Partial<StoreSettings>) => Promise<void>;
 
   addProduct: (product: Product) => void;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
@@ -950,6 +968,56 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Poll for config updates every 60 seconds
     const interval = setInterval(fetchConfig, 60 * 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Store Settings (D1 via Worker API)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
+  const [storeSettingsLoading, setStoreSettingsLoading] = useState(true);
+
+  const fetchStoreSettings = async () => {
+    try {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/store/settings`);
+      if (response.ok) {
+        const data = await response.json();
+        // Merge with initial defaults to ensure all fields exist
+        setStoreSettings({
+          ...INITIAL_STORE_SETTINGS,
+          ...data,
+          shipping: {
+            ...INITIAL_STORE_SETTINGS.shipping,
+            ...(data.shipping || {})
+          }
+        });
+      }
+    } catch (error) {
+      console.warn("Error fetching store settings:", error);
+    } finally {
+      setStoreSettingsLoading(false);
+    }
+  };
+
+  const updateStoreSettings = async (data: Partial<StoreSettings>) => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/store/settings`, {
+        method: 'PUT',
+        headers: {
+          ...authHeader,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setStoreSettings(updated);
+      }
+    } catch (error) {
+      console.error("Error updating store settings:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStoreSettings();
   }, []);
 
   // Public Collections (R2)
@@ -2722,12 +2790,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     studioSessionsLoading: studioSessionsLoading || false,
     eventGigsLoading: eventGigsLoading || false,
     installmentsLoading: installmentsLoading || false,
+    storeSettings,
+    storeSettingsLoading,
     hasQuotaExceeded: false,
     uploadTrackList,
     downloadTrackList,
 
     seedDatabase,
     updateSiteConfig,
+    updateStoreSettings,
     addProduct,
     updateProduct,
     deleteProduct,

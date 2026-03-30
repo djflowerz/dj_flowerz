@@ -44,6 +44,7 @@ import {
    ImageUpload, MultiImageUpload, AudioUpload, FileUpload, VersionAudioUpload 
 } from '../components/admin/UploadComponents';
 import AdminInstallmentsTab from '../components/admin/AdminInstallmentsTab';
+import ShippingSettings from '../components/admin/ShippingSettings';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
    <textarea
@@ -4254,48 +4255,13 @@ const AdminDashboard: React.FC = () => {
                            </div>
                         </div>
 
-                        {/* Shipping Zones & Rates */}
+                        {/* Dynamic Logistics Configuration */}
                         <div className="space-y-6">
-                           <div className="flex justify-between items-center px-2">
-                              <div>
-                                 <h4 className="text-xl font-black text-white tracking-tight">Tactical Zones</h4>
-                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Regional Logistics Mapping</p>
-                              </div>
-                              <button className="px-5 py-2.5 bg-brand-purple/10 hover:bg-brand-purple/20 text-brand-purple border border-brand-purple/20 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
-                                 + Append Zone
-                              </button>
+                           <div className="px-2">
+                              <h4 className="text-xl font-black text-white tracking-tight">Dynamic Weight Engine</h4>
+                              <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Global Logistics Algorithm Configuration</p>
                            </div>
-                           <div className="grid grid-cols-1 gap-6">
-                              {(shippingZones || []).map(zone => (
-                                 <div key={zone.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden group">
-                                    <div className="absolute top-0 left-0 w-1 h-full bg-brand-purple/20 group-hover:bg-brand-purple transition-all" />
-                                    <div className="flex justify-between items-start mb-6">
-                                       <div>
-                                          <h4 className="text-xl font-black text-white tracking-tight mb-1">{zone.name}</h4>
-                                          <p className="text-[10px] text-gray-500 font-bold italic tracking-wide">{zone.description}</p>
-                                       </div>
-                                       <button
-                                          onClick={() => openEditZone(zone)}
-                                          className="p-3 bg-white/5 hover:bg-brand-purple/10 text-gray-500 hover:text-brand-purple rounded-xl transition-all border border-white/5 hover:border-brand-purple/20"
-                                       >
-                                          <PenSquare size={18} />
-                                       </button>
-                                    </div>
-                                    <div className="space-y-3">
-                                       <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-4">Rate Matrix</p>
-                                       {zone.rates.map(r => (
-                                          <div key={r.id} className="flex justify-between items-center px-4 py-3 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-all">
-                                             <div className="flex items-center gap-3">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-brand-purple/50" />
-                                                <span className="text-xs text-gray-400 font-bold uppercase tracking-wide">{r.label}</span>
-                                             </div>
-                                             <span className="font-black text-white text-sm">KES {r.price}</span>
-                                          </div>
-                                       ))}
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
+                           <ShippingSettings />
                         </div>
                      </div>
                   </div>

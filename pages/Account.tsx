@@ -9,6 +9,7 @@ import { downloadFileSecurely } from '../utils/downloadHelper';
 import MFAEnrollment from '../components/MFAEnrollment';
 import ReauthModal from '../components/ReauthModal';
 import SubscriptionTimer from '../components/SubscriptionTimer';
+import { toast } from 'sonner';
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
@@ -89,6 +90,7 @@ const Account: React.FC = () => {
       if (orders.length > 0) {
         const downloads = orders
           .filter(o => o.customerEmail === user.email)
+          .filter(o => o.status === 'completed' || o.paymentStatus === 'paid')
           .map((order: any) => {
             const digitalItems = (order.items || []).filter((item: any) => item.type === 'digital');
             if (digitalItems.length === 0) return null;
@@ -546,9 +548,20 @@ const Account: React.FC = () => {
                                       </div>
                                       {item.type === 'digital' && (
                                         <button
-                                          onClick={() => downloadFileSecurely(item.digitalFileUrl || '', { fileName: item.productName, type: 'digital_product', orderId: order.id })}
-                                          className="p-2 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white rounded-lg transition"
-                                          title="Download Digital Asset"
+                                          disabled={order.status !== 'completed' && order.paymentStatus !== 'paid'}
+                                          onClick={() => {
+                                            if (order.status === 'completed' || order.paymentStatus === 'paid') {
+                                              downloadFileSecurely(item.digitalFileUrl || '', { fileName: item.productName, type: 'digital_product', orderId: order.id });
+                                            } else {
+                                              toast.error('Payment required before download');
+                                            }
+                                          }}
+                                          className={`p-2 rounded-lg transition ${
+                                            (order.status === 'completed' || order.paymentStatus === 'paid') 
+                                              ? 'bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white' 
+                                              : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                                          }`}
+                                          title={order.status === 'completed' || order.paymentStatus === 'paid' ? "Download Digital Asset" : "Awaiting Payment"}
                                         >
                                           <Download size={14} />
                                         </button>

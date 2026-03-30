@@ -686,3 +686,25 @@ export interface InstallmentPayment {
   reference: string;
   created_at: string;
 }
+
+export interface ShippingConfig {
+  base_weight: number;
+  base_price: number;
+  increment_price: number;
+  hardship_towns: string[];
+  hardship_surcharge: number;
+  premium_prices: {
+    same_day: number;
+    one_hour: number;
+    overnight: number;
+  };
+}
+
+export interface StoreSettings {
+  shipping: ShippingConfig;
+  site_notice?: {
+    enabled: boolean;
+    message: string;
+    type: 'info' | 'warning' | 'error';
+  };
+}

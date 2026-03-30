@@ -781,22 +781,29 @@ export default {
                 const user = await getAuthorizedUser(request, env);
                 if (!user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
-                // GET /api/installments - Fetch user's plans or admin all plans
+                // GET /api/installments - Fetch user's plans (joined with orders)
                 if (method === "GET") {
                     try {
-                        let results;
+                        let plans;
                         if (user.role === 'admin') {
-                            results = await db.query.installmentPlans.findMany({
-                                with: { user: true },
-                                orderBy: [desc(schema.installmentPlans.createdAt)]
-                            });
+                            const { results } = await env.DB.prepare(`
+                                SELECT ip.*, o.customer_name, o.customer_email, o.items, o.status as order_status
+                                FROM installment_plans ip
+                                LEFT JOIN orders o ON o.id = ip.order_id
+                                ORDER BY ip.created_at DESC
+                            `).all();
+                            plans = results;
                         } else {
-                            results = await db.query.installmentPlans.findMany({
-                                where: eq(schema.installmentPlans.userId, user.id),
-                                orderBy: [desc(schema.installmentPlans.createdAt)]
-                            });
+                            const { results } = await env.DB.prepare(`
+                                SELECT ip.*, o.customer_name, o.customer_email, o.items, o.status as order_status
+                                FROM installment_plans ip
+                                LEFT JOIN orders o ON o.id = ip.order_id
+                                WHERE ip.user_id = ?
+                                ORDER BY ip.created_at DESC
+                            `).bind(user.id).all();
+                            plans = results;
                         }
-                        return Response.json(results, { headers: corsHeaders });
+                        return Response.json(plans, { headers: corsHeaders });
                     } catch (e) {
                         return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
                     }
@@ -806,35 +813,34 @@ export default {
                 if (method === "POST" && path === "/api/installments/pay") {
                     try {
                         const { planId } = await request.json();
-                        const plan = await db.query.installmentPlans.findFirst({
-                            where: and(eq(schema.installmentPlans.id, planId), eq(schema.installmentPlans.userId, user.id))
-                        });
+                        const plan = await env.DB.prepare(`
+                            SELECT * FROM installment_plans WHERE id = ? AND user_id = ?
+                        `).bind(planId, user.id).first();
 
                         if (!plan) return Response.json({ success: false, error: "Plan not found" }, { status: 404, headers: corsHeaders });
                         if (plan.status !== 'active') return Response.json({ success: false, error: "Plan is not active" }, { status: 400, headers: corsHeaders });
 
-                        const remaining = plan.totalAmount - plan.amountPaid;
+                        const remaining = plan.balance || 0;
                         if (remaining <= 0) return Response.json({ success: false, error: "Plan already fully paid" }, { status: 400, headers: corsHeaders });
 
-                        // Calculate installment amount
-                        const installmentAmount = Math.ceil(plan.totalAmount / plan.installmentsCount);
+                        // Calculate installment amount (balance / remaining cycles)
+                        const installmentAmount = Math.ceil(remaining / Math.max(1, plan.installments_count - 1));
                         const actualPayAmount = Math.min(installmentAmount, remaining);
 
-                        // Initialize Paystack
-                        const paystackKey = env.PAYSTACK_SECRET_KEY;
                         const resp = await fetch("https://api.paystack.co/transaction/initialize", {
                             method: "POST",
                             headers: {
-                                "Authorization": `Bearer ${paystackKey}`,
+                                "Authorization": `Bearer ${env.PAYSTACK_SECRET_KEY}`,
                                 "Content-Type": "application/json"
                             },
                             body: JSON.stringify({
                                 email: user.email,
-                                amount: actualPayAmount * 100, // Paystack uses kobo
-                                callback_url: `${env.SUCCESS_URL || 'https://djflowerz.co.ke/success'}?type=installment&plan_id=${planId}`,
+                                amount: actualPayAmount * 100,
+                                callback_url: `${env.SUCCESS_URL || 'https://djflowerz.co.ke/success'}?type=installment_payment&plan_id=${planId}`,
                                 metadata: {
-                                    type: 'installment',
+                                    type: 'installment_payment',
                                     plan_id: planId,
+                                    order_id: plan.order_id,
                                     user_id: user.id
                                 }
                             })
@@ -850,6 +856,33 @@ export default {
                         } else {
                             return Response.json({ success: false, error: psData.message }, { status: 500, headers: corsHeaders });
                         }
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
+                }
+
+                // PATCH /api/installments/:id — Admin update status (freeze/unfreeze)
+                if (method === "PATCH" && path.startsWith("/api/installments/")) {
+                    if (user.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+                    try {
+                        const planId = path.replace("/api/installments/", "").split("/")[0];
+                        const { status } = await request.json();
+                        await env.DB.prepare(`
+                            UPDATE installment_plans SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+                        `).bind(status, planId).run();
+                        return Response.json({ success: true }, { headers: corsHeaders });
+                    } catch (e) {
+                        return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
+                    }
+                }
+
+                // DELETE /api/installments/:id — Admin delete plan
+                if (method === "DELETE" && path.startsWith("/api/installments/")) {
+                    if (user.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+                    try {
+                        const planId = path.replace("/api/installments/", "");
+                        await env.DB.prepare(`DELETE FROM installment_plans WHERE id = ?`).bind(planId).run();
+                        return Response.json({ success: true }, { headers: corsHeaders });
                     } catch (e) {
                         return Response.json({ success: false, error: e.message }, { status: 500, headers: corsHeaders });
                     }
@@ -2259,43 +2292,67 @@ export default {
                                 });
                             }
                         }
-                        else if (meta.type === "installment") {
-                            const planId = meta.plan_id;
-                            const plan = await db.query.installmentPlans.findFirst({
-                                where: eq(schema.installmentPlans.id, planId)
+                        else if (meta.type === "installment_deposit") {
+                            // First payment on checkout
+                            await env.DB.prepare(`
+                                UPDATE orders SET status = 'processing', payment_status = 'deposit_paid', paystack_ref = ? WHERE id = ?
+                            `).bind(ref, meta.order_id).run();
+
+                            await env.DB.prepare(`
+                                UPDATE installment_plans 
+                                SET paid_amount = ?, 
+                                    balance = total_amount - ?, 
+                                    status = 'active',
+                                    next_payment_date = date('now', '+1 month'),
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE order_id = ?
+                            `).bind(amountKes, amountKes, meta.order_id).run();
+
+                            fulfillmentMsg = "Installment Deposit Paid";
+
+                            await sendEmail(env, {
+                                to: email,
+                                subject: "Lipa Pole Pole Activated - DJ Flowerz",
+                                html: `<h1>Plan Activated!</h1><p>We've received your deposit of KES ${amountKes} for your order.</p><p>Ref: ${meta.order_id}</p><p>You can track your next payments on your dashboard.</p>`
                             });
+                        }
+                        else if (meta.type === "installment_payment") {
+                            // Subsequent payments
+                            const planId = meta.plan_id;
+                            const plan = await env.DB.prepare("SELECT * FROM installment_plans WHERE id = ?").bind(planId).first();
 
                             if (plan) {
-                                const newAmountPaid = (plan.amountPaid || 0) + amountKes;
-                                const isCompleted = newAmountPaid >= plan.totalAmount;
+                                const newAmountPaid = (plan.paid_amount || 0) + amountKes;
+                                const newBalance = Math.max(0, plan.total_amount - newAmountPaid);
+                                const isCompleted = newBalance <= 0;
                                 
-                                // Update Plan
-                                await db.update(schema.installmentPlans).set({
-                                    amountPaid: Math.min(newAmountPaid, plan.totalAmount),
-                                    status: isCompleted ? 'completed' : 'active',
-                                    nextPaymentDate: isCompleted ? null : sql`date('now', '+1 month')`, 
-                                    updatedAt: sql`CURRENT_TIMESTAMP`
-                                }).where(eq(schema.installmentPlans.id, planId)).run();
+                                await env.DB.prepare(`
+                                    UPDATE installment_plans 
+                                    SET paid_amount = ?, balance = ?, status = ?, next_payment_date = ?, updated_at = CURRENT_TIMESTAMP
+                                    WHERE id = ?
+                                `).bind(
+                                    newAmountPaid, 
+                                    newBalance, 
+                                    isCompleted ? 'completed' : 'active',
+                                    isCompleted ? null : plan.next_payment_date, // Keep the same or bump? Better let cron bump it or bump +1 mo. We'll simplify.
+                                    planId
+                                ).run();
 
-                                // Record individual payment record
-                                await db.insert(schema.installmentPayments).values({
-                                    id: `pay_${Date.now()}`,
-                                    planId: planId,
-                                    amount: amountKes,
-                                    status: 'paid',
-                                    paymentDate: new Date().toISOString(),
-                                    paystackRef: ref
-                                }).run();
+                                if (isCompleted) {
+                                    // Mark the actual order as fully paid!
+                                    await env.DB.prepare(`
+                                        UPDATE orders SET payment_status = 'paid', status = 'processing' WHERE id = ?
+                                    `).bind(plan.order_id).run();
+                                }
 
                                 fulfillmentMsg = isCompleted ? "Installment Plan COMPLETED" : "installment Payment RECEIVED";
 
-                                // Send Receipt
                                 await sendEmail(env, {
                                     to: email,
                                     subject: isCompleted ? "Congratulations! Your Installment Plan is Complete" : "Payment Received - DJ Flowerz Lipa Pole Pole",
                                     html: isCompleted 
-                                        ? `<h1>Goal Reached!</h1><p>You have fully paid for your plan (Ref: ${plan.id}).</p><p>Our team will contact you shortly regarding fulfillment.</p>`
-                                        : `<h1>Thank You!</h1><p>We've received your payment of KES ${amountKes}. Your remaining balance is KES ${Math.max(0, plan.totalAmount - newAmountPaid)}.</p><p>Next payment due around ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}.</p>`
+                                        ? `<h1>Goal Reached!</h1><p>You have fully paid for your order (Ref: ${plan.order_id}).</p><p>Our team will prepare it for delivery!</p>`
+                                        : `<h1>Thank You!</h1><p>We've received your payment of KES ${amountKes}. Your remaining balance is KES ${newBalance}.</p>`
                                 });
                             }
                         }

@@ -43,12 +43,16 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
         const body = await request.json();
         const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-        // Calculate total and prepare items for storage
         const items = body.items || [];
         const totalAmount = body.total_amount || 0;
 
         const couponCode = body.coupon_code || null;
         const discountAmount = body.discount_amount || 0;
+        const isInstallment = body.payment_type === 'lipa_pole_pole';
+        const depositAmount = isInstallment ? Math.ceil(totalAmount * 0.20) : 0;
+        
+        // Amount to charge right now (deposit or full)
+        const amountToCharge = isInstallment ? depositAmount : totalAmount;
 
         await env.DB.prepare(`
             INSERT INTO orders (
@@ -73,8 +77,24 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
             discountAmount
         ).run();
 
+        // If Lipa Pole Pole, create the installment plan
+        if (isInstallment) {
+            const planId = `lpp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const userId = body.customer_id || body.customer?.id || 'guest';
+            
+            await env.DB.prepare(`
+                INSERT INTO installment_plans (
+                    id, order_id, user_id, total_amount, deposit_amount,
+                    paid_amount, balance, status, installments_count, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, 'pending_deposit', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).bind(
+                planId, orderId, userId, totalAmount, depositAmount,
+                totalAmount, body.installments_count || 3
+            ).run();
+        }
+
         // 2. Initialize Paystack Transaction for Redirect
-        const amountInKobo = Math.round(totalAmount * 100);
+        const amountInKobo = Math.round(amountToCharge * 100);
         const email = body.customer_email || body.customer?.email;
         
         if (!email) {
@@ -91,13 +111,15 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
                 email,
                 amount: amountInKobo,
                 reference: orderId,
-                callback_url: body.callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/success`,
+                callback_url: body.callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/success${isInstallment ? '?type=installment_deposit' : ''}`,
                 metadata: {
                     order_id: orderId,
-                    type: 'store_order',
+                    type: isInstallment ? 'installment_deposit' : 'store_order',
+                    is_installment: isInstallment,
                     customerName: body.customer_name || body.customer?.name || "Customer",
                     custom_fields: [
-                        { display_name: "Order ID", variable_name: "order_id", value: orderId }
+                        { display_name: "Order ID", variable_name: "order_id", value: orderId },
+                        ...(isInstallment ? [{ display_name: "Deposit Amount", variable_name: "deposit_amount", value: depositAmount }] : [])
                     ]
                 }
             })
@@ -119,7 +141,9 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
         return new Response(JSON.stringify({ 
             success: true,
             orderId, 
-            totalAmount, 
+            totalAmount,
+            amountCharged: amountToCharge,
+            isInstallment,
             authorizationUrl: paystackData.data.authorization_url,
             accessCode: paystackData.data.access_code,
             reference: paystackData.data.reference,

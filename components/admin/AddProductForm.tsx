@@ -373,9 +373,9 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                             }}
                             className="bg-transparent border-none text-white text-sm font-medium focus:ring-0 w-32"
                           />
-                          <div className="flex-1 grid grid-cols-2 gap-4">
+                          <div className="flex-1 grid grid-cols-3 gap-4">
                             <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600 uppercase">KES</span>
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600 uppercase">Price</span>
                               <input
                                 type="number"
                                 value={variant.price}
@@ -384,20 +384,37 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                                   next[gIdx].variants[vIdx].price = Number(e.target.value);
                                   updateField('variantGroups', next);
                                 }}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-2 text-xs"
                               />
                             </div>
-                            <input
-                              type="number"
-                              placeholder="Stock"
-                              value={variant.stock}
-                              onChange={e => {
-                                const next = [...(formData.variantGroups || [])];
-                                next[gIdx].variants[vIdx].stock = Number(e.target.value);
-                                updateField('variantGroups', next);
-                              }}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs"
-                            />
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-brand-purple/60 uppercase">Disc</span>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={variant.discountPrice || ''}
+                                onChange={e => {
+                                  const next = [...(formData.variantGroups || [])];
+                                  next[gIdx].variants[vIdx].discountPrice = e.target.value ? Number(e.target.value) : undefined;
+                                  updateField('variantGroups', next);
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-2 text-xs focus:border-brand-purple/50"
+                              />
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600 uppercase">Stock</span>
+                              <input
+                                type="number"
+                                placeholder="Stock"
+                                value={variant.stock}
+                                onChange={e => {
+                                  const next = [...(formData.variantGroups || [])];
+                                  next[gIdx].variants[vIdx].stock = Number(e.target.value);
+                                  updateField('variantGroups', next);
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-2 text-xs"
+                              />
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -417,7 +434,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                         onClick={() => {
                           const next = [...(formData.variantGroups || [])];
                           if (!next[gIdx].variants) next[gIdx].variants = [];
-                          next[gIdx].variants.push({ id: Math.random().toString(36).substr(2, 9), name: '', price: formData.price, stock: formData.stock });
+                          next[gIdx].variants.push({ 
+                            id: Math.random().toString(36).substr(2, 9), 
+                            name: '', 
+                            price: formData.price, 
+                            discountPrice: 0,
+                            stock: formData.stock 
+                          });
                           updateField('variantGroups', next);
                         }}
                         className="text-[10px] font-black text-brand-purple uppercase tracking-widest hover:text-white transition-colors pl-1"
