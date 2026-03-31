@@ -7,7 +7,7 @@ import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
 } from 'lucide-react';
-import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, TOWN_TO_ZONE_MAP, SHIPPING_ZONES_CONFIG, COUNTY_TO_TOWNS, HARDSHIP_TOWNS, SHIPPING_BASE_WEIGHT, SHIPPING_STANDARD_BASE, SHIPPING_HARDSHIP_BASE, SHIPPING_INCREMENT_PER_KG, PREMIUM_SERVICES } from '../constants';
+import { INITIAL_SHIPPING_ZONES, KENYAN_COUNTIES, TOWN_TO_ZONE_MAP, SHIPPING_ZONES_CONFIG, COUNTY_TO_TOWNS, SHIPPING_BASE_WEIGHT, SHIPPING_STANDARD_BASE, SHIPPING_HARDSHIP_BASE, SHIPPING_INCREMENT_PER_KG, PREMIUM_SERVICES } from '../constants';
 import { ShippingSize } from '../types';
 import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
@@ -154,45 +154,52 @@ export default function Checkout() {
     return baseRate + surcharge + extraCost;
   }, [isDigitalOnly, isHardshipArea, totalWeight, storeSettings]);
 
-  // Generate dynamic delivery speed options based on G4S / market standard tiers
+  // Generate dynamic delivery speed options based on G4S / market standard tiers.
+  // Labels/timelines come from the PREMIUM_SERVICES constant; surcharge amounts
+  // are overridden by `premium_prices` in storeSettings when available.
   const deliverySpeedOptions = useMemo(() => {
     if (isDigitalOnly || !storeSettings?.shipping) return [];
     
     const isNairobi = selectedZoneId === 'zone1';
     const isNearby = selectedZoneId === 'zone1' || selectedZoneId === 'zone2';
-    const { premium_services } = storeSettings.shipping;
+    // Safely pull overrides from storeSettings — backend stores flat numbers under premium_prices
+    const premiumPrices = storeSettings.shipping.premium_prices || {};
+
+    const overnightSurcharge = Number(premiumPrices.overnight ?? 150);
+    const sameDayMin        = Number(premiumPrices.same_day  ?? PREMIUM_SERVICES.same_day.price);
+    const oneHourMin        = Number(premiumPrices.one_hour  ?? PREMIUM_SERVICES.one_hour.price);
     
     return [
       { 
         id: 'standard', 
         type: 'standard', 
-        label: premium_services.standard.label, 
-        timeline: premium_services.standard.timeline, 
+        label: PREMIUM_SERVICES.standard.label, 
+        timeline: PREMIUM_SERVICES.standard.timeline, 
         price: baseShippingRate 
       },
       { 
         id: 'overnight', 
         type: 'express', 
-        label: premium_services.overnight.label, 
-        timeline: premium_services.overnight.timeline, 
-        price: baseShippingRate + (premium_services.overnight.surcharge || 150)
+        label: 'Overnight Courier', 
+        timeline: '1-2 Business Days', 
+        price: baseShippingRate + overnightSurcharge
       },
       ...(isNearby ? [
         { 
           id: 'sameday', 
           type: 'instant', 
-          label: premium_services.same_day.label, 
-          timeline: premium_services.same_day.timeline, 
-          price: Math.max(premium_services.same_day.min_price || 0, baseShippingRate) 
+          label: PREMIUM_SERVICES.same_day.label,
+          timeline: PREMIUM_SERVICES.same_day.timeline, 
+          price: Math.max(sameDayMin, baseShippingRate) 
         }
       ] : []),
       ...(isNairobi ? [
         { 
           id: 'onehour', 
           type: 'instant', 
-          label: premium_services.one_hour.label, 
-          timeline: premium_services.one_hour.timeline, 
-          price: Math.max(premium_services.one_hour.min_price || 0, baseShippingRate)
+          label: PREMIUM_SERVICES.one_hour.label, 
+          timeline: PREMIUM_SERVICES.one_hour.timeline, 
+          price: Math.max(oneHourMin, baseShippingRate)
         }
       ] : [])
     ];

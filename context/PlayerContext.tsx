@@ -44,14 +44,21 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setCurrentTime(0);
     };
 
+    const handleError = (e: Event) => {
+      console.error('[Player] Audio error:', (e.target as HTMLAudioElement)?.error);
+      setIsPlaying(false);
+    };
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
       audio.pause();
     };
   }, []);
@@ -80,41 +87,35 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Handle Hearthis.at URLs
       const hearthisParams = parseHearthisUrl(url);
       if (hearthisParams) {
-        console.log(`[Player] Detected Hearthis.at URL, resolving components...`, hearthisParams);
+        console.log(`[Player] Detected Hearthis.at URL, resolving...`, hearthisParams);
         const trackData = await fetchHearthisTrack(hearthisParams.artist, hearthisParams.track);
         if (trackData) {
-          console.log(`[Player] Hearthis resolution success:`, {
-            stream: trackData.stream_url,
-            download: trackData.download_url,
-            preview: trackData.preview_url
-          });
-          // Priority: Stream > Download > Preview
           url = trackData.stream_url || trackData.download_url || trackData.preview_url || url;
+          console.log(`[Player] Resolved stream URL: ${url}`);
         } else {
-          console.warn(`[Player] Hearthis resolution failed for: ${url}. Trying automatic stream fallback.`);
-          // Fallback pattern: https://hearthis.at/artist/slug/listen/
-          // This often works for public tracks without an API key
+          // Fallback: append /listen/ to the hearthis URL
           const cleanUrl = url.split('?')[0];
-          const fallbackUrl = cleanUrl.endsWith('/') ? `${cleanUrl}listen/` : `${cleanUrl}/listen/`;
-          console.log(`[Player] Fallback URL: ${fallbackUrl}`);
-          url = fallbackUrl;
+          url = cleanUrl.endsWith('/') ? `${cleanUrl}listen/` : `${cleanUrl}/listen/`;
+          console.warn(`[Player] Hearthis resolution failed, using fallback: ${url}`);
         }
       }
 
-      if (audioRef.current) {
-        console.log(`[Player] Loading audio source: ${url}`);
-        audioRef.current.src = url;
-        audioRef.current.load(); // Ensure new source is loaded
+      if (!audioRef.current) return;
 
-        if (isPlaying) {
-          const playPromise = audioRef.current.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(err => {
-              console.error("[Player] Playback failed:", err);
-              setIsPlaying(false);
-            });
-          }
-        }
+      // Pause and reset before changing source
+      audioRef.current.pause();
+      audioRef.current.src = url;
+      audioRef.current.load();
+
+      // Always play immediately when a new track is loaded
+      // (isPlaying is set to true in playTrack BEFORE currentTrack state updates,
+      // so the isPlaying effect fires with an empty src — we must play here instead)
+      try {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } catch (err) {
+        console.error('[Player] Playback failed after loading new track:', err);
+        setIsPlaying(false);
       }
     };
 
