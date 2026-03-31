@@ -86,7 +86,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Price Calculation Logic
   // Prices are Tax Inclusive
-  const cartSubtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Use Number() guard to protect against stale localStorage items with undefined prices
+  const cartSubtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
 
   // Back-calculate tax from the inclusive total (VAT 16%)
   // Formula: Tax = Total - (Total / 1.16)

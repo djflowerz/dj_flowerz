@@ -44,10 +44,11 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
         const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
         const items = body.items || [];
-        const totalAmount = body.total_amount || 0;
+        // Guard against NaN/undefined — D1 rejects non-numeric types
+        const totalAmount = Number(body.total_amount) || 0;
 
         const couponCode = body.coupon_code || null;
-        const discountAmount = body.discount_amount || 0;
+        const discountAmount = Number(body.discount_amount) || 0;
         const isInstallment = body.payment_type === 'lipa_pole_pole';
         const depositAmount = isInstallment ? Math.ceil(totalAmount * 0.20) : 0;
         
@@ -84,8 +85,11 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
             
             // Extract primary product info from first item if available
             const firstItem = items[0] || {};
-            const productId = firstItem.id;
-            const productName = items.length > 1 ? `${firstItem.name} + ${items.length - 1} more` : firstItem.name;
+            // Frontend sends product_id; fallback to id for compatibility
+            const productId = firstItem.product_id || firstItem.id || null;
+            const productName = items.length > 1 
+              ? `${firstItem.product_name || firstItem.name || 'Item'} + ${items.length - 1} more` 
+              : (firstItem.product_name || firstItem.name || 'Product');
 
             await env.DB.prepare(`
                 INSERT INTO installment_plans (
@@ -97,7 +101,7 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending_deposit', ?, 'monthly', 'sms', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `).bind(
                 planId, orderId, userId, productId, productName,
-                totalAmount, depositAmount, totalAmount, body.installments_count || 3
+                totalAmount, depositAmount, totalAmount, Number(body.installments_count) || 3
             ).run();
         }
 
