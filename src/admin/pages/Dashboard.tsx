@@ -13,10 +13,14 @@ interface DashboardStats {
     totalOrders: number;
     activeMixtapes: number;
     activeUsers: number;
+    totalUsers: number;
     recentActivity: Array<{
         id: string;
         type: string;
+        email?: string;
+        name?: string;
         amount: number;
+        status?: string;
         createdAt: string;
     }>;
 }
@@ -91,6 +95,12 @@ const Dashboard: React.FC = () => {
                     color="brand-purple"
                 />
             </div>
+            <div className="grid grid-cols-1 mb-8">
+                <div className="inline-flex items-center gap-3 text-xs text-gray-500 font-bold uppercase tracking-widest">
+                    <Users size={14} className="text-brand-purple" />
+                    <span>Total Registered Users: <span className="text-white">{loading ? '...' : (stats?.totalUsers || 0)}</span></span>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-[#0B0B0F] border border-white/5 rounded-[3rem] p-10">
@@ -109,11 +119,21 @@ const Dashboard: React.FC = () => {
                                     <ShoppingBag size={20} />
                                 </div>
                                 <div className="flex-1 overflow-hidden">
-                                    <p className="text-[11px] font-black uppercase tracking-widest text-white truncate break-all">New Order #{activity.id.slice(0, 12)}...</p>
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-white truncate">
+                                        {activity.name || activity.email || `Order #${activity.id.slice(0, 12)}`}
+                                    </p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 truncate">
+                                        {activity.email && activity.name ? activity.email : ''}
+                                    </p>
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{formatDate(activity.createdAt)}</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[11px] font-black text-brand-purple tracking-tighter">{formatCurrency(activity.amount)}</p>
+                                    {activity.status && (
+                                        <p className={`text-[9px] font-black uppercase tracking-widest ${
+                                            activity.status === 'paid' ? 'text-emerald-400' : 'text-yellow-400'
+                                        }`}>{activity.status}</p>
+                                    )}
                                 </div>
                             </div>
                         ))}

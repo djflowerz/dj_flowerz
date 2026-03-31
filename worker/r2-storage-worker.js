@@ -1301,6 +1301,13 @@ export default {
                             updated_at = datetime('now')
                     `).bind(email, days, days).run();
 
+                    // Record subscription payment as an order for revenue tracking
+                    const orderId = `sub_${reference || Date.now()}`;
+                    await env.DB.prepare(`
+                        INSERT OR IGNORE INTO orders (id, customer_email, total_amount, payment_status, paystack_ref, items, created_at, updated_at)
+                        VALUES (?, ?, ?, 'paid', ?, '[{"name":"Music Pool Subscription","quantity":1}]', datetime('now'), datetime('now'))
+                    `).bind(orderId, email, amount, reference || '').run();
+
                     // CRITICAL: Sync to R2 for frontend AuthContext
                     const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
                     await env.R2_BUCKET.put("data/profiles.json", JSON.stringify(allProfiles), {
@@ -2450,34 +2457,44 @@ export default {
             // Admin: GET /api/admin/dashboard
             if (method === "GET" && path === "/api/admin/dashboard") {
                 try {
-                    // 1. Total Revenue (Orders paid + Payments success)
-                    const ordersRes = await db.select({ total: sql`SUM(total_amount)` }).from(schema.orders).where(eq(schema.orders.paymentStatus, 'paid'));
-                    const paymentsRes = await db.select({ total: sql`SUM(amount_kes)` }).from(schema.payments).where(eq(schema.payments.status, 'success'));
-                    const totalRevenue = (ordersRes[0]?.total || 0) + (paymentsRes[0]?.total || 0);
+                    // 1. Total Revenue — only from orders table (payments table does not exist in D1)
+                    const revenueRow = await env.DB.prepare(
+                        `SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE payment_status = 'paid'`
+                    ).first();
+                    const totalRevenue = revenueRow?.total || 0;
 
-                    // 2. Total Orders
-                    const totalOrdersRes = await db.select({ count: sql`COUNT(*)` }).from(schema.orders);
-                    const totalOrders = totalOrdersRes[0]?.count || 0;
+                    // 2. Total Orders (all, not just paid)
+                    const ordersCountRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM orders`).first();
+                    const totalOrders = ordersCountRow?.count || 0;
 
                     // 3. Active Mixtapes
-                    const mixtapesRes = await db.select({ count: sql`COUNT(*)` }).from(schema.mixtapes);
-                    const activeMixtapes = mixtapesRes[0]?.count || 0;
+                    const mixtapesCountRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM mixtapes`).first();
+                    const activeMixtapes = mixtapesCountRow?.count || 0;
 
-                    // 4. Active Users (Subscribers)
-                    const subscribersRes = await db.select({ count: sql`COUNT(*)` }).from(schema.profiles).where(eq(schema.profiles.isSubscriber, true));
-                    const activeUsers = subscribersRes[0]?.count || 0;
+                    // 4. Subscribed Users (use = 1 for SQLite boolean compatibility)
+                    const subscribersRow = await env.DB.prepare(
+                        `SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1`
+                    ).first();
+                    const activeUsers = subscribersRow?.count || 0;
 
-                    // 5. Recent Activity (Latest 5 payments/orders)
-                    const recentOrders = await db.query.orders.findMany({
-                        orderBy: (ord, { desc }) => [desc(ord.createdAt)],
-                        limit: 5
-                    });
-                    
-                    const recentActivity = recentOrders.map(o => ({
+                    // 5. Total registered users
+                    const totalUsersRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles`).first();
+                    const totalUsers = totalUsersRow?.count || 0;
+
+                    // 6. Recent Activity (Latest 5 orders)
+                    const { results: recentOrders } = await env.DB.prepare(
+                        `SELECT id, customer_email, customer_name, total_amount, payment_status, created_at 
+                         FROM orders ORDER BY created_at DESC LIMIT 5`
+                    ).all();
+
+                    const recentActivity = (recentOrders || []).map(o => ({
                         id: o.id,
                         type: 'order',
-                        amount: o.totalAmount,
-                        createdAt: o.createdAt
+                        email: o.customer_email,
+                        name: o.customer_name,
+                        amount: o.total_amount,
+                        status: o.payment_status,
+                        createdAt: o.created_at
                     }));
 
                     return Response.json({
@@ -2485,6 +2502,7 @@ export default {
                         totalOrders,
                         activeMixtapes,
                         activeUsers,
+                        totalUsers,
                         recentActivity
                     }, { headers: corsHeaders });
                 } catch (error) {
