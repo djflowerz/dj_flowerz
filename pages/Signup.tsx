@@ -155,54 +155,62 @@ const Signup: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Full Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="JOHN DOE"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-              required
-              disabled={loading}
-            />
+              <input
+                type="text"
+                id="signup-name"
+                name="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="JOHN DOE"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                required
+                disabled={loading}
+              />
           </div>
           <div>
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="YOU@EXAMPLE.COM"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-              required
-              disabled={loading}
-            />
+              <input
+                type="email"
+                id="signup-email"
+                name="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="YOU@EXAMPLE.COM"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                required
+                disabled={loading}
+              />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-                required
-                disabled={loading}
-                minLength={6}
-              />
+                <input
+                  type="password"
+                  id="signup-password"
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                  required
+                  disabled={loading}
+                  minLength={6}
+                />
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Confirm</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-                required
-                disabled={loading}
-                minLength={6}
-              />
+                <input
+                  type="password"
+                  id="signup-confirm-password"
+                  name="confirm_password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                  required
+                  disabled={loading}
+                  minLength={6}
+                />
             </div>
           </div>
 

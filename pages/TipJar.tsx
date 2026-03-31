@@ -83,6 +83,8 @@ const TipJar: React.FC = () => {
           <div className="mb-6 relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-lg">KES</span>
             <input
+              id="tip-amount"
+              name="amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
@@ -93,6 +95,8 @@ const TipJar: React.FC = () => {
 
           <div className="mb-8">
             <textarea
+              id="tip-message"
+              name="message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Leave a message (optional)..."

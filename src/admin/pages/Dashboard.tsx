@@ -1,40 +1,94 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
 import { StatCard } from '../components/StatCard';
 import {
     DollarSign, ShoppingBag, Music, Users,
-    TrendingUp, Activity, Inbox
+    Activity, Inbox
 } from 'lucide-react';
 
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
+
+interface DashboardStats {
+    totalRevenue: number;
+    totalOrders: number;
+    activeMixtapes: number;
+    activeUsers: number;
+    recentActivity: Array<{
+        id: string;
+        type: string;
+        amount: number;
+        createdAt: string;
+    }>;
+}
+
 const Dashboard: React.FC = () => {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchDashboardStats = async () => {
+            try {
+                // We use localStorage directly to grab tokens if available
+                let token = '';
+                try {
+                    const sbToken = localStorage.getItem('sb-yevqnoynsqidtplxggzs-auth-token');
+                    if (sbToken) {
+                        token = JSON.parse(sbToken).access_token || '';
+                    }
+                } catch (e) {}
+
+                const response = await fetch(`${WORKER_URL}/api/admin/dashboard`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) throw new Error('Failed to fetch stats');
+                const data = await response.json();
+                setStats(data);
+            } catch (error) {
+                console.error("Dashboard error:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardStats();
+    }, []);
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
+    };
+
+    const formatDate = (dateStr: string) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
     return (
         <AdminLayout title="System Overview">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
                 <StatCard
                     label="Total Revenue"
-                    value="KSh 128,450"
+                    value={loading ? '...' : formatCurrency(stats?.totalRevenue || 0)}
                     icon={DollarSign}
-                    trend="+12.5%"
                 />
                 <StatCard
-                    label="Total Orders"
-                    value="458"
+                    label="Store Orders"
+                    value={loading ? '...' : (stats?.totalOrders || 0).toString()}
                     icon={ShoppingBag}
                     color="brand-cyan"
-                    trend="+8.2%"
                 />
                 <StatCard
                     label="Active Mixtapes"
-                    value="84"
+                    value={loading ? '...' : (stats?.activeMixtapes || 0).toString()}
                     icon={Music}
                     color="brand-yellow"
                 />
                 <StatCard
-                    label="Active Users"
-                    value="1,240"
+                    label="Subscribed Users"
+                    value={loading ? '...' : (stats?.activeUsers || 0).toString()}
                     icon={Users}
                     color="brand-purple"
-                    trend="+15.3%"
                 />
             </div>
 
@@ -45,18 +99,21 @@ const Dashboard: React.FC = () => {
                         <Activity size={20} className="text-brand-purple" />
                     </div>
                     <div className="space-y-6">
-                        {/* Static placeholder for activity log */}
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-brand-purple/20 transition-all group">
-                                <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center text-brand-purple group-hover:scale-110 transition-transform">
+                        {loading && <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Loading activity...</p>}
+                        {!loading && stats?.recentActivity.length === 0 && (
+                            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No recent orders found.</p>
+                        )}
+                        {!loading && stats?.recentActivity.map((activity) => (
+                            <div key={activity.id} className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-brand-purple/20 transition-all group">
+                                <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center text-brand-purple group-hover:scale-110 transition-transform flex-shrink-0">
                                     <ShoppingBag size={20} />
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-[11px] font-black uppercase tracking-widest text-white">New Order #ORD-102{i}</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">2 minutes ago</p>
+                                <div className="flex-1 overflow-hidden">
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-white truncate break-all">New Order #{activity.id.slice(0, 12)}...</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{formatDate(activity.createdAt)}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[11px] font-black text-brand-purple tracking-tighter">KSh 4,500</p>
+                                    <p className="text-[11px] font-black text-brand-purple tracking-tighter">{formatCurrency(activity.amount)}</p>
                                 </div>
                             </div>
                         ))}

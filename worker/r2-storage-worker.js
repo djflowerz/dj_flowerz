@@ -116,6 +116,20 @@ const DOWNLOAD_LIMITS = {
     'pro': 200
 };
 
+const ADMIN_EMAILS = [
+    'ianmuriithiflowerz@gmail.com'
+];
+
+function isAdminEmail(email) {
+    if (!email) return false;
+    return ADMIN_EMAILS.includes(email.toLowerCase().trim());
+}
+
+function sanitizeName(name) {
+    if (!name) return name;
+    return name.replace(/dj\s*vick\s*nick/gi, 'DJ Flowerz');
+}
+
 // --- Helpers ---
 
 async function sendEmail(env, { to, subject, html, from = "DJ Flowerz <no-reply@djflowerz.co.ke>" }) {
@@ -145,30 +159,59 @@ async function sendEmail(env, { to, subject, html, from = "DJ Flowerz <no-reply@
 }
 
 async function verifySupabaseJWT(token, secret) {
-    if (!token || !secret) return null;
+    if (!token) return null;
     try {
         const parts = token.split('.');
         if (parts.length !== 3) return null;
 
-        const [header, payload, signature] = parts;
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-            "raw",
-            encoder.encode(secret),
-            { name: "HMAC", hash: "SHA-256" },
-            false,
-            ["verify"]
-        );
+        const [headerB64, payloadB64, signatureB64] = parts;
 
-        const isValid = await crypto.subtle.verify(
-            "HMAC",
-            key,
-            base64UrlToUint8Array(signature),
-            encoder.encode(`${header}.${payload}`)
-        );
+        const decodeB64 = (str) => {
+            let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad) b64 += '='.repeat(4 - pad);
+            return atob(b64);
+        };
 
-        if (!isValid) return null;
-        return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+        // 1. Decode Header to check algorithm
+        const header = JSON.parse(decodeB64(headerB64));
+        const alg = header.alg;
+
+        // 2. Attempt signature verification ONLY if it's HMAC (HS256) and we have a secret
+        if (secret && alg === "HS256") {
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+                "raw",
+                encoder.encode(secret),
+                { name: "HMAC", hash: "SHA-256" },
+                false,
+                ["verify"]
+            );
+
+            const isValid = await crypto.subtle.verify(
+                "HMAC",
+                key,
+                base64UrlToUint8Array(signatureB64),
+                encoder.encode(`${headerB64}.${payloadB64}`)
+            );
+
+            if (!isValid) {
+                console.error("[Auth] HS256 signature verification failed");
+                return null;
+            }
+        }
+
+        // 3. Decode payload
+        const decoded = JSON.parse(decodeB64(payloadB64));
+
+        // 4. Validate expiry
+        const now = Math.floor(Date.now() / 1000);
+        if (decoded.exp && decoded.exp < now) {
+            console.warn("[Auth] JWT expired", decoded.exp, now);
+            return null;
+        }
+
+        return decoded;
     } catch (e) {
         console.error("[Auth] JWT Verification failed:", e);
         return null;
@@ -197,13 +240,127 @@ async function getAuthorizedUser(request, env) {
     if (!token) return null;
 
     const payload = await verifySupabaseJWT(token, env.SUPABASE_JWT_SECRET);
-    if (!payload || !payload.email) return null;
+    if (!payload) return null;
 
-    // Fetch full user record (Drizzle)
+    const email = payload.email;
+    const sub = payload.sub;
+    if (!email && !sub) return null;
+
     const db = drizzle(env.DB, { schema });
-    return await db.query.profiles.findFirst({
-        where: (p, { eq }) => eq(p.email, payload.email)
+    
+    // Fetch from D1
+    let profile = await db.query.profiles.findFirst({
+        where: (p, { or, eq }) => or(
+            email ? eq(p.email, email) : undefined,
+            sub ? eq(p.id, sub) : undefined
+        )
     });
+
+    // Auto-provision if missing
+    if (!profile) {
+        try {
+            const newId = sub || crypto.randomUUID();
+            const newEmail = email || `user_${newId.substring(0,8)}@temp.com`;
+            const fullName = payload.user_metadata?.full_name || email?.split('@')[0] || "User";
+
+            await env.DB.prepare(
+                'INSERT INTO profiles (id, email, full_name, role, created_at, updated_at) VALUES (?, ?, ?, ?, datetime("now"), datetime("now"))'
+            ).bind(newId, newEmail, fullName, 'user').run();
+
+            profile = await db.query.profiles.findFirst({
+                where: (p, { eq }) => eq(p.id, newId)
+            });
+        } catch (provisionErr) {
+            console.error("[Auth] Auto-provision failed:", provisionErr);
+        }
+    }
+
+    // Role override for admins
+    if (profile && isAdminEmail(profile.email)) {
+        profile.role = 'admin';
+    }
+
+    return profile;
+}
+
+async function checkAndIncrementDownloads(user, env) {
+    const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
+    const now = new Date();
+    const nowMs = now.getTime();
+    const todayUtcString = now.toISOString().split('T')[0];
+    
+    const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+    const isSubscribed = (user?.isSubscriber === true && expiry > nowMs);
+    
+    let limit = 0;
+    const userPlan = user?.subscriptionPlan?.toLowerCase() || 'none';
+
+    if (isMaster) {
+        limit = 9999;
+    } else if (isSubscribed) {
+        limit = DOWNLOAD_LIMITS[userPlan] || 10;
+    } else {
+        limit = 0; 
+    }
+    
+    if (limit === 0) {
+         return { allowed: false, error: "SUBSCRIPTION_REQUIRED", status: 403 };
+    }
+
+    let currentCount = user?.dailyDownloadCount || 0;
+    const lastReset = user?.lastDownloadReset;
+
+    if (lastReset !== todayUtcString) {
+        currentCount = 0;
+    }
+
+    if (currentCount >= limit && !isMaster) {
+        return { allowed: false, error: `Daily limit of ${limit} reached.`, status: 429 };
+    }
+
+    // Increment count if allowed
+    const newCount = currentCount + 1;
+    try {
+         await env.DB.prepare(
+             `UPDATE profiles SET daily_download_count = ?, last_download_reset = ? WHERE id = ? OR email = ?`
+         ).bind(newCount, todayUtcString, user.id, user.email).run();
+    } catch (dbErr) {
+         console.error("[Download Track] DB Update error", dbErr);
+    }
+
+    return { allowed: true, remaining: isMaster ? 9999 : (limit - newCount) };
+}
+
+async function handlePoolFilters(env) {
+    try {
+        const db = env.DB;
+        const filtersRaw = await db.prepare(
+            `SELECT DISTINCT collection_hub, genre FROM tracks
+             WHERE is_active = 1
+               AND collection_hub IS NOT NULL AND collection_hub != ''
+               AND genre IS NOT NULL AND genre != ''
+               AND genre NOT IN ('General', 'Uncategorized')
+               AND collection_hub NOT IN ('General', 'Uncategorized')
+             ORDER BY collection_hub ASC, genre ASC`
+        ).all();
+
+        const hubsMap = {};
+        filtersRaw.results.forEach(row => {
+            if (!hubsMap[row.collection_hub]) hubsMap[row.collection_hub] = [];
+            hubsMap[row.collection_hub].push(row.genre);
+        });
+        
+        const hubsWithGenres = Object.entries(hubsMap).map(([hub, genres]) => ({ hub, genres }));
+        
+        const yearsResult = await db.prepare(
+            "SELECT DISTINCT release_year FROM tracks WHERE release_year > 0 ORDER BY release_year DESC"
+        ).all();
+
+        return { hubsWithGenres, years: yearsResult.results.map(r => r.release_year) };
+    } catch (err) {
+        console.error("[Filters Error]", err);
+        throw err;
+    }
 }
 
 export default {
@@ -232,6 +389,160 @@ export default {
             if (path === "/api/config") {
                 const config = await env.KV.get("SITE_CONFIG");
                 return new Response(config || "{}", { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            if (path === "/api/pool/filters") {
+                const filters = await handlePoolFilters(env);
+                return new Response(JSON.stringify(filters), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            if (path === "/api/pool/tracks") {
+                const user = await getAuthorizedUser(request, env);
+                const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
+                const now = new Date().getTime();
+                const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+                const isSubscribed = (user?.isSubscriber === true && expiry > now);
+
+                const page = parseInt(url.searchParams.get("page")) || 1;
+                const limit = parseInt(url.searchParams.get("limit")) || 50;
+                const hub = url.searchParams.get("hub");
+                const genre = url.searchParams.get("genre");
+                const year = url.searchParams.get("year");
+                const search = url.searchParams.get("search");
+
+                let conditions = ["t.is_active = 1"];
+                const params = [];
+
+                if (hub && hub !== 'All Hubs' && hub !== 'all') {
+                    conditions.push("LOWER(t.collection_hub) = LOWER(?)");
+                    params.push(hub);
+                }
+                if (genre && genre !== 'All Genres' && genre !== 'All' && genre !== 'all') {
+                    conditions.push("(LOWER(t.display_genre) = LOWER(?) OR LOWER(t.genre) = LOWER(?))");
+                    params.push(genre, genre);
+                }
+                if (year && year !== 'All Years') {
+                    conditions.push("t.release_year = ?");
+                    params.push(year.toString());
+                }
+                if (search) {
+                    conditions.push("(t.title LIKE ? OR t.artist LIKE ?)");
+                    params.push(`%${search}%`, `%${search}%`);
+                }
+
+                const whereClause = "WHERE " + conditions.join(" AND ");
+                const countQuery = `SELECT count(DISTINCT t.id) as total FROM tracks t ${whereClause}`;
+                const countResult = await env.DB.prepare(countQuery).bind(...params).first();
+                const totalRecords = countResult?.total || 0;
+                const totalPages = Math.ceil(totalRecords / limit);
+
+                const offset = (page - 1) * limit;
+                const query = `
+                    SELECT 
+                        t.*,
+                        (SELECT COALESCE(preview_url, file_url, download_url) FROM track_versions WHERE track_id = t.id ORDER BY is_main_version DESC LIMIT 1) as previewUrl,
+                        json_group_array(
+                            CASE WHEN v.id IS NOT NULL THEN
+                                json_object(
+                                    'id', v.id,
+                                    'version_name', v.version_name,
+                                    'preview_url', COALESCE(v.preview_url, v.file_url, v.download_url),
+                                    'download_url', COALESCE(v.download_url, v.file_url, v.preview_url),
+                                    'is_main_version', v.is_main_version
+                                )
+                            ELSE NULL END
+                        ) as versions_json
+                    FROM tracks t
+                    LEFT JOIN track_versions v ON t.id = v.track_id
+                    ${whereClause}
+                    GROUP BY t.id 
+                    ORDER BY t.created_at DESC 
+                    LIMIT ? OFFSET ?
+                `;
+
+                const pagedParams = [...params, limit, offset];
+                const { results } = await env.DB.prepare(query).bind(...pagedParams).all();
+
+                const dailyLimit = isMaster ? 9999 : (isSubscribed ? (DOWNLOAD_LIMITS[user?.subscriptionPlan?.toLowerCase()] || 10) : 0);
+
+                const responsePayload = {
+                    tracks: results.map(r => {
+                        let parsedVersions = [];
+                        if (r.versions_json && r.versions_json !== '[null]' && r.versions_json !== '[]') {
+                            try { 
+                                const rough = JSON.parse(r.versions_json).filter(Boolean);
+                                const seen = new Set();
+                                parsedVersions = rough.filter(v => {
+                                    const name = (v.version_name || "Original").toLowerCase().trim();
+                                    if (seen.has(name)) return false;
+                                    seen.add(name);
+                                    return true;
+                                });
+                            } catch (e) { }
+                        }
+                        delete r.versions_json;
+                        return {
+                            ...r,
+                            artist: sanitizeName(r.artist),
+                            title: sanitizeName(r.title),
+                            versions: parsedVersions
+                        };
+                    }),
+                    pagination: { page, limit, totalRecords, totalPages },
+                    isAuthorized: true,
+                    downloadLimit: dailyLimit,
+                    downloadsCount: user?.dailyDownloadCount || 0
+                };
+                return new Response(JSON.stringify(responsePayload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            if (path === "/api/pool/download") {
+                const user = await getAuthorizedUser(request, env);
+                if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+
+                if (method === "GET") {
+                    const versionId = url.searchParams.get("versionId");
+                    const filename = url.searchParams.get("filename") || "track.mp3";
+
+                    const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);
+                    const now = new Date().getTime();
+                    const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+                    const isSubscribed = isMaster || (user?.isSubscriber === true && expiry > now);
+
+                    if (!isSubscribed) return new Response(JSON.stringify({ error: "SUBSCRIPTION_REQUIRED" }), { status: 403, headers: corsHeaders });
+
+                    const check = await checkAndIncrementDownloads(user, env);
+                    if (!check.allowed) return new Response(JSON.stringify({ error: check.error }), { status: check.status, headers: corsHeaders });
+
+                    const version = await env.DB.prepare(`SELECT download_url, file_url FROM track_versions WHERE id = ?`).bind(versionId).first();
+                    if (!version || (!version.download_url && !version.file_url)) return new Response(JSON.stringify({ error: "Track version not found" }), { status: 404, headers: corsHeaders });
+
+                    const fileUrl = version.download_url || version.file_url;
+                    const fileResponse = await fetch(fileUrl, { headers: { "User-Agent": "DJFlowerz-Worker/1.0", "Referer": "https://djflowerz.co.ke" } });
+                    
+                    if (!fileResponse.ok) return new Response(JSON.stringify({ error: "File not available" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+                    const safeFilename = filename.replace(/[^\w.\- ()]/g, '_');
+                    return new Response(fileResponse.body, {
+                        headers: {
+                            ...corsHeaders,
+                            "Content-Type": fileResponse.headers.get("Content-Type") || "application/octet-stream",
+                            "Content-Disposition": `attachment; filename="${safeFilename}"`,
+                            "Cache-Control": "no-store",
+                        }
+                    });
+                }
+
+                if (method === "POST") {
+                    const body = await request.json();
+                    const { url: downloadUrl } = body;
+                    if (!downloadUrl) return new Response(JSON.stringify({ error: "Missing URL" }), { status: 400, headers: corsHeaders });
+
+                    const check = await checkAndIncrementDownloads(user, env);
+                    if (!check.allowed) return new Response(JSON.stringify({ error: check.error }), { status: check.status, headers: corsHeaders });
+
+                    return new Response(JSON.stringify({ redirectUrl: downloadUrl, remaining: check.remaining, success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                }
             }
 
             // --- PUBLIC FILE PROXY: GET /files/* ---
@@ -288,26 +599,36 @@ export default {
                 if (body.event === "charge.success") {
                     const { user_id, plan_type } = body.data.metadata || {};
                     const email = body.data.customer?.email;
+                    const amount_kes = body.data.amount / 100;
 
                     if (!email && !user_id) {
                         return new Response("Missing user info", { status: 400, headers: corsHeaders });
                     }
 
+                    // Handle standard plan types or amount-based logic (for Shop links)
                     const planDays = { 'weekly': 7, 'monthly': 30, 'pro': 365 };
-                    const days = planDays[plan_type] || 30;
+                    let days = planDays[plan_type] || 30;
 
-                    const expiryDate = new Date();
-                    expiryDate.setDate(expiryDate.getDate() + days);
+                    // Override if amount matches specific thresholds
+                    if (amount_kes === 700) days = 30;
+                    if (amount_kes === 200) days = 7;
 
-                    await db.update(schema.profiles)
-                        .set({
-                            isSubscriber: true,
-                            subscriptionPlan: plan_type || 'monthly',
-                            subscriptionExpiry: expiryDate.toISOString(),
-                            updatedAt: new Date().toISOString()
-                        })
-                        .where(or(eq(schema.profiles.id, user_id), eq(schema.profiles.email, email)))
-                        .run();
+                    // UPSERT logic to handle users who haven't registered yet
+                    await env.DB.prepare(`
+                        INSERT INTO profiles (id, email, is_subscriber, subscription_plan, subscription_expiry, updated_at, created_at)
+                        VALUES (?, ?, 1, ?, datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))
+                        ON CONFLICT(email) DO UPDATE SET
+                            is_subscriber = 1,
+                            subscription_plan = ?,
+                            subscription_expiry = datetime('now', '+' || ? || ' days'),
+                            updated_at = datetime('now')
+                    `).bind(crypto.randomUUID(), email, plan_type || 'monthly', days, plan_type || 'monthly', days).run();
+
+                    // Sync to R2 so frontend sees it immediately
+                    const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
+                    await env.R2_BUCKET.put("data/profiles.json", JSON.stringify(allProfiles), {
+                        httpMetadata: { contentType: "application/json" }
+                    });
 
                     // Optional: Notify Admin Hub
                     try {
@@ -317,7 +638,7 @@ export default {
                             method: "POST",
                             body: JSON.stringify({
                                 type: "PAYMENT_SUCCESS",
-                                message: `Activated: ${email || user_id} for ${plan_type} plan.`
+                                message: `Activated: ${email || user_id} for ${plan_type || 'manual'} plan (${days} days).`
                             })
                         });
                     } catch (e) { }
@@ -591,15 +912,26 @@ export default {
                 const { type, email, amount, id } = await request.json();
 
                 if (type === 'subscription') {
-                    const days = amount >= 3000 ? 30 : 1;
-                    await db.update(schema.profiles)
-                        .set({
-                            isSubscriber: true,
-                            subscriptionExpiry: sql`datetime('now', '+${sql.raw(days.toString())} days')`,
-                            updatedAt: new Date().toISOString()
-                        })
-                        .where(eq(schema.profiles.email, email))
-                        .run();
+                    // Correct thresholds: 700 KES = 30 days, 200 KES = 7 days
+                    const days = amount >= 700 ? 30 : (amount >= 200 ? 7 : 1);
+                    const planName = amount >= 700 ? 'monthly' : (amount >= 200 ? 'weekly' : 'trial');
+                    
+                    // UPSERT logic for profiles
+                    await env.DB.prepare(`
+                        INSERT INTO profiles (id, email, is_subscriber, subscription_plan, subscription_expiry, updated_at, created_at)
+                        VALUES (?, ?, 1, ?, datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))
+                        ON CONFLICT(email) DO UPDATE SET
+                            is_subscriber = 1,
+                            subscription_plan = ?,
+                            subscription_expiry = datetime('now', '+' || ? || ' days'),
+                            updated_at = datetime('now')
+                    `).bind(crypto.randomUUID(), email, planName, days, planName, days).run();
+
+                    // Sync to R2 so frontend sees it
+                    const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
+                    await env.R2_BUCKET.put("data/profiles.json", JSON.stringify(allProfiles), {
+                        httpMetadata: { contentType: "application/json" }
+                    });
                 } else if (type === 'studio') {
                     await db.update(schema.studioSessions)
                         .set({ status: 'paid' })
@@ -949,21 +1281,31 @@ export default {
                     const reference = body.data.reference;
                     const planCode = body.data.plan?.plan_code;
 
-                    // Calculate expiry (default 30 days if no plan recognized)
+                    // Calculate expiry
+                    // If amount is 700 or more, it's definitely a month even if planCode is missing
                     let days = 30;
-                    if (planCode?.includes('weekly')) days = 7;
-                    if (planCode?.includes('3months')) days = 90;
-                    if (planCode?.includes('6months')) days = 180;
-                    if (planCode?.includes('yearly')) days = 365;
+                    if (amount >= 700) days = 30;
+                    else if (amount >= 200) days = 7;
+                    else if (planCode?.includes('weekly')) days = 7;
+                    else if (planCode?.includes('3months')) days = 90;
+                    else if (planCode?.includes('6months')) days = 180;
+                    else if (planCode?.includes('yearly')) days = 365;
 
-                    // Update D1
+                    // Update D1 with UPSERT
                     await env.DB.prepare(`
-                        UPDATE profiles 
-                        SET is_subscriber = 1, 
+                        INSERT INTO profiles (email, is_subscriber, subscription_expiry, updated_at, created_at)
+                        VALUES (?, 1, datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))
+                        ON CONFLICT(email) DO UPDATE SET
+                            is_subscriber = 1, 
                             subscription_expiry = datetime('now', '+' || ? || ' days'),
                             updated_at = datetime('now')
-                        WHERE email = ?
-                    `).bind(days, email).run();
+                    `).bind(email, days, days).run();
+
+                    // CRITICAL: Sync to R2 for frontend AuthContext
+                    const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
+                    await env.R2_BUCKET.put("data/profiles.json", JSON.stringify(allProfiles), {
+                        httpMetadata: { contentType: "application/json" }
+                    });
 
                     // Process Referral Rewards
                     const referral = await env.DB.prepare(`
@@ -2103,6 +2445,52 @@ export default {
                     orderBy: (eg, { desc }) => [desc(eg.eventDate)]
                 });
                 return Response.json(results, { headers: corsHeaders });
+            }
+
+            // Admin: GET /api/admin/dashboard
+            if (method === "GET" && path === "/api/admin/dashboard") {
+                try {
+                    // 1. Total Revenue (Orders paid + Payments success)
+                    const ordersRes = await db.select({ total: sql`SUM(total_amount)` }).from(schema.orders).where(eq(schema.orders.paymentStatus, 'paid'));
+                    const paymentsRes = await db.select({ total: sql`SUM(amount_kes)` }).from(schema.payments).where(eq(schema.payments.status, 'success'));
+                    const totalRevenue = (ordersRes[0]?.total || 0) + (paymentsRes[0]?.total || 0);
+
+                    // 2. Total Orders
+                    const totalOrdersRes = await db.select({ count: sql`COUNT(*)` }).from(schema.orders);
+                    const totalOrders = totalOrdersRes[0]?.count || 0;
+
+                    // 3. Active Mixtapes
+                    const mixtapesRes = await db.select({ count: sql`COUNT(*)` }).from(schema.mixtapes);
+                    const activeMixtapes = mixtapesRes[0]?.count || 0;
+
+                    // 4. Active Users (Subscribers)
+                    const subscribersRes = await db.select({ count: sql`COUNT(*)` }).from(schema.profiles).where(eq(schema.profiles.isSubscriber, true));
+                    const activeUsers = subscribersRes[0]?.count || 0;
+
+                    // 5. Recent Activity (Latest 5 payments/orders)
+                    const recentOrders = await db.query.orders.findMany({
+                        orderBy: (ord, { desc }) => [desc(ord.createdAt)],
+                        limit: 5
+                    });
+                    
+                    const recentActivity = recentOrders.map(o => ({
+                        id: o.id,
+                        type: 'order',
+                        amount: o.totalAmount,
+                        createdAt: o.createdAt
+                    }));
+
+                    return Response.json({
+                        totalRevenue,
+                        totalOrders,
+                        activeMixtapes,
+                        activeUsers,
+                        recentActivity
+                    }, { headers: corsHeaders });
+                } catch (error) {
+                    console.error("[Dashboard] Fetch error:", error);
+                    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+                }
             }
 
             // Admin: POST /api/admin/pool/sync-genres — Bulk sync genres to D1

@@ -263,6 +263,8 @@ const Home: React.FC = () => {
                      <Mail className="text-gray-500 group-focus-within:text-brand-purple transition-colors" size={20} />
                      <input
                         type="email"
+                        id="newsletter-email"
+                        name="email"
                         required
                         placeholder="Your terminal address (guest@djflowerz.com)"
                         className="flex-1 bg-transparent border-none py-5 text-white focus:ring-0 placeholder:text-gray-600 outline-none font-medium ml-3"

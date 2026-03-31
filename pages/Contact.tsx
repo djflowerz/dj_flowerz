@@ -71,15 +71,15 @@ const Contact: React.FC = () => {
                   >
                      <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Your Name</label>
-                        <input name="name" type="text" required placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
+                        <input id="contact-name" name="name" type="text" required placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
                      </div>
                      <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email Address</label>
-                        <input name="email" type="email" required placeholder="john@example.com" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
+                        <input id="contact-email" name="email" type="email" required placeholder="john@example.com" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
                      </div>
                      <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Subject</label>
-                        <select name="subject" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple">
+                        <select id="contact-subject" name="subject" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple">
                            <option>General Support</option>
                            <option>Booking Inquiry</option>
                            <option>Collaboration</option>
@@ -89,7 +89,7 @@ const Contact: React.FC = () => {
                      </div>
                      <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Message</label>
-                        <textarea name="message" required placeholder="Tell us how we can help..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-40 resize-none focus:outline-none focus:border-brand-purple"></textarea>
+                        <textarea id="contact-message" name="message" required placeholder="Tell us how we can help..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-40 resize-none focus:outline-none focus:border-brand-purple"></textarea>
                      </div>
                      <button
                         type="submit"

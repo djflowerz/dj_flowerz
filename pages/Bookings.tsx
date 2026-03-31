@@ -91,22 +91,22 @@ const Bookings: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Full Name *</label>
-                              <input name="name" type="text" placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                              <input id="booking-name" name="name" type="text" placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email Address *</label>
-                              <input name="email" type="email" placeholder="john@example.com" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                              <input id="booking-email" name="email" type="email" placeholder="john@example.com" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone (WhatsApp) *</label>
-                              <input name="phone" type="text" placeholder="+254..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                              <input id="booking-phone" name="phone" type="text" placeholder="+254..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Event Type *</label>
-                              <select name="eventType" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple">
+                              <select id="booking-event-type" name="eventType" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple">
                                  <option>Wedding Reception</option>
                                  <option>Corporate Event</option>
                                  <option>Club / Lounge Set</option>
@@ -120,22 +120,22 @@ const Bookings: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Event Date *</label>
-                              <input name="eventDate" type="date" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                              <input id="booking-event-date" name="eventDate" type="date" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Time Duration *</label>
-                              <input name="duration" type="text" placeholder="e.g. 6pm - 12am" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                              <input id="booking-duration" name="duration" type="text" placeholder="e.g. 6pm - 12am" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                            </div>
                         </div>
 
                         <div>
                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Event Location (City, Venue) *</label>
-                           <input name="location" type="text" placeholder="Nairobi, Villa Rosa Kempinski" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
+                           <input id="booking-location" name="location" type="text" placeholder="Nairobi, Villa Rosa Kempinski" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" required />
                         </div>
 
                         <div>
                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Additional Details</label>
-                           <textarea name="details" placeholder="Tell us about the crowd, music preferences, specific requirements..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-32 resize-none focus:outline-none focus:border-brand-purple"></textarea>
+                           <textarea id="booking-details" name="details" placeholder="Tell us about the crowd, music preferences, specific requirements..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-32 resize-none focus:outline-none focus:border-brand-purple"></textarea>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -148,7 +148,7 @@ const Bookings: React.FC = () => {
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Budget Range (KES)</label>
-                              <input name="budget" type="number" placeholder="Enter your budget" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
+                              <input id="booking-budget" name="budget" type="number" placeholder="Enter your budget" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
                            </div>
                         </div>
 

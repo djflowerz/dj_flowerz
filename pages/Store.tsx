@@ -618,6 +618,8 @@ export default function Products() {
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                     <input
                         type="text"
+                        id="store-search"
+                        name="search"
                         placeholder="Search..."
                         value={searchQuery}
                         onChange={(e) => updateFilter('search', e.target.value)}
@@ -758,6 +760,8 @@ export default function Products() {
             }}>
               <input
                 type="email"
+                id="store-newsletter-email"
+                name="email"
                 placeholder="Enter your email address..."
                 required
                 value={email}

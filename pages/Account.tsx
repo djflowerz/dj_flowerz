@@ -281,6 +281,8 @@ const Account: React.FC = () => {
                       <div>
                         <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Display Name</label>
                         <input
+                          id="editName"
+                          name="editName"
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
@@ -290,6 +292,8 @@ const Account: React.FC = () => {
                       <div>
                         <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Phone Number</label>
                         <input
+                          id="editPhone"
+                          name="editPhone"
                           type="tel"
                           value={editPhone}
                           onChange={(e) => setEditPhone(e.target.value)}
@@ -300,6 +304,8 @@ const Account: React.FC = () => {
                       <div className="md:col-span-2">
                         <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Profile Picture URL (Optional)</label>
                         <input
+                          id="editAvatar"
+                          name="editAvatar"
                           type="url"
                           value={editAvatar}
                           onChange={(e) => setEditAvatar(e.target.value)}
@@ -418,6 +424,8 @@ const Account: React.FC = () => {
                           <div className="flex-1">
                             <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Change Email Address</label>
                             <input
+                              id="newEmail"
+                              name="newEmail"
                               type="email"
                               value={newEmail}
                               onChange={(e) => setNewEmail(e.target.value)}

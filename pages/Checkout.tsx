@@ -125,11 +125,14 @@ export default function Checkout() {
 
   // Calculate total weight of physical items in the cart
   const totalWeight = useMemo(() => {
-    if (isDigitalOnly) return 0;
+    if (isDigitalOnly || !items) return 0;
     return items.reduce((sum, item: any) => {
       // Default weight to 0.5kg if not specified for physical products
-      const weight = item.weight || (item.type === 'physical' ? 0.5 : 0);
-      return sum + (weight * (item.quantity || 1));
+      // Ensure we parse the weight as a number
+      const itemWeight = Number(item.weight);
+      const weight = !isNaN(itemWeight) ? itemWeight : (item.type === 'physical' ? 0.5 : 0);
+      const quantity = Number(item.quantity) || 1;
+      return sum + (weight * quantity);
     }, 0);
   }, [items, isDigitalOnly]);
 
@@ -146,12 +149,15 @@ export default function Checkout() {
     const { base_price, hardship_surcharge, base_weight, increment_price } = storeSettings.shipping;
     const baseRate = Number(base_price) || 0;
     const surcharge = isHardshipArea ? (Number(hardship_surcharge) || 0) : 0;
+    const baseWeight = Number(base_weight) || 0;
+    const incrementPrice = Number(increment_price) || 0;
     
     // Weight-based calculation
-    const extraWeight = Math.max(0, totalWeight - (base_weight || 0));
-    const extraCost = Math.ceil(extraWeight) * (Number(increment_price) || 0);
+    const extraWeight = Math.max(0, (Number(totalWeight) || 0) - baseWeight);
+    const extraCost = Math.ceil(extraWeight) * incrementPrice;
     
-    return baseRate + surcharge + extraCost;
+    const total = baseRate + surcharge + extraCost;
+    return isNaN(total) ? 0 : total;
   }, [isDigitalOnly, isHardshipArea, totalWeight, storeSettings]);
 
   // Generate dynamic delivery speed options based on G4S / market standard tiers.
@@ -166,8 +172,10 @@ export default function Checkout() {
     const premiumPrices = storeSettings.shipping.premium_prices || {};
 
     const overnightSurcharge = Number(premiumPrices.overnight ?? 150);
-    const sameDayMin        = Number(premiumPrices.same_day  ?? PREMIUM_SERVICES.same_day.price);
-    const oneHourMin        = Number(premiumPrices.one_hour  ?? PREMIUM_SERVICES.one_hour.price);
+    const sameDayMin        = Number(premiumPrices.same_day  ?? (PREMIUM_SERVICES.same_day.price || 0));
+    const oneHourMin        = Number(premiumPrices.one_hour  ?? (PREMIUM_SERVICES.one_hour.price || 0));
+    
+    const baseRate = Number(baseShippingRate) || 0;
     
     return [
       { 
@@ -175,14 +183,14 @@ export default function Checkout() {
         type: 'standard', 
         label: PREMIUM_SERVICES.standard.label, 
         timeline: PREMIUM_SERVICES.standard.timeline, 
-        price: baseShippingRate 
+        price: baseRate 
       },
       { 
         id: 'overnight', 
         type: 'express', 
         label: 'Overnight Courier', 
         timeline: '1-2 Business Days', 
-        price: baseShippingRate + overnightSurcharge
+        price: baseRate + overnightSurcharge
       },
       ...(isNearby ? [
         { 
@@ -190,7 +198,7 @@ export default function Checkout() {
           type: 'instant', 
           label: PREMIUM_SERVICES.same_day.label,
           timeline: PREMIUM_SERVICES.same_day.timeline, 
-          price: Math.max(sameDayMin, baseShippingRate) 
+          price: Math.max(sameDayMin, baseRate) 
         }
       ] : []),
       ...(isNairobi ? [
@@ -199,7 +207,7 @@ export default function Checkout() {
           type: 'instant', 
           label: PREMIUM_SERVICES.one_hour.label, 
           timeline: PREMIUM_SERVICES.one_hour.timeline, 
-          price: Math.max(oneHourMin, baseShippingRate)
+          price: Math.max(oneHourMin, baseRate)
         }
       ] : [])
     ];
@@ -219,7 +227,7 @@ export default function Checkout() {
     if (!activeCoupon) return 0;
     // Map both old 'type' and new 'discount_type' fields for compatibility
     const type = activeCoupon.discount_type || activeCoupon.type;
-    const value = activeCoupon.discount_value || activeCoupon.value;
+    const value = Number(activeCoupon.discount_value || activeCoupon.value) || 0;
     
     if (type === 'percentage') {
       return (subtotal * value) / 100;
@@ -228,7 +236,10 @@ export default function Checkout() {
     }
   }, [activeCoupon, subtotal]);
 
-  const finalTotal = useMemo(() => Math.max(0, subtotal - discountAmount + shippingCost), [subtotal, discountAmount, shippingCost]);
+  const finalTotal = useMemo(() => {
+    const total = (Number(subtotal) || 0) - (Number(discountAmount) || 0) + (Number(shippingCost) || 0);
+    return Math.max(0, isNaN(total) ? 0 : total);
+  }, [subtotal, discountAmount, shippingCost]);
 
 
 
@@ -448,19 +459,19 @@ export default function Checkout() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Full Name</label>
-                    <input type="text" {...register('name', { required: 'Full name is required' })} placeholder="Enter your full name" className={inputCls} />
+                    <input type="text" id="checkout-name" {...register('name', { required: 'Full name is required' })} placeholder="Enter your full name" className={inputCls} />
                     {errors.name && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.name.message as string}</span>}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Email Address</label>
-                    <input type="email" {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } })} placeholder="your@email.com" className={inputCls} />
+                    <input type="email" id="checkout-email" {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } })} placeholder="your@email.com" className={inputCls} />
                     {errors.email && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.email.message as string}</span>}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Phone Number (M-PESA)</label>
-                    <input type="tel" {...register('phone', {
+                    <input type="tel" id="checkout-phone" {...register('phone', {
                       required: 'Phone number is required',
                       pattern: { value: /^(?:254|\+254|0)?(7|1)(?:(?:[0-9][0-9])|(?:[0-9][0-9]))[0-9]{6}$/, message: 'Invalid Kenyan phone number (e.g. 07xx xxx xxx)' }
                     })} placeholder="07xx xxx xxx" className={inputCls} />
@@ -469,7 +480,7 @@ export default function Checkout() {
 
                   <div className="space-y-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Order Notes (optional)</label>
-                    <input type="text" {...register('orderNotes')} placeholder="e.g. Leave at security, gift message..." className={inputCls} />
+                    <input type="text" id="checkout-notes" {...register('orderNotes')} placeholder="e.g. Leave at security, gift message..." className={inputCls} />
                   </div>
 
                   {/* Physical shipping fields */}
@@ -478,7 +489,7 @@ export default function Checkout() {
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select County</label>
                         <div className="relative">
-                          <select {...register('county', { required: 'County is required' })} className={inputCls + ' appearance-none cursor-pointer'}>
+                          <select id="checkout-county" {...register('county', { required: 'County is required' })} className={inputCls + ' appearance-none cursor-pointer'}>
                             <option value="" className="bg-[#15151A]">Select your county</option>
                             {KENYAN_COUNTIES.map(county => (
                               <option key={county} value={county} className="bg-[#15151A]">{county}</option>
@@ -494,6 +505,8 @@ export default function Checkout() {
                         {availableTowns.length > 0 ? (
                           <div className="relative">
                             <select
+                              id="checkout-town-select"
+                              name="town"
                               value={selectedTown}
                               onChange={(e) => handleTownSelect(e.target.value)}
                               className={inputCls + ' appearance-none cursor-pointer'}
@@ -508,6 +521,8 @@ export default function Checkout() {
                         ) : (
                           <input
                             type="text"
+                            id="checkout-town-input"
+                            name="town"
                             value={selectedTown}
                             onChange={(e) => handleTownSelect(e.target.value)}
                             placeholder={selectedCounty ? `Enter your area in ${selectedCounty}` : 'Select a county first'}
@@ -519,20 +534,20 @@ export default function Checkout() {
 
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Nearest Landmark / Building</label>
-                        <input type="text" {...register('landmark', { required: 'Landmark is required' })} placeholder="e.g. Opposite Shell Petrol Station" className={inputCls} />
+                        <input type="text" id="checkout-landmark" {...register('landmark', { required: 'Landmark is required' })} placeholder="e.g. Opposite Shell Petrol Station" className={inputCls} />
                         {errors.landmark && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.landmark.message as string}</span>}
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Apartment / House / Office Number</label>
-                        <input type="text" {...register('buildingDetails', { required: 'Details are required' })} placeholder="e.g. Garden Estate, Block B, House 4" className={inputCls} />
+                        <input type="text" id="checkout-building" {...register('buildingDetails', { required: 'Details are required' })} placeholder="e.g. Garden Estate, Block B, House 4" className={inputCls} />
                         {errors.buildingDetails && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.buildingDetails.message as string}</span>}
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Preferred Delivery Time</label>
                         <div className="relative">
-                          <select {...register('deliveryTime')} className={inputCls + ' appearance-none cursor-pointer'}>
+                          <select id="checkout-delivery-time" {...register('deliveryTime')} className={inputCls + ' appearance-none cursor-pointer'}>
                             <option value="any" className="bg-[#15151A]">Anytime (8am - 6pm)</option>
                             <option value="morning" className="bg-[#15151A]">Morning (9am - 12pm)</option>
                             <option value="afternoon" className="bg-[#15151A]">Afternoon (2pm - 5pm)</option>
@@ -542,7 +557,7 @@ export default function Checkout() {
                       </div>
 
                       <div className="md:col-span-2 flex items-center gap-3 p-4 bg-brand-purple/5 rounded-2xl border border-brand-purple/10">
-                        <input type="checkbox" id="whatsappUpdates" {...register('whatsappUpdates')} className="w-5 h-5 rounded border-white/10 bg-black/40 text-brand-purple focus:ring-brand-purple" />
+                        <input type="checkbox" id="whatsappUpdates" name="whatsappUpdates" {...register('whatsappUpdates')} className="w-5 h-5 rounded border-white/10 bg-black/40 text-brand-purple focus:ring-brand-purple" />
                         <label htmlFor="whatsappUpdates" className="text-sm font-bold text-gray-300 flex items-center gap-2 cursor-pointer">
                           <MessageSquare size={16} className="text-brand-purple" />
                           Send my tracking updates to WhatsApp
@@ -627,7 +642,7 @@ export default function Checkout() {
                       <div className="p-5 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Installment Duration</label>
                         <div className="relative">
-                          <select value={lipaDuration} onChange={(e) => setLipaDuration(Number(e.target.value))} className={inputCls + ' appearance-none cursor-pointer bg-[#0B0B0F]/50'}>
+                          <select id="checkout-lipa-duration" name="lipaDuration" value={lipaDuration} onChange={(e) => setLipaDuration(Number(e.target.value))} className={inputCls + ' appearance-none cursor-pointer bg-[#0B0B0F]/50'}>
                             <option value="2" className="bg-[#15151A]">2 Months (Deposit + 2 Payments)</option>
                             <option value="3" className="bg-[#15151A]">3 Months (Deposit + 3 Payments)</option>
                             <option value="4" className="bg-[#15151A]">4 Months (Deposit + 4 Payments)</option>

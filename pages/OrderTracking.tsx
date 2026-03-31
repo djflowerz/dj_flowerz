@@ -99,6 +99,8 @@ const OrderTracking: React.FC = () => {
               <div className="relative group">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-purple transition-colors" />
                 <input
+                  id="tracking-order-id"
+                  name="orderId"
                   type="text"
                   required
                   placeholder="e.g. ORD-12345"
@@ -112,6 +114,8 @@ const OrderTracking: React.FC = () => {
             <div className="space-y-3">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-2">Billing Signal (Email)</label>
               <input
+                id="tracking-email"
+                name="email"
                 type="email"
                 required
                 placeholder="you@email.com"

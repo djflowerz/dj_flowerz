@@ -151,16 +151,27 @@ const MixtapeDetails: React.FC = () => {
 
                   {/* Embed Player Section */}
                    {isStreamable(mixtape.audioUrl) && (
-                      <div className="mb-8 rounded-[2rem] overflow-hidden border border-white/10 bg-black/40 shadow-2xl flex items-center justify-center">
-                          <iframe
-                             src={getEmbedUrl(mixtape.audioUrl) || ''}
-                             width="100%"
-                             height="600"
-                             frameBorder="0"
-                             scrolling="no"
-                             allow="autoplay"
-                             className="block"
-                          ></iframe>
+                      <div className="mb-8 rounded-[2rem] overflow-hidden border border-white/10 bg-black/40 shadow-2xl flex flex-col items-center justify-center min-h-[120px]">
+                          {getEmbedUrl(mixtape.audioUrl) ? (
+                             <iframe
+                                src={getEmbedUrl(mixtape.audioUrl) || ''}
+                                width="100%"
+                                height={mixtape.audioUrl.includes('hearthis.at') ? "150" : "450"}
+                                frameBorder="0"
+                                scrolling="no"
+                                allow="autoplay"
+                                className="block"
+                             ></iframe>
+                          ) : (
+                             <div className="w-full p-8 text-center space-y-4">
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">Direct Streaming Protocol</p>
+                                <audio 
+                                  src={mixtape.audioUrl} 
+                                  controls 
+                                  className="w-full h-12 rounded-full bg-brand-purple/5"
+                                ></audio>
+                             </div>
+                          )}
                       </div>
                    )}
 

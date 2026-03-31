@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sbUser = session.user;
     const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
     const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim();
-    const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv || normalizeEmail(sbUser.email) === 'testadmin@example.com';
+    const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv;
 
     try {
       // Fetch Profiles from R2
@@ -76,8 +76,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: profile.name || sbUser.user_metadata?.full_name || 'User',
           email: sbUser.email || '',
           role: profile.role || (isAdminEmail ? 'admin' : 'user'),
-          isAdmin: (profile.role === 'admin') || isAdminEmail,
-          isSubscriber: (profile.role === 'admin') || isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
+          isAdmin: isAdminEmail,
+          isSubscriber: isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
           subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
           subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
           avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
@@ -181,8 +181,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: newProfile.name,
           email: newProfile.email,
           role: newProfile.role as any,
-          isAdmin: newProfile.role === 'admin',
-          isSubscriber: newProfile.is_subscriber,
+          isAdmin: isAdminEmail,
+          isSubscriber: isAdminEmail || newProfile.is_subscriber,
           subscriptionPlan: newProfile.subscription_plan as any,
           subscriptionExpiry: newProfile.subscription_expiry as string,
           avatarUrl: newProfile.avatar_url,

@@ -134,32 +134,38 @@ const Login: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="YOU@EXAMPLE.COM"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-              required
-              disabled={loading}
-            />
+              <input
+                type="email"
+                id="login-email"
+                name="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="YOU@EXAMPLE.COM"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                required
+                disabled={loading}
+              />
           </div>
           <div>
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Password</label>
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
-              required
-              disabled={loading}
-            />
+              <input
+                type={showPassword ? "text" : "password"}
+                id="login-password"
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/50 focus:outline-none transition-all font-mono tracking-widest text-sm shadow-inner placeholder:text-gray-600"
+                required
+                disabled={loading}
+              />
           </div>
 
           <div className="flex items-center justify-between text-[11px] font-bold tracking-wider uppercase">
             <label className="flex items-center gap-2 text-gray-500 cursor-pointer hover:text-white transition-colors">
               <input
+                id="show-password"
+                name="showPassword"
                 type="checkbox"
                 checked={showPassword}
                 onChange={(e) => setShowPassword(e.target.checked)}

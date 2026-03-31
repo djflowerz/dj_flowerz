@@ -155,6 +155,8 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
 const InputGroup: React.FC<{
    label: string;
+   id?: string;
+   name?: string;
    type?: string;
    value?: any;
    onChange: (v: any) => void;
@@ -163,56 +165,69 @@ const InputGroup: React.FC<{
    options?: string[];
    helperText?: string;
    checked?: boolean;
-}> = ({ label, type = "text", value, onChange, placeholder, required, options, helperText, checked }) => (
-   <div className="space-y-3 mb-8">
-      <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] pl-1">
-         {label} {required && <span className="text-brand-purple ml-1 animate-pulse">*</span>}
-      </label>
+}> = ({ label, id, name, type = "text", value, onChange, placeholder, required, options, helperText, checked }) => {
+   const inputId = id || label.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+   const inputName = name || inputId;
 
-      {options ? (
-         <div className="relative group">
-            <select
+   return (
+      <div className="space-y-3 mb-8">
+         <label htmlFor={inputId} className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] pl-1">
+            {label} {required && <span className="text-brand-purple ml-1 animate-pulse">*</span>}
+         </label>
+
+         {options ? (
+            <div className="relative group">
+               <select
+                  id={inputId}
+                  name={inputName}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all appearance-none cursor-pointer shadow-inner pr-12 font-medium"
+               >
+                  {options.map(opt => <option key={opt} value={opt} className="bg-[#0B0B0F]">{opt}</option>)}
+               </select>
+               <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-600 group-hover:text-brand-purple transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+               </div>
+            </div>
+         ) : type === 'textarea' ? (
+            <textarea
+               id={inputId}
+               name={inputName}
                value={value}
                onChange={(e) => onChange(e.target.value)}
-               className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all appearance-none cursor-pointer shadow-inner pr-12 font-medium"
-            >
-               {options.map(opt => <option key={opt} value={opt} className="bg-[#0B0B0F]">{opt}</option>)}
-            </select>
-            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-600 group-hover:text-brand-purple transition-colors">
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
-            </div>
-         </div>
-      ) : type === 'textarea' ? (
-         <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full bg-[#0B0B0F] border border-white/5 rounded-3xl p-5 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all h-40 resize-none placeholder:text-gray-700 shadow-inner font-medium"
-         />
-      ) : type === 'checkbox' ? (
-         <label className="flex items-center gap-4 cursor-pointer bg-[#0B0B0F] border border-white/5 rounded-2xl p-5 hover:border-brand-purple/30 group transition-all shadow-inner">
-            <div className="relative flex items-center">
-               <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) => onChange(e.target.checked)}
-                  className="w-6 h-6 accent-brand-purple rounded-lg bg-black/40 border-white/10 ring-offset-0 focus:ring-0 cursor-pointer"
-               />
-            </div>
-            <span className="text-sm text-gray-400 font-black uppercase tracking-widest group-hover:text-white transition-colors">{placeholder || label}</span>
-         </label>
-      ) : (
-         <input
-            type={type}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all placeholder:text-gray-700 shadow-inner font-medium"
-         />
-      )}
-      {helperText && <p className="text-[10px] text-gray-600 pl-1 font-bold uppercase tracking-widest opacity-60">{helperText}</p>}
-   </div>
-);
+               placeholder={placeholder}
+               className="w-full bg-[#0B0B0F] border border-white/5 rounded-3xl p-5 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all h-40 resize-none placeholder:text-gray-700 shadow-inner font-medium"
+            />
+         ) : type === 'checkbox' ? (
+            <label className="flex items-center gap-4 cursor-pointer bg-[#0B0B0F] border border-white/5 rounded-2xl p-5 hover:border-brand-purple/30 group transition-all shadow-inner">
+               <div className="relative flex items-center">
+                  <input
+                     id={inputId}
+                     name={inputName}
+                     type="checkbox"
+                     checked={checked}
+                     onChange={(e) => onChange(e.target.checked)}
+                     className="w-6 h-6 accent-brand-purple rounded-lg bg-black/40 border-white/10 ring-offset-0 focus:ring-0 cursor-pointer"
+                  />
+               </div>
+               <span className="text-sm text-gray-400 font-black uppercase tracking-widest group-hover:text-white transition-colors">{placeholder || label}</span>
+            </label>
+         ) : (
+            <input
+               id={inputId}
+               name={inputName}
+               type={type}
+               value={value}
+               onChange={(e) => onChange(e.target.value)}
+               placeholder={placeholder}
+               className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-brand-purple/50 focus:ring-[6px] focus:ring-brand-purple/5 outline-none transition-all placeholder:text-gray-700 shadow-inner font-medium"
+            />
+         )}
+         {helperText && <p className="text-[10px] text-gray-600 pl-1 font-bold uppercase tracking-widest opacity-60">{helperText}</p>}
+      </div>
+   );
+};
 
 // Initial States
 const INITIAL_PRODUCT_STATE: Product = {
@@ -2786,26 +2801,26 @@ const AdminDashboard: React.FC = () => {
                                           </div>
                                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                              <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Title</label>
-                                                <input value={editingScannedTrack.title || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                                <label htmlFor="scanned-track-title" className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Title</label>
+                                                <input id="scanned-track-title" name="title" value={editingScannedTrack.title || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
                                              </div>
                                              <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Artist</label>
-                                                <input value={editingScannedTrack.artist || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                                <label htmlFor="scanned-track-artist" className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Artist</label>
+                                                <input id="scanned-track-artist" name="artist" value={editingScannedTrack.artist || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
                                              </div>
                                              <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
-                                                <select value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
+                                                <label htmlFor="scanned-track-genre" className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Genre</label>
+                                                <select id="scanned-track-genre" name="genre" value={editingScannedTrack.genre || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, genre: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all">
                                                    {(genres || []).map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                                                 </select>
                                              </div>
                                              <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BPM</label>
-                                                <input type="number" value={editingScannedTrack.bpm || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, bpm: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                                <label htmlFor="scanned-track-bpm" className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BPM</label>
+                                                <input id="scanned-track-bpm" name="bpm" type="number" value={editingScannedTrack.bpm || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, bpm: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
                                              </div>
                                              <div className="space-y-2 md:col-span-2">
-                                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Download URL</label>
-                                                <input value={editingScannedTrack.downloadUrl || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, downloadUrl: e.target.value, previewUrl: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
+                                                <label htmlFor="scanned-track-url" className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Download URL</label>
+                                                <input id="scanned-track-url" name="downloadUrl" value={editingScannedTrack.downloadUrl || ''} onChange={e => setEditingScannedTrack({ ...editingScannedTrack, downloadUrl: e.target.value, previewUrl: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-purple transition-all" />
                                              </div>
                                           </div>
                                           <div className="flex gap-3 pt-2">
@@ -2856,6 +2871,8 @@ const AdminDashboard: React.FC = () => {
                                                    <tr key={track.id} className={`hover:bg-white/[0.02] transition-colors group ${selectedScanIds.has(track.id) ? 'bg-brand-purple/5' : ''}`}>
                                                       <td className="px-6 py-5">
                                                          <input
+                                                            id={`scan-check-${track.id}`}
+                                                            name={`scan-check-${track.id}`}
                                                             type="checkbox"
                                                             checked={selectedScanIds.has(track.id)}
                                                             onChange={() => toggleOne(track.id)}
@@ -3001,24 +3018,30 @@ const AdminDashboard: React.FC = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Label (cyan badge text)</label>
+                              <label htmlFor="store-hero-label" className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Label (cyan badge text)</label>
                               <input
+                                 id="store-hero-label"
+                                 name="heroLabel"
                                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium focus:border-brand-cyan/50 outline-none"
                                  value={storeHeroSettings.heroLabel}
                                  onChange={e => setStoreHeroSettings(s => ({ ...s, heroLabel: e.target.value }))}
                                />
                            </div>
                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Headline</label>
+                              <label htmlFor="store-hero-headline" className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Headline</label>
                               <input
+                                 id="store-hero-headline"
+                                 name="heroTitle"
                                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium focus:border-brand-cyan/50 outline-none"
                                  value={storeHeroSettings.heroTitle}
                                  onChange={e => setStoreHeroSettings(s => ({ ...s, heroTitle: e.target.value }))}
                                />
                            </div>
                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Promo Code</label>
+                              <label htmlFor="store-hero-promo" className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Promo Code</label>
                               <input
+                                 id="store-hero-promo"
+                                 name="promoCode"
                                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono font-black focus:border-brand-cyan/50 outline-none uppercase"
                                  value={storeHeroSettings.promoCode}
                                  onChange={e => setStoreHeroSettings(s => ({ ...s, promoCode: e.target.value.toUpperCase() }))}
@@ -3043,6 +3066,8 @@ const AdminDashboard: React.FC = () => {
                                  {(['countdownHours', 'countdownMinutes', 'countdownSeconds'] as const).map(field => (
                                     <input
                                        key={field}
+                                       id={`store-hero-${field}`}
+                                       name={field}
                                        type="number"
                                        min={0}
                                        max={field === 'countdownHours' ? 99 : 59}
@@ -3988,8 +4013,10 @@ const AdminDashboard: React.FC = () => {
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
                               <div className="space-y-4">
                                  <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Acquisition Incentive</label>
+                                    <label htmlFor="referral-incentive-type" className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Acquisition Incentive</label>
                                     <select
+                                       id="referral-incentive-type"
+                                       name="newUserDiscountType"
                                        value={referralSettings.newUserDiscountType}
                                        onChange={(e) => updateReferralSettings({ newUserDiscountType: e.target.value as 'percentage' | 'flat' })}
                                        className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-purple uppercase outline-none focus:border-brand-purple/50 transition-all cursor-pointer"
@@ -4000,6 +4027,8 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div className="relative group">
                                     <input
+                                       id="referral-incentive-value"
+                                       name="newUserDiscount"
                                        type="number"
                                        value={referralSettings.newUserDiscount}
                                        onChange={(e) => updateReferralSettings({ newUserDiscount: Number(e.target.value) })}
@@ -4012,10 +4041,12 @@ const AdminDashboard: React.FC = () => {
                               </div>
                               <div className="space-y-4">
                                  <div className="bg-white/[0.02] p-4 rounded-2xl border border-white/5">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Referrer Compensation</label>
+                                    <label htmlFor="referrer-reward-amount" className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">Referrer Compensation</label>
                                  </div>
                                  <div className="relative group">
                                     <input
+                                       id="referrer-reward-amount"
+                                       name="referrer-reward-amount"
                                        type="number"
                                        value={referralSettings.referrerRewardAmount}
                                        onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
@@ -4029,8 +4060,10 @@ const AdminDashboard: React.FC = () => {
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10 border-t border-white/5 pt-10">
                               <div className="space-y-4">
                                  <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">First-Time Discount</label>
+                                    <label htmlFor="first-time-discount-type" className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">First-Time Discount</label>
                                     <select
+                                       id="first-time-discount-type"
+                                       name="firstTimeDiscountType"
                                        value={referralSettings.firstTimeDiscountType || 'percentage'}
                                        onChange={(e) => updateReferralSettings({ firstTimeDiscountType: e.target.value as 'percentage' | 'flat' })}
                                        className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-cyan uppercase outline-none focus:border-brand-cyan/50 transition-all cursor-pointer"
@@ -4041,6 +4074,8 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div className="relative group">
                                     <input
+                                       id="first-time-discount-value"
+                                       name="firstTimeDiscount"
                                        type="number"
                                        value={referralSettings.firstTimeDiscount || 0}
                                        onChange={(e) => updateReferralSettings({ firstTimeDiscount: Number(e.target.value) })}
@@ -5181,10 +5216,34 @@ const AdminDashboard: React.FC = () => {
                <InputGroup label="Preview URL (Optional)" value={newPoolTrack.previewUrl || ''} onChange={v => setNewPoolTrack({ ...newPoolTrack, previewUrl: v })} placeholder="https://..." />
                <div className="border-t border-white/10 pt-6"><div className="flex justify-between items-center mb-4"><h4 className="font-bold text-white">Versions</h4><button onClick={addVersionToTrack} className="text-xs bg-white/10 px-3 py-1.5 rounded text-white flex items-center gap-1"><Plus size={12} /> Add Version</button></div><div className="space-y-3">{newPoolTrack.versions.map((version, idx) => (<div key={version.id} className="flex gap-3 items-start bg-black/20 p-3 rounded-lg border border-white/5">
                   <div className="flex-1 grid grid-cols-2 gap-2">
-                     <select value={version.type} onChange={(e) => updateVersion(version.id, 'type', e.target.value)} className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none">{TRACK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
-                     <input type="text" value={version.label || ''} onChange={(e) => updateVersion(version.id, 'label', e.target.value)} placeholder="Label (e.g. Clean)" className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" />
+                     <select 
+                        id={`track-version-type-${version.id}`}
+                        name={`track-version-type-${version.id}`}
+                        value={version.type} 
+                        onChange={(e) => updateVersion(version.id, 'type', e.target.value)} 
+                        className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none"
+                     >
+                        {TRACK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                     </select>
+                     <input 
+                        id={`track-version-label-${version.id}`}
+                        name={`track-version-label-${version.id}`}
+                        type="text" 
+                        value={version.label || ''} 
+                        onChange={(e) => updateVersion(version.id, 'label', e.target.value)} 
+                        placeholder="Label (e.g. Clean)" 
+                        className="bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" 
+                     />
                      <div className="col-span-2 flex gap-2">
-                        <input type="text" value={version.downloadUrl} onChange={(e) => updateVersion(version.id, 'downloadUrl', e.target.value)} placeholder="Download URL" className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" />
+                        <input 
+                           id={`track-version-url-${version.id}`}
+                           name={`track-version-url-${version.id}`}
+                           type="text" 
+                           value={version.downloadUrl} 
+                           onChange={(e) => updateVersion(version.id, 'downloadUrl', e.target.value)} 
+                           placeholder="Download URL" 
+                           className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none" 
+                        />
                         <VersionAudioUpload onUpload={(url) => updateVersion(version.id, 'downloadUrl', url)} />
                      </div>
                   </div>
@@ -5444,6 +5503,8 @@ const AdminDashboard: React.FC = () => {
                            <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1">Receipt / Waybill</h4>
                            <div className="relative group">
                               <input
+                                 id="shipping-receipt-file"
+                                 name="shipping-receipt-file"
                                  type="file"
                                  accept="image/*"
                                  onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
@@ -5460,8 +5521,10 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="bg-[#0B0B0F] p-6 rounded-3xl border border-white/5">
-                     <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1 mb-4">Message to Customer</h4>
+                     <label htmlFor="shipping-admin-message" className="text-[10px] font-bold text-gray-600 uppercase tracking-widest pl-1 mb-4 block">Message to Customer</label>
                      <textarea
+                        id="shipping-admin-message"
+                        name="adminMessage"
                         className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white min-h-[100px] focus:outline-none focus:border-brand-purple/50 focus:ring-4 focus:ring-brand-purple/5 transition-all outline-none"
                         placeholder="Updates or instructions for the customer..."
                         value={shippingDetails.adminMessage}

@@ -330,6 +330,8 @@ export default function MusicPool() {
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-blue-400" size={18} />
                <input 
                  type="text"
+                 id="pool-search"
+                 name="search"
                  placeholder="Search Pool..."
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
@@ -365,6 +367,8 @@ export default function MusicPool() {
                   <div className="flex items-center gap-3">
                     <input 
                       type="range" 
+                      id="bpm-min"
+                      name="bpm_min"
                       min="60" 
                       max="180" 
                       value={bpmFilter[0]} 
@@ -373,6 +377,8 @@ export default function MusicPool() {
                     />
                     <input 
                       type="range" 
+                      id="bpm-max"
+                      name="bpm_max"
                       min="60" 
                       max="180" 
                       value={bpmFilter[1]} 
@@ -387,6 +393,8 @@ export default function MusicPool() {
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Camelot Key</span>
                   <select 
+                    id="key-filter"
+                    name="key"
                     value={activeKey}
                     onChange={(e) => setActiveKey(e.target.value)}
                     className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
@@ -407,6 +415,8 @@ export default function MusicPool() {
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Year</span>
                     <select 
+                      id="year-filter"
+                      name="year"
                       value={activeYear}
                       onChange={(e) => setActiveYear(e.target.value)}
                       className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
@@ -421,6 +431,8 @@ export default function MusicPool() {
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Month</span>
                     <select 
+                      id="month-filter"
+                      name="month"
                       value={activeMonth}
                       onChange={(e) => setActiveMonth(e.target.value)}
                       className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"

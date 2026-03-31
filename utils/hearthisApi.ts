@@ -52,7 +52,7 @@ export const parseHearthisUrl = (url: string): { artist: string; track: string }
     // Expected format: https://hearthis.at/artist/track/
     try {
         const urlObj = new URL(url);
-        if (urlObj.hostname !== 'hearthis.at') return null;
+        if (urlObj.hostname !== 'hearthis.at' && urlObj.hostname !== 'm.hearthis.at') return null;
 
         const paths = urlObj.pathname.split('/').filter(p => p !== '');
         if (paths.length < 2) return null;

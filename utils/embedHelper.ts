@@ -5,11 +5,13 @@
 export const getEmbedUrl = (url: string = ''): string | null => {
     if (!url) return null;
 
-    // Hearthis.at
-    if (url.includes('hearthis.at')) {
+    // Hearthis.at (Normalize mobile URLs)
+    let processedUrl = url.replace('m.hearthis.at', 'hearthis.at');
+
+    if (processedUrl.includes('hearthis.at')) {
         // Format: https://hearthis.at/user/title/
         // Embed: https://hearthis.at/user/title/embed/?h=000000&color=7b1fa2&style=2&block_size=2&block_color=6200ea&background=1&transparent=0&autostart=0&hide_tracklist=0
-        let cleanUrl = url.split('?')[0];
+        let cleanUrl = processedUrl.split('?')[0];
         if (!cleanUrl.endsWith('/')) cleanUrl += '/';
         return `${cleanUrl}embed/?h=000000&color=7b1fa2&style=2&block_size=2&block_color=6200ea&background=1&transparent=0&autostart=0&hide_tracklist=0`;
     }
@@ -39,10 +41,23 @@ export const getEmbedUrl = (url: string = ''): string | null => {
     return null;
 };
 
+export const isDirectLink = (url: string = ''): boolean => {
+    if (!url) return false;
+    const cleanUrl = url.split('?')[0].toLowerCase();
+    return cleanUrl.endsWith('.mp3') || 
+           cleanUrl.endsWith('.wav') || 
+           cleanUrl.endsWith('.m4a') || 
+           cleanUrl.endsWith('.mp4') || 
+           cleanUrl.includes('r2.cloudflarestorage.com') ||
+           cleanUrl.includes('pub-') && cleanUrl.includes('.r2.dev');
+};
+
 export const isStreamable = (url: string = ''): boolean => {
+    if (!url) return false;
     return url.includes('hearthis.at') ||
         url.includes('youtube.com') ||
         url.includes('youtu.be') ||
         url.includes('soundcloud.com') ||
-        url.includes('mixcloud.com');
+        url.includes('mixcloud.com') ||
+        isDirectLink(url);
 };
