@@ -8,7 +8,7 @@ const supabaseUrl = isServer
     : (import.meta.env.VITE_SUPABASE_URL || '');
 
 const supabaseKey = isServer
-    ? (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
+    ? (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
     : (import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 
 if (!supabaseUrl || !supabaseKey) {

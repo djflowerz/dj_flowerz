@@ -3,16 +3,17 @@ import { AdminLayout } from '../components/AdminLayout';
 import { StatCard } from '../components/StatCard';
 import {
     DollarSign, ShoppingBag, Music, Users,
-    Activity, Inbox
+    Activity, Inbox, Heart
 } from 'lucide-react';
-
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
+import { useAdminApi } from '../hooks/useAdminApi';
 
 interface DashboardStats {
     totalRevenue: number;
+    confirmedRevenue: number;
     totalOrders: number;
     activeMixtapes: number;
     activeUsers: number;
+    totalTips: number;
     totalUsers: number;
     recentActivity: Array<{
         id: string;
@@ -26,28 +27,14 @@ interface DashboardStats {
 }
 
 const Dashboard: React.FC = () => {
+    const { request } = useAdminApi();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchDashboardStats = async () => {
             try {
-                // We use localStorage directly to grab tokens if available
-                let token = '';
-                try {
-                    const sbToken = localStorage.getItem('sb-yevqnoynsqidtplxggzs-auth-token');
-                    if (sbToken) {
-                        token = JSON.parse(sbToken).access_token || '';
-                    }
-                } catch (e) {}
-
-                const response = await fetch(`${WORKER_URL}/api/admin/dashboard`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!response.ok) throw new Error('Failed to fetch stats');
-                const data = await response.json();
+                const data = await request('/api/admin/dashboard');
                 setStats(data);
             } catch (error) {
                 console.error("Dashboard error:", error);
@@ -57,7 +44,7 @@ const Dashboard: React.FC = () => {
         };
 
         fetchDashboardStats();
-    }, []);
+    }, [request]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
@@ -74,6 +61,7 @@ const Dashboard: React.FC = () => {
                 <StatCard
                     label="Total Revenue"
                     value={loading ? '...' : formatCurrency(stats?.totalRevenue || 0)}
+                    subtext={!loading && (stats?.confirmedRevenue || 0) > 0 ? `${formatCurrency(stats?.confirmedRevenue || 0)} confirmed` : `KES ${(stats?.totalRevenue || 0).toLocaleString()} total`}
                     icon={DollarSign}
                 />
                 <StatCard
@@ -93,6 +81,12 @@ const Dashboard: React.FC = () => {
                     value={loading ? '...' : (stats?.activeUsers || 0).toString()}
                     icon={Users}
                     color="brand-purple"
+                />
+                <StatCard
+                    label="Total Tips"
+                    value={loading ? '...' : formatCurrency(stats?.totalTips || 0)}
+                    icon={Heart}
+                    color="brand-pink"
                 />
             </div>
             <div className="grid grid-cols-1 mb-8">
@@ -116,14 +110,14 @@ const Dashboard: React.FC = () => {
                         {!loading && stats?.recentActivity.map((activity) => (
                             <div key={activity.id} className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-brand-purple/20 transition-all group">
                                 <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center text-brand-purple group-hover:scale-110 transition-transform flex-shrink-0">
-                                    <ShoppingBag size={20} />
+                                    {activity.type === 'payment' ? <DollarSign size={20} /> : <ShoppingBag size={20} />}
                                 </div>
                                 <div className="flex-1 overflow-hidden">
                                     <p className="text-[11px] font-black uppercase tracking-widest text-white truncate">
-                                        {activity.name || activity.email || `Order #${activity.id.slice(0, 12)}`}
+                                        {activity.name || activity.email || (activity.type === 'payment' ? 'Subscription Payment' : `Order #${activity.id.slice(0, 12)}`)}
                                     </p>
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 truncate">
-                                        {activity.email && activity.name ? activity.email : ''}
+                                        {activity.email && activity.name ? activity.email : (activity.email || 'No email provided')}
                                     </p>
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{formatDate(activity.createdAt)}</p>
                                 </div>
@@ -131,7 +125,7 @@ const Dashboard: React.FC = () => {
                                     <p className="text-[11px] font-black text-brand-purple tracking-tighter">{formatCurrency(activity.amount)}</p>
                                     {activity.status && (
                                         <p className={`text-[9px] font-black uppercase tracking-widest ${
-                                            activity.status === 'paid' ? 'text-emerald-400' : 'text-yellow-400'
+                                            (activity.status === 'paid' || activity.status === 'success' || activity.status === 'completed') ? 'text-emerald-400' : 'text-yellow-400'
                                         }`}>{activity.status}</p>
                                     )}
                                 </div>

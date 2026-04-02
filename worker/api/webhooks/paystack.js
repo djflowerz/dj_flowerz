@@ -2,6 +2,10 @@
 import { sendEmail } from '../../utils/email.js';
 import { templates } from '../../utils/templates.js';
 
+// [VERIFIED]: Paystack Webhook Handler for DJ Flowerz.
+// Logic for Subscriptions, Downloads, and Lipa Pole Pole automated installments.
+// DO NOT MODIFY WITHOUT EXPLICIT UNLOCK REQUEST.
+
 export async function handlePaystackWebhook(request, env) {
     const signature = request.headers.get('x-paystack-signature');
     const body = await request.text();
@@ -35,9 +39,29 @@ export async function handlePaystackWebhook(request, env) {
 
     const event = JSON.parse(body);
     if (event.event === 'charge.success') {
-        const { reference, metadata, amount, customer } = event.data;
+        const { reference, metadata, amount, customer, channel } = event.data;
         const type = metadata?.type;
         const orderId = metadata?.order_id;
+        const userId = metadata?.userId;
+
+        // 0. Record the financial transaction in the central 'payments' table (Universal Ledger)
+        try {
+            await env.DB.prepare(`
+                INSERT OR IGNORE INTO payments (id, user_id, customer_email, amount_kes, currency, status, method, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, 'success', ?, ?, CURRENT_TIMESTAMP)
+            `).bind(
+                reference, 
+                userId || null, 
+                customer?.email || null, 
+                amount / 100, 
+                event.data.currency || 'KES',
+                channel || 'unknown',
+                JSON.stringify(metadata || {})
+            ).run();
+            console.log(`[Paystack Webhook] Recorded universal payment: ${reference} (${amount/100} KES)`);
+        } catch (paymentLogErr) {
+            console.error('[Paystack Webhook] Central Payment Log Error:', paymentLogErr);
+        }
 
         // 1. ALWAYS update order status if order_id is present
         if (orderId) {
@@ -180,7 +204,16 @@ export async function handlePaystackWebhook(request, env) {
                     'pro': 365,
                     'trial': 7
                 };
-                const durationDays = durations[planId] || 30;
+                
+                // Robust amount-based detection (Fix for generic plan IDs)
+                const amtKes = amount / 100;
+                let durationDays = durations[planId] || 30;
+                
+                if (amtKes === 200) durationDays = 7;
+                else if (amtKes === 600) durationDays = 30;
+                else if (amtKes === 1500) durationDays = 90;
+                else if (amtKes === 2800) durationDays = 180;
+                else if (amtKes === 5000) durationDays = 365;
                 
                 const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
                 const expiryIso = expiryDate.toISOString();
@@ -236,13 +269,32 @@ export async function handlePaystackWebhook(request, env) {
 
                     try {
                         const amountFormatted = (amount / 100).toLocaleString();
+                        const isWeekly = durationDays === 7;
+                        
+                        let subject = `Access Active! 🎧 Welcome to the VIP Circle`;
+                        if (durationDays === 7) subject = '7-Day Music Pool Access Active! 🎧';
+                        else if (durationDays === 90) subject = '3-Month Music Pool Access Active! ⚡️';
+                        else if (durationDays === 180) subject = '6-Month VIP Music Pool Access Active! 💎';
+                        else if (durationDays === 365) subject = 'Yearly VIP All-Access Active! 🏆';
+
                         await sendEmail({
                             to: userEmail,
-                            subject: 'Welcome to the VIP Circle! 🎟️ Your DJ FLOWERZ Subscription is ACTIVE',
+                            subject: subject,
                             fromEmail: 'admin@djflowerz.co.ke',
                             fromName: 'DJ FLOWERZ VIP',
-                            html: templates.subscriptionActivation(userName, planName, expiryDate.toLocaleDateString()),
-                            text: `Welcome to the Inner Circle, ${userName}! Your ${planName} is now active. Renewal date: ${expiryDate.toLocaleDateString()}.`
+                            html: isWeekly ? `
+                                <div style="font-family: sans-serif; padding: 20px; background: #070709; color: #ffffff; border-radius: 12px; border: 1px solid #a855f730;">
+                                  <h2 style="color: #a855f7;">Access Granted!</h2>
+                                  <p>Your 1-week VIP access is now live.</p>
+                                  <p><b>Valid Until:</b> ${expiryDate.toDateString()}</p>
+                                  <p><b>Amount:</b> KES ${amountFormatted}</p>
+                                  <a href="https://djflowerz.co.ke/music-pool" style="display:inline-block; background:linear-gradient(135deg,#a855f7,#9333ea); color:#fff; padding:12px 24px; text-decoration:none; border-radius:8px; font-weight: bold; margin-top: 10px;">
+                                    Open Music Pool
+                                  </a>
+                                  <p style="font-size: 12px; color: #6b7280; margin-top: 20px;">Stay Legendary — DJ FLOWERZ</p>
+                                </div>
+                            ` : templates.subscriptionActivation(userName, planName, expiryDate.toLocaleDateString()),
+                            text: isWeekly ? `Your 1-week VIP access is now live. Valid until ${expiryDate.toDateString()}.` : `Welcome to the Inner Circle, ${userName}! Your ${planName} is now active. Renewal date: ${expiryDate.toLocaleDateString()}.`
                         }, env);
                     } catch (emailErr) {
                         console.error('[Subscription Activation Email Error]', emailErr);
@@ -255,25 +307,41 @@ export async function handlePaystackWebhook(request, env) {
         }
 
         // 3. Handle Installment Payments (Lipa Pole Pole)
-        if (type === 'installment' && metadata?.planId) {
-            const planId = metadata.planId;
-            const amountPaid = amount / 100; // Paystack amount is in cents
+        const isInstallmentDeposit = type === 'installment_deposit' || metadata?.is_installment === true || metadata?.payment_type === 'store_hire';
+        const isRecurringInstallment = type === 'installment' && metadata?.planId;
+
+        if (isInstallmentDeposit || isRecurringInstallment) {
+            const amountPaid = amount / 100;
             const reference = event.data.reference;
+            const userEmail = customer?.email || metadata?.userEmail || 'customer@djflowerz.co.ke';
+            const userName = metadata?.customerName || metadata?.userName || customer?.first_name || 'Legend';
 
             try {
-                // Fetch the plan
-                const plan = await env.DB.prepare(`
-                    SELECT * FROM installment_plans WHERE id = ?
-                `).bind(planId).first();
+                let plan;
+                let planId = metadata?.planId;
+
+                // A. If it's a deposit, find the plan by orderId
+                if (isInstallmentDeposit && orderId) {
+                    plan = await env.DB.prepare(`
+                        SELECT * FROM installment_plans WHERE order_id = ?
+                    `).bind(orderId).first();
+                    if (plan) planId = plan.id;
+                } 
+                // B. If it's a recurring payment, find by planId
+                else if (isRecurringInstallment && planId) {
+                    plan = await env.DB.prepare(`
+                        SELECT * FROM installment_plans WHERE id = ?
+                    `).bind(planId).first();
+                }
 
                 if (plan) {
                     const currentPaid = plan.paid_amount || 0;
                     const newPaidAmount = currentPaid + amountPaid;
-                    const isFullyPaid = newPaidAmount >= plan.total_amount;
+                    const isFullyPaid = newPaidAmount >= (plan.total_amount - 1); // small buffer for rounding
                     const newStatus = isFullyPaid ? 'completed' : 'active';
                     
-                    // Calculate next payment date
-                    let nextDateStr = null;
+                    // Calculate next payment date (only if not fully paid)
+                    let nextDateStr = plan.next_payment_date;
                     if (!isFullyPaid) {
                         const nextDate = new Date();
                         if (plan.payment_interval === 'monthly') {
@@ -285,7 +353,7 @@ export async function handlePaystackWebhook(request, env) {
                         nextDateStr = nextDate.toISOString().split('T')[0];
                     }
 
-                    // 1. Update the plan
+                    // 1. Update the plan source of truth
                     await env.DB.prepare(`
                         UPDATE installment_plans 
                         SET paid_amount = ?,
@@ -296,40 +364,52 @@ export async function handlePaystackWebhook(request, env) {
                         WHERE id = ?
                     `).bind(newPaidAmount, newPaidAmount, newStatus, nextDateStr, planId).run();
 
-                    // 2. Record the payment
+                    // 2. Record this specific transaction in history
                     const paymentId = crypto.randomUUID();
                     await env.DB.prepare(`
                         INSERT INTO installment_payments (id, plan_id, amount, reference, status, created_at)
                         VALUES (?, ?, ?, ?, 'success', CURRENT_TIMESTAMP)
                     `).bind(paymentId, planId, amountPaid, reference).run();
 
-                    // 3. Send Payment Confirmation Email
+                    // 3. Send Premium Notification
                     try {
-                        const userEmail = customer?.email || 'customer@djflowerz.co.ke';
-                        const userName = metadata?.userName || customer?.first_name || 'Legend';
-                        
+                        let emailSubject = '';
+                        let emailHtml = '';
+
+                        if (isInstallmentDeposit) {
+                            emailSubject = `🤝 Plan Activated: ${plan.product_name}`;
+                            emailHtml = templates.installmentDeposit(
+                                userName, 
+                                plan.product_name, 
+                                amountPaid.toLocaleString(), 
+                                (plan.total_amount - amountPaid).toLocaleString(), 
+                                nextDateStr
+                            );
+                        } else {
+                            emailSubject = isFullyPaid ? `🎉 Fully Paid: ${plan.product_name}!` : `✅ Payment Received: ${plan.product_name}`;
+                            emailHtml = templates.installmentPayment(
+                                userName, 
+                                plan.product_name, 
+                                amountPaid.toLocaleString(), 
+                                Math.max(0, plan.total_amount - newPaidAmount).toLocaleString(), 
+                                isFullyPaid
+                            );
+                        }
+
                         await sendEmail({
                             to: userEmail,
-                            subject: isFullyPaid ? `🎉 Goal Reached! Your ${plan.product_name} is fully paid!` : `✅ Payment Received: ${plan.product_name} Update`,
+                            subject: emailSubject,
                             fromEmail: 'payments@djflowerz.co.ke',
                             fromName: 'DJ FLOWERZ Payments',
-                            html: `
-                                <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff;">
-                                    <h2 style="color: #a855f7;">${isFullyPaid ? 'Congratulations!' : 'Payment Received'}</h2>
-                                    <p>Your payment for <strong>${plan.product_name}</strong> was successful.</p>
-                                    <div style="background: #15151a; padding: 20px; border-radius: 8px; border: 1px solid #ffffff08; margin: 20px 0;">
-                                        <p><strong>Amount Paid:</strong> KSh ${amountPaid.toLocaleString()}</p>
-                                        <p><strong>New Balance:</strong> KSh ${Math.max(0, plan.total_amount - newPaidAmount).toLocaleString()}</p>
-                                        ${!isFullyPaid ? `<p><strong>Next Payment Due:</strong> ${new Date(nextDateStr).toLocaleDateString()}</p>` : ''}
-                                    </div>
-                                    <p>${isFullyPaid ? 'Your item is now fully paid! Our team will contact you for delivery/pickup instructions.' : 'Keep going! You are closer to your goal.'}</p>
-                                </div>
-                            `,
-                            text: `Payment of KSh ${amountPaid} received for ${plan.product_name}. ${isFullyPaid ? 'You are fully paid!' : 'Next due: ' + nextDateStr}`
+                            html: emailHtml,
+                            text: `Payment of KSH ${amountPaid} received for ${plan.product_name}. ${isFullyPaid ? 'You are fully paid!' : 'Remaining balance: KSH ' + (plan.total_amount - newPaidAmount)}`
                         }, env);
+
                     } catch (emailErr) {
-                        console.error('[Installment Confirmation Email Error]', emailErr);
+                        console.error('[Installment Email Error]', emailErr);
                     }
+                } else {
+                    console.error(`[Paystack Webhook] Installment plan not found for orderId: ${orderId} or planId: ${planId}`);
                 }
             } catch (pErr) {
                 console.error('[Paystack Webhook] Installment Processing Error:', pErr);

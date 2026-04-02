@@ -65,6 +65,18 @@
             "destination": "https://remix-and-mashups-worker.dennismacharia20.workers.dev/$1"
         },
         {
+            "source": "/api/check-subscriptions",
+            "destination": "/api/check-subscriptions"
+        },
+        {
+            "source": "/api/sync-tracks",
+            "destination": "/api/sync-tracks"
+        },
+        {
+            "source": "/api/debug-env",
+            "destination": "/api/debug-env"
+        },
+        {
             "source": "/api/(.*)",
             "destination": "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/$1"
         },

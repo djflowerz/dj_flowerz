@@ -134,6 +134,10 @@ interface DataContextType {
   installmentPayments: InstallmentPayment[];
   wishlist: WishlistItem[];
   wishlistLoading: boolean;
+  adminStats: { total_revenue: number; active_subs: number; monthly_sales_count: number; monthly_sales_amt: number; currency: string } | null;
+  adminStatsLoading: boolean;
+  expiringUsers: any[];
+  expiringUsersLoading: boolean;
   toggleWishlist: (targetId: string, targetType: 'product' | 'mixtape' | 'track') => Promise<{ success: boolean; message?: string }>;
   isInWishlist: (targetId: string) => boolean;
   mixtapesError: string | null;
@@ -215,6 +219,8 @@ interface DataContextType {
   addSubscriptionPlan: (plan: SubscriptionPlan) => void;
   updateSubscriptionPlan: (id: string, data: Partial<SubscriptionPlan>) => void;
   deleteSubscriptionPlan: (id: string) => void;
+  grantSubscription: (email: string, days: number) => Promise<void>;
+  revokeSubscription: (email: string) => Promise<void>;
 
   addStudioRoom: (room: StudioRoom) => void;
   updateStudioRoom: (id: string, data: Partial<StudioRoom>) => void;
@@ -292,6 +298,8 @@ interface DataContextType {
   refreshReviews: () => void;
   refreshComments: () => void;
   refreshInstallments: () => void;
+  refreshAdminStats: () => Promise<void>;
+  refreshExpiringUsers: () => Promise<void>;
 
   sendEmail: (data: { to: string | string[]; subject: string; html: string; text?: string }) => Promise<{ success: boolean; message: string }>;
   sendNewsletterConfirmation: (email: string) => Promise<void>;
@@ -591,6 +599,7 @@ const mapR2User = (u: any): User => ({
   ...u,
   fullName: u.full_name || u.name || u.fullName,
   full_name: u.full_name || u.name || u.fullName,
+  displayName: u.full_name || u.name || u.displayName || u.fullName,
   isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
@@ -854,6 +863,7 @@ const getTableName = (colName: string): string => {
     'contact_messages': 'support/tickets',
     'bookings': 'bookings/gigs',
     'syncNotifications': 'pool/sync-notifications',
+    'profiles': 'users',
     // --- Subscription plans (critical fix: camelCase → snake_case route) ---
     'subscriptionPlans': 'subscription_plans',
     'shippingZones': 'shipping_zones',
@@ -925,7 +935,13 @@ const useCollection = <T extends { id: string }>(
         return;
       }
 
-      setData(transformed.length === 0 && initialData.length > 0 ? initialData : transformed);
+      // For admin-path queries, ALWAYS use the live result (even if empty) — never silently
+      // fall back to hardcoded initialData, which would mask real "no data" states.
+      const useHardcodedFallback = !useAdminPath && transformed.length === 0 && initialData.length > 0;
+      if (useHardcodedFallback) {
+        console.warn(`[useCollection] ${tableName} returned 0 items, falling back to hardcoded initialData (${initialData.length} items).`);
+      }
+      setData(useHardcodedFallback ? initialData : transformed);
       setError(null);
     } catch (err: any) {
       console.error(`${source} fetch error (${tableName}):`, err.message);
@@ -1241,6 +1257,51 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     firstTimeDiscountType: 'percentage'
   });
 
+  const [adminStats, setAdminStats] = useState<{ total_revenue: number; active_subs: number; monthly_sales_count: number; monthly_sales_amt: number; currency: string } | null>(null);
+  const [adminStatsLoading, setAdminStatsLoading] = useState(false);
+  const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
+  const [expiringUsersLoading, setExpiringUsersLoading] = useState(false);
+
+  const refreshAdminStats = async () => {
+    if (!isAdmin) return;
+    setAdminStatsLoading(true);
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/stats`, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAdminStats(data);
+      }
+    } catch (error) {
+      console.warn("Error fetching admin stats:", error);
+    } finally {
+      setAdminStatsLoading(false);
+    }
+  };
+
+  const refreshExpiringUsers = async () => {
+    if (!isAdmin) return;
+    setExpiringUsersLoading(true);
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/expiry-watch`, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setExpiringUsers(data.users || []);
+      }
+    } catch (error) {
+      console.warn("Error fetching expiring users:", error);
+    } finally {
+      setExpiringUsersLoading(false);
+    }
+  };
+
   const fetchRefSettings = async () => {
     try {
       const sets = await fetchFromR2<any>('settings');
@@ -1282,7 +1343,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshSubscriptions();
       refreshBookings();
       refreshPayments();
+      refreshAdminStats();
+      refreshExpiringUsers();
     }, 2 * 60 * 1000);
+
+    // Initial fetch
+    refreshAdminStats();
+    refreshExpiringUsers();
 
     return () => clearInterval(interval);
   }, [isAdmin, refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments]);
@@ -2092,6 +2159,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const grantSubscription = async (email: string, days: number): Promise<void> => {
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/manage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ email, action: 'grant', days }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to grant access: ${res.status}`);
+      }
+      refreshUsers();
+    } catch (err: any) {
+      console.error('[grantSubscription]', err.message);
+      throw err;
+    }
+  };
+
+  const revokeSubscription = async (email: string): Promise<void> => {
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/revoke-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to revoke access: ${res.status}`);
+      }
+      refreshUsers();
+      refreshSubscriptions();
+    } catch (err: any) {
+      console.error('[revokeSubscription]', err.message);
+      throw err;
+    }
+  };
+
   const addStudioRoom = async (room: StudioRoom) => {
     try {
       const ok = await saveToD1('studio/locations', 'POST', room);
@@ -2677,21 +2783,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addInstallmentPlan = async (plan: Partial<InstallmentPlan>) => {
     if (!isAdmin) return false;
-    const success = await saveToD1('installmentPlans', 'POST', plan);
+    const success = await saveToD1('installments', 'POST', plan);
     if (success) refreshInstallments();
     return success;
   };
 
   const updateInstallmentPlan = async (id: string, data: Partial<InstallmentPlan>) => {
     if (!isAdmin) return false;
-    const success = await saveToD1('installmentPlans', 'PATCH', data, id);
+    const success = await saveToD1('installments', 'PATCH', data, id);
     if (success) refreshInstallments();
     return success;
   };
 
   const deleteInstallmentPlan = async (id: string) => {
     if (!isAdmin) return false;
-    const success = await saveToD1('installmentPlans', 'DELETE', undefined, id);
+    const success = await saveToD1('installments', 'DELETE', undefined, id);
     if (success) refreshInstallments();
     return success;
   };
@@ -2881,6 +2987,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addSubscriptionPlan,
     updateSubscriptionPlan,
     deleteSubscriptionPlan,
+    grantSubscription,
+    revokeSubscription,
     addStudioRoom,
     updateStudioRoom,
     deleteStudioRoom,
@@ -2951,6 +3059,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     syncNotifications,
     syncNotificationsLoading,
     payments, tips, reviews, comments,
+    adminStats, adminStatsLoading, refreshAdminStats,
+    expiringUsers, expiringUsersLoading, refreshExpiringUsers,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,

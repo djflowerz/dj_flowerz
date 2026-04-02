@@ -67,7 +67,37 @@ export async function handleScheduled(event, env, ctx) {
             }
         }
 
-        console.log("[Cron] Trial maintenance complete.");
+        // 3. Expire General Subscriptions (non-trial)
+        const expiredSubs = await env.DB.prepare(`
+            UPDATE profiles 
+            SET is_subscriber = 0, subscription_plan = NULL 
+            WHERE is_subscriber = 1 
+            AND subscription_expiry IS NOT NULL 
+            AND datetime(subscription_expiry) < datetime('now')
+            RETURNING id
+        `).run();
+
+        if (expiredSubs.results && expiredSubs.results.length > 0) {
+            console.log(`[Cron] Expired ${expiredSubs.results.length} regular subscriptions.`);
+            // Update R2 Cache for each expired user
+            for (const row of expiredSubs.results) {
+                const userId = row.id;
+                try {
+                    const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
+                    if (existingR2) {
+                        const r2Profile = await existingR2.json();
+                        r2Profile.is_subscriber = 0;
+                        r2Profile.subscription_plan = null;
+                        r2Profile.updated_at = new Date().toISOString();
+                        await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
+                    }
+                } catch (r2Err) {
+                    console.error(`[Cron] Failed to update R2 for expired user ${userId}:`, r2Err);
+                }
+            }
+        }
+
+        console.log("[Cron] General maintenance complete.");
 
         // 3. Lipa Pole Pole (Installment) Reminders
         try {

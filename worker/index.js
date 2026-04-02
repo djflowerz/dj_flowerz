@@ -7,6 +7,7 @@ import { handleDashboardOrders } from './api/dashboard/orders.js';
 import { handleDashboardUsers } from './api/dashboard/users.js';
 import { handleDashboardMixtapes } from './api/dashboard/mixtapes.js';
 import { handleDashboardSubscriptions } from './api/dashboard/subscriptions.js';
+import { handleDashboardUsage } from './api/dashboard/usage.js';
 import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
 import { handleDashboardReferrals } from './api/dashboard/referrals.js';
 import { handleDashboardFinances } from './api/dashboard/finances.js';
@@ -47,6 +48,7 @@ router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
 router.post('/api/payments/initialize', handlePaymentInitialize);
 router.get('/api/user/installments', handleUserInstallments);
+router.post('/api/user/installments/pay', handleUserInstallments);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -65,6 +67,10 @@ router.put('/api/admin/bookings/gig/:id', handleBookings);
 router.put('/api/admin/bookings/studio/:id', handleBookings);
 router.patch('/api/admin/bookings/gig/:id', handleBookings);
 router.patch('/api/admin/bookings/studio/:id', handleBookings);
+router.get('/api/admin/bookings/blackout', handleBookings);
+router.post('/api/admin/bookings/blackout', handleBookings);
+router.delete('/api/admin/bookings/blackout/:id', handleBookings);
+router.get('/api/blackouts', handleBookings); // Legacy support
 
 router.post('/api/contact', handleSupport);
 router.get('/api/admin/support/tickets', handleSupport);
@@ -82,13 +88,18 @@ router.put('/api/admin/orders/:id', handleDashboardOrders);
 router.delete('/api/admin/orders/:id', handleDashboardOrders);
 router.get('/api/admin/pool/sync-notifications', handleGetSyncNotifications);
 router.get('/api/admin/users', handleDashboardUsers);
+router.get('/api/admin/profiles', handleDashboardUsers); // Standardized name for frontend useCollection('profiles')
 router.put('/api/admin/users/:id', handleDashboardUsers);
+router.put('/api/admin/profiles/:id', handleDashboardUsers);
 router.delete('/api/admin/users/:id', handleDashboardUsers);
+router.delete('/api/admin/profiles/:id', handleDashboardUsers);
 router.get('/api/admin/mixtapes', handleDashboardMixtapes);
 router.post('/api/admin/mixtapes', handleDashboardMixtapes);
 router.put('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.delete('/api/admin/mixtapes/:id', handleDashboardMixtapes);
 router.get('/api/admin/subscriptions', handleDashboardSubscriptions);
+router.get('/api/admin/active-subscribers', handleDashboardSubscriptions);
+router.get('/api/admin/expiry-watch', handleDashboardSubscriptions);
 router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
 router.get('/api/admin/subscription_plans', handleDashboardSubscriptions);
 router.post('/api/admin/subscription_plans', handleDashboardSubscriptions);
@@ -115,6 +126,12 @@ router.get('/api/admin/referrals/logs', handleDashboardReferrals);
 
 router.get('/api/admin/tips', handleDashboardFinances);
 router.post('/api/admin/tips', handleDashboardFinances);
+router.get('/api/admin/payments', handleDashboardFinances);
+router.get('/api/admin/dashboard', handleDashboardFinances);
+router.get('/api/admin/stats', handleDashboardFinances);
+router.post('/api/admin/sync-paystack', handleDashboardFinances);
+router.get('/api/admin/usage', handleDashboardUsage);
+router.post('/api/admin/revoke-access', handleDashboardSubscriptions);
 
 // Lipa Pole Pole (Installments)
 router.get('/api/admin/installments', handleDashboardInstallments);
@@ -197,11 +214,11 @@ export { AdminHub };
 
 export default {
     async fetch(request, env, ctx) {
-        const url = new URL(request.url);
         const origin = request.headers.get("Origin");
+        const url = new URL(request.url);
 
-        // Allowed origins for CORS
-        const allowedOrigins = [
+        // 1. CORS Pre-flight & Origin Determination
+        const corsWhitelist = [
             "https://djflowerz.co.ke",
             "https://www.djflowerz.co.ke",
             "https://dj-flowerz.vercel.app",
@@ -209,28 +226,28 @@ export default {
             "http://localhost:3000"
         ];
 
-        // Simplified CORS logic: check if origin is in whitelist or is a vercel preview
-        const isAllowedOrigin = origin && (
-            allowedOrigins.includes(origin) || 
+        // Echo origin if it's in our whitelist or a vercel preview
+        const isWhitelisted = origin && (
+            corsWhitelist.includes(origin) || 
             origin.endsWith(".vercel.app")
         );
-
-        // If origin is allowed, echo it. Otherwise, use the first allowed origin as default if not a credentialed request,
-        // but since we want to be strict with credentials, we MUST return the specific origin.
-        const corsOrigin = isAllowedOrigin ? origin : (origin ? "null" : allowedOrigins[0]);
         
-        // Handle CORS PREFLIGHT
+        // For Access-Control-Allow-Credentials: true, the origin MUST match exactly.
+        const corsOrigin = isWhitelisted ? origin : corsWhitelist[0];
+
+        // Standard CORS headers used for all responses
+        const corsHeaders = {
+            "Access-Control-Allow-Origin": corsOrigin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name, x-upsert",
+            "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+            "Access-Control-Allow-Credentials": "true",
+            "Max-Age": "86400",
+        };
+
+        // Handle CORS PREFLIGHT immediately to save CPU/Network
         if (request.method === "OPTIONS") {
-            return new Response(null, {
-                headers: {
-                    "Access-Control-Allow-Origin": corsOrigin,
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name",
-                    "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
-                    "Access-Control-Allow-Credentials": "true",
-                    "Max-Age": "86400",
-                }
-            });
+            return new Response(null, { headers: corsHeaders });
         }
 
         try {
@@ -284,25 +301,31 @@ export default {
                 return response;
             }
 
-            // Add CORS headers to all responses
-            const newHeaders = new Headers(response.headers);
-            newHeaders.set("Access-Control-Allow-Origin", corsOrigin);
-            newHeaders.set("Access-Control-Allow-Credentials", "true");
+            // 4. Finalize Response with standardized CORS headers
+            const responseHeaders = new Headers(response.headers);
+            Object.entries(corsHeaders).forEach(([k, v]) => responseHeaders.set(k, v));
+
+            // Ensure Content-Type is JSON for API routes if not set
+            if (url.pathname.startsWith('/api/') && !responseHeaders.has('Content-Type')) {
+                responseHeaders.set('Content-Type', 'application/json');
+            }
 
             return new Response(response.body, {
                 status: response.status,
                 statusText: response.statusText,
-                headers: newHeaders
+                headers: responseHeaders
             });
         } catch (e) {
             console.error("[Worker Error]", e);
-            return new Response(JSON.stringify({ error: e.message }), {
+            const errorHeaders = new Headers(corsHeaders);
+            errorHeaders.set("Content-Type", "application/json");
+            
+            return new Response(JSON.stringify({ 
+                error: e.message,
+                stack: env.ENVIRONMENT === 'development' ? e.stack : undefined 
+            }), {
                 status: 500,
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "Access-Control-Allow-Origin": corsOrigin,
-                    "Access-Control-Allow-Credentials": "true"
-                }
+                headers: errorHeaders
             });
         }
     },

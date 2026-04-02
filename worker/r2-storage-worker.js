@@ -112,8 +112,20 @@ const DOWNLOAD_LIMITS = {
     'none': 0,
     'trial': 10,
     'weekly': 10,
-    'monthly': 30,
-    'pro': 200
+    // All paid plans = unlimited (9999 daily limit)
+    'monthly': 9999,
+    '1month': 9999,
+    '1months': 9999,
+    '3months': 9999,
+    '3month': 9999,
+    '6months': 9999,
+    '6month': 9999,
+    'yearly': 9999,
+    'year': 9999,
+    '12months': 9999,
+    '12month': 9999,
+    'annual': 9999,
+    'pro': 9999
 };
 
 const ADMIN_EMAILS = [
@@ -292,16 +304,14 @@ async function checkAndIncrementDownloads(user, env) {
     const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
     const isSubscribed = (user?.isSubscriber === true && expiry > nowMs);
     
-    let limit = 0;
-    const userPlan = user?.subscriptionPlan?.toLowerCase() || 'none';
-
-    if (isMaster) {
-        limit = 9999;
-    } else if (isSubscribed) {
-        limit = DOWNLOAD_LIMITS[userPlan] || 10;
-    } else {
-        limit = 0; 
+    // Admins and ALL paid subscribers get unlimited downloads — no daily cap
+    if (isMaster || isSubscribed) {
+        return { allowed: true, remaining: 9999 };
     }
+
+    // Non-subscribers (trial or free) — enforce limit
+    const userPlan = user?.subscriptionPlan?.toLowerCase() || 'none';
+    const limit = DOWNLOAD_LIMITS[userPlan] || 0;
     
     if (limit === 0) {
          return { allowed: false, error: "SUBSCRIPTION_REQUIRED", status: 403 };
@@ -314,7 +324,7 @@ async function checkAndIncrementDownloads(user, env) {
         currentCount = 0;
     }
 
-    if (currentCount >= limit && !isMaster) {
+    if (currentCount >= limit) {
         return { allowed: false, error: `Daily limit of ${limit} reached.`, status: 429 };
     }
 
@@ -328,7 +338,7 @@ async function checkAndIncrementDownloads(user, env) {
          console.error("[Download Track] DB Update error", dbErr);
     }
 
-    return { allowed: true, remaining: isMaster ? 9999 : (limit - newCount) };
+    return { allowed: true, remaining: limit - newCount };
 }
 
 async function handlePoolFilters(env) {
@@ -463,7 +473,7 @@ export default {
                 const pagedParams = [...params, limit, offset];
                 const { results } = await env.DB.prepare(query).bind(...pagedParams).all();
 
-                const dailyLimit = isMaster ? 9999 : (isSubscribed ? (DOWNLOAD_LIMITS[user?.subscriptionPlan?.toLowerCase()] || 10) : 0);
+                const dailyLimit = (isMaster || isSubscribed) ? 9999 : (DOWNLOAD_LIMITS[user?.subscriptionPlan?.toLowerCase()] || 0);
 
                 const responsePayload = {
                     tracks: results.map(r => {
@@ -650,28 +660,38 @@ export default {
 
             // --- ADMIN: MANAGE SUBSCRIPTIONS (Drizzle) ---
             if (method === "POST" && path === "/api/admin/subscriptions/manage") {
-                const { userId, plan, action } = await request.json();
+                const { userId, email, plan, action, days: customDays } = await request.json();
+
+                // Resolve the profile row: prefer UUID, fall back to email lookup
+                let profileId = userId;
+                if (!profileId && email) {
+                    const row = await env.DB.prepare("SELECT id FROM profiles WHERE email = ? LIMIT 1").bind(email).first();
+                    profileId = row?.id;
+                }
+
+                if (!profileId) {
+                    return Response.json({ success: false, error: "User not found" }, { status: 404, headers: corsHeaders });
+                }
 
                 if (action === 'revoke') {
-                    await db.update(schema.profiles)
-                        .set({ isSubscriber: false, subscriptionExpiry: null, updatedAt: new Date().toISOString() })
-                        .where(eq(schema.profiles.id, userId))
-                        .run();
+                    await env.DB.prepare(`
+                        UPDATE profiles SET is_subscriber = 0, subscription_expiry = NULL, updated_at = datetime('now')
+                        WHERE id = ?
+                    `).bind(profileId).run();
                 } else {
-                    const planDays = { 'trial': 7, 'weekly': 7, 'monthly': 30, 'pro': 365 };
-                    const days = planDays[plan] || 30;
-                    const expiryDate = new Date();
-                    expiryDate.setDate(expiryDate.getDate() + days);
+                    // Support a custom day count from the admin UI, or fall back to plan presets
+                    const planDays = { 'trial': 7, 'weekly': 7, 'monthly': 30, '3month': 90, '6month': 180, 'yearly': 365, 'pro': 365 };
+                    const days = customDays || planDays[plan] || 30;
+                    const planName = plan || (days <= 7 ? 'trial' : days <= 30 ? 'monthly' : days <= 90 ? '3month' : 'yearly');
 
-                    await db.update(schema.profiles)
-                        .set({
-                            isSubscriber: true,
-                            subscriptionPlan: plan,
-                            subscriptionExpiry: expiryDate.toISOString(),
-                            updatedAt: new Date().toISOString()
-                        })
-                        .where(eq(schema.profiles.id, userId))
-                        .run();
+                    await env.DB.prepare(`
+                        UPDATE profiles SET
+                            is_subscriber = 1,
+                            subscription_plan = ?,
+                            subscription_expiry = datetime('now', '+' || ? || ' days'),
+                            updated_at = datetime('now')
+                        WHERE id = ?
+                    `).bind(planName, String(days), profileId).run();
                 }
 
                 return Response.json({ success: true }, { headers: corsHeaders });
@@ -1267,87 +1287,8 @@ export default {
                 return Response.json({ success: true }, { headers: corsHeaders });
             }
 
-            // --- PAYSTACK WEBHOOK ---
-            if (method === "POST" && path === "/api/paystack/webhook") {
-                const signature = request.headers.get("x-paystack-signature");
-                if (!signature) return new Response("Forbidden", { status: 403 });
+            // --- PAYSTACK WEBHOOK (HANDLED IN UNIFIED BLOCK BELOW) ---
 
-                const body = await request.json();
-                console.log("[Paystack Webhook] Event:", body.event);
-
-                if (body.event === "charge.success") {
-                    const email = body.data.customer.email;
-                    const amount = body.data.amount / 100;
-                    const reference = body.data.reference;
-                    const planCode = body.data.plan?.plan_code;
-
-                    // Calculate expiry
-                    // If amount is 700 or more, it's definitely a month even if planCode is missing
-                    let days = 30;
-                    if (amount >= 700) days = 30;
-                    else if (amount >= 200) days = 7;
-                    else if (planCode?.includes('weekly')) days = 7;
-                    else if (planCode?.includes('3months')) days = 90;
-                    else if (planCode?.includes('6months')) days = 180;
-                    else if (planCode?.includes('yearly')) days = 365;
-
-                    // Update D1 with UPSERT
-                    await env.DB.prepare(`
-                        INSERT INTO profiles (email, is_subscriber, subscription_expiry, updated_at, created_at)
-                        VALUES (?, 1, datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))
-                        ON CONFLICT(email) DO UPDATE SET
-                            is_subscriber = 1, 
-                            subscription_expiry = datetime('now', '+' || ? || ' days'),
-                            updated_at = datetime('now')
-                    `).bind(email, days, days).run();
-
-                    // Record subscription payment as an order for revenue tracking
-                    const orderId = `sub_${reference || Date.now()}`;
-                    await env.DB.prepare(`
-                        INSERT OR IGNORE INTO orders (id, customer_email, total_amount, payment_status, paystack_ref, items, created_at, updated_at)
-                        VALUES (?, ?, ?, 'paid', ?, '[{"name":"Music Pool Subscription","quantity":1}]', datetime('now'), datetime('now'))
-                    `).bind(orderId, email, amount, reference || '').run();
-
-                    // CRITICAL: Sync to R2 for frontend AuthContext
-                    const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
-                    await env.R2_BUCKET.put("data/profiles.json", JSON.stringify(allProfiles), {
-                        httpMetadata: { contentType: "application/json" }
-                    });
-
-                    // Process Referral Rewards
-                    const referral = await env.DB.prepare(`
-                        SELECT * FROM referrals 
-                        WHERE referred_id = (SELECT id FROM profiles WHERE email = ?) 
-                        AND status = 'pending'
-                        LIMIT 1
-                    `).bind(email).first();
-
-                    if (referral) {
-                        // Reward Referrer (Fixed for now: 200 KES + 7 Days)
-                        await env.DB.prepare(`
-                            UPDATE profiles 
-                            SET referral_balance_kes = referral_balance_kes + 200,
-                                referral_earned_days = referral_earned_days + 7,
-                                updated_at = datetime('now')
-                            WHERE id = ?
-                        `).bind(referral.referrer_id).run();
-
-                        await env.DB.prepare(`
-                            UPDATE referrals SET status = 'completed', reward_granted = 1 WHERE id = ?
-                        `).bind(referral.id).run();
-                    }
-
-                    // Notify UI via Durable Object
-                    const hubId = env.ADMIN_HUB.idFromName("global");
-                    const hub = env.ADMIN_HUB.get(hubId);
-                    await hub.fetch("http://hub/broadcast", {
-                        method: "POST",
-                        body: JSON.stringify({ type: "PAYMENT_SUCCESS", email, amount, reference, hasReferral: !!referral })
-                    });
-                }
-
-                return new Response("OK", { status: 200, headers: corsHeaders });
-            }
 
             // --- ADMIN: UPDATE SUBSCRIPTION (Time extension) ---
             if (method === "POST" && path === "/api/admin/update-subscription") {
@@ -1563,6 +1504,18 @@ export default {
             if (method === "GET" && path === "/api/admin/subscribers") {
                 const results = await db.query.subscribers.findMany({
                     orderBy: (s, { desc }) => [desc(s.createdAt)]
+                });
+                return Response.json(results, { headers: corsHeaders });
+            }
+
+            // 2b. Admin Active Subscribers (Profiles with active membership)
+            if (method === "GET" && path === "/api/admin/active-subscribers") {
+                const results = await db.query.profiles.findMany({
+                    where: (p, { or, eq }) => or(
+                        eq(p.isSubscriber, true),
+                        eq(p.isSubscriber, 1)
+                    ),
+                    orderBy: (p, { desc }) => [desc(p.createdAt)]
                 });
                 return Response.json(results, { headers: corsHeaders });
             }
@@ -1987,8 +1940,8 @@ export default {
                 const user = await getAuthorizedUser(request, env);
                 const isMaster = user?.email === 'ianmuriithiflowerz@gmail.com';
                 const now = new Date().getTime();
-                const expiry = user?.subscription_expiry ? new Date(user.subscription_expiry).getTime() : 0;
-                const isSubscribed = (user?.is_subscriber === 1 && expiry > now);
+                const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+                const isSubscribed = (user?.isSubscriber === true && expiry > now);
 
                 // Note: We allow listing tracks for everyone to see what's available, 
                 // but the DataContext/UI will handle locking actual playback/download based on isAuthorized.
@@ -2097,15 +2050,19 @@ export default {
                 const versionId = url.searchParams.get("versionId");
                 if (!versionId) return new Response("Missing versionId", { status: 400, headers: corsHeaders });
 
-                // 1. MASTER ADMIN BYPASS
-                const isMaster = user.email === 'ianmuriithiflowerz@gmail.com';
+                // 1. ADMIN & SUBSCRIPTION BYPASS
+                const isMaster = isAdminEmail(user.email);
+                const now = new Date().getTime();
+                const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+                const isSubscribed = (user?.isSubscriber === true && expiry > now);
 
-                if (!isMaster) {
-                    // 2. SUBSCRIPTION CHECK
-                    const now = new Date().getTime();
-                    const expiry = user.subscription_expiry ? new Date(user.subscription_expiry).getTime() : 0;
-                    if (user.is_subscriber !== 1 || expiry <= now) {
-                        return Response.json({ error: "SUBSCRIPTION_EXPIRED" }, { status: 403, headers: corsHeaders });
+                if (!isMaster && !isSubscribed) {
+                    // This section only applies to non-subscribers (e.g. Trial or Free if we had it)
+                    const userPlan = (user.subscriptionPlan || 'none').toLowerCase();
+                    const planLimit = DOWNLOAD_LIMITS[userPlan] || 0;
+                    
+                    if (planLimit === 0) {
+                        return Response.json({ error: "SUBSCRIPTION_REQUIRED" }, { status: 403, headers: corsHeaders });
                     }
 
                     // 3. LIMIT CHECK & RESET
@@ -2115,14 +2072,13 @@ export default {
 
                     if (Date.now() - lastReset > oneDay) {
                         // Reset count
+                        currentCount = 0;
                         await db.update(schema.profiles)
                             .set({ dailyDownloadCount: 0, lastDownloadReset: new Date().toISOString() })
                             .where(eq(schema.profiles.id, user.id))
                             .run();
-                        currentCount = 0;
                     }
 
-                    const planLimit = DOWNLOAD_LIMITS[user.subscriptionPlan || 'none'] || 0;
                     if (currentCount >= planLimit) {
                         return Response.json({
                             error: "LIMIT_REACHED",
@@ -2272,6 +2228,71 @@ export default {
                 const months = [...new Set(results.map(t => t.release_month).filter(Boolean))].sort();
 
                 return Response.json({ hubs, genres, years, months }, { headers: corsHeaders });
+            }
+
+            // Admin: POST /api/admin/pool/bulk-sync — Upsert multiple tracks in D1
+            if (method === "POST" && path === "/api/admin/pool/bulk-sync") {
+                const { tracks } = await request.json();
+                if (!Array.isArray(tracks)) return Response.json({ error: "Invalid tracks array" }, { status: 400, headers: corsHeaders });
+                
+                try {
+                    const db = drizzle(env.DB, { schema });
+                    
+                    // We'll process them as a batch to avoid timeouts
+                    const BATCH_SIZE = 50;
+                    for (let i = 0; i < tracks.length; i += BATCH_SIZE) {
+                        const batch = tracks.slice(i, i + BATCH_SIZE);
+                        
+                        // Use a transaction or batch of inserts
+                        for (const track of batch) {
+                             if (!track.id) track.id = crypto.randomUUID();
+                             
+                             // Upsert track
+                             await db.insert(schema.tracks).values({
+                                 id: track.id,
+                                 title: track.title,
+                                 artist: track.artist || '',
+                                 genre: track.genre || '',
+                                 subGenre: track.subGenre || track.sub_genre || '',
+                                 displayGenre: track.displayGenre || track.display_genre || '',
+                                 collectionHub: track.collectionHub || track.collection_hub || '',
+                                 bpm: track.bpm ? parseInt(track.bpm) : null,
+                                 key: track.key || '',
+                                 vibe: track.vibe || '',
+                                 audioUrl: track.audioUrl || track.audio_url || '',
+                                 downloadUrl: track.downloadUrl || track.download_url || '',
+                                 coverUrl: track.coverUrl || track.cover_url || '',
+                                 duration: track.duration || '',
+                                 releaseDate: track.releaseDate || track.release_date || new Date().toISOString(),
+                                 isActive: true,
+                                 updatedAt: new Date().toISOString()
+                             }).onConflictDoUpdate({
+                                 target: schema.tracks.id,
+                                 set: {
+                                     title: track.title,
+                                     artist: track.artist || '',
+                                     genre: track.genre || '',
+                                     subGenre: track.subGenre || track.sub_genre || '',
+                                     displayGenre: track.displayGenre || track.display_genre || '',
+                                     collectionHub: track.collectionHub || track.collection_hub || '',
+                                     bpm: track.bpm ? parseInt(track.bpm) : null,
+                                     key: track.key || '',
+                                     vibe: track.vibe || '',
+                                     audioUrl: track.audioUrl || track.audio_url || '',
+                                     downloadUrl: track.downloadUrl || track.download_url || '',
+                                     coverUrl: track.coverUrl || track.cover_url || '',
+                                     duration: track.duration || '',
+                                     updatedAt: new Date().toISOString()
+                                 }
+                             }).run();
+                        }
+                    }
+                    
+                    return Response.json({ success: true, count: tracks.length }, { headers: corsHeaders });
+                } catch (error) {
+                    console.error("[Bulk Sync] Failed:", error);
+                    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+                }
             }
 
             // Admin: POST /api/admin/pool/sync-track — Upsert a track and its versions in D1
@@ -2457,13 +2478,19 @@ export default {
             // Admin: GET /api/admin/dashboard
             if (method === "GET" && path === "/api/admin/dashboard") {
                 try {
-                    // 1. Total Revenue — only from orders table (payments table does not exist in D1)
-                    const revenueRow = await env.DB.prepare(
-                        `SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE payment_status = 'paid'`
-                    ).first();
-                    const totalRevenue = revenueRow?.total || 0;
+                    // 1. Unified Total Revenue (Universal Ledger + Pending Orders)
+                    const statsRow = await env.DB.prepare(`
+                        SELECT 
+                            (SELECT COALESCE(SUM(amount_kes), 0) FROM payments WHERE status = 'success') + 
+                            (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE payment_status = 'paid') as total,
+                            
+                            (SELECT COALESCE(SUM(amount_kes), 0) FROM payments WHERE status = 'success') as confirmed
+                    `).first();
 
-                    // 2. Total Orders (all, not just paid)
+                    const totalRevenue = statsRow?.total || 0;
+                    const confirmedRevenue = statsRow?.confirmed || 0;
+
+                    // 2. Total Orders (Store only)
                     const ordersCountRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM orders`).first();
                     const totalOrders = ordersCountRow?.count || 0;
 
@@ -2471,9 +2498,9 @@ export default {
                     const mixtapesCountRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM mixtapes`).first();
                     const activeMixtapes = mixtapesCountRow?.count || 0;
 
-                    // 4. Subscribed Users (use = 1 for SQLite boolean compatibility)
+                    // 4. Subscribed Users (Robust check for boolean values)
                     const subscribersRow = await env.DB.prepare(
-                        `SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1`
+                        `SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1 OR is_subscriber = 'true'`
                     ).first();
                     const activeUsers = subscribersRow?.count || 0;
 
@@ -2481,24 +2508,35 @@ export default {
                     const totalUsersRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles`).first();
                     const totalUsers = totalUsersRow?.count || 0;
 
-                    // 6. Recent Activity (Latest 5 orders)
+                    // 6. Integrated Recent Activity (Orders + Payments)
                     const { results: recentOrders } = await env.DB.prepare(
-                        `SELECT id, customer_email, customer_name, total_amount, payment_status, created_at 
+                        `SELECT id, customer_email, customer_name, total_amount as amount, payment_status as status, created_at, 'order' as type 
                          FROM orders ORDER BY created_at DESC LIMIT 5`
                     ).all();
 
-                    const recentActivity = (recentOrders || []).map(o => ({
+                    const { results: recentPayments } = await env.DB.prepare(
+                        `SELECT id, customer_email, '' as customer_name, amount_kes as amount, status, created_at, 'payment' as type 
+                         FROM payments ORDER BY created_at DESC LIMIT 5`
+                    ).all();
+
+                    // Combine and sort by date
+                    const combinedActivity = [...(recentOrders || []), ...(recentPayments || [])]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .slice(0, 10);
+
+                    const recentActivity = combinedActivity.map(o => ({
                         id: o.id,
-                        type: 'order',
+                        type: o.type,
                         email: o.customer_email,
-                        name: o.customer_name,
-                        amount: o.total_amount,
-                        status: o.payment_status,
+                        name: o.customer_name || o.customer_email || 'Customer',
+                        amount: o.amount,
+                        status: o.status,
                         createdAt: o.created_at
                     }));
 
                     return Response.json({
                         totalRevenue,
+                        confirmedRevenue,
                         totalOrders,
                         activeMixtapes,
                         activeUsers,
@@ -2704,15 +2742,29 @@ export default {
                                 UPDATE orders SET status = 'processing', payment_status = 'deposit_paid', paystack_ref = ? WHERE id = ?
                             `).bind(ref, meta.order_id).run();
 
-                            await env.DB.prepare(`
-                                UPDATE installment_plans 
-                                SET paid_amount = ?, 
-                                    balance = total_amount - ?, 
-                                    status = 'active',
-                                    next_payment_date = date('now', '+1 month'),
-                                    updated_at = CURRENT_TIMESTAMP
-                                WHERE order_id = ?
-                            `).bind(amountKes, amountKes, meta.order_id).run();
+                            // Get the existing plan to check interval
+                            const plan = await env.DB.prepare("SELECT id, payment_interval, total_amount FROM installment_plans WHERE order_id = ?").bind(meta.order_id).first();
+                            
+                            if (plan) {
+                                const interval = plan.payment_interval === 'weekly' ? '+7 days' : '+1 month';
+                                
+                                await env.DB.prepare(`
+                                    UPDATE installment_plans 
+                                    SET paid_amount = ?, 
+                                        balance = total_amount - ?, 
+                                        status = 'active',
+                                        next_payment_date = date('now', ?),
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE order_id = ?
+                                `).bind(amountKes, amountKes, interval, meta.order_id).run();
+
+                                // Record payment record
+                                const payId = `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                                await env.DB.prepare(`
+                                    INSERT INTO installment_payments (id, plan_id, amount, status, reference, payment_method, created_at)
+                                    VALUES (?, ?, ?, 'success', ?, 'paystack', CURRENT_TIMESTAMP)
+                                `).bind(payId, plan.id, amountKes, ref).run();
+                            }
 
                             fulfillmentMsg = "Installment Deposit Paid";
 
@@ -2731,18 +2783,27 @@ export default {
                                 const newAmountPaid = (plan.paid_amount || 0) + amountKes;
                                 const newBalance = Math.max(0, plan.total_amount - newAmountPaid);
                                 const isCompleted = newBalance <= 0;
+                                const interval = plan.payment_interval === 'weekly' ? '+7 days' : '+1 month';
                                 
                                 await env.DB.prepare(`
                                     UPDATE installment_plans 
-                                    SET paid_amount = ?, balance = ?, status = ?, next_payment_date = ?, updated_at = CURRENT_TIMESTAMP
+                                    SET paid_amount = ?, balance = ?, status = ?, next_payment_date = CASE WHEN ? = 'completed' THEN NULL ELSE date(next_payment_date, ?) END, updated_at = CURRENT_TIMESTAMP
                                     WHERE id = ?
                                 `).bind(
                                     newAmountPaid, 
                                     newBalance, 
                                     isCompleted ? 'completed' : 'active',
-                                    isCompleted ? null : plan.next_payment_date, // Keep the same or bump? Better let cron bump it or bump +1 mo. We'll simplify.
+                                    isCompleted ? 'completed' : 'active',
+                                    interval,
                                     planId
                                 ).run();
+
+                                // Record payment record
+                                const payId = `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                                await env.DB.prepare(`
+                                    INSERT INTO installment_payments (id, plan_id, amount, status, reference, payment_method, created_at)
+                                    VALUES (?, ?, ?, 'success', ?, 'paystack', CURRENT_TIMESTAMP)
+                                `).bind(payId, planId, amountKes, ref).run();
 
                                 if (isCompleted) {
                                     // Mark the actual order as fully paid!
@@ -3001,6 +3062,136 @@ export default {
             }
 
             // ═══════════════════════════════════════════════════════════════════
+            // ADMIN STATS — GET /api/admin/stats
+            // Called by DataContext.refreshAdminStats() to power the stat cards.
+            // Returns aggregate revenue, active subs, monthly figures.
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "GET" && path === "/api/admin/stats") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    const now = new Date();
+                    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+                    const revenueRow = await env.DB.prepare(`
+                        SELECT
+                            COALESCE(SUM(amount_kes), 0) AS total_revenue
+                        FROM payments WHERE status = 'success'
+                    `).first();
+
+                    const monthlyRow = await env.DB.prepare(`
+                        SELECT
+                            COUNT(*) AS monthly_sales_count,
+                            COALESCE(SUM(amount_kes), 0) AS monthly_sales_amt
+                        FROM payments
+                        WHERE status = 'success' AND created_at >= ?
+                    `).bind(firstOfMonth).first();
+
+                    const subsRow = await env.DB.prepare(`
+                        SELECT COUNT(*) AS active_subs FROM profiles
+                        WHERE (is_subscriber = 1 OR is_subscriber = 'true')
+                          AND (subscription_expiry IS NULL OR subscription_expiry > datetime('now'))
+                    `).first();
+
+                    return Response.json({
+                        total_revenue: revenueRow?.total_revenue || 0,
+                        active_subs: subsRow?.active_subs || 0,
+                        monthly_sales_count: monthlyRow?.monthly_sales_count || 0,
+                        monthly_sales_amt: monthlyRow?.monthly_sales_amt || 0,
+                        currency: "KES"
+                    }, { headers: corsHeaders });
+                } catch (err) {
+                    console.error("[Admin Stats] Error:", err);
+                    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ADMIN ORDERS — GET /api/admin/orders
+            // Full unfiltered order list for the admin dashboard (all statuses).
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "GET" && path === "/api/admin/orders") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    const { results } = await env.DB.prepare(`
+                        SELECT * FROM orders ORDER BY created_at DESC LIMIT 1000
+                    `).all();
+                    return Response.json(results || [], { headers: corsHeaders });
+                } catch (err) {
+                    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ADMIN SUBSCRIPTIONS — GET /api/admin/subscriptions
+            // Full subscription list (all statuses) with joined user email.
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "GET" && path === "/api/admin/subscriptions") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    // Try subscriptions table first; fall back to profiles with is_subscriber=1
+                    let results = [];
+                    try {
+                        const { results: subs } = await env.DB.prepare(`
+                            SELECT s.*, p.email, p.full_name
+                            FROM subscriptions s
+                            LEFT JOIN profiles p ON s.user_id = p.id
+                            ORDER BY s.created_at DESC
+                        `).all();
+                        results = subs || [];
+                    } catch (_) {
+                        // subscriptions table may not exist yet — fall back to profiles
+                        const { results: profiles } = await env.DB.prepare(`
+                            SELECT id, email, full_name, is_subscriber,
+                                   subscription_expiry AS end_date,
+                                   created_at
+                            FROM profiles
+                            WHERE is_subscriber = 1 OR is_subscriber = 'true'
+                            ORDER BY subscription_expiry DESC
+                        `).all();
+                        results = (profiles || []).map(p => ({
+                            id: p.id,
+                            user_id: p.id,
+                            email: p.email,
+                            full_name: p.full_name,
+                            plan_id: 'active',
+                            status: 'active',
+                            start_date: p.created_at,
+                            end_date: p.end_date,
+                            created_at: p.created_at
+                        }));
+                    }
+                    return Response.json(results, { headers: corsHeaders });
+                } catch (err) {
+                    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ADMIN SUBSCRIPTION PLANS — GET /api/admin/subscription_plans
+            // Returns all subscription plans from D1 (or R2 fallback).
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "GET" && path === "/api/admin/subscription_plans") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    const { results } = await env.DB.prepare(`
+                        SELECT * FROM subscription_plans ORDER BY price ASC
+                    `).all();
+                    return Response.json(results || [], { headers: corsHeaders });
+                } catch (err) {
+                    // Table may not exist; return empty so frontend uses its own defaults
+                    return Response.json([], { headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
             // COMMUNITY DIRECTORY — GET /api/admin/users
             // Paginated: ?page=1&limit=50&filter=active|fans|all
             // ═══════════════════════════════════════════════════════════════════
@@ -3010,7 +3201,7 @@ export default {
 
                 const filter = url.searchParams.get("filter") || "all";
                 const page = parseInt(url.searchParams.get("page") || "1");
-                const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 200);
+                const limit = Math.min(parseInt(url.searchParams.get("limit") || "1000"), 5000);
                 const offset = (page - 1) * limit;
 
                 let whereClause = "";
@@ -3220,7 +3411,7 @@ export default {
                     .bind("SUBS_EXPIRED", `${expired.length} subscriptions expired`).run();
             }
         } catch (e) {
-            console.error("[Cron] Expired-sub cleanup failed:", e);
+                console.error("[Cron] Expired-sub cleanup failed:", e);
         }
 
         // 2. Send 24-Hour Expiry Reminder Emails (9 AM EAT = 6 AM UTC)

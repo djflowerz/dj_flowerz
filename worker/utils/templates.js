@@ -118,6 +118,9 @@ const ctaButton = (href, label, style = 'primary') => {
 
 // ─── Exported Templates ────────────────────────────────────────────────────
 
+// [VERIFIED]: Email Templates for DJ Flowerz.
+// DO NOT MODIFY WITHOUT EXPLICIT UNLOCK REQUEST.
+
 export const templates = {
 
   // 1. Subscription Activation
@@ -286,6 +289,51 @@ export const templates = {
     </div>
     ${ctaButton('https://djflowerz.co.ke', '🚀 Explore the Platform')}
     <p style="text-align:center;margin:16px 0 0;font-size:13px;color:#6b7280;">Let's make some noise. 🇰🇪</p>
+  `),
+
+  // 10. Installment Deposit Confirmation
+  installmentDeposit: (userName, productName, depositAmount, balance, nextPaymentDate) => emailWrap(`
+    ${heroSection('🤝', 'Plan Activated!', `Yo <strong style="color:#ffffff;">${userName}</strong>, your Lipa Pole Pole plan for <strong style="color:#a855f7;">${productName}</strong> is now live.`)}
+    ${divider}
+    ${infoCard([
+      ['Status', '<span style="color:#4ade80;">✓ Active</span>'],
+      ['Deposit Paid', `KES ${depositAmount}`],
+      ['Remaining Balance', `KES ${balance}`],
+      ['Next Payment', nextPaymentDate || 'Monthly'],
+    ])}
+    <div style="background:#15151f;border:1px solid #ffffff08;border-radius:16px;padding:24px 32px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#a855f7;">What's Next?</p>
+      <p style="margin:6px 0;font-size:14px;color:#9ca3af;">• Your item is reserved and safe in our vault.</p>
+      <p style="margin:6px 0;font-size:14px;color:#9ca3af;">• Track your progress anytime in your <a href="https://djflowerz.co.ke/profile" style="color:#a855f7;text-decoration:none;">Dashboard</a>.</p>
+      <p style="margin:6px 0;font-size:14px;color:#9ca3af;">• We'll send a friendly reminder before your next installment.</p>
+    </div>
+    ${ctaButton('https://djflowerz.co.ke/profile', '📊 View My Progress', 'primary')}
+    <p style="text-align:center;margin:16px 0 0;font-size:13px;color:#6b7280;">Level up your gear, one step at a time.</p>
+  `),
+
+  // 11. Installment Payment Confirmation
+  installmentPayment: (userName, productName, amountPaid, remainingBalance, isFullyPaid) => emailWrap(`
+    ${heroSection(isFullyPaid ? '🏆' : '✅', isFullyPaid ? 'Goal Reached!' : 'Payment Received', `Nice <strong style="color:#ffffff;">${userName}</strong>! Your payment for <strong style="color:#a855f7;">${productName}</strong> was successful.`)}
+    ${divider}
+    ${infoCard([
+      ['Amount Paid', `KES ${amountPaid}`],
+      ['New Balance', `KES ${remainingBalance}`],
+      ['Status', isFullyPaid ? '<span style="color:#4ade80;">✓ Fully Paid</span>' : '<span style="color:#facc15;">⏳ In Progress</span>'],
+    ], isFullyPaid ? '#4ade80' : '#a855f7')}
+    
+    ${isFullyPaid ? `
+      <div style="background:linear-gradient(135deg,#4ade8020,#a855f710);border:1px solid #4ade8030;border-radius:16px;padding:24px 32px;margin:24px 0;text-align:center;">
+        <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#ffffff;">You've fully paid for your ${productName}!</p>
+        <p style="margin:0;font-size:14px;color:#d1d5db;">Our team is preparing your package for delivery. We'll send you the tracking details within 24 hours.</p>
+      </div>
+      ${ctaButton('https://djflowerz.co.ke/store', '🛍️ Back to Store', 'secondary')}
+    ` : `
+      <div style="background:#15151f;border:1px dashed #ffffff15;border-radius:12px;padding:20px 24px;margin:16px 0;text-align:center;">
+        <p style="margin:0;font-size:14px;color:#9ca3af;">You're one step closer to owning it! 🎧</p>
+      </div>
+      ${ctaButton('https://djflowerz.co.ke/profile', '📊 Track Progress')}
+    `}
+    <p style="text-align:center;margin:16px 0 0;font-size:13px;color:#6b7280;">Stay legendary — DJ FLOWERZ</p>
   `),
 
 };

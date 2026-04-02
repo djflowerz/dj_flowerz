@@ -255,6 +255,8 @@ const RecordingSessions: React.FC = () => {
                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Date</label>
                                  <input
                                     type="date"
+                                    id="rec-session-date"
+                                    name="session_date"
                                     className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:border-brand-purple focus:outline-none"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
@@ -266,6 +268,8 @@ const RecordingSessions: React.FC = () => {
                                  <div className="flex items-center gap-4">
                                     <input
                                        type="range"
+                                       id="rec-session-duration"
+                                       name="duration"
                                        min="2"
                                        max="12"
                                        step="1"
@@ -380,10 +384,10 @@ const RecordingSessions: React.FC = () => {
 
                            <form className="space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <input type="text" placeholder="Full Name" className="bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none" />
-                                 <input type="tel" placeholder="Phone" className="bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none" />
+                                 <input type="text" id="rec-booking-name" name="name" placeholder="Full Name" className="bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none" />
+                                 <input type="tel" id="rec-booking-phone" name="phone" placeholder="Phone" className="bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-brand-purple focus:outline-none" />
                               </div>
-                              <textarea placeholder="Production Notes (e.g. Genre, Reference Tracks)" className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white h-20 resize-none focus:border-brand-purple focus:outline-none"></textarea>
+                              <textarea id="rec-booking-notes" name="notes" placeholder="Production Notes (e.g. Genre, Reference Tracks)" className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white h-20 resize-none focus:border-brand-purple focus:outline-none"></textarea>
                            </form>
                         </div>
                      )}

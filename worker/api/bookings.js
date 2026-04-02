@@ -63,10 +63,27 @@ export async function handleBookings(request, env, ctx, params) {
                 const { results } = await env.DB.prepare(`SELECT * FROM studio_sessions ORDER BY session_date DESC, start_time DESC`).all();
                 return Response.json(results || []);
             }
+
+            if (url.pathname.includes('/blackout')) {
+                const { results } = await env.DB.prepare(`SELECT * FROM booking_blackouts ORDER BY date ASC`).all();
+                return Response.json(results || []);
+            }
         }
 
         if (method === 'POST') {
             const body = await request.json();
+
+            if (url.pathname.includes('/blackout')) {
+                const { date, reason } = body;
+                if (!date) return Response.json({ error: 'Date is required' }, { status: 400 });
+                const id = crypto.randomUUID();
+                await env.DB.prepare(`
+                    INSERT INTO booking_blackouts (id, date, reason, created_at)
+                    VALUES (?, ?, ?, ?)
+                `).bind(id, date, reason || 'Gig Confirmed', new Date().toISOString()).run();
+                return Response.json({ success: true, id });
+            }
+
             const id = body.id || crypto.randomUUID();
 
             if (url.pathname.includes('/gig')) {
@@ -119,6 +136,14 @@ export async function handleBookings(request, env, ctx, params) {
                         start_time = COALESCE(?, start_time)
                     WHERE id = ?
                 `).bind(status || null, total_price_kes || null, duration_hours || null, session_date || null, start_time || null, id).run();
+                return Response.json({ success: true });
+            }
+        }
+
+        if (method === 'DELETE') {
+            const id = url.pathname.split('/').pop();
+            if (url.pathname.includes('/blackout/')) {
+                await env.DB.prepare(`DELETE FROM booking_blackouts WHERE id = ?`).bind(id).run();
                 return Response.json({ success: true });
             }
         }

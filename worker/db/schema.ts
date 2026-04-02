@@ -307,16 +307,22 @@ export const payments = sqliteTable('payments', {
 // 21. INSTALLMENT PLANS (Lipa Pole Pole)
 export const installmentPlans = sqliteTable('installment_plans', {
     id: text('id').primaryKey(),
+    orderId: text('order_id').notNull(),
     userId: text('user_id').references(() => profiles.id).notNull(),
-    productId: text('product_id'), // Optional, can be empty for custom amounts
+    productId: text('product_id'),
+    productName: text('product_name'),
     totalAmount: real('total_amount').notNull(),
-    amountPaid: real('amount_paid').default(0),
-    installmentsCount: integer('installments_count').default(1),
-    status: text('status').default('active'), // active, frozen, completed, defaulted
-    paymentMethod: text('payment_method').default('Paystack'),
+    depositAmount: real('deposit_amount').notNull(),
+    paidAmount: real('paid_amount').default(0),
+    balance: real('balance').notNull(),
+    status: text('status').default('pending_deposit'), // pending_deposit, active, completed, frozen, defaulted
+    installmentsCount: integer('installments_count').default(3),
+    paymentInterval: text('payment_interval').default('monthly'), // weekly, biweekly, monthly
+    reminderChannel: text('reminder_channel').default('sms'), // sms, email, both
+    isReminderEnabled: integer('is_reminder_enabled', { mode: 'boolean' }).default(true),
     nextPaymentDate: text('next_payment_date'),
-    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
 });
 
 // 22. INSTALLMENT PAYMENTS (Individual charges)
@@ -324,10 +330,10 @@ export const installmentPayments = sqliteTable('installment_payments', {
     id: text('id').primaryKey(),
     planId: text('plan_id').references(() => installmentPlans.id).notNull(),
     amount: real('amount').notNull(),
-    status: text('status').default('pending'), // pending, paid, failed
-    paymentDate: text('payment_date'),
-    paystackRef: text('paystack_ref'),
-    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    status: text('status').default('pending'), // pending, success, failed
+    reference: text('reference').unique(),
+    paymentMethod: text('payment_method'),
+    createdAt: text('created_at').notNull(),
 });
 
 // 23. WISHLIST

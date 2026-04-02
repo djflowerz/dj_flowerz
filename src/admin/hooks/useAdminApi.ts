@@ -5,13 +5,13 @@ import { toast } from 'sonner';
 const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
 
 export function useAdminApi() {
-    const { user } = useAuth();
+    const { session } = useAuth();
     const [loading, setLoading] = useState(false);
 
     const request = useCallback(async (path: string, options: RequestInit = {}) => {
         setLoading(true);
         try {
-            const token = await localStorage.getItem('supabase.auth.token'); // Adjust based on how token is stored
+            const token = session?.access_token || '';
             const headers = new Headers(options.headers);
             headers.set('Authorization', `Bearer ${token}`);
             headers.set('Content-Type', 'application/json');

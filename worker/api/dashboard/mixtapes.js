@@ -17,9 +17,26 @@ export async function handleDashboardMixtapes(request, env) {
         if (method === 'GET') {
             // List all mixtapes
             const { results } = await env.DB.prepare(
-                `SELECT * FROM mixtapes ORDER BY created_at DESC LIMIT 200`
+                `SELECT 
+                    id, title, slug, artist, description, genre, 
+                    cover_url AS coverUrl, audio_url AS audioUrl, video_url AS videoUrl, 
+                    duration, release_date AS releaseDate, status, 
+                    tracklist, tags, is_featured AS isFeatured, 
+                    show_in_gallery AS showInGallery, show_in_music_pool AS showInMusicPool, 
+                    is_exclusive AS isExclusive, updated_at, created_at
+                FROM mixtapes 
+                ORDER BY created_at DESC 
+                LIMIT 200`
             ).all();
-            return Response.json(results || []);
+            
+            // Parse JSON fields
+            const formattedResults = (results || []).map(m => ({
+                ...m,
+                tracklist: m.tracklist ? JSON.parse(m.tracklist) : [],
+                tags: m.tags ? JSON.parse(m.tags) : []
+            }));
+
+            return Response.json(formattedResults);
         }
 
         if (method === 'POST') {

@@ -676,7 +676,8 @@ export interface InstallmentPlan {
   deposit_amount: number;
   paid_amount: number;
   balance: number;
-  status: 'active' | 'completed' | 'frozen' | 'defaulted';
+  status: 'pending_deposit' | 'active' | 'completed' | 'frozen' | 'defaulted';
+  installments_count: number;
   payment_interval: 'weekly' | 'monthly';
   next_payment_date: string | null;
   reminder_channel: 'email' | 'whatsapp' | 'both';

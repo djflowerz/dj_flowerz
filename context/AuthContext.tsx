@@ -28,6 +28,7 @@ interface AuthContextType {
   setMfaResolver: (resolver: any) => void;
   checkEmailVerification: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
+  session: any | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,11 +41,13 @@ const generateReferralCode = (name: string) => {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [mfaResolver, setMfaResolver] = useState<any>(null);
 
   // Helper to fetch profile and set user
   const fetchProfileAndSetUser = async (session: any) => {
+    setSession(session);
     if (!session?.user) {
       setUser(null);
       setLoading(false);
@@ -586,7 +589,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       mfaResolver,
       setMfaResolver,
       checkEmailVerification,
-      refreshProfile
+      refreshProfile,
+      session
     } as any}>
       {children}
     </AuthContext.Provider>

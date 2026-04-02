@@ -54,7 +54,12 @@ export async function verifySupabaseJWT(token, secret) {
         let b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
         const pad = b64.length % 4;
         if (pad) b64 += '='.repeat(4 - pad);
-        const decoded = JSON.parse(atob(b64));
+        
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        const decodedString = new TextDecoder().decode(arr);
+        const decoded = JSON.parse(decodedString);
 
         const now = Math.floor(Date.now() / 1000);
         if (decoded.exp && decoded.exp < now) {
@@ -117,6 +122,10 @@ export async function getAuthorizedUser(request, env) {
     // Auto-assign admin role based on email — fixes all handlers that check user.role === 'admin'
     if (isAdminEmail(user.email)) {
         user = { ...user, role: 'admin' };
+    }
+
+    if (user.role !== 'admin') {
+        console.warn(`[Auth] User ${user.email} (ID: ${user.id}) is not an admin! role=${user.role}`);
     }
 
     return user;

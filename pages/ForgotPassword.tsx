@@ -63,6 +63,8 @@ const ForgotPassword: React.FC = () => {
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Email Address</label>
             <input
               type="email"
+              id="forgot-password-email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="YOU@EXAMPLE.COM"

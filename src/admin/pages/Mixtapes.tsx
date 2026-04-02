@@ -13,7 +13,7 @@ const Mixtapes: React.FC = () => {
 
     const loadMixtapes = async () => {
         try {
-            const data = await request('/api/mixtapes');
+            const data = await request('/api/admin/mixtapes');
             setMixtapes(data);
         } catch (e) { }
     };

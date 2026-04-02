@@ -321,6 +321,8 @@ const Sessions: React.FC = () => {
                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Select Date</label>
                            <input
                               type="date"
+                              id="session-date"
+                              name="session_date"
                               className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-brand-purple"
                               onChange={(e) => setSelectedDate(e.target.value)}
                            />
@@ -354,17 +356,19 @@ const Sessions: React.FC = () => {
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Your Name</label>
-                                 <input type="text" placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
+                                 <input type="text" id="session-name" name="name" placeholder="John Doe" className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
                               </div>
                               <div>
                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone</label>
-                                 <input type="text" placeholder="+254..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
+                                 <input type="tel" id="session-phone" name="phone" placeholder="+254..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple" />
                               </div>
                            </div>
 
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Session Type</label>
                               <select
+                                 id="session-type"
+                                 name="session_type"
                                  value={selectedService}
                                  onChange={(e) => setSelectedService(e.target.value)}
                                  className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-purple"
@@ -375,7 +379,7 @@ const Sessions: React.FC = () => {
 
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Notes</label>
-                              <textarea placeholder="Any specific requirements..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-24 resize-none focus:outline-none focus:border-brand-purple"></textarea>
+                              <textarea id="session-notes" name="notes" placeholder="Any specific requirements..." className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white h-24 resize-none focus:outline-none focus:border-brand-purple"></textarea>
                            </div>
 
                            <div className="flex items-center justify-between border-t border-white/5 pt-6">

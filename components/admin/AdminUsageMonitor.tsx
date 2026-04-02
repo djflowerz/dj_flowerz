@@ -3,6 +3,8 @@ import { Shield, UserX, Clock, Download, Zap, AlertTriangle, RefreshCw } from 'l
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL, getAuthHeader } from '../../utils/r2';
 
+import { useData } from '../../context/DataContext';
+
 interface UserUsage {
     email: string;
     full_name: string | null;
@@ -14,6 +16,7 @@ interface UserUsage {
 }
 
 export default function AdminUsageMonitor() {
+    const { revokeSubscription } = useData();
     const [usageData, setUsageData] = useState<UserUsage[]>([]);
     const [loading, setLoading] = useState(true);
     const [revoking, setRevoking] = useState<string | null>(null);
@@ -48,22 +51,12 @@ export default function AdminUsageMonitor() {
 
         setRevoking(email);
         try {
-            const authHeader = await getAuthHeader();
-            const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/revoke-access`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeader },
-                body: JSON.stringify({ targetEmail: email })
-            });
-
-            if (response.ok) {
-                toast.success(`Access revoked for ${email}`);
-                fetchUsage();
-            } else {
-                toast.error("Failed to revoke access");
-            }
-        } catch (error) {
+            await revokeSubscription(email);
+            toast.success(`Access revoked for ${email}`);
+            fetchUsage();
+        } catch (error: any) {
             console.error("Revoke error:", error);
-            toast.error("Error revoking access");
+            toast.error(error.message || "Error revoking access");
         } finally {
             setRevoking(null);
         }

@@ -62,7 +62,7 @@ const UserInstallments: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('Not authenticated');
 
-        const res = await fetch(`${WORKER_URL}/api/installments`, {
+        const res = await fetch(`/api/installments`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         if (!res.ok) throw new Error('Failed to load installments');
@@ -85,7 +85,7 @@ const UserInstallments: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const res = await fetch(`${WORKER_URL}/api/installments/pay`, {
+      const res = await fetch(`/api/installments/pay`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

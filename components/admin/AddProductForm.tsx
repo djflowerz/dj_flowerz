@@ -15,6 +15,7 @@ type TabType = 'basic' | 'variants' | 'shipping' | 'advanced' | 'marketing';
 const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, onCancel, isSaving = false }) => {
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [formData, setFormData] = useState<Partial<Product>>({
+    ...(initialData || {}),
     id: initialData?.id || '',
     name: initialData?.name || '',
     description: initialData?.description || '',

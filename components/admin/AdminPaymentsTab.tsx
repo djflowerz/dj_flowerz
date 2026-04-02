@@ -14,10 +14,8 @@ import {
     Search, Clock, ExternalLink, Filter, TrendingUp,
     Smartphone, CreditCard as CardIcon, Building2
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
+import { STORAGE_WORKER_URL, getAuthHeader } from '../../utils/r2';
 
 interface Payment {
     id: string;
@@ -33,27 +31,27 @@ interface Props {
 }
 
 const AdminPaymentsTab: React.FC<Props> = ({ liveSales }) => {
-    const { session } = useAuth() as any;
     const [payments, setPayments] = useState<Payment[]>([]);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     const fetchPayments = useCallback(async () => {
-        if (!session?.access_token) return;
         setLoading(true);
         try {
-            const res = await fetch(`${WORKER_URL}/api/admin/payments`, {
-                headers: { Authorization: `Bearer ${session.access_token}` }
+            const authHeader = await getAuthHeader();
+            const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/payments`, {
+                headers: authHeader
             });
             const data = await res.json();
             setPayments(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error('Failed to fetch payments', e);
+            toast.error('Failed to load transaction history');
         } finally {
             setLoading(false);
         }
-    }, [session?.access_token]);
+    }, []);
 
     useEffect(() => {
         fetchPayments();
@@ -63,9 +61,10 @@ const AdminPaymentsTab: React.FC<Props> = ({ liveSales }) => {
         if (syncing) return;
         setSyncing(true);
         try {
-            const res = await fetch(`${WORKER_URL}/api/admin/sync-paystack`, {
+            const authHeader = await getAuthHeader();
+            const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/sync-paystack`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${session?.access_token}` }
+                headers: authHeader
             });
             const data = await res.json();
             if (data.success) {

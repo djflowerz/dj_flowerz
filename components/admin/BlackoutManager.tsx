@@ -1,9 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Trash2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
-import { supabase } from '../../utils/supabase';
-
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://api.djflowerz.co.ke';
+import { useAdminApi } from '../../src/admin/hooks/useAdminApi';
 
 interface Blackout {
     id: string;
@@ -12,6 +10,7 @@ interface Blackout {
 }
 
 const BlackoutManager: React.FC = () => {
+    const { request, loading: apiLoading } = useAdminApi();
     const [blackouts, setBlackouts] = useState<Blackout[]>([]);
     const [newDate, setNewDate] = useState('');
     const [newReason, setNewReason] = useState('Gig Confirmed');
@@ -25,11 +24,8 @@ const BlackoutManager: React.FC = () => {
 
     const fetchBlackouts = async () => {
         try {
-            const res = await fetch(`${WORKER_URL}/api/blackouts`);
-            if (res.ok) {
-                const data = await res.json();
-                setBlackouts(data);
-            }
+            const data = await request('/api/admin/bookings/blackout');
+            setBlackouts(data || []);
         } catch (err) {
             console.error('Failed to fetch blackouts:', err);
         }
@@ -44,26 +40,16 @@ const BlackoutManager: React.FC = () => {
         setSuccess(null);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const res = await fetch(`${WORKER_URL}/api/admin/bookings/blackout`, {
+            await request('/api/admin/bookings/blackout', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
                 body: JSON.stringify({ date: newDate, reason: newReason })
             });
 
-            if (res.ok) {
-                setSuccess(`Date ${newDate} is now blocked.`);
-                setNewDate('');
-                fetchBlackouts();
-            } else {
-                const data = await res.json();
-                setError(data.message || 'Failed to add blackout');
-            }
-        } catch (err) {
-            setError('Network error. Check connection.');
+            setSuccess(`Date ${newDate} is now blocked.`);
+            setNewDate('');
+            fetchBlackouts();
+        } catch (err: any) {
+            setError(err.message || 'Failed to add blackout');
         } finally {
             setLoading(false);
         }
@@ -73,18 +59,11 @@ const BlackoutManager: React.FC = () => {
         if (!confirm('Unblock this date?')) return;
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const res = await fetch(`${WORKER_URL}/api/admin/bookings/blackout/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${session?.access_token}`
-                }
+            await request(`/api/admin/bookings/blackout/${id}`, {
+                method: 'DELETE'
             });
-
-            if (res.ok) {
-                fetchBlackouts();
-            }
-        } catch (err) {
+            fetchBlackouts();
+        } catch (err: any) {
             console.error('Failed to delete blackout:', err);
         }
     };

@@ -25,10 +25,9 @@ async function checkAndIncrementDownloads(user, env, isAdminEmail) {
     } else if (isSubscribed) {
         if (userPlan === 'trial') {
             limit = 10;
-        } else if (userPlan === 'monthly') {
-            limit = 30;
         } else {
-            limit = 200;
+            // All paid plans (monthly, 3m, 6m, 12m) get unlimited downloads
+            limit = 9999;
         }
     } else {
         limit = 0; // Unsubscribed users get 0 downloads
@@ -205,10 +204,9 @@ async function handleGetPoolTracks(request, env) {
     } else if (isSubscribed) {
         if (userPlan === 'trial') {
             dailyLimit = 10;
-        } else if (userPlan === 'monthly') {
-            dailyLimit = 30;
         } else {
-            dailyLimit = 200;
+            // All paid plans (monthly, 3m, 6m, 12m) get unlimited downloads
+            dailyLimit = 9999;
         }
     } else {
         dailyLimit = 0; // Unsubscribed users get 0 downloads
@@ -437,10 +435,9 @@ export async function handleStorefrontPool(request, env) {
             } else if (isSubscribed) {
                 if (userPlan === 'trial') {
                     dailyLimit = 10;
-                } else if (userPlan === 'monthly') {
-                    dailyLimit = 30;
                 } else {
-                    dailyLimit = 200;
+                    // All paid plans (monthly, 3m, 6m, 12m) get unlimited downloads
+                    dailyLimit = 9999;
                 }
             } else {
                 dailyLimit = 0; // Unsubscribed users get 0 downloads

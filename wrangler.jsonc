@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "djflowerz-worker",
-  "main": "worker/r2-storage-worker.js",
+  "main": "worker/index.js",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": [
     "nodejs_compat"
@@ -26,6 +26,10 @@
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
+      "bucket_name": "djflowerz-images"
+    },
+    {
+      "binding": "PROFILES_BUCKET",
       "bucket_name": "djflowerz-images"
     }
   ],

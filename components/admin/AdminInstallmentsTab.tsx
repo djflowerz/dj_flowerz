@@ -1,12 +1,18 @@
+// [VERIFIED]: Admin Installments Tab for DJ Flowerz.
+// DO NOT MODIFY WITHOUT EXPLICIT UNLOCK REQUEST.
+
 import React, { useState, useEffect } from 'react';
 import {
   Search, Calendar, Clock, Shield, AlertCircle, Activity,
   CreditCard, CheckCircle2, XCircle, PauseCircle, Trash2,
-  Package, TrendingUp, User, ChevronDown, ChevronUp, Eye, RefreshCw
+  Package, TrendingUp, User as UserIcon, ChevronDown, ChevronUp, Eye, RefreshCw, X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
+import { User as UserType, Product } from '../../types';
+import CreatePlanModal from './CreatePlanModal';
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
 interface InstallmentPlan {
   id: string;
@@ -62,6 +68,7 @@ export default function AdminInstallmentsTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -69,7 +76,7 @@ export default function AdminInstallmentsTab() {
       const { supabase } = await import('../../utils/supabase');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const res = await fetch(`${WORKER_URL}/api/installments`, {
+      const res = await fetch(`${WORKER_URL}/api/admin/installments`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
       const data = await res.json();
@@ -89,7 +96,7 @@ export default function AdminInstallmentsTab() {
     try {
       const { supabase } = await import('../../utils/supabase');
       const { data: { session } } = await supabase.auth.getSession();
-      await fetch(`${WORKER_URL}/api/installments/${planId}`, {
+      await fetch(`${WORKER_URL}/api/admin/installments/${planId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session!.access_token}` },
         body: JSON.stringify({ status })
@@ -101,16 +108,16 @@ export default function AdminInstallmentsTab() {
   };
 
   const deletePlan = async (planId: string) => {
-    if (!confirm(`PERMANENTLY DELETE plan ${planId}? This cannot be undone.`)) return;
+    if (!confirm(`Delete installment plan?`)) return;
     setActionLoading(planId);
     try {
       const { supabase } = await import('../../utils/supabase');
       const { data: { session } } = await supabase.auth.getSession();
-      await fetch(`${WORKER_URL}/api/installments/${planId}`, {
+      await fetch(`${WORKER_URL}/api/admin/installments/${planId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${session!.access_token}` }
       });
-      setPlans(prev => prev.filter(p => p.id !== planId));
+      await fetchPlans();
     } finally {
       setActionLoading(null);
     }
@@ -120,8 +127,8 @@ export default function AdminInstallmentsTab() {
     const q = searchTerm.toLowerCase();
     const match =
       p.order_id?.toLowerCase().includes(q) ||
-      p.customer_name?.toLowerCase().includes(q) ||
-      p.customer_email?.toLowerCase().includes(q) ||
+      p.full_name?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q) ||
       p.id?.toLowerCase().includes(q);
     const statusOk = statusFilter === 'all' || p.status === statusFilter;
     return match && statusOk;
@@ -154,8 +161,8 @@ export default function AdminInstallmentsTab() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 group">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1 group w-full">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={18} />
           <input
             type="text"
@@ -165,7 +172,7 @@ export default function AdminInstallmentsTab() {
             className="w-full bg-[#0B0B0F] border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold text-white focus:border-brand-purple/50 outline-none transition-all placeholder:text-gray-700"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
           {['all', 'pending_deposit', 'active', 'completed', 'frozen', 'defaulted'].map(s => (
             <button
               key={s}
@@ -180,14 +187,29 @@ export default function AdminInstallmentsTab() {
             </button>
           ))}
         </div>
-        <button
-          onClick={fetchPlans}
-          className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-gray-400 transition-all"
-          title="Refresh"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex-1 sm:flex-none px-6 py-4 rounded-2xl bg-brand-purple text-white text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple/80 transition-all flex items-center justify-center gap-2"
+          >
+            <TrendingUp size={16} /> New Plan
+          </button>
+          <button
+            onClick={fetchPlans}
+            className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-gray-400 transition-all"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
+
+      {showCreateModal && (
+        <CreatePlanModal 
+          onClose={() => setShowCreateModal(false)} 
+          onSuccess={() => { setShowCreateModal(false); fetchPlans(); }} 
+        />
+      )}
 
       {/* Plans List */}
       <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
@@ -220,7 +242,7 @@ export default function AdminInstallmentsTab() {
                   <div className="px-6 py-5 flex items-center gap-4 flex-wrap">
                     {/* Avatar */}
                     <div className="w-10 h-10 rounded-xl bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center font-black text-brand-purple text-sm flex-shrink-0">
-                      {plan.customer_name?.charAt(0)?.toUpperCase() || <User size={18} />}
+                      {plan.customer_name?.charAt(0)?.toUpperCase() || <UserIcon size={18} />}
                     </div>
 
                     {/* Customer & Order */}
@@ -234,7 +256,12 @@ export default function AdminInstallmentsTab() {
                     </div>
 
                     {/* Status */}
-                    <StatusBadge status={plan.status} />
+                    <div className="flex flex-col gap-1">
+                      <StatusBadge status={plan.status} />
+                      {plan.order_id?.startsWith('MAN-') && (
+                        <span className="text-[8px] font-black text-brand-purple/50 uppercase tracking-[0.2em] ml-1">Manual</span>
+                      )}
+                    </div>
 
                     {/* Progress Bar (compact) */}
                     <div className="w-28 hidden sm:block">
@@ -335,6 +362,13 @@ export default function AdminInstallmentsTab() {
                                 </span>
                               </div>
                             ))}
+                          </div>
+                        ) : plan.product_name ? (
+                          <div className="flex justify-between items-center text-xs px-3 py-2 bg-black/30 rounded-xl">
+                            <span className="text-gray-300 font-medium truncate">
+                              {plan.product_name}
+                            </span>
+                            <span className="text-gray-500 font-bold">Manual Link</span>
                           </div>
                         ) : (
                           <p className="text-xs text-gray-600">No item details</p>

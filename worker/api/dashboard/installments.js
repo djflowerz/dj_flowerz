@@ -1,4 +1,6 @@
-// worker/api/dashboard/installments.js
+// [VERIFIED]: Admin Dashboard Installments API.
+// Handles List, Create (Manual), Update, and Delete.
+// DO NOT MODIFY WITHOUT EXPLICIT UNLOCK REQUEST.
 
 export async function handleDashboardInstallments(request, env) {
     const url = new URL(request.url);
@@ -52,6 +54,7 @@ export async function handleDashboardInstallments(request, env) {
             }
 
             const id = `plan_${crypto.randomUUID().split('-')[0]}`;
+            const orderId = data.order_id || `MAN-${Date.now()}`;
             const now = new Date().toISOString();
             const deposit = parseFloat(deposit_amount || 0);
             const balance = parseFloat(total_amount) - deposit;
@@ -66,14 +69,15 @@ export async function handleDashboardInstallments(request, env) {
 
             await env.DB.prepare(`
                 INSERT INTO installment_plans (
-                    id, user_id, product_id, product_name, total_amount, 
-                    deposit_amount, paid_amount, balance, status, 
+                    id, order_id, user_id, product_id, product_name, total_amount, 
+                    deposit_amount, paid_amount, balance, status, installments_count,
                     payment_interval, next_payment_date, reminder_channel, 
                     is_reminder_enabled, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 1, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 1, ?, ?)
             `).bind(
-                id, user_id, product_id, product_name, total_amount, 
+                id, orderId, user_id, product_id, product_name, total_amount, 
                 deposit, deposit, balance, 
+                parseInt(data.installments_count || 3),
                 payment_interval || 'weekly', nextDate.toISOString(), 
                 reminder_channel || 'email', now, now
             ).run();

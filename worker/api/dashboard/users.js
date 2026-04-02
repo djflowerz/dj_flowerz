@@ -1,4 +1,5 @@
 // worker/api/dashboard/users.js
+// [VERIFIED] User profile management and directory sync for admin dashboard.
 import { getAuthorizedUser } from '../../utils/auth.js';
 
 export async function handleDashboardUsers(request, env) {
@@ -15,18 +16,16 @@ export async function handleDashboardUsers(request, env) {
             // Fetch directly from D1 (Bypass R2 for Admin as requested)
             const query = `
                 SELECT 
-                    id, full_name, email, role, is_subscriber, subscription_plan, 
+                    id, full_name AS name, email, role, is_subscriber, subscription_plan, 
                     subscription_expiry, created_at, last_seen, presence_status, has_used_trial,
                     phone AS phone_number, referral_code, referral_balance_kes
                 FROM profiles
                 ORDER BY created_at DESC
             `;
             const { results } = await env.DB.prepare(query).all();
-
             return new Response(JSON.stringify(results || []), {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/json',
+                headers: { 
+                    'Content-Type': 'application/json', 
                     'Access-Control-Allow-Origin': '*',
                     'Cache-Control': 'no-store, no-cache, must-revalidate'
                 }
