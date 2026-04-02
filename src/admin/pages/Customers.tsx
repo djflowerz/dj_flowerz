@@ -44,6 +44,8 @@ const Customers: React.FC = () => {
                     <div className="relative group flex-1 lg:flex-none">
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-hover:text-brand-purple transition-colors" size={18} />
                         <input
+                            id="customer-search"
+                            name="customerSearch"
                             type="text"
                             placeholder="FIND USER..."
                             value={searchTerm}

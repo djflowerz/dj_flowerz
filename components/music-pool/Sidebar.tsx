@@ -65,6 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-brand-purple transition-colors" size={18} />
           <input
+            id="genre-search"
+            name="genreSearch"
             type="text"
             placeholder="Search Genres..."
             value={searchTerm}

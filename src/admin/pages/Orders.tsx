@@ -50,6 +50,8 @@ const Orders: React.FC = () => {
                     <div className="relative group flex-1 lg:flex-none">
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-hover:text-brand-purple transition-colors" size={18} />
                         <input
+                            id="order-search"
+                            name="orderSearch"
                             type="text"
                             placeholder="FIND ORDER ID..."
                             className="bg-[#0B0B0F] border border-white/5 rounded-full py-4 pl-16 pr-8 text-[10px] font-black tracking-widest text-white outline-none focus:border-brand-purple/50 transition-all w-full lg:w-80 shadow-inner"

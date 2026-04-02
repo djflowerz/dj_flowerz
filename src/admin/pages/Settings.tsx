@@ -117,6 +117,8 @@ const Settings: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Tagline</label>
                                     <input
+                                        id="settings-hero-label"
+                                        name="heroLabel"
                                         type="text"
                                         value={settings.heroLabel}
                                         onChange={e => setSettings({...settings, heroLabel: e.target.value})}
@@ -127,6 +129,8 @@ const Settings: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Title</label>
                                     <input
+                                        id="settings-hero-title"
+                                        name="heroTitle"
                                         type="text"
                                         value={settings.heroTitle}
                                         onChange={e => setSettings({...settings, heroTitle: e.target.value})}
@@ -141,6 +145,8 @@ const Settings: React.FC = () => {
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Featured Promo Code</label>
                                     <div className="flex gap-4">
                                         <input
+                                            id="settings-promo-code"
+                                            name="promoCode"
                                             type="text"
                                             value={settings.promoCode}
                                             onChange={e => setSettings({...settings, promoCode: e.target.value.toUpperCase()})}
@@ -187,6 +193,8 @@ const Settings: React.FC = () => {
                                         <div className="col-span-4 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Provider / Method Name</label>
                                             <input
+                                                id={`shipping-name-${method.id}`}
+                                                name={`shippingName_${method.id}`}
                                                 type="text"
                                                 value={method.name}
                                                 onChange={e => updateShippingMethod(method.id, 'name', e.target.value)}
@@ -197,6 +205,8 @@ const Settings: React.FC = () => {
                                         <div className="col-span-3 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Base Cost (KES)</label>
                                             <input
+                                                id={`shipping-cost-${method.id}`}
+                                                name={`shippingCost_${method.id}`}
                                                 type="number"
                                                 value={method.cost}
                                                 onChange={e => updateShippingMethod(method.id, 'cost', parseFloat(e.target.value))}
@@ -206,6 +216,8 @@ const Settings: React.FC = () => {
                                         <div className="col-span-3 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Estimated Time</label>
                                             <input
+                                                id={`shipping-time-${method.id}`}
+                                                name={`shippingTime_${method.id}`}
                                                 type="text"
                                                 value={method.estimatedDays}
                                                 onChange={e => updateShippingMethod(method.id, 'estimatedDays', e.target.value)}

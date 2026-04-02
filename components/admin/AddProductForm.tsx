@@ -126,6 +126,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Product Name</label>
                   <input
                     name="name"
+                    id="add-product-name"
                     required
                     value={formData.name}
                     onChange={handleInputChange}
@@ -148,6 +149,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Brand Name</label>
                   <input
                     name="brand"
+                    id="add-product-brand"
                     value={formData.brand}
                     onChange={handleInputChange}
                     placeholder="e.g., Pioneer DJ"
@@ -214,6 +216,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">File Password</label>
                         <input
                           name="downloadPassword"
+                          id="add-product-download-password"
                           value={formData.downloadPassword}
                           onChange={handleInputChange}
                           placeholder="Leave blank for none"
@@ -243,6 +246,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <input
                       type="number"
                       name="stock"
+                      id="add-product-stock"
                       value={formData.stock}
                       onChange={handleInputChange}
                       placeholder="0"
@@ -255,6 +259,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                    <input
                      type="date"
                      name="releaseDate"
+                     id="add-product-release-date"
                      value={formData.releaseDate}
                      onChange={handleInputChange}
                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium"
@@ -282,6 +287,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <input
                       type="number"
                       name="price"
+                      id="add-product-price"
                       required
                       value={formData.price}
                       onChange={handleInputChange}
@@ -293,6 +299,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <input
                       type="number"
                       name="compareAtPrice"
+                      id="add-product-compare-at-price"
                       value={formData.compareAtPrice}
                       onChange={handleInputChange}
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium placeholder:text-gray-700"
@@ -351,6 +358,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <div className="max-w-xs">
                       <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Group Name</label>
                       <input
+                        id={`variant-group-${gIdx}-name`}
+                        name={`variant-group-${gIdx}-name`}
                         value={group.name}
                         onChange={e => {
                           const next = [...(formData.variantGroups || [])];
@@ -365,6 +374,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                       {group.variants.map((variant: any, vIdx: number) => (
                         <div key={variant.id || vIdx} className="flex items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5 shadow-inner">
                           <input
+                            id={`variant-${gIdx}-${vIdx}-name`}
+                            name={`variant-${gIdx}-${vIdx}-name`}
                             placeholder="Option Name"
                             value={variant.name}
                             onChange={e => {
@@ -379,6 +390,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600 uppercase">Price</span>
                               <input
                                 type="number"
+                                id={`variant-${gIdx}-${vIdx}-price`}
+                                name={`variant-${gIdx}-${vIdx}-price`}
                                 value={variant.price}
                                 onChange={e => {
                                   const next = [...(formData.variantGroups || [])];
@@ -392,6 +405,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-brand-purple/60 uppercase">Disc</span>
                               <input
                                 type="number"
+                                id={`variant-${gIdx}-${vIdx}-discount`}
+                                name={`variant-${gIdx}-${vIdx}-discount`}
                                 placeholder="0"
                                 value={variant.discountPrice || ''}
                                 onChange={e => {
@@ -406,6 +421,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600 uppercase">Stock</span>
                               <input
                                 type="number"
+                                id={`variant-${gIdx}-${vIdx}-stock`}
+                                name={`variant-${gIdx}-${vIdx}-stock`}
                                 placeholder="Stock"
                                 value={variant.stock}
                                 onChange={e => {
@@ -481,6 +498,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Weight (kg)</label>
                     <input
                       name="weight"
+                      id="add-product-weight"
                       value={formData.weight}
                       onChange={handleInputChange}
                       placeholder="e.g. 0.5"
@@ -494,6 +512,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Dimensions</label>
                     <input
                       name="dimensions"
+                      id="add-product-dimensions"
                       value={formData.dimensions}
                       onChange={handleInputChange}
                       placeholder="e.g. 20x15x10 cm"
@@ -504,6 +523,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SKU / Model #</label>
                     <input
                       name="sku"
+                      id="add-product-sku"
                       value={formData.sku}
                       onChange={handleInputChange}
                       placeholder="e.g. DJ-FLX10-BLK"
@@ -530,19 +550,19 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                      <h3 className="text-lg font-black text-white tracking-tight">Badges & Flags</h3>
                      <div className="space-y-4">
                         <label className="flex items-center gap-3 p-4 bg-[#050507] rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-                           <input type="checkbox" name="isHot" checked={formData.isHot} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
+                           <input type="checkbox" name="isHot" id="add-product-is-hot" checked={formData.isHot} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
                            <span className="text-[11px] font-black uppercase tracking-widest">Hot & New</span>
                         </label>
                         <label className="flex items-center gap-3 p-4 bg-[#050507] rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-                           <input type="checkbox" name="isFeatured" checked={formData.isFeatured} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
+                           <input type="checkbox" name="isFeatured" id="add-product-is-featured" checked={formData.isFeatured} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
                            <span className="text-[11px] font-black uppercase tracking-widest">Featured Matrix</span>
                         </label>
                         <label className="flex items-center gap-3 p-4 bg-[#050507] rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-                           <input type="checkbox" name="isBestSeller" checked={formData.isBestSeller} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
+                           <input type="checkbox" name="isBestSeller" id="add-product-is-best-seller" checked={formData.isBestSeller} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
                            <span className="text-[11px] font-black uppercase tracking-widest">Best Seller</span>
                         </label>
                         <label className="flex items-center gap-3 p-4 bg-[#050507] rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-                           <input type="checkbox" name="isTrending" checked={formData.isTrending} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
+                           <input type="checkbox" name="isTrending" id="add-product-is-trending" checked={formData.isTrending} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
                            <span className="text-[11px] font-black uppercase tracking-widest">Trending Now</span>
                         </label>
                      </div>
@@ -551,7 +571,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-6">
                      <h3 className="text-lg font-black text-white tracking-tight">Special Offers</h3>
                      <label className="flex items-center gap-3 p-4 bg-[#050507] rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-                        <input type="checkbox" name="isSpecialOffer" checked={formData.isSpecialOffer} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
+                        <input type="checkbox" name="isSpecialOffer" id="add-product-is-special-offer" checked={formData.isSpecialOffer} onChange={handleInputChange} className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple" />
                         <span className="text-[11px] font-black uppercase tracking-widest">Active Special Offer</span>
                      </label>
                      <div>
@@ -559,6 +579,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                         <input
                            type="date"
                            name="offerExpiry"
+                           id="add-product-offer-expiry"
                            value={formData.offerExpiry}
                            onChange={handleInputChange}
                            className="w-full bg-[#050507] border border-white/10 rounded-2xl px-6 py-4 text-white"
@@ -576,6 +597,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SEO Title</label>
                   <input
                     name="meta_title"
+                    id="add-product-meta-title"
                     value={formData.meta_title}
                     onChange={handleInputChange}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
@@ -585,6 +607,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">SEO Slug</label>
                   <input
                     name="slug"
+                    id="add-product-slug"
                     value={formData.slug}
                     onChange={handleInputChange}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
@@ -602,11 +625,11 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSave, initialData, on
                   
                   <div className="mt-6 flex flex-wrap gap-4">
                      <label className="flex items-center gap-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5 cursor-pointer">
-                        <input type="checkbox" name="whatsappEnabled" checked={formData.whatsappEnabled} onChange={handleInputChange} className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple" />
+                        <input type="checkbox" name="whatsappEnabled" id="add-product-whatsapp-enabled" checked={formData.whatsappEnabled} onChange={handleInputChange} className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple" />
                         <span className="text-[10px] font-black uppercase tracking-widest">WhatsApp Checkout</span>
                      </label>
                      <label className="flex items-center gap-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5 cursor-pointer">
-                        <input type="checkbox" name="isFree" checked={formData.isFree} onChange={handleInputChange} className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple" />
+                        <input type="checkbox" name="isFree" id="add-product-is-free" checked={formData.isFree} onChange={handleInputChange} className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-purple" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Mark as Free Sample</span>
                      </label>
                   </div>
