@@ -98,11 +98,14 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedDownloads, setCompletedDownloads] = useState<DownloadItem[] | null>(null);
   const [completedEmail, setCompletedEmail] = useState('');
+  const [paymentType, setPaymentType] = useState<'pay_full' | 'lipa_pole_pole'>('pay_full');
+  const [lipaDuration, setLipaDuration] = useState<number>(3);
+  const [currentStep, setCurrentStep] = useState(1);
+  const maxSteps = isDigitalOnly ? 2 : 3;
+
   const [couponCode, setCouponCode] = useState('');
   const [activeCoupon, setActiveCoupon] = useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
-  const [paymentType, setPaymentType] = useState<'pay_full' | 'lipa_pole_pole'>('pay_full');
-  const [lipaDuration, setLipaDuration] = useState<number>(3);
 
   // Towns available for the selected county
   const availableTowns = useMemo(() => COUNTY_TO_TOWNS[selectedCounty] || [], [selectedCounty]);
@@ -258,7 +261,7 @@ export default function Checkout() {
     }
   }, [items, navigate, completedDownloads]);
 
-  const applyCoupon = async () => {
+  const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
     setIsValidatingCoupon(true);
     try {
@@ -386,6 +389,33 @@ export default function Checkout() {
       console.error('Order error:', err);
     }
   };
+  const handleNext = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const data = watch();
+    
+    if (currentStep === 1) {
+      if (!data.name || !data.email || !data.phone) {
+        toast.error("Please fill in all contact details");
+        return;
+      }
+      if (isDigitalOnly) setCurrentStep(3);
+      else setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (!data.county || !selectedTown || !data.landmark || !data.buildingDetails) {
+        toast.error("Please fill in shipping details");
+        return;
+      }
+      setCurrentStep(3);
+    }
+  };
+
+  const currentProgress = (currentStep / 3) * 100;
+  const showBackButton = currentStep > 1;
+
+  const handleBack = () => {
+    if (currentStep === 3 && isDigitalOnly) setCurrentStep(1);
+    else setCurrentStep(prev => prev - 1);
+  };
 
   // Show digital delivery confirmation screen
   if (completedDownloads) {
@@ -420,9 +450,41 @@ export default function Checkout() {
           </div>
         </div>
 
+        {/* Progress Stepper */}
+        <div className="mb-12">
+          <div className="flex justify-between mb-4 px-2">
+            {[
+              { id: 1, label: 'Contact', icon: MapPin },
+              { id: 2, label: 'Shipping', icon: Truck, hidden: isDigitalOnly },
+              { id: 3, label: 'Review & Pay', icon: CreditCard }
+            ].filter(s => !s.hidden).map((s, idx) => (
+              <div key={s.id} className="flex flex-col items-center gap-2 group">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border-2 ${
+                  currentStep >= s.id 
+                    ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-brand-purple/20' 
+                    : 'bg-white/5 border-white/10 text-gray-600'
+                }`}>
+                  <s.icon size={20} />
+                </div>
+                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  currentStep >= s.id ? 'text-white' : 'text-gray-600'
+                }`}>
+                  {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 blur-[0.5px]">
+             <div 
+               className="h-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(147,51,234,0.5)]"
+               style={{ width: `${currentProgress}%` }}
+             />
+          </div>
+        </div>
+
         {/* Cart type banner */}
         {isDigitalOnly && (
-          <div className="mb-8 p-5 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center gap-4">
+          <div className="mb-8 p-5 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center gap-4 backdrop-blur-md">
             <Zap size={24} className="text-brand-cyan flex-shrink-0" />
             <div>
               <p className="font-black text-white uppercase text-sm tracking-widest">Digital Order — Instant Delivery</p>
@@ -445,47 +507,69 @@ export default function Checkout() {
           <div className="lg:col-span-8 space-y-8">
             <form id="checkout-form" onSubmit={handleSubmit(onSubmit)} className="space-y-8">
 
-              {/* Contact / Billing */}
-              <div className="bg-[#15151A] rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-brand-purple/10 rounded-xl flex items-center justify-center text-brand-purple border border-brand-purple/20">
-                    <MapPin size={20} />
+              {/* Step 1: Contact / Billing */}
+              {currentStep === 1 && (
+                <div className="bg-[#15151A]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-brand-purple/10 rounded-xl flex items-center justify-center text-brand-purple border border-brand-purple/20">
+                      <MapPin size={20} />
+                    </div>
+                    <h3 className="text-xl font-black tracking-tight uppercase">
+                      Contact Information
+                    </h3>
                   </div>
-                  <h3 className="text-xl font-black tracking-tight uppercase">
-                    {isDigitalOnly ? 'Billing Information' : 'Shipping Information'}
-                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Full Name</label>
+                      <input type="text" id="checkout-name" {...register('name', { required: 'Full name is required' })} placeholder="Enter your full name" className={inputCls} />
+                      {errors.name && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.name.message as string}</span>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Email Address</label>
+                      <input type="email" id="checkout-email" {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } })} placeholder="your@email.com" className={inputCls} />
+                      {errors.email && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.email.message as string}</span>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Phone Number (M-PESA)</label>
+                      <input type="tel" id="checkout-phone" {...register('phone', {
+                        required: 'Phone number is required',
+                        pattern: { value: /^(?:254|\+254|0)?(7|1)(?:(?:[0-9][0-9])|(?:[0-9][0-9]))[0-9]{6}$/, message: 'Invalid Kenyan phone number (e.g. 07xx xxx xxx)' }
+                      })} placeholder="07xx xxx xxx" className={inputCls} />
+                      {errors.phone && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.phone.message as string}</span>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Order Notes (optional)</label>
+                      <input type="text" id="checkout-notes" {...register('orderNotes')} placeholder="e.g. Leave at security, gift message..." className={inputCls} />
+                    </div>
+                  </div>
+                  
+                  <button type="button" onClick={handleNext} className="w-full bg-brand-purple py-5 rounded-2xl font-black uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all mt-4">
+                    Continue to {isDigitalOnly ? 'Payment' : 'Shipping'}
+                  </button>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Full Name</label>
-                    <input type="text" id="checkout-name" {...register('name', { required: 'Full name is required' })} placeholder="Enter your full name" className={inputCls} />
-                    {errors.name && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.name.message as string}</span>}
-                  </div>
+              {/* Step 2: Shipping Method — Physical only */}
+              {currentStep === 2 && !isDigitalOnly && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-[#15151A]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-brand-cyan/10 rounded-xl flex items-center justify-center text-brand-cyan border border-brand-cyan/20">
+                          <Truck size={20} />
+                        </div>
+                        <h3 className="text-xl font-black tracking-tight uppercase">Shipping Details</h3>
+                      </div>
+                      <button type="button" onClick={handleBack} className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition">
+                        ← Back
+                      </button>
+                    </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Email Address</label>
-                    <input type="email" id="checkout-email" {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } })} placeholder="your@email.com" className={inputCls} />
-                    {errors.email && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.email.message as string}</span>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Phone Number (M-PESA)</label>
-                    <input type="tel" id="checkout-phone" {...register('phone', {
-                      required: 'Phone number is required',
-                      pattern: { value: /^(?:254|\+254|0)?(7|1)(?:(?:[0-9][0-9])|(?:[0-9][0-9]))[0-9]{6}$/, message: 'Invalid Kenyan phone number (e.g. 07xx xxx xxx)' }
-                    })} placeholder="07xx xxx xxx" className={inputCls} />
-                    {errors.phone && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.phone.message as string}</span>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Order Notes (optional)</label>
-                    <input type="text" id="checkout-notes" {...register('orderNotes')} placeholder="e.g. Leave at security, gift message..." className={inputCls} />
-                  </div>
-
-                  {/* Physical shipping fields */}
-                  {!isDigitalOnly && (
-                    <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select County</label>
                         <div className="relative">
@@ -502,98 +586,42 @@ export default function Checkout() {
 
                       <div className="space-y-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Town / City / Area</label>
-                        {availableTowns.length > 0 ? (
-                          <div className="relative">
-                            <select
-                              id="checkout-town-select"
-                              name="town"
-                              value={selectedTown}
-                              onChange={(e) => handleTownSelect(e.target.value)}
-                              className={inputCls + ' appearance-none cursor-pointer'}
-                            >
-                              <option value="" className="bg-[#15151A]">Select area in {selectedCounty}...</option>
-                              {availableTowns.map(t => (
-                                <option key={t} value={t} className="bg-[#15151A]">{t}</option>
-                              ))}
-                            </select>
-                            <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            id="checkout-town-input"
-                            name="town"
+                        <div className="relative">
+                          <select
+                            id="checkout-town-select"
                             value={selectedTown}
                             onChange={(e) => handleTownSelect(e.target.value)}
-                            placeholder={selectedCounty ? `Enter your area in ${selectedCounty}` : 'Select a county first'}
-                            className={inputCls}
-                          />
-                        )}
-                        {!selectedTown && selectedCounty && <span className="text-amber-500 text-[10px] font-black uppercase tracking-widest pl-4">Please select your area</span>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Nearest Landmark / Building</label>
-                        <input type="text" id="checkout-landmark" {...register('landmark', { required: 'Landmark is required' })} placeholder="e.g. Opposite Shell Petrol Station" className={inputCls} />
-                        {errors.landmark && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.landmark.message as string}</span>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Apartment / House / Office Number</label>
-                        <input type="text" id="checkout-building" {...register('buildingDetails', { required: 'Details are required' })} placeholder="e.g. Garden Estate, Block B, House 4" className={inputCls} />
-                        {errors.buildingDetails && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest pl-4">{errors.buildingDetails.message as string}</span>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Preferred Delivery Time</label>
-                        <div className="relative">
-                          <select id="checkout-delivery-time" {...register('deliveryTime')} className={inputCls + ' appearance-none cursor-pointer'}>
-                            <option value="any" className="bg-[#15151A]">Anytime (8am - 6pm)</option>
-                            <option value="morning" className="bg-[#15151A]">Morning (9am - 12pm)</option>
-                            <option value="afternoon" className="bg-[#15151A]">Afternoon (2pm - 5pm)</option>
+                            className={inputCls + ' appearance-none cursor-pointer'}
+                          >
+                            <option value="" className="bg-[#15151A]">Select area in {selectedCounty || 'county'}...</option>
+                            {availableTowns.map(t => (
+                              <option key={t} value={t} className="bg-[#15151A]">{t}</option>
+                            ))}
                           </select>
                           <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                         </div>
                       </div>
 
-                      <div className="md:col-span-2 flex items-center gap-3 p-4 bg-brand-purple/5 rounded-2xl border border-brand-purple/10">
-                        <input type="checkbox" id="whatsappUpdates" name="whatsappUpdates" {...register('whatsappUpdates')} className="w-5 h-5 rounded border-white/10 bg-black/40 text-brand-purple focus:ring-brand-purple" />
-                        <label htmlFor="whatsappUpdates" className="text-sm font-bold text-gray-300 flex items-center gap-2 cursor-pointer">
-                          <MessageSquare size={16} className="text-brand-purple" />
-                          Send my tracking updates to WhatsApp
-                        </label>
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Nearest Landmark</label>
+                        <input type="text" id="checkout-landmark" {...register('landmark', { required: 'Landmark is required' })} placeholder="e.g. Near Shell Station" className={inputCls} />
                       </div>
-                    </>
-                  )}
-                </div>
-              </div>
 
-              {/* Shipping Method — Physical only */}
-              {!isDigitalOnly && (
-                <div className="bg-[#15151A] rounded-[2.5rem] border border-white/5 p-8 space-y-8 shadow-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-brand-cyan/10 rounded-xl flex items-center justify-center text-brand-cyan border border-brand-cyan/20">
-                      <Truck size={20} />
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">House / Building Details</label>
+                        <input type="text" id="checkout-building" {...register('buildingDetails', { required: 'Building is required' })} placeholder="e.g. Block A, Hse 4" className={inputCls} />
+                      </div>
                     </div>
-                    <h3 className="text-xl font-black tracking-tight uppercase">Shipping Method</h3>
                   </div>
 
-                  {/* Delivery region — auto-set from town selection, shown as read-only info */}
-                  {selectedTown && (
-                    <div className="p-4 bg-brand-purple/5 border border-brand-purple/20 rounded-2xl flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Delivery Region</p>
-                        <p className="font-black text-white text-sm">{INITIAL_SHIPPING_ZONES.find(z => z.id === selectedZoneId)?.name}</p>
+                  <div className="bg-[#15151A]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-brand-cyan/10 rounded-xl flex items-center justify-center text-brand-cyan border border-brand-cyan/20">
+                        <Zap size={20} />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Check size={14} className="text-brand-purple" />
-                        <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Auto-Detected</span>
-                      </div>
+                      <h3 className="text-xl font-black tracking-tight uppercase">Delivery Method</h3>
                     </div>
-                  )}
 
-                  <div className="space-y-3 pt-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Delivery Speed</label>
                     <div className="grid grid-cols-1 gap-4">
                       {deliverySpeedOptions.map((rate) => (
                         <button key={rate.id} type="button" onClick={() => setSelectedRateId(rate.id)}
@@ -603,84 +631,118 @@ export default function Checkout() {
                               <Truck size={24} />
                             </div>
                             <div>
-                              <p className="font-black text-white tracking-tight leading-none mb-1">{rate.label}</p>
-                              <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{rate.timeline}</p>
+                                <p className="font-black text-white tracking-tight leading-none mb-1">{rate.label}</p>
+                                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{rate.timeline}</p>
                             </div>
                           </div>
                           <span className="text-xl font-black text-brand-cyan">KES {rate.price.toLocaleString()}</span>
                         </button>
                       ))}
                     </div>
+
+                    <div className="flex gap-4 mt-6">
+                      <button type="button" onClick={() => setCurrentStep(1)} className="flex-1 bg-white/5 py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                        Back
+                      </button>
+                      <button type="button" onClick={handleNext} className="flex-[2] bg-brand-purple py-5 rounded-2xl font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-brand-purple/20 transition-all transform hover:-translate-y-1">
+                        Continue to Payment
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Payment */}
-              <div className="bg-[#15151A] rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500 border border-green-500/20">
-                    <CreditCard size={20} />
-                  </div>
-                  <h3 className="text-xl font-black tracking-tight uppercase">Payment Platform</h3>
-                </div>
-
-                {/* Payment method toggle — only for physical/mixed orders */}
-                {!isDigitalOnly ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <button type="button" onClick={() => setPaymentType('pay_full')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'pay_full' ? 'border-brand-purple bg-brand-purple/10 text-white shadow-lg shadow-brand-purple/20' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
-                        <span className="font-black uppercase tracking-widest text-xs">Pay in Full</span>
-                        <span className="text-[10px] font-bold">100% Secure Checkout</span>
-                      </button>
-                      <button type="button" onClick={() => setPaymentType('lipa_pole_pole')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg shadow-brand-cyan/20' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
-                        <span className="font-black uppercase tracking-widest text-xs">Lipa Pole Pole</span>
-                        <span className="text-[10px] font-bold">20% Deposit Today</span>
-                      </button>
+              {/* Step 3: Payment */}
+              {currentStep === 3 && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-[#15151A]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500 border border-green-500/20">
+                        <CreditCard size={20} />
+                      </div>
+                      <h3 className="text-xl font-black tracking-tight uppercase">Finalize Payment</h3>
                     </div>
 
-                    {paymentType === 'lipa_pole_pole' && (
-                      <div className="p-5 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Select Installment Duration</label>
-                        <div className="relative">
-                          <select id="checkout-lipa-duration" name="lipaDuration" value={lipaDuration} onChange={(e) => setLipaDuration(Number(e.target.value))} className={inputCls + ' appearance-none cursor-pointer bg-[#0B0B0F]/50'}>
-                            <option value="2" className="bg-[#15151A]">2 Months (Deposit + 2 Payments)</option>
-                            <option value="3" className="bg-[#15151A]">3 Months (Deposit + 3 Payments)</option>
-                            <option value="4" className="bg-[#15151A]">4 Months (Deposit + 4 Payments)</option>
-                            <option value="5" className="bg-[#15151A]">5 Months (Deposit + 5 Payments)</option>
-                            <option value="6" className="bg-[#15151A]">6 Months (Deposit + 6 Payments)</option>
-                          </select>
-                          <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                        </div>
-                        <div className="flex justify-between items-center text-xs font-bold text-gray-400 bg-black/20 p-4 rounded-xl border border-white/5">
-                          <span>Deposit Due Today (20%)</span>
-                          <span className="text-brand-cyan font-black text-lg tracking-tight">KES {Math.ceil(finalTotal * 0.2).toLocaleString()}</span>
-                        </div>
+                    {!isDigitalOnly && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <button type="button" onClick={() => setPaymentType('pay_full')} className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'pay_full' ? 'border-brand-purple bg-brand-purple/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
+                          <span className="font-black uppercase tracking-widest text-xs">Full Payment</span>
+                          <span className="text-[10px] font-bold">100% Secure</span>
+                        </button>
+                        <button type="button" onClick={() => setPaymentType('lipa_pole_pole')} className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
+                          <span className="font-black uppercase tracking-widest text-xs">Installments</span>
+                          <span className="text-[10px] font-bold">20% Deposit</span>
+                        </button>
                       </div>
                     )}
-                  </>
-                ) : (
-                  /* Digital orders always pay in full */
-                  <div className="p-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl flex items-center gap-3">
-                    <Zap size={16} className="text-brand-cyan flex-shrink-0" />
-                    <p className="text-xs text-gray-400 font-bold">Digital products must be paid in full for instant delivery.</p>
-                  </div>
-                )}
 
-                <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-brand-purple/30 flex items-center gap-6 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-full blur-[60px] translate-x-12 -translate-y-12" />
-                  <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl z-10">
-                    <img src="https://paystack.com/assets/img/logos/merchants/paystack.png" alt="Paystack" className="w-12 h-12 grayscale group-hover:grayscale-0 transition-all duration-500" />
+                    {paymentType === 'lipa_pole_pole' && (
+                      <div className="p-6 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl space-y-4">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Duration</label>
+                        <select id="checkout-lipa-duration" value={lipaDuration} onChange={(e) => setLipaDuration(Number(e.target.value))} className={inputCls}>
+                          <option value="2">2 Months (35% Monthly)</option>
+                          <option value="3">3 Months (26.6% Monthly)</option>
+                          <option value="4">4 Months (20% Monthly)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-brand-purple/30 flex items-center gap-6 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-full blur-[60px] translate-x-12 -translate-y-12" />
+                      <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl z-10">
+                        <img src="https://paystack.com/assets/img/logos/merchants/paystack.png" alt="Paystack" className="w-12 h-12 grayscale group-hover:grayscale-0 transition-all duration-500" />
+                      </div>
+                      <div className="flex-1 z-10">
+                        <p className="font-black text-white tracking-tight uppercase mb-1">Paystack Checkout</p>
+                        <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.1em]">M-PESA / Visa / Mastercard</p>
+                      </div>
+                      <div className="flex items-center gap-2 z-10">
+                        <ShieldCheck size={16} className="text-green-500" />
+                      </div>
+                    </div>
+
+                    {/* Coupon Section */}
+                    <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-white/5 space-y-4">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Have a Coupon?</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          placeholder="ENTER CODE"
+                          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-widest focus:border-brand-purple outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCoupon()}
+                          disabled={isValidatingCoupon || !couponCode}
+                          className="bg-white/5 hover:bg-white/10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-50"
+                        >
+                          {isValidatingCoupon ? '...' : 'Apply'}
+                        </button>
+                      </div>
+                      {activeCoupon && (
+                        <div className="flex items-center justify-between text-xs font-bold text-green-500 bg-green-500/5 p-3 rounded-xl border border-green-500/20">
+                          <div className="flex items-center gap-2">
+                            <Zap size={14} />
+                            <span>Coupon "{activeCoupon.code}" Applied!</span>
+                          </div>
+                          <button type="button" onClick={() => { setActiveCoupon(null); setCouponCode(''); }} className="text-red-500 hover:text-red-400">Remove</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1 z-10">
-                    <p className="font-black text-white tracking-tight uppercase mb-1">Paystack Global</p>
-                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.1em]">Instant activation via M-PESA, Visa, Mastercard</p>
-                  </div>
-                  <div className="flex items-center gap-2 z-10 pr-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Active</span>
+
+                  <div className="flex gap-4 mt-6">
+                    <button type="button" onClick={() => setCurrentStep(isDigitalOnly ? 1 : 2)} className="flex-1 bg-white/5 py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                      Back
+                    </button>
+                    <button type="submit" disabled={isProcessing} className="flex-[2] bg-brand-purple py-5 rounded-2xl font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-brand-purple/30 transition-all text-xl">
+                      {isProcessing ? 'Processing...' : 'Pay with Paystack'}
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
             </form>
           </div>
 
@@ -731,7 +793,7 @@ export default function Checkout() {
                   />
                   <button
                     type="button"
-                    onClick={activeCoupon ? () => { setActiveCoupon(null); setCouponCode(''); } : applyCoupon}
+                    onClick={activeCoupon ? () => { setActiveCoupon(null); setCouponCode(''); } : handleApplyCoupon}
                     disabled={isValidatingCoupon || (!couponCode && !activeCoupon)}
                     className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${
                       activeCoupon 

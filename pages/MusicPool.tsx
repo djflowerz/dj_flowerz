@@ -48,6 +48,21 @@ interface PlayerState {
   isPlaying: boolean;
 }
 
+interface HubWithGenres {
+  hub: string;
+  genres: string[];
+}
+
+interface YearData {
+  year: number;
+  months: string[];
+}
+
+interface DynamicFilters {
+  hubsWithGenres: HubWithGenres[];
+  years: YearData[];
+}
+
 // Filters are now fetched dynamically from the backend
 
 export default function MusicPool() {
@@ -69,22 +84,16 @@ export default function MusicPool() {
   const [activeKey, setActiveKey] = useState<string>('All Keys');
   const [hypeOnly, setHypeOnly] = useState(false);
   
-  interface HubWithGenres {
-    hub: string;
-    genres: string[];
-  }
-  
-  const [dynamicFilters, setDynamicFilters] = useState<{
-    hubsWithGenres: HubWithGenres[];
-    years: number[];
-  }>({ hubsWithGenres: [], years: [] });
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilters>({ 
+    hubsWithGenres: [], 
+    years: [] 
+  });
 
   const fetchFilters = useCallback(async () => {
     try {
       const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
       if (response.ok) {
         const data = await response.json();
-        // Normalize API shape — supports both old flat and new nested formats
         const rawHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
         const safeHubs: HubWithGenres[] = rawHubs
           .filter((h: any) => h && (h.hub || h.name))
@@ -95,10 +104,15 @@ export default function MusicPool() {
                   .map((g: any) => (typeof g === 'string' ? g : g?.name)).filter(Boolean)
               : []
           }));
+
         const rawYears = Array.isArray(data?.years) ? data.years : [];
-        const safeYears: number[] = rawYears
-          .map((y: any) => (typeof y === 'number' ? y : y?.year))
-          .filter((y: any) => typeof y === 'number');
+        const safeYears: YearData[] = rawYears
+          .map((y: any) => ({
+            year: typeof y === 'number' ? y : y?.year,
+            months: Array.isArray(y?.months) ? y.months : []
+          }))
+          .filter((y: any) => typeof y.year === 'number');
+
         setDynamicFilters({ hubsWithGenres: safeHubs, years: safeYears });
       }
     } catch (err) {
@@ -323,7 +337,8 @@ export default function MusicPool() {
   // Removed early return for guests to show locked design instead
 
   return (
-    <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 overflow-x-hidden selection:bg-blue-500/30">
+    <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 selection:bg-blue-500/30">
+
 
       
       {/* Subscription Status Banner */}
@@ -407,12 +422,17 @@ export default function MusicPool() {
           {/* Sidebar */}
            <Sidebar 
             hubsWithGenres={dynamicFilters.hubsWithGenres}
+            years={dynamicFilters.years}
             activeGenre={activeGenre}
             onGenreSelect={setActiveGenre}
             searchTerm={genreSearchTerm}
             onSearchChange={setGenreSearchTerm}
             activeHub={activeHub}
             onHubSelect={setActiveHub}
+            activeYear={activeYear}
+            onYearSelect={setActiveYear}
+            activeMonth={activeMonth}
+            onMonthSelect={setActiveMonth}
           />
 
           {/* Track List Area */}

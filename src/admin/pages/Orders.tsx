@@ -84,9 +84,9 @@ const Orders: React.FC = () => {
     };
 
     const filteredOrders = orders.filter(o => 
-        o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.customerEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+      (o.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.customerEmail || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (

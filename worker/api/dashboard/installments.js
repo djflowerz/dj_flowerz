@@ -21,7 +21,7 @@ export async function handleDashboardInstallments(request, env) {
             const { results } = await env.DB.prepare(`
                 SELECT 
                     ip.*, 
-                    p.full_name, p.email, p.phone,
+                    p.full_name, p.email, p.phone_number,
                     o.items as order_items,
                     o.status as order_status,
                     o.payment_status as order_payment_status

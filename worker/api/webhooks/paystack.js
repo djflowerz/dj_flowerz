@@ -59,6 +59,49 @@ export async function handlePaystackWebhook(request, env) {
                 JSON.stringify(metadata || {})
             ).run();
             console.log(`[Paystack Webhook] Recorded universal payment: ${reference} (${amount/100} KES)`);
+
+            // --- AURA LOYALTY SYSTEM ---
+            if (userId || customer?.email) {
+                const kesAmount = amount / 100;
+                const pointsEarned = Math.floor(kesAmount / 100);
+                
+                if (pointsEarned > 0) {
+                    try {
+                        // 1. Update Profile (using email as fallback if userId is missing)
+                        const userIdentifier = userId ? "id" : "email";
+                        const userValue = userId || customer?.email;
+                        
+                        await env.DB.prepare(`
+                            UPDATE profiles SET loyalty_points = loyalty_points + ? WHERE ${userIdentifier} = ?
+                        `).bind(pointsEarned, userValue).run();
+
+                        // 1b. Log to Loyalty History
+                        if (userId) {
+                            const historyId = `lh_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+                            await env.DB.prepare(`
+                                INSERT INTO loyalty_history (id, user_id, points, type, description)
+                                VALUES (?, ?, ?, 'purchase', ?)
+                            `).bind(historyId, userId, pointsEarned, `Earned ${pointsEarned} points from purchase (Ref: ${reference})`).run();
+                        }
+                        
+                        // 2. Sync to R2 if possible (for immediate UI update)
+                        if (userId) {
+                            try {
+                                const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
+                                if (existingR2) {
+                                    let r2Profile = await existingR2.json();
+                                    r2Profile.loyalty_points = (r2Profile.loyalty_points || 0) + pointsEarned;
+                                    await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
+                                }
+                            } catch (r2Err) { console.error('[Loyalty R2 Sync Error]', r2Err); }
+                        }
+                        
+                        console.log(`[Aura Loyalty] Awarded ${pointsEarned} points to ${userValue}`);
+                    } catch (loyaltyErr) {
+                        console.error('[Aura Loyalty] Accrual Error:', loyaltyErr);
+                    }
+                }
+            }
         } catch (paymentLogErr) {
             console.error('[Paystack Webhook] Central Payment Log Error:', paymentLogErr);
         }
@@ -68,9 +111,9 @@ export async function handlePaystackWebhook(request, env) {
             try {
                 // Update orders table
                 await env.DB.prepare(`
-                    UPDATE orders SET payment_status = 'paid', status = 'processing'
+                    UPDATE orders SET payment_status = 'paid', status = 'processing', loyalty_points_earned = ?
                     WHERE id = ?
-                `).bind(orderId).run();
+                `).bind(Math.floor(amount / 10000), orderId).run();
 
                 // 1b. Handle Coupon Usage tracking
                 try {

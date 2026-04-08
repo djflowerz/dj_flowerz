@@ -82,6 +82,45 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
                 `).bind(id, body.subject, body.content, body.target_audience || 'all', body.status || 'draft', now).run();
                 return Response.json({ success: true, id });
             }
+            if (url.pathname.includes('/broadcast')) {
+                const { subject, body, segment } = await request.json();
+                
+                // 1. Fetch recipients
+                let query = "SELECT email FROM subscribers WHERE status = 'active'";
+                if (segment === 'new') {
+                    query += " AND created_at > datetime('now', '-30 days')";
+                }
+                const { results: recipients } = await env.DB.prepare(query).all();
+                
+                if (!recipients || recipients.length === 0) {
+                    return Response.json({ success: false, message: "No recipients found for this segment." });
+                }
+
+                // 2. Log the campaign
+                const campaignId = crypto.randomUUID();
+                await env.DB.prepare(`
+                    INSERT INTO newsletter_campaigns (id, subject, content, target_audience, status, sent_at, created_at)
+                    VALUES (?, ?, ?, ?, 'sent', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `).bind(campaignId, subject, body, segment).run();
+
+                // 3. Send emails
+                // Note: We use ctx.waitUntil to not block the response
+                const sendPromises = recipients.map(r => sendEmail({
+                    to: r.email,
+                    subject,
+                    html: body,
+                    text: body.replace(/<[^>]*>/g, ''), // Basic strip html
+                    fromEmail: 'promo@djflowerz.co.ke'
+                }, env));
+
+                if (ctx && ctx.waitUntil) {
+                    ctx.waitUntil(Promise.allSettled(sendPromises));
+                } else {
+                    await Promise.allSettled(sendPromises);
+                }
+
+                return Response.json({ success: true, recipientCount: recipients.length });
+            }
             if (url.pathname.includes('/coupons')) {
                 const id = crypto.randomUUID();
                 const now = new Date().toISOString();

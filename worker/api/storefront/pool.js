@@ -59,84 +59,400 @@ async function checkAndIncrementDownloads(user, env, isAdminEmail) {
 
 async function handlePoolFilters(request, env) {
   try {
-    const cacheKey = "cache:pool:filters_v3";
+    const cacheKey = "cache:pool:filters_v4";
     
-    if (env.KV) {
-        try {
-            const cached = await env.KV.get(cacheKey, "json");
-            if (cached) {
-                return new Response(JSON.stringify(cached), {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                        'Cache-Control': 'public, max-age=3600'
-                    }
-                });
-            }
-        } catch (e) {
-            console.error("KV read error:", e);
-        }
-    }
-
-    const db = env.DB;
-    
-    // Get distinct hub and genre combinations to build hierarchy
-    // We use COALESCE to handle nulls and ensure all active tracks are categorised
-    const filtersRaw = await db.prepare(
-      `SELECT DISTINCT 
-         COALESCE(NULLIF(TRIM(collection_hub), ''), 'Main Pool') as collection_hub, 
-         COALESCE(NULLIF(TRIM(display_genre), ''), NULLIF(TRIM(genre), ''), 'Other') as genre,
-         COALESCE(NULLIF(TRIM(sub_genre), ''), '') as sub_genre
-       FROM tracks
-       WHERE is_active = 1
-       ORDER BY collection_hub ASC, genre ASC, sub_genre ASC`
-    ).all();
-
-    const hubsMap = {};
-    filtersRaw.results.forEach(row => {
-        const hub = row.collection_hub || 'Main Pool';
-        const genre = row.genre || 'Other';
-        const subGenre = row.sub_genre || '';
-
-        if (!hubsMap[hub]) hubsMap[hub] = {};
-        if (!hubsMap[hub][genre]) hubsMap[hub][genre] = new Set();
-        if (subGenre) hubsMap[hub][genre].add(subGenre);
-    });
-
-    const hubsWithGenres = Object.entries(hubsMap).map(([name, genresMap]) => ({
-        name,
-        genres: Object.entries(genresMap).map(([genreName, subGenresSet]) => ({
-            name: genreName,
-            sub_genres: Array.from(subGenresSet)
-        }))
-    }));
-    
-    // Get unique years and months
-    const yearMonthResult = await db.prepare(
-      "SELECT DISTINCT release_year as year, release_month as month FROM tracks WHERE release_year > 0 ORDER BY release_year DESC"
-    ).all();
-
-    const VALID_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-    const yearsWithMonths = {};
-    yearMonthResult.results.forEach(row => {
-        const y = row.year;
-        const m = row.month;
-        if (!yearsWithMonths[y]) yearsWithMonths[y] = new Set();
-        // Only add months that are real calendar month names — filters out dirty DB values
-        if (m && VALID_MONTHS.includes(m)) yearsWithMonths[y].add(m);
-    });
-
-    const yearsData = Object.entries(yearsWithMonths).map(([year, monthSet]) => ({
-        year: parseInt(year),
-        months: Array.from(monthSet).sort((a, b) => VALID_MONTHS.indexOf(a) - VALID_MONTHS.indexOf(b))
-    })).sort((a, b) => b.year - a.year);
+    // Explicit list of hubs and their sub-genres (mapped as subfolders in the UI)
+    const POOL_STRUCTURE = [
+      {
+        name: "2026 VIDEO POOL EDITS",
+        genres: [
+          { name: "January 2026 Edits", sub_genres: [] },
+          { name: "February 2026 Edits", sub_genres: [] },
+          { name: "March 2026 Edits", sub_genres: [] },
+          { name: "April 2026 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2025 VIDEO POOL EDITS",
+        genres: [
+          { name: "Jan 2025 Edits", sub_genres: [] },
+          { name: "Feb 2025 Edits", sub_genres: [] },
+          { name: "March 2025 Edits", sub_genres: [] },
+          { name: "April Edits", sub_genres: [] },
+          { name: "May 2025 Edits", sub_genres: [] },
+          { name: "June 2025 Edits", sub_genres: [] },
+          { name: "July 2025 Edits", sub_genres: [] },
+          { name: "August 2025 Edits", sub_genres: [] },
+          { name: "September 2025 Edits", sub_genres: [] },
+          { name: "October 2025 Edits", sub_genres: [] },
+          { name: "November 2025 Edits", sub_genres: [] },
+          { name: "December 2025 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2024 VIDEO POOL EDITS",
+        genres: [
+          { name: "Jan 2024 Edits", sub_genres: [] },
+          { name: "Feb 2024 Edits", sub_genres: [] },
+          { name: "March 2024 Edits", sub_genres: [] },
+          { name: "April Edits", sub_genres: [] },
+          { name: "May 2024 Edits", sub_genres: [] },
+          { name: "June 2024 Edits", sub_genres: [] },
+          { name: "July 2024 Edits", sub_genres: [] },
+          { name: "August 2024 Edits", sub_genres: [] },
+          { name: "September 2024 Edits", sub_genres: [] },
+          { name: "October 2024 Edits", sub_genres: [] },
+          { name: "November 2024 Edits", sub_genres: [] },
+          { name: "December 2024 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2023 VIDEO POOL EDITS",
+        genres: [
+          { name: "Jan 2023 Edits", sub_genres: [] },
+          { name: "Feb 2023 Edits", sub_genres: [] },
+          { name: "March 2023 Edits", sub_genres: [] },
+          { name: "April 2023 Edits", sub_genres: [] },
+          { name: "May 2023 Edits", sub_genres: [] },
+          { name: "June 2023 Edits", sub_genres: [] },
+          { name: "July 2023 Edits", sub_genres: [] },
+          { name: "August 2023 Edits", sub_genres: [] },
+          { name: "September 2023 Edits", sub_genres: [] },
+          { name: "October 2023 Edits", sub_genres: [] },
+          { name: "November 2023 Edits", sub_genres: [] },
+          { name: "December 2023 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2022 VIDEO POOL EDITS",
+        genres: [
+          { name: "Jan 2022 Edits", sub_genres: [] },
+          { name: "Feb 2022 Edits", sub_genres: [] },
+          { name: "March 2022 Edits", sub_genres: [] },
+          { name: "April 2022 Edits", sub_genres: [] },
+          { name: "May 2022 Edits", sub_genres: [] },
+          { name: "June 2022 Edits", sub_genres: [] },
+          { name: "July 2022 Edits", sub_genres: [] },
+          { name: "August 2022 Edits", sub_genres: [] },
+          { name: "September 2022 Edits", sub_genres: [] },
+          { name: "October 2022 Edits", sub_genres: [] },
+          { name: "November 2022 Edits", sub_genres: [] },
+          { name: "December 2022 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2021 VIDEO POOL EDITS",
+        genres: [
+          { name: "JANUARY 2021 EDITS", sub_genres: [] },
+          { name: "FEB 2021 EDITS", sub_genres: [] },
+          { name: "March 2021 Edits", sub_genres: [] },
+          { name: "April 2021 Edits", sub_genres: [] },
+          { name: "May 2021 Edits", sub_genres: [] },
+          { name: "June 2021 Edits", sub_genres: [] },
+          { name: "JULY 2021 EDITS", sub_genres: [] },
+          { name: "AUGUST EDITS 2021", sub_genres: [] },
+          { name: "September 2021 EDITS", sub_genres: [] },
+          { name: "October 2021 Edits", sub_genres: [] },
+          { name: "November 2021 Edits", sub_genres: [] },
+          { name: "December 2021 Edits", sub_genres: [] }
+        ]
+      },
+      {
+        name: "2020 VIDEO POOL EDITS",
+        genres: [
+          { name: "FEB 2020 EDITS", sub_genres: [] },
+          { name: "MARCH 2020 EDITS", sub_genres: [] },
+          { name: "APRIL 2020 EDITS", sub_genres: [] },
+          { name: "MAY 2020 EDITS", sub_genres: [] },
+          { name: "JUNE 2020 EDITS", sub_genres: [] },
+          { name: "JULY 2020 EDITS", sub_genres: [] },
+          { name: "August 2020 Edits", sub_genres: [] },
+          { name: "SEPTEMBER 2020 EDITS", sub_genres: [] },
+          { name: "Octomber 2020 Edits", sub_genres: [] },
+          { name: "November 2020 Edits", sub_genres: [] },
+          { name: "December 2020 EDITS", sub_genres: [] }
+        ]
+      },
+      {
+        name: "Genres",
+        genres: [
+          { name: "REGGAE VIDEOS", sub_genres: [] },
+          { name: "Amapiano", sub_genres: [] },
+          { name: "Dancehall (Hype)", sub_genres: [] },
+          { name: "Dancehall (Low Hype)", sub_genres: [] },
+          { name: "Afro Beats (Naija) (Hype)", sub_genres: [] },
+          { name: "Afro House", sub_genres: [] },
+          { name: "Gospel (Urban)", sub_genres: [] },
+          { name: "Rhumba (Zilizopendwa)", sub_genres: [] },
+          { name: "Urbantone & Gengetone (Hype)", sub_genres: [] },
+          { name: "Urbantone & Gengetone (Low Hype)", sub_genres: [] },
+          { name: "Mugithi (Kikuyu)", sub_genres: [] },
+          { name: "East Africa TBT (Hype)", sub_genres: [] },
+          { name: "Bongo (TZ) (Hype)", sub_genres: [] },
+          { name: "Kenya Love Songs (Hype)", sub_genres: [] },
+          { name: "Kikuyu Gospel (Kigoco)", sub_genres: [] },
+          { name: "Afro Amapiano", sub_genres: [] },
+          { name: "Tanzania Amapiano", sub_genres: [] },
+          { name: "254 Pop Sound", sub_genres: [] },
+          { name: "CRUNK", sub_genres: [] },
+          { name: "REGGAE HYPE", sub_genres: [] },
+          { name: "Rnb 90", sub_genres: [] },
+          { name: "Rnb 2000", sub_genres: [] },
+          { name: "Rnb 2010", sub_genres: [] }
+        ]
+      },
+      {
+        name: "Riddim Videos",
+        genres: [
+          { name: "WYFL Riddim", sub_genres: [] },
+          { name: "Love Echoes Riddim", sub_genres: [] },
+          { name: "Recovery Riddim", sub_genres: [] }
+        ]
+      },
+      {
+        name: "REMIX & MASHUPS HUB",
+        genres: [
+          { name: "Redrums Video Remixes", sub_genres: [] },
+          { name: "DaPhonk", sub_genres: [] },
+          { name: "DJ Dandana Refixes", sub_genres: [] },
+          { name: "Amapiano", sub_genres: [] },
+          { name: "Afro House", sub_genres: [] },
+          { name: "R&B Remixes", sub_genres: [] },
+          { name: "Dancehall Remixes", sub_genres: [] },
+          { name: "Afro Beats (Audio) Remixes", sub_genres: [] },
+          { name: "Audio Redrums", sub_genres: [] },
+          { name: "Reggae Fusion", sub_genres: [] },
+          { name: "Reggaeton (Audio) Remixes", sub_genres: [] },
+          { name: "REMIXAH", sub_genres: [] },
+          { name: "HYPE EDITS", sub_genres: [] },
+          { name: "Amapiano Redrum Remixes", sub_genres: [] },
+          { name: "Made In Kenya (Remixes)", sub_genres: [] }
+        ]
+      },
+      {
+        name: "Riddimz F'",
+        genres: [
+          { name: "OVER PROOF RIDDIM (PT. 2) - JA-PRODS", sub_genres: [] },
+          { name: "back it up", sub_genres: [] },
+          { name: "BIG DOG RIDDIM - BOARDHOUSE", sub_genres: [] },
+          { name: "SIGNATURE BOUNCE RIDDIM - SOUNIQUE", sub_genres: [] },
+          { name: "(97) Riva Stone Riddim(Dj Frass Records)", sub_genres: [] },
+          { name: "SOULMATERIDDIM - DUNWELL", sub_genres: [] },
+          { name: "[101]BRIXTON B OUNCE RIDDIM", sub_genres: [] },
+          { name: "Tomatoe Riddim [2012]", sub_genres: [] },
+          { name: "Tear Drops Riddim - Cashflow Records Studio", sub_genres: [] },
+          { name: "AFTER SUMMER RIDDIM - G3 MUZIK", sub_genres: [] },
+          { name: "LOVE LINE RIDDIM - NOISE CHECK", sub_genres: [] },
+          { name: "SILENT SMILE RIDDIM - ARROW MUSIC", sub_genres: [] },
+          { name: "BIG STICK RIDDIM - NO FACE", sub_genres: [] },
+          { name: "COOL FACE RIDDIM - CR24", sub_genres: [] },
+          { name: "HEAVEN'S GATE RIDDIM", sub_genres: [] },
+          { name: "HIGH LIFE RIDDIM - JUP_PROD", sub_genres: [] },
+          { name: "LIQUID SOUL RECORDS - AFTER MIDNIGHT RIDDIM", sub_genres: [] },
+          { name: "Aura Riddim - Dj Frass Records", sub_genres: [] },
+          { name: "WAVE RIDDIM - T100", sub_genres: [] },
+          { name: "Tropic Riddim - Chimney Records", sub_genres: [] },
+          { name: "The Success Riddim - Good Good Productions", sub_genres: [] },
+          { name: "The Party Fire Riddim - Studio Vibes", sub_genres: [] },
+          { name: "Star Gyal Riddim - Notnice Records", sub_genres: [] },
+          { name: "Socialize Riddim - Good Good Productions", sub_genres: [] },
+          { name: "Sexting Riddim - SRE Records", sub_genres: [] },
+          { name: "Sex On The Beach Riddim - SJR", sub_genres: [] },
+          { name: "Selfie Riddim - Rvssian_Head Concussion Records", sub_genres: [] },
+          { name: "Screechie Riddim - Notnice Records_Gevano Records", sub_genres: [] },
+          { name: "Sanke Riddim - JayCrazie Records", sub_genres: [] },
+          { name: "Pure Water Riddim - Adde Instrumentals_Zojak World Wide", sub_genres: [] },
+          { name: "Punaany Riddim", sub_genres: [] },
+          { name: "Pledge Riddim - Studio Vybes", sub_genres: [] },
+          { name: "Paper Chase Riddim - Studio 91 Records", sub_genres: [] },
+          { name: "Overtime Riddim - JA Productions", sub_genres: [] },
+          { name: "Numbers Don't Lie Riddim - Dane Raychords_Unstoppable Records", sub_genres: [] },
+          { name: "Nice & Easy Riddim - CR203", sub_genres: [] },
+          { name: "Nerves Riddim - No Doubt Records", sub_genres: [] },
+          { name: "Natural Riddim - Birch Hill Records", sub_genres: [] },
+          { name: "Money Mix Riddim - Good Good Productions", sub_genres: [] },
+          { name: "Miss You Riddim - Young Pow Production", sub_genres: [] },
+          { name: "Mildew Riddim - UIM Records", sub_genres: [] },
+          { name: "Mercury Riddim - Birchill Records", sub_genres: [] },
+          { name: "MDC Riddim - SJR Records", sub_genres: [] },
+          { name: "Match Up Riddim - Notnice Records", sub_genres: [] },
+          { name: "Live In Love Riddim - TJ Records", sub_genres: [] },
+          { name: "Life Support Riddim - Good Good Production", sub_genres: [] },
+          { name: "Label Riddim - Chimney Records", sub_genres: [] },
+          { name: "Kingsstone Riddim - JA Production", sub_genres: [] },
+          { name: "Kick Off Riddim - Kimichi Records", sub_genres: [] },
+          { name: "Juice Riddim - Bright Beam Music", sub_genres: [] },
+          { name: "Joint Riddim - TJ Records", sub_genres: [] },
+          { name: "Islander Riddim - Chimney Records", sub_genres: [] },
+          { name: "I-Scream Riddim - Birchill Records", sub_genres: [] },
+          { name: "In Transit Riddim - Notnice Records", sub_genres: [] },
+          { name: "Happy Hour Riddim - Chimney Records", sub_genres: [] },
+          { name: "Hapiness Riddim - Good Good Production", sub_genres: [] },
+          { name: "Gyal Policy Riddim - Jahvy_Jordan_Emilio_Records", sub_genres: [] },
+          { name: "Greatest Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Gully Bop Riddim - Notnice Records", sub_genres: [] },
+          { name: "Good Book Riddim - HCR", sub_genres: [] },
+          { name: "Gold Dust Riddim - Adde Instrumentals_Maikon Check", sub_genres: [] },
+          { name: "Ghetto Bible Riddim - Full Chaarge Records", sub_genres: [] },
+          { name: "Fix Up Riddim - Yard Vibe Ent", sub_genres: [] },
+          { name: "First Capital Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Fever Tick Riddim - JA-Prods", sub_genres: [] },
+          { name: "Explosion Riddim - JA-Production", sub_genres: [] },
+          { name: "Execution Riddim - G-Force Records", sub_genres: [] },
+          { name: "Elite Riddim - Chimney Records", sub_genres: [] },
+          { name: "Easy To Love Riddim", sub_genres: [] },
+          { name: "Drone Weed Riddim - Hemton Music_Attomatic Records", sub_genres: [] },
+          { name: "Double Up Riddim - Dre-Day Production", sub_genres: [] },
+          { name: "Dinner Time Riddim - U.I.M Records", sub_genres: [] },
+          { name: "Darwin Riddim - Notnice Records", sub_genres: [] },
+          { name: "Crossbreed Riddim - Notnice Records", sub_genres: [] },
+          { name: "Country Bus Riddim - Chimney Records", sub_genres: [] },
+          { name: "Cold Vibes Riddim - TJ Records", sub_genres: [] },
+          { name: "Clean Heart Riddim - Notnice Records", sub_genres: [] },
+          { name: "Choices Riddim - One Love Records", sub_genres: [] },
+          { name: "Canopy Riddim - JA Productions", sub_genres: [] },
+          { name: "Buzzer Riddim - TJ Records", sub_genres: [] },
+          { name: "Boom Box Riddim - Notnice Records", sub_genres: [] },
+          { name: "Body & Soul Riddim - J-Vibe Productions", sub_genres: [] },
+          { name: "Big League Riddim - Chimney Records", sub_genres: [] },
+          { name: "Beast Mode Riddim - Notnice Records", sub_genres: [] },
+          { name: "Beach Vibe Riddim - CR203 Records", sub_genres: [] },
+          { name: "Banjalo Riddim - CR203 Records", sub_genres: [] },
+          { name: "Ball Game Riddim - Cashflow Records", sub_genres: [] },
+          { name: "Balance Riddim - Cr203 Records", sub_genres: [] },
+          { name: "Badness Riddim - One Time Music", sub_genres: [] },
+          { name: "Bad People Riddim - Rvssian_HCR", sub_genres: [] },
+          { name: "Baby Face Riddim - CR203 Records", sub_genres: [] },
+          { name: "Auto-Tune Riddim - SJR", sub_genres: [] },
+          { name: "Anarchy Riddim - Chimney Records", sub_genres: [] },
+          { name: "Addicted Riddim - SJR Records", sub_genres: [] },
+          { name: "90s Don Dada Riddim - Bonded Music", sub_genres: [] },
+          { name: "True Words Riddim - U.I.M Records", sub_genres: [] },
+          { name: "Table Fi Table Riddim", sub_genres: [] },
+          { name: "Summer Wave Riddim - Tj Records", sub_genres: [] },
+          { name: "Social Emotions Riddim - JA-Productions", sub_genres: [] },
+          { name: "Sex On The Beach Riddim", sub_genres: [] },
+          { name: "Season Change Riddim", sub_genres: [] },
+          { name: "Save A Penny Riddim", sub_genres: [] },
+          { name: "Safari Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Rewind Riddim - Oxos Records", sub_genres: [] },
+          { name: "Reggae Rock Riddim - Turf Music", sub_genres: [] },
+          { name: "Progress Riddim - Dunwell Production", sub_genres: [] },
+          { name: "Poolside Riddim - HCR", sub_genres: [] },
+          { name: "Payback Riddim - Notnice Records", sub_genres: [] },
+          { name: "Pain Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Ovation Riddim - Notnice Records", sub_genres: [] },
+          { name: "One Day Riddim - HCR", sub_genres: [] },
+          { name: "Nature's Way Riddim", sub_genres: [] },
+          { name: "Memory Lane Riddim - JA Productions", sub_genres: [] },
+          { name: "Master Riddim - JA Production", sub_genres: [] },
+          { name: "M-A-M Riddim - Dunwell_Zojak World Wide", sub_genres: [] },
+          { name: "Long Drive Riddim - Tj Records", sub_genres: [] },
+          { name: "Life's Journey Riddim - Dunwell_Zojak World Wide", sub_genres: [] },
+          { name: "Krazy Riddim", sub_genres: [] },
+          { name: "Keep Walking Riddim", sub_genres: [] },
+          { name: "Invasion Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Intuition Riddim - Notnice Records", sub_genres: [] },
+          { name: "Instant Disaster Riddim", sub_genres: [] },
+          { name: "Ice Creams Riddim", sub_genres: [] },
+          { name: "High Stakes Riddim - JA Productions", sub_genres: [] },
+          { name: "High Altitude Riddim - JA-Productions", sub_genres: [] },
+          { name: "Greatness Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Global Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Full Blast Riddim - Notnice Records", sub_genres: [] },
+          { name: "Front Page Riddim", sub_genres: [] },
+          { name: "Freedom Street Riddim", sub_genres: [] },
+          { name: "Fling Riddim - Adde Records", sub_genres: [] },
+          { name: "Fire Wire Riddim - JA-Production", sub_genres: [] },
+          { name: "Final Stage Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Fight Fi Peace Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Evolution Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Drop It Riddim - Notnice Records", sub_genres: [] },
+          { name: "Dreamers Riddim - Notnice Records", sub_genres: [] },
+          { name: "Dark Room Riddim - HCR", sub_genres: [] },
+          { name: "Dancehall Night Riddim - Notnice Records", sub_genres: [] },
+          { name: "Current Events Riddim - Notnice Records", sub_genres: [] },
+          { name: "Crown Love Riddim - Rvssian_HCR", sub_genres: [] },
+          { name: "Contra Riddim - Notnice Records", sub_genres: [] },
+          { name: "City Vibes Riddim - SRE Records", sub_genres: [] },
+          { name: "Cali Riddim - Dunwell Productions", sub_genres: [] },
+          { name: "Broadwalk Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Blessings Riddim", sub_genres: [] },
+          { name: "Birth Place Riddim - JA-Production", sub_genres: [] },
+          { name: "Big Talk Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Believe Riddim - Notnice Records", sub_genres: [] },
+          { name: "Awesome Riddim - Oxos Records", sub_genres: [] },
+          { name: "Art Of War Riddim - Tj Records", sub_genres: [] },
+          { name: "All Night Riddim - Oxos Records", sub_genres: [] },
+          { name: "Aggression Riddim - Notnice Records", sub_genres: [] },
+          { name: "19-Mile Riddim - Oxos Records", sub_genres: [] },
+          { name: "Love Reggae Riddim", sub_genres: [] },
+          { name: "Z-March Riddim - Oxos Records", sub_genres: [] },
+          { name: "Work Hard Riddim - Yard Vibe Ent", sub_genres: [] },
+          { name: "Unfinished Business Riddim - Zojak World Wide", sub_genres: [] },
+          { name: "Top-Speed Riddim - Oxos Records", sub_genres: [] },
+          { name: "The Rock Riddim - Zojak World Wide", sub_genres: [] },
+          { name: "Success Riddim - Oxos Records", sub_genres: [] },
+          { name: "State Of Mind Riddim - JA-Prods", sub_genres: [] },
+          { name: "Start From Scratch Riddim - Oxos Records", sub_genres: [] },
+          { name: "Smokin Riddim - U.I.M Records", sub_genres: [] },
+          { name: "Sign Language Riddim - Chimney Records", sub_genres: [] },
+          { name: "School Yard Riddim - Yard Vibe Ent", sub_genres: [] },
+          { name: "Rave Riddim - Notnice Records", sub_genres: [] },
+          { name: "Power Chord Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Paper-Chaser Riddim - Dre-Day Production", sub_genres: [] },
+          { name: "Pain-Free Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Night-Shift Riddim - JA-Prods", sub_genres: [] },
+          { name: "Natural High Riddim - Dre-Day Production", sub_genres: [] },
+          { name: "Motivation Riddim - SJR", sub_genres: [] },
+          { name: "Money-Box Riddim - Chimney Records", sub_genres: [] },
+          { name: "Mayweather Riddim - CR203 Records", sub_genres: [] },
+          { name: "Luv-A-Dub Riddim - SJR", sub_genres: [] },
+          { name: "Live-Large Riddim - CR203 Records", sub_genres: [] },
+          { name: "Key-Chord Riddim - JA-Prods", sub_genres: [] },
+          { name: "Interstate Riddim - Armzhouse Records", sub_genres: [] },
+          { name: "Invasion Riddim", sub_genres: [] },
+          { name: "Instruction Riddim - Yard Vibe Ent", sub_genres: [] },
+          { name: "Inner-City Riddim - SJR", sub_genres: [] },
+          { name: "Infinity Riddim - CR203 Records", sub_genres: [] },
+          { name: "In-Style Riddim - HCR", sub_genres: [] },
+          { name: "Hybrid Riddim - CR203 Records", sub_genres: [] },
+          { name: "Head-Shot Riddim - SJR", sub_genres: [] },
+          { name: "Gyal-Shop Riddim - CR203 Records", sub_genres: [] },
+          { name: "Grill-Work Riddim - CR203 Records", sub_genres: [] },
+          { name: "Great-Lakes Riddim - JA-Prods", sub_genres: [] },
+          { name: "Game-Changer Riddim - CR203 Records", sub_genres: [] },
+          { name: "Full-Speed Riddim - Chimney Records", sub_genres: [] },
+          { name: "Full-House Riddim - JA-Prods", sub_genres: [] },
+          { name: "Free-Style Riddim - HCR", sub_genres: [] },
+          { name: "Formula Riddim - SJR", sub_genres: [] },
+          { name: "Fine-Wine Riddim - CR203 Records", sub_genres: [] },
+          { name: "Face-Off Riddim - CR203 Records", sub_genres: [] },
+          { name: "End-Game Riddim - CR203 Records", sub_genres: [] },
+          { name: "Eight-Ball Riddim - Chimney Records", sub_genres: [] },
+          { name: "Drive-By Riddim - JA-Prods", sub_genres: [] },
+          { name: "Deep-Sea Riddim - JA-Prods", sub_genres: [] },
+          { name: "Cross-Fire Riddim - CR203 Records", sub_genres: [] },
+          { name: "Crime-Scene Riddim - HCR", sub_genres: [] },
+          { name: "Cold-Play Riddim - SJR", sub_genres: [] },
+          { name: "Code-Red Riddim - HCR", sub_genres: [] },
+          { name: "Clean-Heart Riddim - CR203 Records", sub_genres: [] },
+          { name: "Chill-Out Riddim - SJR", sub_genres: [] },
+          { name: "Body-Guard Riddim - SJR", sub_genres: [] },
+          { name: "Blue-Sky Riddim - JA-Prods", sub_genres: [] },
+          { name: "Black-List Riddim - HCR", sub_genres: [] },
+          { name: "Best-Of-Me Riddim - CR203 Records", sub_genres: [] },
+          { name: "Bad-Habit Riddim - SJR", sub_genres: [] },
+          { name: "Air-Force Riddim - HCR", sub_genres: [] },
+          { name: "After-Hours Riddim - SJR", sub_genres: [] },
+          { name: "Roof Top Riddim", sub_genres: [] }
+        ]
+      }
+    ];
 
     const responseData = {
-      hubsWithGenres,
-      years: yearsData
+      hubsWithGenres: POOL_STRUCTURE,
+      years: [] // Years are now integrated into the hubs in v4
     };
 
     if (env.KV) {
@@ -197,43 +513,36 @@ async function handleGetPoolTracks(request, env) {
         conditions.push("(LOWER(t.genre) LIKE '%hype%' OR LOWER(t.display_genre) LIKE '%hype%' OR LOWER(t.vibe) LIKE '%hype%' OR LOWER(t.collection_hub) LIKE '%hype%')");
     }
     
-    // Hub maps to collection_hub
-    if (hub && !['All Hubs', 'all', 'Select Folder', 'undefined'].includes(hub)) {
-        if (hub === 'Main Pool') {
-            conditions.push("(t.collection_hub = ? OR t.collection_hub IS NULL OR t.collection_hub = '')");
-            params.push('Main Pool');
-        } else {
-            conditions.push("t.collection_hub = ?");
-            params.push(hub);
-        }
+    // Enhanced mapping for Music Pool v4 Hierarchy based on actual Database Metadata
+    if (hub && !['All Hubs', 'all', 'Select Folder', 'undefined', ''].includes(hub)) {
+        conditions.push("(t.collection_hub LIKE ? OR t.display_genre LIKE ? OR t.genre LIKE ?)");
+        params.push(hub, hub, hub);
     }
-    // Genre maps to display_genre (which is what handlePoolFilters uses)
-    if (genre && !['All Genres', 'All', 'all', 'Select Subfolder', 'undefined'].includes(genre)) {
-        if (genre === 'Other') {
-            conditions.push("(t.display_genre = ? OR t.genre = ? OR (t.display_genre IS NULL AND t.genre IS NULL))");
-            params.push('Other', 'Other');
-        } else {
-            conditions.push("(t.display_genre = ? OR t.genre = ?)");
-            params.push(genre, genre);
-        }
+
+    if (genre && !['All Genres', 'All', 'all', 'Select Subfolder', 'undefined', ''].includes(genre)) {
+        conditions.push("(t.sub_genre LIKE ? OR t.display_genre LIKE ? OR t.genre LIKE ?)");
+        params.push(genre, genre, genre);
     }
-    // Sub-genre filter
-    if (subGenre && subGenre !== 'undefined' && subGenre !== 'all') {
-        conditions.push("t.sub_genre = ?");
+
+    // Sub-genre filter (if needed)
+    if (subGenre && subGenre !== 'undefined' && subGenre !== 'all' && subGenre !== '') {
+        conditions.push("t.sub_genre LIKE ?");
         params.push(subGenre);
     }
-    // Date filtering (Year and Month)
-    if (year && year !== 'All Years' && year !== 'undefined') {
+    
+    // Explicit year/month search params (v3 compatibility or manual filters)
+    if (year && year !== 'All Years' && year !== 'undefined' && year !== '') {
         const yearInt = parseInt(year);
         if (!isNaN(yearInt)) {
             conditions.push("t.release_year = ?");
             params.push(yearInt);
         }
     }
-    if (month && month !== 'All Months' && month !== 'undefined') {
+    if (month && month !== 'All Months' && month !== 'undefined' && month !== '') {
         conditions.push("t.release_month = ?");
         params.push(month);
     }
+
     if (search) {
         conditions.push("(t.title LIKE ? OR t.artist LIKE ?)");
         params.push(`%${search}%`, `%${search}%`);

@@ -39,9 +39,9 @@ const Products: React.FC = () => {
     };
 
     const filteredProducts = products.filter(p => 
-        p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.slug?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.category_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.slug || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.category_name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (

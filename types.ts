@@ -201,6 +201,16 @@ export interface User {
   downloadCountTotal?: number;
   loyaltyPoints?: number;
   totalSpent?: number;
+  auraTier?: 'Pioneer' | 'Elite' | 'Legend';
+}
+
+export interface LoyaltyRecord {
+  id: string;
+  userId: string;
+  points: number;
+  type: 'purchase' | 'referral' | 'review' | 'comment' | 'adjustment';
+  description: string;
+  createdAt: string;
 }
 
 export interface WishlistItem {
@@ -279,6 +289,7 @@ export interface Order {
   courierDriverName?: string;
   courierDriverContact?: string;
   updatedAt: string;
+  loyaltyPointsEarned?: number;
 }
 
 export interface Coupon {

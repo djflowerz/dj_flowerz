@@ -7,30 +7,55 @@ interface HubWithGenres {
   genres: string[];
 }
 
+interface YearData {
+  year: number;
+  months: string[];
+}
+
 interface SidebarProps {
   hubsWithGenres: HubWithGenres[];
+  years: YearData[];
   activeGenre: string;
   onGenreSelect: (genre: string) => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
   activeHub: string;
   onHubSelect: (hub: string) => void;
+  activeYear: string;
+  onYearSelect: (year: string) => void;
+  activeMonth: string;
+  onMonthSelect: (month: string) => void;
 }
+
+const DEFAULT_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   hubsWithGenres,
+  years,
   activeGenre,
   onGenreSelect,
   searchTerm,
   onSearchChange,
   activeHub,
-  onHubSelect
+  onHubSelect,
+  activeYear,
+  onYearSelect,
+  activeMonth,
+  onMonthSelect
 }) => {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
   const [expandedHubs, setExpandedHubs] = React.useState<string[]>([]);
+  const [expandedYears, setExpandedYears] = React.useState<string[]>([]);
   
   const toggleHub = (hub: string) => {
     setExpandedHubs(prev => prev.includes(hub) ? prev.filter(h => h !== hub) : [...prev, hub]);
+  };
+
+  const toggleYear = (year: string) => {
+    setExpandedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
   };
 
   return (
@@ -59,123 +84,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-200px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
-      {/* Search Header */}
-      <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-10">
-        <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-brand-purple transition-colors" size={18} />
+      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-140px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
+      {/* Search & Folder Selectors */}
+      <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-20 space-y-4">
+        {/* Dropdowns from Reference Image */}
+        <div className="space-y-3">
+          <div className="relative group">
+            <select
+              id="sidebar-folder-select"
+              value={activeHub === 'all' || activeHub === 'All Hubs' ? '' : activeHub}
+              onChange={(e) => {
+                const hub = e.target.value || 'all';
+                onHubSelect(hub);
+                onGenreSelect('All');
+              }}
+              className="w-full bg-white text-black font-black py-3.5 px-5 rounded-2xl appearance-none cursor-pointer focus:ring-4 focus:ring-brand-purple/20 transition-all text-[13px] uppercase tracking-widest shadow-xl shadow-black/20"
+            >
+              <option value="" disabled>Select Folder</option>
+              <option value="all">All Folders</option>
+              {hubsWithGenres.map(h => (
+                <option key={h.hub} value={h.hub}>{h.hub}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-black/50 group-hover:text-black transition-colors" size={16} />
+          </div>
+
+          <div className="relative group">
+            <select
+              id="sidebar-subfolder-select"
+              value={(activeGenre === 'All' || !activeGenre) ? '' : activeGenre}
+              onChange={(e) => onGenreSelect(e.target.value)}
+              disabled={activeHub === 'all' || !activeHub || activeHub === 'All Hubs'}
+              className="w-full bg-[#121216] text-white font-black py-3.5 px-5 rounded-2xl appearance-none cursor-pointer focus:ring-4 focus:ring-white/5 transition-all text-[13px] uppercase tracking-widest border border-white/5 shadow-inner disabled:opacity-30"
+            >
+              <option value="" disabled>Select Subfolder</option>
+              <option value="All">View All</option>
+              {activeHub !== 'all' && activeHub !== 'All Hubs' && hubsWithGenres.find(h => h.hub === activeHub)?.genres.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 group-hover:text-white/40 transition-colors" size={16} />
+          </div>
+        </div>
+
+        <div className="relative group pt-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-brand-purple transition-colors" size={16} />
           <input
-            id="genre-search"
+            id="genre-sidebar-search"
             name="genreSearch"
             type="text"
-            placeholder="Search Genres..."
+            placeholder="Filter list..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-zinc-800/50 border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple/50 transition-all font-bold"
+            className="w-full bg-black/40 border border-white/5 rounded-xl py-2.5 pl-11 pr-4 text-[12px] text-white placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-brand-purple/30 transition-all font-bold"
           />
         </div>
       </div>
 
-      {/* Genre List */}
+      {/* Genre List removed as per user request to rely on dropdowns */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        <div className="space-y-1">
-          <div className="px-4 mb-2">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Music Categories</span>
-          </div>
-          <button
-            onClick={() => {
-              onHubSelect('all');
-              onGenreSelect('All');
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group mb-4 ${
-              activeHub === 'all' && activeGenre === 'All'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-            }`}
-          >
-            <div className={`p-1.5 rounded-lg transition-colors ${
-              activeHub === 'all' && activeGenre === 'All' ? 'bg-white/20' : 'bg-zinc-800 group-hover:bg-zinc-700'
-            }`}>
-              <Layers size={16} />
-            </div>
-            <span className="text-sm font-bold truncate">All Tracks</span>
-          </button>
-          
-          {(hubsWithGenres || []).map((hubData) => {
-            if (!hubData?.hub) return null;
-            const isExpanded = expandedHubs.includes(hubData.hub) || activeHub === hubData.hub || searchTerm !== '';
-            const filteredGenres = (hubData.genres || []).filter(g => g.toLowerCase().includes(searchTerm.toLowerCase()));
-            
-            // If searching and no genres match in this hub (and hub name itself doesn't match), hide it
-            if (searchTerm && filteredGenres.length === 0 && !hubData.hub.toLowerCase().includes(searchTerm.toLowerCase())) return null;
-
-            return (
-              <div key={hubData.hub} className="mb-2">
-                <button
-                  onClick={() => {
-                    toggleHub(hubData.hub);
-                    onHubSelect(hubData.hub);
-                    onGenreSelect('All');
-                  }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group ${
-                    activeHub === hubData.hub
-                      ? 'bg-zinc-800/80 text-white border border-white/10 shadow-lg'
-                      : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Folder size={16} className={activeHub === hubData.hub ? 'text-blue-400' : 'text-zinc-500 group-hover:text-zinc-300'} />
-                    <span className="text-[15px] font-bold truncate">{hubData.hub}</span>
-                  </div>
-                  <ChevronDown 
-                    size={16} 
-                    className={`transition-transform duration-200 text-zinc-500  ${isExpanded ? 'rotate-180' : ''}`} 
-                  />
-                </button>
-                
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="pl-4 pr-2 py-2 space-y-1 border-l-2 border-white/5 ml-6 mt-1">
-                        {filteredGenres.map(genre => (
-                          <button
-                            key={genre}
-                            onClick={() => {
-                               onHubSelect(hubData.hub);
-                               onGenreSelect(genre);
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-left ${
-                              activeGenre === genre && activeHub === hubData.hub
-                                ? 'bg-blue-500/10 text-blue-400 font-bold'
-                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 text-sm'
-                            }`}
-                          >
-                            <span className="truncate">{genre}</span>
-                            {activeGenre === genre && activeHub === hubData.hub && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
+        {/* Navigation is now handled exclusively by the dropdowns above */}
       </div>
       
       {/* Footer Branding */}
-      <div className="p-6 border-t border-white/5 bg-zinc-900/80">
-        <div className="flex items-center gap-3 text-zinc-500">
-          <Folder size={16} />
-          <span className="text-xs font-bold uppercase tracking-widest">{activeHub}</span>
+      <div className="p-6 border-t border-white/5 bg-zinc-900/80 mt-auto">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-zinc-600">
+            <Layers size={14} />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">{activeHub === 'all' || activeHub === 'All Hubs' ? 'Full Library' : activeHub}</span>
+          </div>
+          <button 
+            onClick={() => {
+              onHubSelect('all');
+              onGenreSelect('All');
+              onYearSelect('All Years');
+              onMonthSelect('All Months');
+            }}
+            className="text-[10px] font-black text-brand-purple uppercase tracking-widest hover:text-white transition-colors"
+          >
+            Clear
+          </button>
         </div>
       </div>
     </aside>

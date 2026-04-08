@@ -234,6 +234,7 @@ interface DataContextType {
   deleteOrder: (id: string) => Promise<void>;
 
   addCampaign: (camp: NewsletterCampaign) => void;
+  broadcastEmail: (data: { subject: string, body: string, segment: string }) => Promise<{ success: boolean; message?: string; recipientCount?: number }>;
   refreshNotifications: () => void;
   updateCampaign: (id: string, data: Partial<NewsletterCampaign>) => void;
 
@@ -1116,9 +1117,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const tracksArray = result.tracks || [];
         console.log(`[DataContext] Fetched ${tracksArray.length} pool tracks from D1`);
         
-        // If it's page 1, replace. If it's > 1, append.
+        // If it's page 1, replace. If it's > 1, append with de-duplication.
         if (filters.page && filters.page > 1) {
-          setPoolTracks(prev => [...prev, ...tracksArray.map(mapR2Track)]);
+          setPoolTracks(prev => {
+            const newTracks = tracksArray.map(mapR2Track);
+            const existingIds = new Set(prev.map(t => t.id));
+            const uniqueNew = newTracks.filter(t => !existingIds.has(t.id));
+            return [...prev, ...uniqueNew];
+          });
         } else {
           setPoolTracks(tracksArray.map(mapR2Track));
         }
@@ -2424,6 +2430,52 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       text: `Welcome to the DJ FLOWERZ Community! Thanks for joining our newsletter. Visit djflowerz.co.ke for the latest mixtapes.`
     });
   };
+  
+  const broadcastEmail = async (data: { subject: string, body: string, segment: string }) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/newsletter/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        refreshCampaigns();
+      }
+      return result;
+    } catch (error: any) {
+      console.error("Broadcast failed:", error);
+      return { success: false, message: error.message };
+    }
+  };
+
+  const adjustLoyaltyPoints = async (userId: string, points: number, description: string) => {
+    try {
+      const auth = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/loyalty/adjust`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth
+        },
+        body: JSON.stringify({ userId, points, description }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        refreshUsers();
+      }
+      return result;
+    } catch (error: any) {
+      console.error("Loyalty adjustment failed:", error);
+      return { success: false, message: error.message };
+    }
+  };
 
   const uploadTrackList = async (file: File): Promise<{ success: boolean; message: string; count?: number }> => {
     try {
@@ -2975,6 +3027,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     incrementMixtapeDownload,
     isFirstTimeSubscriber,
     sendEmail,
+    broadcastEmail,
     sendNewsletterConfirmation,
     addScannedTracks,
     clearAllScannedTracks,

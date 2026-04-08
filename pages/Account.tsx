@@ -135,6 +135,40 @@ const Account: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [loyaltyHistory, setLoyaltyHistory] = useState<any[]>([]);
+  const [loadingLoyalty, setLoadingLoyalty] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState<string | null>(null);
+
+  const handleRedeem = async (rewardId: string) => {
+    if (!user?.id) return;
+    
+    setIsRedeeming(rewardId);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/loyalty/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, rewardId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message, {
+          description: data.code ? `Your coupon code: ${data.code}` : "Your access has been extended.",
+          duration: 10000,
+        });
+        // Wait a bit then refresh to sync points
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        const error = await response.text();
+        toast.error(error || "Redemption failed");
+      }
+    } catch (err) {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsRedeeming(null);
+    }
+  };
 
   // Downloads State
   const [myDownloads, setMyDownloads] = useState<any[]>([]);
@@ -215,8 +249,6 @@ const Account: React.FC = () => {
     }
   }, [user, orders, contextOrdersLoading, referralLogs, allReferralStats]);
 
-  // Removed manual timer logic as we now use SubscriptionTimer component
-
   const handleSaveProfile = async () => {
     setEditLoading(true);
     try {
@@ -230,7 +262,29 @@ const Account: React.FC = () => {
     }
   };
 
-  if (loading) {
+  const fetchLoyaltyHistory = async () => {
+    if (!user?.id) return;
+    setLoadingLoyalty(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/loyalty/history?userId=${user.id}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setLoyaltyHistory(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch loyalty history:", err);
+    } finally {
+      setLoadingLoyalty(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'aura-rewards') {
+      fetchLoyaltyHistory();
+    }
+  }, [activeTab]);
+
+  if (!user && !loading) {
     return (
       <div className="pt-32 pb-20 min-h-screen bg-[#0B0B0F] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -472,14 +526,22 @@ const Account: React.FC = () => {
                           <h2 className="text-3xl font-display font-black text-white mb-2 tracking-tight">Your Aura Balance</h2>
                           <div className="flex items-center justify-center md:justify-start gap-4">
                             <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">
-                              {user.auraPoints || 0}
+                              {(user.auraPoints || user.loyaltyPoints || 0).toLocaleString()}
                             </span>
                             <div className="h-10 w-px bg-white/10" />
                             <div>
                               <p className="text-white font-bold text-lg flex items-center gap-2">
-                                <Star size={18} className="text-brand-cyan fill-current" /> Level {Math.floor((user.auraPoints || 0) / 100) + 1}
+                                {(user.auraPoints || 0) >= 2000 ? (
+                                  <><Zap size={18} className="text-brand-cyan fill-current" /> Legend</>
+                                ) : (user.auraPoints || 0) >= 500 ? (
+                                  <><Star size={18} className="text-brand-purple fill-current" /> Elite</>
+                                ) : (
+                                  <><Star size={18} className="text-gray-400 fill-current" /> Pioneer</>
+                                )}
                               </p>
-                              <p className="text-gray-400 text-xs font-medium uppercase tracking-widest">Aura Pioneer</p>
+                              <p className="text-gray-400 text-xs font-medium uppercase tracking-widest">
+                                {(user.auraPoints || 0) >= 2000 ? 'Highest Tier' : (user.auraPoints || 0) >= 500 ? 'Advanced Tier' : 'Aura Member'}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -488,13 +550,19 @@ const Account: React.FC = () => {
                       {/* Progress Bar */}
                       <div className="mt-8 relative z-10">
                         <div className="flex justify-between text-xs font-bold uppercase tracking-widest mb-2">
-                          <span className="text-gray-500">Progress to Level {Math.floor((user.auraPoints || 0) / 100) + 2}</span>
-                          <span className="text-brand-cyan">{(user.auraPoints || 0) % 100} / 100 XP</span>
+                          {user.auraPoints! < 2000 ? (
+                            <>
+                              <span className="text-gray-500">Progress to {user.auraPoints! >= 500 ? 'Legend' : 'Elite'}</span>
+                              <span className="text-brand-cyan">{user.auraPoints! % (user.auraPoints! >= 500 ? 2000 : 500)} / {user.auraPoints! >= 500 ? 2000 : 500} XP</span>
+                            </>
+                          ) : (
+                            <span className="text-brand-cyan">Max Level Achieved</span>
+                          )}
                         </div>
                         <div className="h-3 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
                           <div
                             className="h-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(168,85,247,0.5)]"
-                            style={{ width: `${(user.auraPoints || 0) % 100}%` }}
+                            style={{ width: `${Math.min(100, (user.auraPoints! / (user.auraPoints! >= 500 ? 2000 : 500)) * 100)}%` }}
                           />
                         </div>
                       </div>
@@ -527,16 +595,106 @@ const Account: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Rewards Activity */}
+                    <div className="bg-[#15151A] rounded-2xl border border-white/5 overflow-hidden">
+                      <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                        <h3 className="text-white font-bold flex items-center gap-2">
+                          <Clock size={18} className="text-brand-cyan" /> Rewards Activity
+                        </h3>
+                        <button 
+                          onClick={fetchLoyaltyHistory}
+                          className="text-xs text-gray-500 hover:text-white transition"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                      
+                      <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                        {loadingLoyalty ? (
+                          <div className="p-12 text-center text-gray-500">Loading activity...</div>
+                        ) : loyaltyHistory.length > 0 ? (
+                          <div className="divide-y divide-white/5">
+                            {loyaltyHistory.map((entry) => (
+                              <div key={entry.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition">
+                                <div className="flex items-center gap-4">
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                    entry.points > 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                                  }`}>
+                                    {entry.type === 'purchase' && <Package size={18} />}
+                                    {entry.type === 'comment' && <Mail size={18} />}
+                                    {entry.type === 'review' && <Star size={18} />}
+                                    {entry.type === 'adjustment' && <Shield size={18} />}
+                                  </div>
+                                  <div>
+                                    <p className="text-white text-sm font-medium">{entry.description}</p>
+                                    <p className="text-gray-500 text-xs">{new Date(entry.created_at).toLocaleDateString()} • {new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`font-bold ${entry.points > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {entry.points > 0 ? '+' : ''}{entry.points}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-12 text-center">
+                            <Gift size={40} className="text-white/10 mx-auto mb-4" />
+                            <p className="text-gray-500">No activity yet. Start earning Aura Points today!</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Redemption Logic */}
-                    <div className="bg-[#15151A] p-6 rounded-2xl border border-white/5 border-dashed">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Gift size={24} className="text-gray-500" />
-                        </div>
-                        <div>
-                          <h3 className="text-white font-bold mb-1">Aura Redemption Coming Soon</h3>
-                          <p className="text-gray-500 text-sm">Soon you'll be able to exchange your Aura points for store discounts, exclusive mixtapes, and VIP access.</p>
-                        </div>
+                    <div className="space-y-4">
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Gift size={18} className="text-brand-purple" /> Available Rewards
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[
+                          { id: 'REWARD_10_PERCENT', label: '10% OFF Store', cost: 500, desc: 'Single-use coupon' },
+                          { id: 'REWARD_25_PERCENT', label: '25% OFF Store', cost: 1000, desc: 'Single-use coupon' },
+                          { id: 'REWARD_1_MONTH_SUB', label: '1 Month Access', cost: 2000, desc: 'Music Pool VIP Month' },
+                        ].map((reward) => {
+                          const currentPoints = user.auraPoints || user.loyaltyPoints || 0;
+                          const canAfford = currentPoints >= reward.cost;
+                          
+                          return (
+                            <div key={reward.id} className={`p-5 rounded-2xl border transition-all ${
+                              canAfford 
+                                ? 'bg-white/[0.03] border-white/10 hover:border-brand-purple/50' 
+                                : 'bg-white/[0.01] border-white/5 opacity-60'
+                            }`}>
+                              <h4 className="text-white font-bold mb-1">{reward.label}</h4>
+                              <p className="text-gray-500 text-xs mb-4">{reward.desc}</p>
+                              <div className="flex items-center justify-between mt-auto">
+                                <span className={`text-sm font-black ${canAfford ? 'text-brand-cyan' : 'text-gray-600'}`}>
+                                  {reward.cost} XP
+                                </span>
+                                <button
+                                  onClick={() => handleRedeem(reward.id)}
+                                  disabled={!canAfford || isRedeeming !== null}
+                                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
+                                    canAfford 
+                                      ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 hover:scale-105 active:scale-95' 
+                                      : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                                  }`}
+                                >
+                                  {isRedeeming === reward.id ? 'Wait...' : 'Claim'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="bg-brand-purple/5 border border-white/5 p-4 rounded-xl">
+                        <p className="text-[10px] text-gray-500 italic text-center uppercase tracking-widest">
+                          Rewards are generated instantly. Coupons expire in 30 days.
+                        </p>
                       </div>
                     </div>
                   </div>

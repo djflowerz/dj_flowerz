@@ -32,6 +32,7 @@ interface User {
 
     role?: string;
     created_at: string;
+    loyalty_points?: number;
 }
 
 const GrantAccessModal: React.FC<{
@@ -188,7 +189,29 @@ const AdminCommunityDirectory: React.FC = () => {
                 subscription_plan: formData.get('subscription_plan'),
                 subscription_expiry: formData.get('subscription_expiry') || null,
                 daily_download_count: Number(formData.get('daily_download_count')) || 0,
+                loyalty_points: Number(formData.get('loyalty_points')) || 0,
             };
+
+            // Handle Loyalty Adjustment separately if changed to create audit history
+            const newPoints = Number(formData.get('loyalty_points')) || 0;
+            const oldPoints = editingUser.loyalty_points || 0;
+            const adjustmentReason = formData.get('loyalty_reason') as string || 'Profile Edit';
+
+            if (newPoints !== oldPoints) {
+                // We use the specialized endpoint to log the reason
+                await fetch(`${WORKER_URL}/api/admin/loyalty/adjust`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                        userId: editingUser.id,
+                        points: newPoints - oldPoints,
+                        description: adjustmentReason
+                    })
+                });
+            }
 
             const res = await fetch(`${WORKER_URL}/api/admin/users/${editingUser.id}`, {
                 method: 'PUT',
@@ -371,6 +394,9 @@ const AdminCommunityDirectory: React.FC = () => {
                                                 <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500/70">
                                                     KES {(u.referral_balance_kes || 0).toLocaleString()}
                                                 </div>
+                                                <div className="flex items-center gap-1 text-[10px] font-black text-brand-cyan/70">
+                                                    <Zap size={10} /> {(u.loyalty_points || 0).toLocaleString()} Aura
+                                                </div>
                                                 {u.daily_download_count !== undefined && (
                                                     <div className="text-[9px] font-black text-orange-500 uppercase tracking-widest mt-1">
                                                         {u.daily_download_count} Downloads Today
@@ -515,6 +541,23 @@ const AdminCommunityDirectory: React.FC = () => {
                                             type="number"
                                             defaultValue={editingUser.daily_download_count || 0}
                                             className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Aura Points</label>
+                                        <input
+                                            name="loyalty_points"
+                                            type="number"
+                                            defaultValue={editingUser.loyalty_points || 0}
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium font-mono"
+                                        />
+                                    </div>
+                                    <div className="lg:col-span-2">
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Adjustment Reason (Audit Log)</label>
+                                        <input
+                                            name="loyalty_reason"
+                                            placeholder="e.g. Compensation for downtime, Referral reward, etc."
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 text-xs"
                                         />
                                     </div>
                                 </div>

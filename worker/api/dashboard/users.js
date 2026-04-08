@@ -18,7 +18,8 @@ export async function handleDashboardUsers(request, env) {
                 SELECT 
                     id, full_name AS name, email, role, is_subscriber, subscription_plan,
                     subscription_expiry, created_at, last_login, presence_status,
-                    phone_number, referral_code, referral_balance AS referral_balance_kes
+                    phone_number, referral_code, referral_balance AS referral_balance_kes,
+                    loyalty_points
                 FROM profiles
                 ORDER BY created_at DESC
             `;
@@ -70,7 +71,8 @@ export async function handleDashboardUsers(request, env) {
                 subscription_plan: 'subscription_plan',
                 subscription_expiry: 'subscription_expiry',
                 daily_download_count: 'daily_download_count',
-                last_download_reset: 'last_download_reset'
+                last_download_reset: 'last_download_reset',
+                loyalty_points: 'loyalty_points'
             };
 
             for (const [jsKey, dbCol] of Object.entries(fieldMap)) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Send, Users, History, Filter, Search, Plus, Trash2, CheckCircle, Clock } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { NewsletterSubscriber, NewsletterCampaign } from '../../types';
@@ -22,6 +22,7 @@ const NewsletterTab: React.FC = () => {
         segment: 'all'
     });
     const [isSending, setIsSending] = useState(false);
+    const [isConfirming, setIsConfirming] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const filteredSubscribers = subscribers.filter(s =>
@@ -46,15 +47,24 @@ const NewsletterTab: React.FC = () => {
                 setStatusMessage({ type: 'success', text: `Broadcast sent successfully to ${result.recipientCount || 'all'} subscribers!` });
                 setComposeData({ subject: '', body: '', segment: 'all' });
                 setActiveSubTab('history');
+                setIsConfirming(false);
             } else {
                 setStatusMessage({ type: 'error', text: result.message || 'Failed to send broadcast.' });
+                setIsConfirming(false);
             }
         } catch (err) {
             setStatusMessage({ type: 'error', text: 'An unexpected error occurred.' });
+            setIsConfirming(false);
         } finally {
             setIsSending(false);
         }
     };
+
+    // Reset safety on tab change
+    useEffect(() => {
+        setIsConfirming(false);
+        setStatusMessage(null);
+    }, [activeSubTab]);
 
     return (
         <div className="space-y-6">
@@ -226,17 +236,35 @@ const NewsletterTab: React.FC = () => {
                             <div className="flex space-x-4">
                                 <button
                                     type="button"
+                                    onClick={() => setComposeData({ subject: '', body: '', segment: 'all' })}
                                     className="px-6 py-2 rounded-xl text-gray-400 hover:text-white transition-colors"
                                 >
-                                    Save Draft
+                                    Clear Content
                                 </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSending}
-                                    className="px-8 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-purple-600/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-                                >
-                                    {isSending ? 'Sending...' : 'Send Broadcast Now'}
-                                </button>
+                                {isConfirming ? (
+                                    <button
+                                        type="submit"
+                                        disabled={isSending}
+                                        className="px-8 py-2 bg-red-600 text-white font-black rounded-xl shadow-lg shadow-red-600/20 hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        {isSending ? 'Sending Now...' : 'Confirm Mass Mail'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!composeData.subject || !composeData.body) {
+                                                setStatusMessage({ type: 'error', text: 'Please fill in subject and body first.' });
+                                                return;
+                                            }
+                                            setIsConfirming(true);
+                                        }}
+                                        disabled={isSending}
+                                        className="px-8 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-purple-600/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        Send Broadcast
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </form>

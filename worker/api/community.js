@@ -99,9 +99,22 @@ export async function handleCommunity(request, env) {
         const comment = await request.json();
         const id = `cmt_${Date.now()}`;
         await env.DB.prepare(`
-            INSERT INTO interactions (id, target_id, target_type, type, userName, content, status)
-            VALUES (?, ?, 'mixtape', 'comment', ?, ?, 'approved')
-        `).bind(id, comment.mixtapeId, comment.userName, comment.text).run();
+            INSERT INTO interactions (id, user_id, user_name, target_id, target_type, type, content, status)
+            VALUES (?, ?, ?, ?, 'mixtape', 'comment', 'approved')
+        `).bind(id, comment.userId || null, comment.userName, comment.mixtapeId, comment.text).run();
+
+        // Award 2 points for comment if logged in
+        if (comment.userId) {
+            await env.DB.prepare("UPDATE profiles SET loyalty_points = loyalty_points + 2 WHERE id = ?")
+                .bind(comment.userId).run();
+
+            const historyId = `lh_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+            await env.DB.prepare(`
+                INSERT INTO loyalty_history (id, user_id, points, type, description)
+                VALUES (?, ?, 2, 'comment', ?)
+            `).bind(historyId, comment.userId, `Earned 2 points for commenting on mixtape`).run();
+        }
+
         return Response.json({ success: true, id });
     }
 
@@ -160,9 +173,22 @@ export async function handleCommunity(request, env) {
             const review = await request.json();
             const id = `rev_${Date.now()}`;
             await env.DB.prepare(`
-                INSERT INTO interactions (id, target_id, target_type, type, userName, rating, content, status)
-                VALUES (?, ?, 'product', 'review', ?, ?, ?, 'approved')
-            `).bind(id, review.productId, review.userName, review.rating, review.comment).run();
+                INSERT INTO interactions (id, user_id, target_id, target_type, type, user_name, rating, content, status)
+                VALUES (?, ?, ?, 'product', 'review', ?, ?, ?, 'approved')
+            `).bind(id, review.userId || null, review.productId, review.userName, review.rating, review.comment).run();
+
+            // Award 5 points for review if logged in
+            if (review.userId) {
+                await env.DB.prepare("UPDATE profiles SET loyalty_points = loyalty_points + 5 WHERE id = ?")
+                    .bind(review.userId).run();
+
+                const historyId = `lh_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+                await env.DB.prepare(`
+                    INSERT INTO loyalty_history (id, user_id, points, type, description)
+                    VALUES (?, ?, 5, 'review', ?)
+                `).bind(historyId, review.userId, `Earned 5 points for product review`).run();
+            }
+
             return Response.json({ success: true, id });
         }
     }

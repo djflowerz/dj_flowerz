@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
           referralCode: profile.referral_code || profile.referralCode,
           balance: profile.balance || 0,
-          auraPoints: profile.aura_points || profile.auraPoints || 0,
+          auraPoints: profile.loyalty_points || profile.loyaltyPoints || profile.aura_points || profile.auraPoints || 0,
           auraLevel: profile.aura_level || profile.auraLevel || 1,
           phoneNumber: profile.phone_number || profile.phoneNumber || '',
 
@@ -136,6 +136,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           referred_by: referrerId,
           balance: 0,
           aura_points: 0,
+          loyalty_points: 0,
           aura_level: 1,
           created_at: now,
           updated_at: now,
@@ -158,7 +159,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phoneNumber: newProfile.phone_number,
           referralCode: newProfile.referral_code,
           balance: newProfile.balance,
-          auraPoints: newProfile.aura_points,
+          auraPoints: (newProfile.aura_points || newProfile.loyalty_points || 0),
+          loyaltyPoints: (newProfile.loyalty_points || newProfile.aura_points || 0),
           auraLevel: newProfile.aura_level,
           createdAt: newProfile.created_at,
           updatedAt: newProfile.updated_at,
@@ -359,7 +361,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.subscriptionPlan) updates.subscription_plan = data.subscriptionPlan;
       if (data.subscriptionExpiry) updates.subscription_expiry = data.subscriptionExpiry;
       if (data.balance !== undefined) updates.balance = data.balance;
-      if (data.auraPoints !== undefined) updates.aura_points = data.auraPoints;
+      if (data.auraPoints !== undefined) {
+        updates.aura_points = data.auraPoints;
+        updates.loyalty_points = data.auraPoints;
+      }
       if (data.auraLevel !== undefined) updates.aura_level = data.auraLevel;
       if (data.phoneNumber) updates.phone_number = data.phoneNumber;
 

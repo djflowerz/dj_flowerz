@@ -12,6 +12,7 @@ import {
   User,
   Headphones,
   ChevronDown,
+  LogOut,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -383,7 +384,7 @@ export function FloatingChatWidget() {
                         title="End Session"
                         onClick={handleCloseSession}
                       >
-                        <X className="h-4 w-4" />
+                        <LogOut className="h-4 w-4" />
                       </Button>
                     </>
                   )}

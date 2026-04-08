@@ -29,6 +29,7 @@ import { handleWishlist } from './api/user/wishlist.js';
 import { handleStoreSettings } from './api/dashboard/store_settings.js';
 import { handleDashboardInstallments } from './api/dashboard/installments.js';
 import { handlePaymentInitialize } from './api/storefront/payments.js';
+import { handleLoyalty } from './api/loyalty.js';
 
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
 
@@ -54,6 +55,7 @@ router.post('/api/user/installments/pay', handleUserInstallments);
 router.get('/api/user/wishlist', handleWishlist);
 router.post('/api/user/wishlist', handleWishlist);
 router.delete('/api/user/wishlist', handleWishlist);
+router.get('/api/loyalty/history', handleLoyalty);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -117,12 +119,14 @@ router.delete('/api/admin/subscription_plans/:id', handleDashboardSubscriptions)
 router.get('/api/admin/newsletter_subscribers', handleDashboardNewsletter);
 router.get('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
 router.post('/api/admin/newsletter_campaigns', handleDashboardNewsletter);
+router.post('/api/admin/newsletter/broadcast', handleDashboardNewsletter);
 router.patch('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.put('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.delete('/api/admin/newsletter_campaigns/:id', handleDashboardNewsletter);
 router.delete('/api/admin/newsletter_subscribers/:email', handleDashboardNewsletter);
 router.post('/api/newsletter/subscribe', handleDashboardNewsletter);
 
+router.post('/api/admin/loyalty/adjust', handleLoyalty);
 router.get('/api/admin/coupons', handleDashboardNewsletter);
 router.post('/api/admin/coupons', handleDashboardNewsletter);
 router.patch('/api/admin/coupons/:id', handleDashboardNewsletter);
