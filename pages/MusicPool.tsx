@@ -63,7 +63,6 @@ export default function MusicPool() {
   const [genreSearchTerm, setGenreSearchTerm] = useState('');
   const [activeHub, setActiveHub] = useState('all');
   const [activeGenre, setActiveGenre] = useState('All');
-  const [activeSubGenre, setActiveSubGenre] = useState('all');
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeMonth, setActiveMonth] = useState('All Months');
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
@@ -71,16 +70,13 @@ export default function MusicPool() {
   const [hypeOnly, setHypeOnly] = useState(false);
   
   interface HubWithGenres {
-    name: string;
-    genres: {
-      name: string;
-      sub_genres: string[];
-    }[];
+    hub: string;
+    genres: string[];
   }
   
   const [dynamicFilters, setDynamicFilters] = useState<{
     hubsWithGenres: HubWithGenres[];
-    years: { year: number; months: string[] }[];
+    years: number[];
   }>({ hubsWithGenres: [], years: [] });
 
   const fetchFilters = useCallback(async () => {
@@ -88,16 +84,21 @@ export default function MusicPool() {
       const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
       if (response.ok) {
         const data = await response.json();
-        // Validate shape before setting state — prevents React #31 crash if API returns error obj
-        const safeHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
-        const safeYears = Array.isArray(data?.years)
-          ? data.years
-              .filter((y: any) => y && typeof y.year === 'number' && Array.isArray(y.months))
-              .map((y: any) => ({
-                year: y.year,
-                months: y.months.filter((m: any) => typeof m === 'string')
-              }))
-          : [];
+        // Normalize API shape — supports both old flat and new nested formats
+        const rawHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
+        const safeHubs: HubWithGenres[] = rawHubs
+          .filter((h: any) => h && (h.hub || h.name))
+          .map((h: any) => ({
+            hub: h.hub || h.name,
+            genres: Array.isArray(h.genres)
+              ? h.genres
+                  .map((g: any) => (typeof g === 'string' ? g : g?.name)).filter(Boolean)
+              : []
+          }));
+        const rawYears = Array.isArray(data?.years) ? data.years : [];
+        const safeYears: number[] = rawYears
+          .map((y: any) => (typeof y === 'number' ? y : y?.year))
+          .filter((y: any) => typeof y === 'number');
         setDynamicFilters({ hubsWithGenres: safeHubs, years: safeYears });
       }
     } catch (err) {
@@ -139,7 +140,6 @@ export default function MusicPool() {
         limit: poolPagination?.limit || 50,
         hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
         genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
-        sub_genre: (activeSubGenre === 'all' || activeSubGenre === 'All Sub-Genres') ? undefined : activeSubGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
         month: mappedMonth,
         search: searchTerm,
@@ -151,7 +151,7 @@ export default function MusicPool() {
     }, 400);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHub, activeGenre, activeSubGenre, activeYear, activeMonth, searchTerm, bpmFilter, activeKey, hypeOnly]);
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, activeKey, hypeOnly]);
   // Removal of loadMore as it's no longer used for infinite scroll
 
   const handlePageChange = useCallback((newPage: number) => {
@@ -164,7 +164,6 @@ export default function MusicPool() {
       limit: poolPagination?.limit || 50,
       hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
       genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
-      sub_genre: (activeSubGenre === 'all' || activeSubGenre === 'All Sub-Genres') ? undefined : activeSubGenre,
       year: activeYear === 'All Years' ? undefined : activeYear,
       month: mappedMonth,
       search: searchTerm,
@@ -173,7 +172,7 @@ export default function MusicPool() {
       key: activeKey === 'All Keys' ? undefined : activeKey
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeHub, activeGenre, activeSubGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination?.limit]);
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination?.limit]);
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
     const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
     
@@ -408,19 +407,12 @@ export default function MusicPool() {
           {/* Sidebar */}
            <Sidebar 
             hubsWithGenres={dynamicFilters.hubsWithGenres}
-            years={dynamicFilters.years}
             activeGenre={activeGenre}
             onGenreSelect={setActiveGenre}
-            activeSubGenre={activeSubGenre}
-            onSubGenreSelect={setActiveSubGenre}
             searchTerm={genreSearchTerm}
             onSearchChange={setGenreSearchTerm}
             activeHub={activeHub}
             onHubSelect={setActiveHub}
-            activeYear={activeYear}
-            onYearSelect={setActiveYear}
-            activeMonth={activeMonth}
-            onMonthSelect={setActiveMonth}
           />
 
           {/* Track List Area */}
@@ -505,7 +497,6 @@ export default function MusicPool() {
                   onClick={() => {
                     setSearchTerm('');
                     setActiveGenre('All');
-                    setActiveSubGenre('all');
                     setActiveHub('all');
                     setActiveYear('All Years');
                     setActiveMonth('All Months');

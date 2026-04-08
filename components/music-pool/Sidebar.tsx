@@ -1,290 +1,184 @@
-import React, { useState } from 'react';
-import { Search, Folder, Calendar, ChevronDown, ChevronRight, Music, Filter, Trash2, Globe, Clock, Star, Layers } from 'lucide-react';
+import React from 'react';
+import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown, MapPin } from 'lucide-react'; // Added ChevronDown, MapPin
 import { motion, AnimatePresence } from 'framer-motion';
 
+interface HubWithGenres {
+  hub: string;
+  genres: string[];
+}
+
 interface SidebarProps {
-  hubsWithGenres: { 
-    name: string; 
-    genres: { 
-      name: string; 
-      sub_genres: string[] 
-    }[] 
-  }[];
-  years: { year: number; months: string[] }[];
+  hubsWithGenres: HubWithGenres[];
   activeGenre: string;
   onGenreSelect: (genre: string) => void;
-  activeSubGenre: string;
-  onSubGenreSelect: (subGenre: string) => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
   activeHub: string;
   onHubSelect: (hub: string) => void;
-  activeYear: string;
-  onYearSelect: (year: string) => void;
-  activeMonth: string;
-  onMonthSelect: (month: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = (props) => {
-  const {
-    hubsWithGenres = [],
-    years = [],
-    activeGenre,
-    onGenreSelect,
-    activeSubGenre,
-    onSubGenreSelect,
-    activeHub,
-    onHubSelect,
-    activeYear,
-    onYearSelect,
-    activeMonth,
-    onMonthSelect
-  } = props;
-
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<'hubs' | 'years' | null>('hubs');
-  const [expandedHub, setExpandedHub] = useState<string | null>(activeHub !== 'all' ? activeHub : null);
-  const [expandedGenre, setExpandedGenre] = useState<string | null>(activeGenre !== 'All' ? activeGenre : null);
-  const [expandedYear, setExpandedYear] = useState<number | null>(activeYear !== 'All Years' ? parseInt(activeYear) : null);
-
-  const hasActiveFilters = activeHub !== 'all' || activeGenre !== 'All' || activeSubGenre !== 'all' || activeYear !== 'All Years' || activeMonth !== 'All Months';
-
-  const handleClearFilters = () => {
-    onHubSelect('all');
-    onGenreSelect('All');
-    onSubGenreSelect('all');
-    onYearSelect('All Years');
-    onMonthSelect('All Months');
-    setExpandedHub(null);
-    setExpandedGenre(null);
-    setExpandedYear(null);
+export const Sidebar: React.FC<SidebarProps> = ({
+  hubsWithGenres,
+  activeGenre,
+  onGenreSelect,
+  searchTerm,
+  onSearchChange,
+  activeHub,
+  onHubSelect
+}) => {
+  const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const [expandedHubs, setExpandedHubs] = React.useState<string[]>([]);
+  
+  const toggleHub = (hub: string) => {
+    setExpandedHubs(prev => prev.includes(hub) ? prev.filter(h => h !== hub) : [...prev, hub]);
   };
-
-  const NavItem = ({ 
-    icon: Icon, 
-    label, 
-    active, 
-    onClick, 
-    hasChildren, 
-    isExpanded,
-    count 
-  }: any) => (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center justify-between px-6 py-3.5 rounded-2xl transition-all duration-300 group ${
-        active 
-          ? 'bg-blue-600/10 text-white border border-blue-500/20' 
-          : 'text-zinc-500 hover:text-white hover:bg-white/[0.03] border border-transparent'
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <Icon size={16} className={active ? 'text-blue-400' : 'text-zinc-600 group-hover:text-zinc-400'} />
-        <span className={`text-[11px] font-black uppercase tracking-widest ${active ? 'text-white' : ''}`}>{label}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        {count !== undefined && (
-          <span className="text-[9px] font-black text-zinc-700 bg-white/5 px-2 py-0.5 rounded-md">{count}</span>
-        )}
-        {hasChildren && (
-          <ChevronRight 
-            size={14} 
-            className={`transition-transform duration-300 ${isExpanded ? 'rotate-90 text-blue-400' : 'text-zinc-700'}`} 
-          />
-        )}
-      </div>
-    </button>
-  );
 
   return (
     <>
-      {/* Mobile Toggle Button */}
-      <div className="lg:hidden w-full mb-6 relative z-30">
+      {/* Mobile Toggle */}
+      <div className="lg:hidden w-full mb-4">
         <button
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="w-full flex items-center justify-between px-6 py-5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl"
+          className="w-full flex items-center justify-between px-6 py-4 bg-zinc-900/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl hover:border-brand-purple/30 transition-all active:scale-[0.98]"
         >
-          <div className="flex items-center gap-4">
-            <div className={`p-2.5 rounded-2xl ${hasActiveFilters ? 'bg-blue-600' : 'bg-zinc-800'} text-white shadow-lg`}>
-              <Filter size={20} />
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-brand-purple/20 text-brand-purple shadow-lg shadow-brand-purple/10">
+              <Layers size={20} />
             </div>
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] leading-none mb-1.5">Navigation Filter</span>
-              <span className="text-[14px] font-bold text-white uppercase tracking-tighter">
-                {activeHub !== 'all' ? activeHub : activeYear !== 'All Years' ? activeYear : 'All Tracks'}
-              </span>
+            <div className="flex flex-col items-start translate-y-0.5">
+              <span className="text-[11px] uppercase font-black text-zinc-500 tracking-[0.15em] leading-none mb-1.5">Browse Genre</span>
+              <span className="text-[15px] font-bold text-white leading-none">{activeGenre}</span>
             </div>
           </div>
-          <ChevronDown size={22} className={`text-zinc-500 transition-transform ${isMobileOpen ? 'rotate-180' : ''}`} />
+          <motion.div
+            animate={{ rotate: isMobileOpen ? 180 : 0 }}
+            className="p-2 rounded-lg bg-white/5"
+          >
+            <ChevronDown size={20} className="text-zinc-500" />
+          </motion.div>
         </button>
       </div>
 
-      <aside className={`${isMobileOpen ? 'flex fixed inset-0 z-[100] bg-black/95 p-6 overflow-y-auto' : 'hidden'} lg:block lg:sticky lg:top-24 lg:w-80 flex-shrink-0 animate-in fade-in slide-in-from-left-4 h-full`}>
-        <div className="w-full bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] p-6 lg:p-8 flex flex-col gap-8 h-fit shadow-2xl">
-          
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white flex items-center gap-3">
-              <Layers className="text-blue-500" size={18} />
-              Music Pool
-            </h2>
-            {hasActiveFilters && (
-              <button 
-                onClick={handleClearFilters}
-                className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 rounded-xl transition-all"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
+      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-200px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
+      {/* Search Header */}
+      <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-10">
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-brand-purple transition-colors" size={18} />
+          <input
+            id="genre-search"
+            name="genreSearch"
+            type="text"
+            placeholder="Search Genres..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full bg-zinc-800/50 border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple/50 transition-all font-bold"
+          />
+        </div>
+      </div>
+
+      {/* Genre List */}
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <div className="space-y-1">
+          <div className="px-4 mb-2">
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Music Categories</span>
           </div>
-
-          <div className="space-y-6">
-            {/* Hubs & Genres Section */}
-            <div className="space-y-4">
-              <NavItem
-                label="ALL MUSIC PACKS"
-                icon={Globe}
-                active={activeHub === 'all'}
-                onClick={handleClearFilters}
-              />
-
-              {hubsWithGenres.map((hub) => (
-                <div key={hub.name} className="space-y-2">
-                  <NavItem
-                    label={hub.name}
-                    icon={Folder}
-                    active={activeHub === hub.name}
-                    onClick={() => {
-                      setExpandedHub(expandedHub === hub.name ? null : hub.name);
-                      onHubSelect(hub.name);
-                      onGenreSelect('All');
-                      onSubGenreSelect('all');
-                    }}
-                    hasChildren={hub.genres.length > 0}
-                    isExpanded={expandedHub === hub.name}
-                  />
-
-                  <AnimatePresence>
-                    {expandedHub === hub.name && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden pl-4 space-y-1"
-                      >
-                        {hub.genres.map((genre) => (
-                          <div key={genre.name} className="space-y-1">
-                            <button
-                              onClick={() => {
-                                setExpandedGenre(expandedGenre === genre.name ? null : genre.name);
-                                onGenreSelect(genre.name);
-                                onSubGenreSelect('all');
-                              }}
-                              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl transition-all ${
-                                activeGenre === genre.name ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`w-1.5 h-1.5 rounded-full ${activeGenre === genre.name ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-zinc-800'}`} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">{genre.name}</span>
-                              </div>
-                              {genre.sub_genres.length > 0 && (
-                                <ChevronRight 
-                                  size={12} 
-                                  className={`transition-transform ${expandedGenre === genre.name ? 'rotate-90 text-blue-500' : 'text-zinc-800'}`} 
-                                />
-                              )}
-                            </button>
-
-                            <AnimatePresence>
-                              {expandedGenre === genre.name && genre.sub_genres.length > 0 && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden pl-6 border-l border-zinc-900 ml-3.5 space-y-1"
-                                >
-                                  {genre.sub_genres.map(sg => (
-                                    <button
-                                      key={sg}
-                                      onClick={() => onSubGenreSelect(sg)}
-                                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-[9px] font-bold uppercase transition-all ${
-                                        activeSubGenre === sg ? 'text-blue-400 bg-blue-400/5' : 'text-zinc-700 hover:text-zinc-500'
-                                      }`}
-                                    >
-                                      <ChevronRight size={10} className={activeSubGenre === sg ? 'text-blue-500' : 'text-zinc-900'} />
-                                      {sg}
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
+          <button
+            onClick={() => {
+              onHubSelect('all');
+              onGenreSelect('All');
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group mb-4 ${
+              activeHub === 'all' && activeGenre === 'All'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg transition-colors ${
+              activeHub === 'all' && activeGenre === 'All' ? 'bg-white/20' : 'bg-zinc-800 group-hover:bg-zinc-700'
+            }`}>
+              <Layers size={16} />
             </div>
+            <span className="text-sm font-bold truncate">All Tracks</span>
+          </button>
+          
+          {(hubsWithGenres || []).map((hubData) => {
+            if (!hubData?.hub) return null;
+            const isExpanded = expandedHubs.includes(hubData.hub) || activeHub === hubData.hub || searchTerm !== '';
+            const filteredGenres = (hubData.genres || []).filter(g => g.toLowerCase().includes(searchTerm.toLowerCase()));
+            
+            // If searching and no genres match in this hub (and hub name itself doesn't match), hide it
+            if (searchTerm && filteredGenres.length === 0 && !hubData.hub.toLowerCase().includes(searchTerm.toLowerCase())) return null;
 
-            {/* Years Section */}
-            <div className="pt-6 border-t border-white/5 space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2 mb-2">
-                <Calendar size={14} className="text-zinc-500" /> Release Date
-              </h3>
-              
-              {years.map(({ year, months }) => (
-                <div key={year} className="space-y-2">
-                  <NavItem
-                    label={year.toString()}
-                    icon={Calendar}
-                    active={activeYear === year.toString()}
-                    onClick={() => {
-                      setExpandedYear(expandedYear === year ? null : year);
-                      onYearSelect(year.toString());
-                      onMonthSelect('All Months');
-                    }}
-                    hasChildren={months.length > 0}
-                    isExpanded={expandedYear === year}
+            return (
+              <div key={hubData.hub} className="mb-2">
+                <button
+                  onClick={() => {
+                    toggleHub(hubData.hub);
+                    onHubSelect(hubData.hub);
+                    onGenreSelect('All');
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group ${
+                    activeHub === hubData.hub
+                      ? 'bg-zinc-800/80 text-white border border-white/10 shadow-lg'
+                      : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Folder size={16} className={activeHub === hubData.hub ? 'text-blue-400' : 'text-zinc-500 group-hover:text-zinc-300'} />
+                    <span className="text-[15px] font-bold truncate">{hubData.hub}</span>
+                  </div>
+                  <ChevronDown 
+                    size={16} 
+                    className={`transition-transform duration-200 text-zinc-500  ${isExpanded ? 'rotate-180' : ''}`} 
                   />
-
-                  <AnimatePresence>
-                    {expandedYear === year && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden pl-4 mt-1 grid grid-cols-2 gap-2"
-                      >
-                        {months.map((month) => (
+                </button>
+                
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pl-4 pr-2 py-2 space-y-1 border-l-2 border-white/5 ml-6 mt-1">
+                        {filteredGenres.map(genre => (
                           <button
-                            key={month}
-                            onClick={() => onMonthSelect(month)}
-                            className={`px-4 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all text-center border ${
-                              activeMonth === month 
-                                ? 'bg-blue-600/10 text-white border-blue-500/20' 
-                                : 'text-zinc-600 hover:text-white bg-zinc-900/40 border-transparent hover:border-white/5'
+                            key={genre}
+                            onClick={() => {
+                               onHubSelect(hubData.hub);
+                               onGenreSelect(genre);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-left ${
+                              activeGenre === genre && activeHub === hubData.hub
+                                ? 'bg-blue-500/10 text-blue-400 font-bold'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 text-sm'
                             }`}
                           >
-                            {month}
+                            <span className="truncate">{genre}</span>
+                            {activeGenre === genre && activeHub === hubData.hub && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+                            )}
                           </button>
                         ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4 pt-6 border-t border-white/5">
-             <div className="flex items-center gap-3 justify-center opacity-30">
-               <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-               <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Live Pool Terminal</span>
-             </div>
-          </div>
-
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </div>
-      </aside>
+      </div>
+      
+      {/* Footer Branding */}
+      <div className="p-6 border-t border-white/5 bg-zinc-900/80">
+        <div className="flex items-center gap-3 text-zinc-500">
+          <Folder size={16} />
+          <span className="text-xs font-bold uppercase tracking-widest">{activeHub}</span>
+        </div>
+      </div>
+    </aside>
     </>
   );
 };
