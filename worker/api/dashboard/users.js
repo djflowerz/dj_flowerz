@@ -16,13 +16,14 @@ export async function handleDashboardUsers(request, env) {
             // Fetch directly from D1 (Bypass R2 for Admin as requested)
             const query = `
                 SELECT 
-                    id, full_name AS name, email, role, is_subscriber, subscription_plan, 
-                    subscription_expiry, created_at, last_seen, presence_status, has_used_trial,
-                    phone AS phone_number, referral_code, referral_balance_kes
+                    id, full_name AS name, email, role, is_subscriber, subscription_plan,
+                    subscription_expiry, created_at, last_login, presence_status,
+                    phone_number, referral_code, referral_balance AS referral_balance_kes
                 FROM profiles
                 ORDER BY created_at DESC
             `;
             const { results } = await env.DB.prepare(query).all();
+            console.log(`[Dashboard/Users] Found ${results?.length || 0} profiles in D1`);
             return new Response(JSON.stringify(results || []), {
                 headers: { 
                     'Content-Type': 'application/json', 
@@ -60,17 +61,16 @@ export async function handleDashboardUsers(request, env) {
             const fieldMap = {
                 full_name: 'full_name',
                 name: 'full_name',
-                phone_number: 'phone',
-                phone: 'phone',
+                phone_number: 'phone_number',
+                phone: 'phone_number',
                 is_subscriber: 'is_subscriber',
-                referral_balance_kes: 'referral_balance_kes',
+                referral_balance_kes: 'referral_balance',
                 referral_code: 'referral_code',
                 role: 'role',
                 subscription_plan: 'subscription_plan',
                 subscription_expiry: 'subscription_expiry',
                 daily_download_count: 'daily_download_count',
-                last_download_reset: 'last_download_reset',
-                has_used_trial: 'has_used_trial'
+                last_download_reset: 'last_download_reset'
             };
 
             for (const [jsKey, dbCol] of Object.entries(fieldMap)) {

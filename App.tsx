@@ -1,40 +1,60 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { Toaster } from 'sonner';
 import AudioPlayer from './components/AudioPlayer';
-import Home from './pages/Home';
-import Mixtapes from './pages/Mixtapes';
-import MixtapeDetails from './pages/MixtapeDetails';
-import MusicPool from './pages/MusicPool';
-import Store from './pages/Store';
-import ProductDetails from './pages/ProductDetails';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import Success from './pages/Success';
-import Bookings from './pages/Bookings';
-import RecordingSessions from './pages/RecordingSessions';
-import Sessions from './pages/Sessions';
-import TipJar from './pages/TipJar';
-import Account from './pages/Account';
-import Contact from './pages/Contact';
-import About from './pages/About';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ForgotPassword from './pages/ForgotPassword';
-import VerifyEmail from './pages/VerifyEmail';
-import AdminDashboard from './pages/AdminDashboard';
+import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
-import UserProfile from './pages/UserProfile';
-import OrderTracking from './pages/OrderTracking';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
 import AccessDenied from './components/AccessDenied';
+
+// Lazy load pages to reduce initial bundle size
+const Home = lazy(() => import('./pages/Home'));
+const Mixtapes = lazy(() => import('./pages/Mixtapes'));
+const MixtapeDetails = lazy(() => import('./pages/MixtapeDetails'));
+const MusicPool = lazy(() => import('./pages/MusicPool'));
+const Store = lazy(() => import('./pages/Store'));
+const ProductDetails = lazy(() => import('./pages/ProductDetails'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Success = lazy(() => import('./pages/Success'));
+const Bookings = lazy(() => import('./pages/Bookings'));
+const RecordingSessions = lazy(() => import('./pages/RecordingSessions'));
+const Sessions = lazy(() => import('./pages/Sessions'));
+const TipJar = lazy(() => import('./pages/TipJar'));
+const Account = lazy(() => import('./pages/Account'));
+const Contact = lazy(() => import('./pages/Contact'));
+const About = lazy(() => import('./pages/About'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+// const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const UserProfile = lazy(() => import('./pages/UserProfile'));
+const OrderTracking = lazy(() => import('./pages/OrderTracking'));
+
+// Modular Admin Pages
+const AdminHome = lazy(() => import('./src/admin/pages/Dashboard'));
+const AdminProducts = lazy(() => import('./src/admin/pages/Products'));
+const AdminOrders = lazy(() => import('./src/admin/pages/Orders'));
+const AdminMixtapes = lazy(() => import('./src/admin/pages/Mixtapes'));
+const AdminCustomers = lazy(() => import('./src/admin/pages/Customers'));
+const AdminPayments = lazy(() => import('./src/admin/pages/Payments'));
+const AdminSubscriptions = lazy(() => import('./src/admin/pages/Subscriptions'));
+const AdminMessages = lazy(() => import('./src/admin/pages/Messages'));
+const AdminPool = lazy(() => import('./src/admin/pages/MusicPool'));
+const AdminSettings = lazy(() => import('./src/admin/pages/Settings'));
+const AdminNewsletter = lazy(() => import('./src/admin/pages/Newsletter'));
+const AdminAffiliates = lazy(() => import('./src/admin/pages/Affiliates'));
+const AdminInstallments = lazy(() => import('./src/admin/pages/Installments'));
+const AdminMarketing = lazy(() => import('./src/admin/pages/Marketing'));
+const AdminShipping = lazy(() => import('./src/admin/pages/Shipping'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -48,8 +68,6 @@ const ScrollToTop = () => {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
-  const isMusicPool = location.pathname === '/music-pool';
-  const isProductDetails = location.pathname.startsWith('/store/') && location.pathname !== '/store' && location.pathname !== '/store/';
   const hideChrome = isAdmin;
 
   return (
@@ -114,40 +132,51 @@ const App: React.FC = () => {
               <Toaster position="top-right" richColors closeButton theme="dark" />
               <FloatingChatWidget />
               <Layout>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/mixtapes" element={<Mixtapes />} />
-                  <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
-                  <Route path="/music-pool" element={<MusicPool />} />
-                  <Route path="/store" element={<Store />} />
-                  <Route path="/store/:slug" element={<ProductDetails />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/success" element={<Success />} />
-                  <Route path="/success/:id" element={<Success />} />
-                  <Route path="/order-tracking" element={<OrderTracking />} />
-                  <Route path="/bookings" element={<Bookings />} />
-                  <Route path="/recording-sessions" element={<RecordingSessions />} />
-                  <Route path="/sessions" element={<Sessions />} />
-                  <Route path="/tip-jar" element={<TipJar />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/about" element={<About />} />
-                   <Route path="/premium" element={<AccessDenied />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/verify-email" element={<VerifyEmail />} />
-                  <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-                  {/* Admin — single page with tabs */}
-                  <Route path="/admin/*" element={
-                    <ErrorBoundary>
-                      <ProtectedRoute adminOnly>
-                        <AdminDashboard />
-                      </ProtectedRoute>
-                    </ErrorBoundary>
-                  } />
-                </Routes>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/mixtapes" element={<Mixtapes />} />
+                    <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
+                    <Route path="/music-pool" element={<MusicPool />} />
+                    <Route path="/store" element={<Store />} />
+                    <Route path="/store/:slug" element={<ProductDetails />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/success" element={<Success />} />
+                    <Route path="/success/:id" element={<Success />} />
+                    <Route path="/order-tracking" element={<OrderTracking />} />
+                    <Route path="/bookings" element={<Bookings />} />
+                    <Route path="/recording-sessions" element={<RecordingSessions />} />
+                    <Route path="/sessions" element={<Sessions />} />
+                    <Route path="/tip-jar" element={<TipJar />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/about" element={<About />} />
+                     <Route path="/premium" element={<AccessDenied />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
+                    <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+                    <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+                    {/* Admin Modular Pages */}
+                    <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/products" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/orders" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminOrders /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/mixtapes" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMixtapes /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/customers" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCustomers /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/payments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPayments /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/subscriptions" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSubscriptions /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/messages" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMessages /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/pool" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPool /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/settings" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/newsletter" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminNewsletter /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/affiliates" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminAffiliates /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
+                    {/* Legacy full-dashboard fallback removed to fix build */}
+                  </Routes>
+                </Suspense>
               </Layout>
             </Router>
           </PlayerProvider>

@@ -13,7 +13,6 @@ export const profiles = sqliteTable('profiles', {
     isSubscriber: integer('is_subscriber', { mode: 'boolean' }).default(false),
     subscriptionPlan: text('subscription_plan'),
     subscriptionExpiry: text('subscription_expiry'),
-    hasUsedTrial: integer('has_used_trial', { mode: 'boolean' }).default(false),
     referralCode: text('referral_code'),
     referralBy: text('referral_by'),
     referralBalance: real('referral_balance').default(0),
@@ -280,13 +279,24 @@ export const trackVersions = sqliteTable('track_versions', {
 // 19. EVENT GIGS (Bookings)
 export const eventGigs = sqliteTable('event_gigs', {
     id: text('id').primaryKey(),
-    eventName: text('event_name').notNull(),
+    clientName: text('client_name'),
+    clientEmail: text('client_email').notNull(),
     eventDate: text('event_date').notNull(),
-    location: text('location'),
-    description: text('description'),
-    status: text('status').default('confirmed'), // confirmed, pending, cancelled
+    eventType: text('event_type'),
+    locationDetails: text('location_details'),
+    requirements: text('requirements'),
+    status: text('status').default('inquiry'), // inquiry, confirmed, cancelled
+    quoteAmount: real('quote_amount').default(0),
     depositReceived: real('deposit_received').default(0),
     paystackRef: text('paystack_ref'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 19b. BOOKING BLACKOUTS
+export const bookingBlackouts = sqliteTable('booking_blackouts', {
+    id: text('id').primaryKey(),
+    date: text('date').notNull(),
+    reason: text('reason').default('Gig Confirmed'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -342,5 +352,73 @@ export const wishlist = sqliteTable('wishlist', {
     userId: text('user_id').references(() => profiles.id).notNull(),
     targetId: text('target_id').notNull(), // productId or mixtapeId
     targetType: text('target_type').notNull(), // 'product' | 'mixtape'
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 26. STUDIO LOCATIONS
+export const studioLocations = sqliteTable('studio_locations', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    rate: real('rate'),
+    description: text('description'),
+    features: text('features'), // JSON string
+    imageUrl: text('image_url'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 27. STUDIO GEAR
+export const studioGear = sqliteTable('studio_gear', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    hourlyRate: real('hourly_rate'),
+    category: text('category'),
+    imageUrl: text('image_url'),
+    description: text('description'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 28. STUDIO MAINTENANCE
+export const studioMaintenance = sqliteTable('studio_maintenance', {
+    id: text('id').primaryKey(),
+    studioId: text('studio_id'),
+    gearId: text('gear_id'),
+    issue: text('issue').notNull(),
+    status: text('status').default('pending'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 29. SESSION TYPES
+export const sessionTypes = sqliteTable('session_types', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    price: real('price'),
+    duration: text('duration'),
+    description: text('description'),
+    features: text('features'), // JSON string
+    imageUrl: text('image_url'),
+    active: integer('active', { mode: 'boolean' }).default(true),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 24. TIPS
+export const tips = sqliteTable('tips', {
+    id: text('id').primaryKey(),
+    amount: real('amount').notNull(),
+    currency: text('currency').default('KES'),
+    message: text('message'),
+    donorName: text('donor_name'),
+    donorEmail: text('donor_email'),
+    status: text('status').default('completed'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 25. SYNC NOTIFICATIONS
+export const syncNotifications = sqliteTable('sync_notifications', {
+    id: text('id').primaryKey(),
+    action: text('action').notNull(), // e.g., 'POOL_SYNC'
+    details: text('details'),
+    status: text('status').default('info'), // info, success, warning, error
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

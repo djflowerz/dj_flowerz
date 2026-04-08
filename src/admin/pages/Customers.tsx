@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
 import { useAdminApi } from '../hooks/useAdminApi';
-import { Users, Search, Filter, Shield, ShieldCheck, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { Users, Search, Shield, ShieldCheck, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Customers: React.FC = () => {
     const { request, loading } = useAdminApi();
+    const { session } = useAuth();
     const [customerList, setCustomerList] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        loadUsers();
-    }, []);
+        if (session) loadUsers();
+    }, [session]);
 
     const loadUsers = async () => {
         try {
@@ -27,13 +29,14 @@ const Customers: React.FC = () => {
         return <Shield size={16} className="text-gray-500" />;
     };
 
-    const isSubActive = (isSubscriber: boolean, expiry: string) => {
-        if (!isSubscriber || !expiry) return false;
+    // D1 stores is_subscriber as integer 1/0, not boolean
+    const isSubActive = (isSubscriber: any, expiry: string) => {
+        if (!isSubscriber || isSubscriber === 0 || !expiry) return false;
         return new Date(expiry) > new Date();
     };
 
     const filteredUsers = (customerList || []).filter(user =>
-        (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (user.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
 
@@ -69,14 +72,13 @@ const Customers: React.FC = () => {
                             <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">User</th>
                             <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Role</th>
                             <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Subscription</th>
-                            <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Trial Used</th>
                             <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Activity</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.02]">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="px-8 py-20 text-center">
+                                <td colSpan={4} className="px-8 py-20 text-center">
                                     <div className="flex flex-col items-center gap-4">
                                         <div className="w-10 h-10 border-4 border-brand-purple border-t-transparent rounded-full animate-spin" />
                                         <span className="text-[10px] font-black uppercase tracking-widest text-brand-purple animate-pulse">Scanning Database...</span>
@@ -85,7 +87,7 @@ const Customers: React.FC = () => {
                             </tr>
                         ) : filteredUsers.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-8 py-20 text-center">
+                                <td colSpan={4} className="px-8 py-20 text-center">
                                     <div className="flex flex-col items-center gap-6 opacity-40">
                                         <Users size={48} className="text-gray-600" />
                                         <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">No users found</span>
@@ -108,13 +110,43 @@ const Customers: React.FC = () => {
                                 </td>
                                 <td className="px-8 py-8">
                                     {isSubActive(user.is_subscriber, user.subscription_expiry) ? (
-                                        <div>
-                                            <p className="text-[11px] font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
-                                                <CheckCircle size={14} /> Active ({user.subscription_plan})
-                                            </p>
-                                            <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">
-                                                Expires: {new Date(user.subscription_expiry).toLocaleDateString()}
-                                            </p>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
+                                                    <CheckCircle size={14} /> Active
+                                                </p>
+                                                <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">
+                                                    {(() => {
+                                                        const diff = new Date(user.subscription_expiry).getTime() - new Date().getTime();
+                                                        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                                        return days > 0 ? `${days} DAYS LEFT` : 'EXPIRES TODAY';
+                                                    })()}
+                                                </p>
+                                                <p className="text-[8px] font-bold text-gray-700 mt-0.5">
+                                                    {new Date(user.subscription_expiry).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={async () => {
+                                                    if(window.confirm(`REVOKE ACCESS for ${user.email}?`)) {
+                                                        try {
+                                                            const res = await request('/api/admin/revoke-access', { 
+                                                                method: 'POST', 
+                                                                body: JSON.stringify({ email: user.email }) 
+                                                            });
+                                                            if (res.success) {
+                                                                toast.success("Access Revoked");
+                                                                loadUsers();
+                                                            }
+                                                        } catch (e) {
+                                                            toast.error("Revoke failed");
+                                                        }
+                                                    }
+                                                }}
+                                                className="text-[9px] font-black uppercase tracking-tighter text-red-500/50 hover:text-red-500 transition-colors p-2"
+                                            >
+                                                Revoke
+                                            </button>
                                         </div>
                                     ) : (
                                         <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
@@ -122,11 +154,7 @@ const Customers: React.FC = () => {
                                         </p>
                                     )}
                                 </td>
-                                <td className="px-8 py-8">
-                                    <p className={`text-[11px] font-black uppercase tracking-widest ${user.has_used_trial ? 'text-brand-yellow' : 'text-gray-600'}`}>
-                                        {user.has_used_trial ? 'Yes' : 'No'}
-                                    </p>
-                                </td>
+
                                 <td className="px-8 py-8">
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className={`w-2 h-2 rounded-full ${user.presence_status === 'online' ? 'bg-emerald-500' : 'bg-gray-600'}`} />

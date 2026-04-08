@@ -18,9 +18,9 @@ export async function handleDashboardFinances(request, env) {
                 // 1. Revenue Stats
                 const statsRow = await env.DB.prepare(`
                     SELECT 
-                        (SELECT COALESCE(SUM(amount_kes), 0) FROM payments WHERE status = 'success') + 
-                        (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE payment_status = 'paid') as total,
-                        (SELECT COALESCE(SUM(amount_kes), 0) FROM payments WHERE status = 'success') as confirmed
+                        CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) + 
+                             COALESCE((SELECT SUM(total_amount) FROM orders WHERE payment_status = 'paid'), 0) AS REAL) as total,
+                        CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) AS REAL) as confirmed
                 `).first();
 
                 // 2. Counts
@@ -28,7 +28,14 @@ export async function handleDashboardFinances(request, env) {
                 const mixtapesCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM mixtapes`).first();
                 const subscribersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1`).first();
                 const totalUsersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles`).first();
-                const tipsCount = await env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM tips`).first();
+                const tipsCount = await env.DB.prepare(`SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) as total FROM tips`).first();
+
+                console.log('[Dashboard Stats] Data Sync Check:', {
+                    revenue: statsRow,
+                    users: totalUsersCount?.count,
+                    subscribers: subscribersCount?.count,
+                    time: new Date().toISOString()
+                });
 
                 // 3. Recent Activity (Orders + Payments)
                 const { results: recentOrders } = await env.DB.prepare(
@@ -99,9 +106,9 @@ export async function handleDashboardFinances(request, env) {
             // GET /api/admin/payments
             if (url.pathname.endsWith('/payments')) {
                 const { results } = await env.DB.prepare(
-                    `SELECT id, customer_email, amount_kes, method, currency, created_at 
+                    `SELECT id, customer_email, amount_kes, method, currency, status, created_at 
                      FROM payments 
-                     ORDER BY created_at DESC LIMIT 100`
+                     ORDER BY created_at DESC LIMIT 200`
                 ).all();
                 return Response.json(results || []);
             }

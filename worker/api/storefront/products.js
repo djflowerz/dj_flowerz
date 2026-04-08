@@ -34,6 +34,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
             const enrichedProduct = {
                 ...product,
                 isActive: Boolean(product.is_active),
+                isFeatured: Boolean(product.is_featured),
                 shortDescription: product.description ? product.description.substring(0, 100) : null,
                 variants: variants || []
             };
@@ -68,7 +69,7 @@ export async function handleStorefrontProducts(request, env, ctx, params) {
                 return {
                     ...p,
                     isActive: Boolean(p.is_active),
-                    isFeatured: false,
+                    isFeatured: Boolean(p.is_featured),
                     shortDescription: p.description ? p.description.substring(0, 100) : null,
                     variants: variants || []
                 };

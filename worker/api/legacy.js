@@ -19,7 +19,20 @@ export async function handleLegacy(request, env, ctx, params) {
                 `).all();
                 results = products;
             } else if (collection === 'mixtapes') {
-                const { results: mixtapes } = await env.DB.prepare("SELECT *, cover_url AS coverUrl, audio_url AS audioUrl, download_url AS downloadUrl FROM mixtapes WHERE status = 'published' ORDER BY release_date DESC").all();
+                const { results: mixtapes } = await env.DB.prepare(`
+                    SELECT *, 
+                    cover_url AS coverUrl, 
+                    audio_url AS audioUrl, 
+                    download_url AS downloadUrl, 
+                    FALSE AS isPremium,
+                    FALSE AS isExclusive,
+                    FALSE AS is_premium,
+                    FALSE AS is_exclusive,
+                    'free' AS required_tier
+                    FROM mixtapes 
+                    WHERE status = 'published' 
+                    ORDER BY release_date DESC
+                `).all();
                 results = mixtapes;
             } else if (collection === 'settings') {
                 const setting = await env.DB.prepare("SELECT data FROM settings WHERE id = 'siteConfig'").first();
@@ -40,9 +53,25 @@ export async function handleLegacy(request, env, ctx, params) {
 
     if (path === '/api/mixtapes') {
         try {
-            const { results } = await env.DB.prepare("SELECT *, cover_url AS coverUrl, audio_url AS audioUrl, download_url AS downloadUrl FROM mixtapes WHERE status = 'published' ORDER BY release_date DESC").all();
+            const { results } = await env.DB.prepare(`
+                SELECT *, 
+                cover_url AS coverUrl, 
+                audio_url AS audioUrl, 
+                download_url AS downloadUrl, 
+                FALSE AS isPremium,
+                FALSE AS isExclusive,
+                FALSE AS is_premium,
+                FALSE AS is_exclusive,
+                'free' AS required_tier
+                FROM mixtapes 
+                WHERE status = 'published' 
+                ORDER BY release_date DESC
+            `).all();
             return new Response(JSON.stringify(results), {
-                headers: { "Content-Type": "application/json" }
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
             });
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2, Package, Image as ImageIcon, Type, Hash, DollarSign, Layers, Info, Truck, Tag, Calendar } from 'lucide-react';
+import { X, Save, Plus, Trash2, Package, Image as ImageIcon, Type, Hash, DollarSign, Layers, Info, Truck, Tag, Calendar, Upload } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
 interface ProductFormProps {
@@ -20,6 +21,8 @@ const generateSlug = (name: string) => {
 
 const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }) => {
     const { request, loading } = useAdminApi();
+    const { session } = useAuth();
+    const [uploading, setUploading] = useState(false);
     const [activeTab, setActiveTab] = useState<'basic' | 'pricing' | 'shipping' | 'media' | 'specs' | 'interactive'>('basic');
     const [formData, setFormData] = useState({
         name: '',
@@ -54,14 +57,15 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 brand: product.brand || '',
                 type: product.type || 'physical',
                 description: product.description || '',
-                category_id: product.category_id || '',
+                category: product.category || product.category_id || 'Uncategorized',
                 is_active: product.is_active === 1 || product.is_active === true,
                 release_date: (product.release_date || '').split('T')[0] || new Date().toISOString().split('T')[0],
                 image_url: product.image_url || product.variants?.[0]?.image_url || '',
-                technicalDetails: product.technicalDetails || [],
+                features: product.features ? (typeof product.features === 'string' ? JSON.parse(product.features) : product.features) : [],
+                technicalDetails: product.technicalDetails || (product.technical_details ? (typeof product.technical_details === 'string' ? JSON.parse(product.technical_details) : product.technical_details) : []),
                 hotspots: product.hotspots || [],
-                useCases: product.useCases || [],
-                variantGroups: product.variantGroups || [],
+                useCases: product.useCases || (product.use_cases ? (typeof product.use_cases === 'string' ? JSON.parse(product.use_cases) : product.use_cases) : []),
+                variantGroups: product.variantGroups || (product.variant_groups ? (typeof product.variant_groups === 'string' ? JSON.parse(product.variant_groups) : product.variant_groups) : []),
                 variants: product.variants?.length > 0 ? product.variants : [
                     { id: crypto.randomUUID(), name: 'Default', sku: '', price: 0, compare_at_price: 0, stock_quantity: 10, weight: 0 }
                 ],
@@ -100,6 +104,37 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         }));
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const response = await fetch('/api/admin/r2-upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'x-file-name': file.name,
+                    'x-folder': 'products',
+                    'content-type': file.type
+                },
+                body: file
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                setFormData(prev => ({ ...prev, image_url: result.url }));
+                toast.success('Product image uploaded!');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (e: any) {
+            toast.error('Upload failed: ' + e.message);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -110,6 +145,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
             const payload = {
                 ...formData,
                 id: product ? product.id : (formData.slug || generateSlug(formData.name)),
+                inventory: formData.variants.reduce((total, v) => total + (parseInt(v.stock_quantity as any) || 0), 0),
                 variants: formData.variants.map((v, i) => ({
                     ...v,
                     image_url: v.image_url || (i === 0 ? formData.image_url : null)
@@ -180,12 +216,14 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-12 py-10">
                     {activeTab === 'basic' && (
                         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
-                            <div className="grid grid-cols-2 gap-8">
+                            <div className="grid grid-cols-3 gap-8">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Item Designation</label>
                                     <div className="relative group">
                                         <Type className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={18} />
                                         <input
+                                            id="product-name"
+                                            name="name"
                                             type="text"
                                             required
                                             value={formData.name}
@@ -208,11 +246,29 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     <div className="relative group">
                                         <Tag className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={18} />
                                         <input
+                                            id="product-brand"
+                                            name="brand"
                                             type="text"
                                             value={formData.brand}
                                             onChange={e => setFormData({ ...formData, brand: e.target.value })}
                                             className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
                                             placeholder="e.g., oraimo"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Category</label>
+                                    <div className="relative group">
+                                        <Layers className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-brand-purple transition-colors" size={18} />
+                                        <input
+                                            id="product-category"
+                                            name="category"
+                                            type="text"
+                                            value={(formData as any).category || ''}
+                                            onChange={e => setFormData({ ...formData, category: e.target.value } as any)}
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
+                                            placeholder="e.g., DJ Equipment"
                                         />
                                     </div>
                                 </div>
@@ -222,6 +278,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Data Slug</label>
                                     <input
+                                        id="product-slug"
+                                        name="slug"
                                         type="text"
                                         required
                                         value={formData.slug}
@@ -235,6 +293,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     <div className="relative">
                                         <Calendar className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                                         <input
+                                            id="product-release-date"
+                                            name="release_date"
                                             type="date"
                                             value={formData.release_date}
                                             onChange={e => setFormData({ ...formData, release_date: e.target.value })}
@@ -281,6 +341,56 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     placeholder="Describe the matrix item..."
                                 />
                             </div>
+
+                            <div className="space-y-6 mt-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        Key Features
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newFeatures = Array.isArray((formData as any).features) ? [...(formData as any).features, ''] : [''];
+                                            setFormData({ ...formData, features: newFeatures } as any);
+                                        }}
+                                        className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus size={14} /> Add Feature
+                                    </button>
+                                </div>
+                                <div className="grid gap-3">
+                                    {Array.isArray((formData as any).features) && (formData as any).features.map((feature: string, idx: number) => (
+                                        <div key={idx} className="flex gap-4 items-center">
+                                            <input
+                                                type="text"
+                                                value={feature}
+                                                onChange={e => {
+                                                    const newFeatures = [...(formData as any).features];
+                                                    newFeatures[idx] = e.target.value;
+                                                    setFormData({ ...formData, features: newFeatures } as any);
+                                                }}
+                                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                                placeholder="e.g., Wireless connectivity"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newFeatures = (formData as any).features.filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, features: newFeatures } as any);
+                                                }}
+                                                className="p-3 text-gray-600 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(!(formData as any).features || (formData as any).features.length === 0) && (
+                                        <div className="text-center py-6 border border-dashed border-white/10 rounded-2xl text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                                            No key features added
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -308,6 +418,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     {formData.technicalDetails.map((spec, idx) => (
                                         <div key={idx} className="flex gap-4 items-start group">
                                             <input
+                                                id={`spec-title-${idx}`}
+                                                name={`spec_title_${idx}`}
                                                 type="text"
                                                 value={spec.title}
                                                 onChange={e => {
@@ -319,6 +431,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 className="flex-[1] bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
                                             />
                                             <input
+                                                id={`spec-desc-${idx}`}
+                                                name={`spec_description_${idx}`}
                                                 type="text"
                                                 value={spec.description}
                                                 onChange={e => {
@@ -371,6 +485,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     {formData.useCases.map((uc, idx) => (
                                         <div key={idx} className="flex gap-4 items-start group">
                                             <input
+                                                id={`usecase-title-${idx}`}
+                                                name={`usecase_title_${idx}`}
                                                 type="text"
                                                 value={uc.title}
                                                 onChange={e => {
@@ -454,6 +570,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">X Position (%)</label>
                                                     <input
+                                                        id={`hotspot-x-${idx}`}
+                                                        name={`hotspot_x_${idx}`}
                                                         type="number"
                                                         value={hs.x}
                                                         onChange={e => {
@@ -467,6 +585,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Y Position (%)</label>
                                                     <input
+                                                        id={`hotspot-y-${idx}`}
+                                                        name={`hotspot_y_${idx}`}
                                                         type="number"
                                                         value={hs.y}
                                                         onChange={e => {
@@ -481,6 +601,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Title</label>
                                                 <input
+                                                    id={`hotspot-title-${idx}`}
+                                                    name={`hotspot_title_${idx}`}
                                                     type="text"
                                                     value={hs.title}
                                                     onChange={e => {
@@ -543,6 +665,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                         <div key={gIdx} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 space-y-4">
                                             <div className="flex gap-4 items-center">
                                                 <input
+                                                    id={`variant-group-name-${gIdx}`}
+                                                    name={`variant_group_name_${gIdx}`}
                                                     type="text"
                                                     value={group.name}
                                                     onChange={e => {
@@ -582,6 +706,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                     </div>
                                                 ))}
                                                 <input
+                                                    id={`variant-group-option-${gIdx}`}
+                                                    name={`variant_group_option_${gIdx}`}
                                                     type="text"
                                                     placeholder="Add option..."
                                                     onKeyDown={e => {
@@ -632,6 +758,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             <div className="col-span-3 space-y-2">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Variation Name</label>
                                                 <input
+                                                    id={`variant-name-${index}`}
+                                                    name={`variant_name_${index}`}
                                                     type="text"
                                                     value={variant.name}
                                                     onChange={e => handleVariantChange(variant.id, 'name', e.target.value)}
@@ -644,6 +772,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 <div className="relative group">
                                                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
                                                     <input
+                                                        id={`variant-price-${index}`}
+                                                        name={`variant_price_${index}`}
                                                         type="number"
                                                         value={variant.price}
                                                         onChange={e => handleVariantChange(variant.id, 'price', parseFloat(e.target.value))}
@@ -656,6 +786,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 <div className="relative group">
                                                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
                                                     <input
+                                                        id={`variant-compare-price-${index}`}
+                                                        name={`variant_compare_at_price_${index}`}
                                                         type="number"
                                                         value={variant.compare_at_price}
                                                         onChange={e => handleVariantChange(variant.id, 'compare_at_price', parseFloat(e.target.value))}
@@ -666,6 +798,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             <div className="col-span-2 space-y-2">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Stock</label>
                                                 <input
+                                                    id={`variant-stock-${index}`}
+                                                    name={`variant_stock_quantity_${index}`}
                                                     type="number"
                                                     value={variant.stock_quantity}
                                                     onChange={e => handleVariantChange(variant.id, 'stock_quantity', parseInt(e.target.value))}
@@ -675,6 +809,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             <div className="col-span-2 space-y-2">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">SKU</label>
                                                 <input
+                                                    id={`variant-sku-${index}`}
+                                                    name={`variant_sku_${index}`}
                                                     type="text"
                                                     value={variant.sku}
                                                     onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
@@ -703,6 +839,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Dimensions (L*W*H)</label>
                                     <input
+                                        id="product-dimensions"
+                                        name="dimensions"
                                         type="text"
                                         value={formData.dimensions}
                                         onChange={e => setFormData({ ...formData, dimensions: e.target.value })}
@@ -713,6 +851,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Weight (kg)</label>
                                     <input
+                                        id="product-weight"
+                                        name="weight"
                                         type="number"
                                         step="0.01"
                                         value={formData.variants[0]?.weight}
@@ -727,6 +867,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Model Number</label>
                                     <input
+                                        id="product-model"
+                                        name="model"
                                         type="text"
                                         value={formData.model}
                                         onChange={e => setFormData({ ...formData, model: e.target.value })}
@@ -737,6 +879,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Material</label>
                                     <input
+                                        id="product-material"
+                                        name="material"
                                         type="text"
                                         value={formData.material}
                                         onChange={e => setFormData({ ...formData, material: e.target.value })}
@@ -767,32 +911,58 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
 
                     {activeTab === 'media' && (
                         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Cover Image URL</label>
-                                <div className="relative group">
-                                    <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
-                                    <input
-                                        type="url"
-                                        value={formData.image_url}
-                                        onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
-                                        placeholder="https://..."
-                                    />
-                                </div>
+                            <div className="space-y-6">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Product Hero Image</label>
+                                
+                                <div className="flex gap-6">
+                                    <div className="flex-1 space-y-4">
+                                        <div className="relative group">
+                                            <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
+                                            <input
+                                                id="product-image-url"
+                                                name="image_url"
+                                                type="url"
+                                                value={formData.image_url}
+                                                onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
+                                                placeholder="https://... or upload below"
+                                            />
+                                        </div>
 
-                                {formData.image_url && (
-                                    <div className="mt-8 relative group w-64 h-64 mx-auto">
-                                        <div className="absolute inset-0 bg-brand-purple/20 blur-3xl group-hover:bg-brand-purple/30 transition-all" />
-                                        <img
-                                            src={formData.image_url}
-                                            alt="Preview"
-                                            className="relative w-full h-full object-contain rounded-3xl border border-white/10 bg-black/40 p-4"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = 'https://placehold.co/600x600/0B0B0F/white?text=Invalid+Image+URL';
-                                            }}
-                                        />
+                                        <label className={`w-full h-40 rounded-3xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : 'hover:border-brand-purple/50 hover:bg-white/[0.02]'}`}>
+                                            {uploading ? (
+                                                <div className="w-8 h-8 border-4 border-brand-purple border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <Upload size={32} className="text-gray-500" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Click to upload product image</span>
+                                                </>
+                                            )}
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                        </label>
                                     </div>
-                                )}
+
+                                    {formData.image_url && (
+                                        <div className="w-56 h-56 relative group">
+                                            <div className="absolute inset-0 bg-brand-purple/20 blur-3xl group-hover:bg-brand-purple/30 transition-all" />
+                                            <img
+                                                src={formData.image_url}
+                                                alt="Preview"
+                                                className="relative w-full h-full object-contain rounded-3xl border border-white/10 bg-black/40 p-4"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/600x600/0B0B0F/white?text=Invalid+Image+URL';
+                                                }}
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                                                className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

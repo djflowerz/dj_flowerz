@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig, WishlistItem } from '../types';
-import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES, SUBSCRIPTION_PLANS } from '../constants';
+import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
 import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
@@ -537,13 +537,14 @@ const mapR2Mixtape = (m: any): Mixtape => {
       videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
       downloadLimit: m.download_limit !== undefined ? Number(m.download_limit) : undefined,
       downloadExpiryDays: m.download_expiry_days !== undefined ? Number(m.download_expiry_days) : undefined,
-      requiredTier: m.required_tier || m.requiredTier,
+      requiredTier: 'free',
       youtubeUrl: m.youtube_url || m.youtubeUrl,
       soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
       metaTitle: m.meta_title || m.metaTitle,
       metaDescription: m.meta_description || m.metaDescription,
       ogImage: m.og_image || m.ogImage,
       isExclusive: Boolean(m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive),
+      isPremium: Boolean(m.is_premium !== undefined ? m.is_premium : m.isPremium),
       createdAt: m.created_at || m.createdAt,
       updatedAt: m.updated_at || m.updatedAt,
       tracklist: safeJsonParse(m.tracklist || m.track_list, []),
@@ -603,7 +604,6 @@ const mapR2User = (u: any): User => ({
   isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
-  hasUsedTrial: Boolean(u.has_used_trial || u.hasUsedTrial),
   avatarUrl: u.avatar_url || u.avatarUrl,
   referralCode: u.referral_code || u.referralCode,
   lastLogin: u.last_login || u.lastLogin,
@@ -620,13 +620,15 @@ const mapR2User = (u: any): User => ({
 
 const mapR2Subscription = (s: any): Subscription => ({
   ...s,
-  userId: s.user_id || s.userId,
-  userName: s.user_name || s.userName,
-  userEmail: s.user_email || s.userEmail,
-  planId: s.plan_id || s.planId,
+  id: s.id || s.user_id, // Keep user id as the subscription unique identifier if missing
+  userId: s.user_id || s.userId || s.id,
+  userName: s.user_name || s.userName || s.full_name,
+  userEmail: s.user_email || s.userEmail || s.email,
+  planId: s.plan_id || s.planId || s.subscription_plan,
   startDate: s.start_date || s.startDate,
-  expiryDate: s.expiry_date || s.expiryDate,
+  expiryDate: s.expiry_date || s.expiryDate || s.end_date || s.subscription_expiry, // Handle legacy fallbacks
   paymentMethod: s.payment_method || s.paymentMethod,
+  status: 'active', // Active subscribers returned from this endpoint
   createdAt: s.created_at || s.createdAt,
   updatedAt: s.updated_at || s.updatedAt
 });
@@ -791,7 +793,8 @@ const mapR2Channel = (c: any): TelegramChannel => ({
 
 const mapR2Plan = (p: any): SubscriptionPlan => ({
   ...p,
-  isBestValue: p.is_best_value !== undefined ? p.is_best_value : p.isBestValue,
+  isBestValue: p.is_best_value !== undefined ? (p.is_best_value === 1 || p.is_best_value === true) : p.isBestValue,
+  isEliteChoice: p.is_elite_choice !== undefined ? (p.is_elite_choice === 1 || p.is_elite_choice === true) : p.isEliteChoice,
   createdAt: p.created_at || p.createdAt,
   updatedAt: p.updated_at || p.updatedAt
 });
@@ -853,7 +856,7 @@ const getTableName = (colName: string): string => {
     'maintenance_logs': 'studio/maintenance',
     'reviews': 'reviews',
     'comments': 'mixtape_comments',
-    'wishlist': 'wishlist',
+    'wishlist': 'user/wishlist',
     'studio_sessions': 'bookings/studio',
     'event_gigs': 'bookings/gigs',
     'mixtape_comments': 'mixtape_comments',
@@ -864,8 +867,9 @@ const getTableName = (colName: string): string => {
     'bookings': 'bookings/gigs',
     'syncNotifications': 'pool/sync-notifications',
     'profiles': 'users',
-    // --- Subscription plans (critical fix: camelCase → snake_case route) ---
-    'subscriptionPlans': 'subscription_plans',
+    // --- Subscription plans (Standardized to /api/plans) ---
+    'subscriptionPlans': 'plans',
+    'subscriptions': 'active-subscribers',
     'shippingZones': 'shipping_zones',
     'youtubeVideos': 'youtube_videos',
     'referral_stats': 'referrals/stats',
@@ -899,16 +903,22 @@ const useCollection = <T extends { id: string }>(
       if (source === 'D1') {
         const authHeader = await getAuthHeader();
         // Use /api/admin for dashboard/admin collections to bypass public cache/filters
-        const apiPrefix = useAdminPath ? '/api/admin' : '/api';
-        const response = await fetch(`${STORAGE_WORKER_URL}${apiPrefix}/${tableName}?t=${Date.now()}`, {
+        // GUARD: Never use admin path if no auth token is available (prevents guest errors)
+        const effectiveAdminPath = useAdminPath && authHeader.Authorization;
+        const apiPrefix = effectiveAdminPath ? '/api/admin' : '/api';
+        const url = `${STORAGE_WORKER_URL}${apiPrefix}/${tableName}?t=${Date.now()}`;
+        console.log(`[useCollection] Fetching from D1: ${url} (Admin: ${!!effectiveAdminPath})`);
+        const response = await fetch(url, {
           headers: authHeader,
           cache: 'no-store'
         });
         if (response.ok) {
           const rawData = await response.json();
+          console.log(`[useCollection] D1 Success for ${tableName}:`, Array.isArray(rawData) ? rawData.length : 'Object');
           // Handle both { results: [] } and raw array formats
           results = Array.isArray(rawData) ? rawData : (rawData.results || []);
         } else {
+          console.error(`[useCollection] D1 Error for ${tableName}: ${response.status} ${response.statusText}`);
           console.warn(`[D1] Fetch failed for ${tableName}, falling back to R2...`);
           results = await fetchFromR2<any>(tableName);
         }
@@ -1048,7 +1058,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mixtapes, setMixtapes, mixtapesLoading, , mixtapesError, refreshMixtapes] = useCollection<Mixtape>('mixtapes', FEATURED_MIXTAPES, true, mapR2Mixtape, 'createdAt', 'desc', 'D1', isAdmin);
   const [sessionTypes, setSessionTypes, sessionTypesLoading, , , refreshSessionTypes] = useCollection<SessionType>('sessionTypes', [], true, mapR2SessionType, 'createdAt', 'desc', 'D1', isAdmin);
   const [studioEquipment, setStudioEquipment, equipmentLoading, , , refreshEquipment] = useCollection<StudioEquipment>('studioEquipment', INITIAL_STUDIO_EQUIPMENT, true, mapD1StudioEquipment, 'createdAt', 'desc', 'D1', isAdmin);
-  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', SUBSCRIPTION_PLANS, true, mapR2Plan, 'price', 'asc', 'D1', isAdmin);
+  const [subscriptionPlans, setSubscriptionPlans, plansLoading, , , refreshPlans] = useCollection<SubscriptionPlan>('subscriptionPlans', [], true, mapR2Plan, 'price', 'asc', 'D1', isAdmin);
 
   const [shippingZones, setShippingZones, zonesLoading, , , refreshZones] = useCollection<ShippingZone>('shippingZones', INITIAL_SHIPPING_ZONES, true, mapR2Generic, 'createdAt', 'desc');
   const [genres, setGenres, genresLoading, , , refreshGenres] = useCollection<Genre>('genres', INITIAL_GENRES, true, mapR2Genre, 'createdAt', 'desc');
@@ -1060,6 +1070,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<Error | null>(null);
   const [poolPagination, setPoolPagination] = useState({ page: 1, limit: 50, totalRecords: 0, totalPages: 0 });
+
+  // Pool tracks: scanned tracks (from R2 landing zone)
+  const [scannedTracks, setScannedTracks] = useState<any[]>([]);
+  const [scannedLoading, setScannedLoading] = useState(false);
+
+  const refreshScannedTracks = async () => {
+    try {
+      setScannedLoading(true);
+      const data = await fetchFromR2<any[]>('scanned_tracks');
+      setScannedTracks(data || []);
+    } catch (err) {
+      console.error("Fetch scanned tracks failed:", err);
+    } finally {
+      setScannedLoading(false);
+    }
+  };
 
   const refreshPoolTracks = async (filters: any = {}) => {
     setPoolLoading(true);
@@ -1116,40 +1142,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     refreshPoolTracks({ page: 1, limit: 50 });
+    refreshScannedTracks();
     // Refresh pool tracks periodically 
-    const interval = setInterval(() => refreshPoolTracks({ page: 1, limit: 50 }), 10 * 60 * 1000);
+    const interval = setInterval(() => {
+      refreshPoolTracks({ page: 1, limit: 50 });
+      refreshScannedTracks();
+    }, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Scanned Tracks (R2) - Only for admins
-  const [scannedTracks, setScannedTracks, scannedLoading, , , refreshScannedTracks] = useCollection<any>('scannedTracks', [], isAdmin, (d) => d, 'created_at', 'desc');
-
-  // Auto-deduplicate scanned tracks on load and periodically for admins
-  useEffect(() => {
-    if (isAdmin && scannedTracks.length > 0) {
-      const unique = new Map();
-      let hasDuplicates = false;
-
-      scannedTracks.forEach((t: any) => {
-        const key = t.downloadUrl || t.url || t.id;
-        if (!unique.has(key)) {
-          unique.set(key, t);
-        } else {
-          hasDuplicates = true;
-        }
-      });
-
-      if (hasDuplicates) {
-        console.log(`🧹 Found and removing ${scannedTracks.length - unique.size} duplicates from scanned tracks.`);
-        const cleaned = Array.from(unique.values());
-        setScannedTracks(cleaned);
-        saveToR2('scanned_tracks', cleaned).catch(err => console.error("Failed to persist cleaned scanned tracks:", err));
-      }
-    }
-  }, [isAdmin, scannedTracks.length]);
-
-  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], true, mapR2Order, 'createdAt', 'desc', 'D1', isAdmin);
-  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], true, mapR2User, 'createdAt', 'desc', 'D1', isAdmin);
+  const [orders, , ordersLoading, , ordersError, refreshOrders] = useCollection<Order>('orders', [], isAdmin, mapR2Order, 'createdAt', 'desc', 'D1', isAdmin);
+  const [users, setUsers, usersLoading, , usersError, refreshUsers] = useCollection<User>('profiles', [], isAdmin, mapR2User, 'createdAt', 'desc', 'D1', isAdmin);
 
   // Auto-deduplicate users by email
   useEffect(() => {
@@ -1178,49 +1181,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, users.length]);
 
-  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], true, mapR2Subscription, 'startDate', 'desc', 'D1', isAdmin);
-  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings', [], true, mapR2Booking, 'createdAt', 'desc', 'D1', isAdmin);
+  const [subscriptions, , subscriptionsLoading, , subscriptionsError, refreshSubscriptions] = useCollection<Subscription>('subscriptions', [], isAdmin, mapR2Subscription, 'startDate', 'desc', 'D1', isAdmin);
+  const [bookings, , bookingsLoading, , bookingsError, refreshBookings] = useCollection<Booking>('bookings/gigs', [], isAdmin, mapR2Booking, 'createdAt', 'desc', 'D1', isAdmin);
 
-  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio_rooms', [], true, mapD1StudioRoom, 'createdAt', 'desc', 'D1', isAdmin);
-  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('maintenance_logs', [], true, mapD1MaintenanceLog, 'createdAt', 'desc', 'D1', isAdmin);
-  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], true, mapR2Coupon, 'createdAt', 'desc', 'D1', isAdmin);
-  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referral_stats', [], true, mapR2ReferralStats, 'createdAt', 'desc', 'D1', isAdmin);
-  const [referralLogs, , referralLogsLoading, , , refreshReferralLogs] = useCollection<ReferralLog>('referral_logs', [], true, mapD1ReferralLog, 'createdAt', 'desc', 'D1', isAdmin);
-  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], true, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
-  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], true, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
-  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], true, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
-  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], true, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
-  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], true, mapR2Tip, 'createdAt', 'desc', 'D1', isAdmin);
+  const [studioRooms, , studioRoomsLoading, , , refreshRooms] = useCollection<StudioRoom>('studio/locations', [], isAdmin, mapD1StudioRoom, 'createdAt', 'desc', 'D1', isAdmin);
+  const [maintenanceLogs, , maintenanceLogsLoading, , , refreshLogs] = useCollection<MaintenanceLog>('studio/maintenance', [], isAdmin, mapD1MaintenanceLog, 'createdAt', 'desc', 'D1', isAdmin);
+  const [coupons, , couponsLoading, , , refreshCoupons] = useCollection<Coupon>('coupons', [], isAdmin, mapR2Coupon, 'createdAt', 'desc', 'D1', isAdmin);
+  const [referralStats, , referralStatsLoading, , , refreshReferrals] = useCollection<ReferralStats>('referrals/stats', [], isAdmin, mapR2ReferralStats, 'createdAt', 'desc', 'D1', isAdmin);
+  const [referralLogs, , referralLogsLoading, , , refreshReferralLogs] = useCollection<ReferralLog>('referrals/logs', [], isAdmin, mapD1ReferralLog, 'createdAt', 'desc', 'D1', isAdmin);
+  const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
+  const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
+  const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
+  const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
+  const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'D1', isAdmin);
 
   // NEW collections for Admin Dashboard
-  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('studio_sessions', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
-  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('event_gigs', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
+  const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('bookings/studio', [], isAdmin, undefined, 'created_at', 'desc', 'D1', isAdmin);
+  const [eventGigs, , eventGigsLoading, , , refreshEventGigs] = useCollection<EventGig>('bookings/gigs', [], isAdmin, undefined, 'created_at', 'desc', 'D1', isAdmin);
   
   const [installmentPlans, setInstallmentPlans, installmentsLoading, , installmentsError, refreshInstallments] = useCollection<InstallmentPlan>(
-    isAdmin ? 'installmentPlans' : 'userInstallments', 
+    isAdmin ? 'installments' : 'user/installments', 
     [], 
-    true, 
+    isAdmin || !!user, 
     mapR2InstallmentPlan, 
     'createdAt', 
     'desc', 
     'D1', 
-    isAdmin
+    isAdmin || !!user
   );
 
   // Installment Payments are usually nested or fetched with plans, but we can also fetch them separately if needed for admin
   const [installmentPayments, , , , , refreshInstallmentPayments] = useCollection<InstallmentPayment>('installment_payments', [], isAdmin, mapR2InstallmentPayment, 'createdAt', 'desc', 'D1', isAdmin);
 
-  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
-  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], true, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
-  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], true, mapR2Generic, 'timestamp', 'desc', 'R2', isAdmin);
-  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('contact_messages', [], true, mapR2Generic, 'createdAt', 'desc', 'D1', isAdmin);
+  const [telegramMappings] = useCollection<TelegramMapping>('telegram_mappings', [], isAdmin, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [telegramUsers] = useCollection<TelegramUser>('telegram_users', [], isAdmin, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
+  const [telegramLogs] = useCollection<TelegramLog>('telegram_logs', [], isAdmin, mapR2Generic, 'timestamp', 'desc', 'R2', isAdmin);
+  const [contactMessages, , messagesLoading, , , refreshContactMessages] = useCollection<ContactMessage>('support/tickets', [], isAdmin, mapR2Generic, 'createdAt', 'desc', 'D1', isAdmin);
 
-  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], true, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'D1', isAdmin);
-  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], true, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'D1', isAdmin);
+  const [reviews, , reviewsLoading, , , refreshReviews] = useCollection<Review>('reviews', [], isAdmin, (r) => ({ ...r, date: r.date || r.created_at }), 'date', 'desc', 'D1', isAdmin);
+  const [comments, , commentsLoading, , , refreshComments] = useCollection<any>('comments', [], isAdmin, (c) => ({ ...c, date: c.date || c.created_at }), 'date', 'desc', 'D1', isAdmin);
   const [wishlist, setWishlist, wishlistLoading, , , refreshWishlist] = useCollection<WishlistItem>('wishlist', [], !!user, (w) => ({ ...w, createdAt: w.created_at || w.createdAt }), 'createdAt', 'desc', 'D1', false);
-  const [syncNotifications, , syncNotificationsLoading, , , refreshSyncNotifications] = useCollection<any>('syncNotifications', [], true, undefined, 'created_at', 'desc', 'D1', isAdmin);
-  const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], true, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
+  const [syncNotifications, , syncNotificationsLoading, , , refreshSyncNotifications] = useCollection<any>('pool/sync-notifications', [], isAdmin, undefined, 'created_at', 'desc', 'D1', isAdmin);
+  const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], isAdmin, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
@@ -1415,61 +1418,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user?.id, users.length, subscriptions.length]);
 
-  const startFreeTrial = async () => {
-    if (!user) return { success: false, message: 'Please login first.' };
-
-    try {
-      const allProfiles = await fetchFromR2<any>('profiles');
-      const profile = allProfiles.find((p: any) => p.id === user.id);
-
-      if (profile?.has_used_trial || profile?.hasUsedTrial) {
-        return { success: false, message: 'You have already used your free trial.' };
-      }
-
-      // Promo expiry check
-      const promoExpiry = new Date('2026-04-04T23:59:59Z');
-      if (Date.now() > promoExpiry.getTime()) {
-        return { success: false, message: 'This promotion has ended (Expired April 4th).' };
-      }
-
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 7);
-
-      const updates = {
-        is_subscriber: true,
-        subscription_plan: 'trial',
-        subscription_expiry: expiryDate.toISOString(),
-        has_used_trial: true,
-        updated_at: new Date().toISOString()
-      };
-
-      await saveToD1('profiles', 'PUT', updates, user.id);
-
-      // Also record as a "free" subscription for admin tracking
-      const subId = `sub_trial_${user.id}_${Date.now()}`;
-      await saveToD1('subscriptions', 'POST', {
-        id: subId,
-        user_id: user.id,
-        user_name: user.name || user.email,
-        user_email: user.email,
-        plan_id: 'trial',
-        amount: 0,
-        start_date: new Date().toISOString(),
-        expiry_date: expiryDate.toISOString(),
-        status: 'active',
-        payment_method: 'Trial'
-      });
-
-      if (typeof refreshUsers === 'function') refreshUsers();
-      if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
-
-      return { success: true, message: 'Free trial activated! Enjoy 10 downloads per day for 7 days.' };
-    } catch (err: any) {
-      console.error("Trial activation error:", err);
-      return { success: false, message: 'Failed to activate trial: ' + err.message };
-    }
-  };
-
   const applyReferralCode = async (code: string) => {
     if (!referralSettings.enabled) return { success: false, message: 'Referral system is currently disabled.' };
 
@@ -1610,7 +1558,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await saveToR2('products', PRODUCTS);
       await saveToR2('mixtapes', FEATURED_MIXTAPES);
       await saveToR2('studio_equipment', INITIAL_STUDIO_EQUIPMENT);
-      await saveToR2('subscription_plans', SUBSCRIPTION_PLANS);
+      await saveToR2('subscription_plans', subscriptionPlans);
       await saveToR2('shipping_zones', INITIAL_SHIPPING_ZONES);
       await saveToR2('genres', INITIAL_GENRES);
 
@@ -2090,11 +2038,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const isFirstTimeSubscriber = async (userId: string): Promise<boolean> => {
     try {
-      // Find user in local state
-      const u = users.find(user => user.id === userId);
-      if (u) return !u.hasUsedTrial;
-
-      // Fallback: Check subscriptions (legacy)
+      // Check if user has any existing/past subscriptions in the system
       const hasPastSubs = subscriptions.some(s => s.userId === userId);
       return !hasPastSubs;
     } catch (err) {
@@ -2837,7 +2781,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (existing) {
         // Remove from wishlist
-        await saveToD1('wishlist', 'DELETE', {}, existing.id);
+        await saveToD1('user/wishlist', 'DELETE', {}, existing.id);
         setWishlist(prev => prev.filter(item => item.id !== existing.id));
         return { success: true, message: 'Removed from wishlist.' };
       } else {
@@ -2849,7 +2793,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           targetType,
           createdAt: new Date().toISOString()
         };
-        await saveToD1('wishlist', 'POST', {
+        await saveToD1('user/wishlist', 'POST', {
           id: newItem.id,
           user_id: user.id,
           target_id: targetId,

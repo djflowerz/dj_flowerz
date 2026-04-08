@@ -7,11 +7,11 @@ import {
   Clock, SortAsc, SortDesc, Disc3, Fuel, ChevronRight,
   Star, Lock, Check, Crown, Flame, Rocket, Zap as ZapIcon,
   PlayCircle, Package, Layers, Info, Volume2, Globe,
-  ArrowLeft, ArrowRight, MapPin
+  ArrowLeft, ArrowRight, MapPin, Trash2
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Track } from '../types';
-import { MONTHS, SUBSCRIPTION_PLANS } from '../constants';
+import { MONTHS } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
@@ -29,13 +29,16 @@ interface TrackVersion {
 
 // New Components
 import { Sidebar } from '../components/music-pool/Sidebar';
-import { FolderSwitcher } from '../components/music-pool/FolderSwitcher';
 import { TrackRow } from '../components/music-pool/TrackRow';
-import { HypeTrackRow } from '../components/music-pool/HypeTrackRow';
 import { MediaOverlay } from '../components/music-pool/MediaOverlay';
-import { TrialBanner } from '../components/music-pool/TrialBanner';
-import { UpgradeButton } from '../components/music-pool/UpgradeButton';
 import AccessDenied from '../components/AccessDenied';
+
+// --- Constants ---
+const MONTH_MAP: Record<string, string> = {
+  'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
+  'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
+  'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+};
 
 // --- Types ---
 interface PlayerState {
@@ -60,19 +63,24 @@ export default function MusicPool() {
   const [genreSearchTerm, setGenreSearchTerm] = useState('');
   const [activeHub, setActiveHub] = useState('all');
   const [activeGenre, setActiveGenre] = useState('All');
+  const [activeSubGenre, setActiveSubGenre] = useState('all');
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeMonth, setActiveMonth] = useState('All Months');
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
   const [activeKey, setActiveKey] = useState<string>('All Keys');
+  const [hypeOnly, setHypeOnly] = useState(false);
   
   interface HubWithGenres {
-    hub: string;
-    genres: string[];
+    name: string;
+    genres: {
+      name: string;
+      sub_genres: string[];
+    }[];
   }
   
   const [dynamicFilters, setDynamicFilters] = useState<{
     hubsWithGenres: HubWithGenres[];
-    years: number[];
+    years: { year: number; months: string[] }[];
   }>({ hubsWithGenres: [], years: [] });
 
   const fetchFilters = useCallback(async () => {
@@ -80,12 +88,23 @@ export default function MusicPool() {
       const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
       if (response.ok) {
         const data = await response.json();
-        setDynamicFilters(data);
+        // Validate shape before setting state — prevents React #31 crash if API returns error obj
+        const safeHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
+        const safeYears = Array.isArray(data?.years)
+          ? data.years
+              .filter((y: any) => y && typeof y.year === 'number' && Array.isArray(y.months))
+              .map((y: any) => ({
+                year: y.year,
+                months: y.months.filter((m: any) => typeof m === 'string')
+              }))
+          : [];
+        setDynamicFilters({ hubsWithGenres: safeHubs, years: safeYears });
       }
     } catch (err) {
       console.error("Error fetching filters:", err);
     }
   }, []);
+
 
   useEffect(() => {
     fetchFilters();
@@ -100,64 +119,52 @@ export default function MusicPool() {
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
+  const [showVideoOverlay, setShowVideoOverlay] = useState(false);
+  const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
-  const [showVideoOverlay, setShowVideoOverlay] = useState(false);
-  const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Sync refresh on filter change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      // Map month abbreviation to full name if necessary
-      const monthMap: Record<string, string> = {
-        'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
-        'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
-        'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
-      };
-      const mappedMonth = activeMonth !== 'All Months' ? (monthMap[activeMonth] || activeMonth) : undefined;
+      const mappedMonth = activeMonth !== 'All Months' ? (MONTH_MAP[activeMonth] || activeMonth) : undefined;
 
       refreshPoolTracks({
-        page: poolPagination?.page || 1,
+        page: 1,
         limit: poolPagination?.limit || 50,
-        hub: activeHub === 'all' ? undefined : activeHub,
+        hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
         genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
+        sub_genre: (activeSubGenre === 'all' || activeSubGenre === 'All Sub-Genres') ? undefined : activeSubGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
         month: mappedMonth,
         search: searchTerm,
         bpmMin: bpmFilter[0],
         bpmMax: bpmFilter[1],
-        key: activeKey === 'All Keys' ? undefined : activeKey
+        key: activeKey === 'All Keys' ? undefined : activeKey,
+        isHype: hypeOnly ? true : undefined
       });
     }, 400);
     return () => clearTimeout(timeoutId);
-  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks]);
-
-  const loadMore = useCallback(() => {
-    // Infinite scroll handled by Virtuoso if needed, but we are switching to explicit pagination 
-    // at the user's request for "Next/Prev buttons".
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHub, activeGenre, activeSubGenre, activeYear, activeMonth, searchTerm, bpmFilter, activeKey, hypeOnly]);
+  // Removal of loadMore as it's no longer used for infinite scroll
 
   const handlePageChange = useCallback((newPage: number) => {
     if (poolLoading) return;
 
-    // Map month abbreviation to full name if necessary
-    const monthMap: Record<string, string> = {
-      'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
-      'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
-      'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
-    };
-    const mappedMonth = activeMonth !== 'All Months' ? (monthMap[activeMonth] || activeMonth) : undefined;
+    const mappedMonth = activeMonth !== 'All Months' ? (MONTH_MAP[activeMonth] || activeMonth) : undefined;
 
     refreshPoolTracks({
       page: newPage,
-      limit: poolPagination.limit || 50,
+      limit: poolPagination?.limit || 50,
       hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
       genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
+      sub_genre: (activeSubGenre === 'all' || activeSubGenre === 'All Sub-Genres') ? undefined : activeSubGenre,
       year: activeYear === 'All Years' ? undefined : activeYear,
       month: mappedMonth,
       search: searchTerm,
@@ -166,41 +173,19 @@ export default function MusicPool() {
       key: activeKey === 'All Keys' ? undefined : activeKey
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination.limit]);
-
+  }, [activeHub, activeGenre, activeSubGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination?.limit]);
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
-    if (trackId) {
-      const track = poolTracks.find(t => t.id === trackId);
-      if (track) {
-        // Toggle pause if same track is already playing
-        if (expandedTrackId === trackId && player.isPlaying && player.url === url) {
-          setPlayer(p => ({ ...p, isPlaying: false }));
-          setExpandedTrackId(null);
-          return;
-        }
-
-        const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
-        setPlayer({ url, title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
-        setExpandedTrackId(trackId);
-        
-        // When playing inline, pause the footer audio to avoid double-play.
-        if (audioRef.current) audioRef.current.pause();
-        return;
-      }
-    }
-
-    // Global play (from footer or non-track source)
-    setPlayer({ url, title, type, isPlaying: true, id: trackId });
+    const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
+    
+    // Always open in MediaOverlay popup for all track types to satisfy "pop up for preview player" request
+    setPlayer({ url, title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
     if (trackId) setExpandedTrackId(trackId);
     
-    if (type === 'audio') {
-      if (audioRef.current) {
-        audioRef.current.src = url;
-        audioRef.current.play();
-      }
-    } else {
-      if (audioRef.current) audioRef.current.pause();
-    }
+    // Pause background footer audio if playing something new in the overlay
+    if (audioRef.current) audioRef.current.pause();
+    
+    // Trigger the overlay
+    setShowVideoOverlay(true);
   }, [poolTracks, expandedTrackId, player.isPlaying, player.url, audioRef]);
 
   const handleSkip = useCallback((direction: 'next' | 'prev') => {
@@ -225,6 +210,26 @@ export default function MusicPool() {
       handlePlay(url, nextTrack.title, type, nextTrack.id);
     }
   }, [poolTracks, expandedTrackId, handlePlay]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') handleSkip('next');
+      if (e.key === 'ArrowLeft') handleSkip('prev');
+      if (e.key === ' ') {
+        e.preventDefault();
+        setPlayer(p => {
+          const newPlaying = !p.isPlaying;
+          if (audioRef.current) {
+            if (newPlaying) audioRef.current.play();
+            else audioRef.current.pause();
+          }
+          return { ...p, isPlaying: newPlaying };
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSkip]);
   const handleDownload = useCallback(async (url: string, fileName: string, versionId?: string) => {
     if (!isSubscriber) {
       toast.error("Subscription required to download.");
@@ -262,14 +267,33 @@ export default function MusicPool() {
       const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
       const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${encodeURIComponent(versionId || '')}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
-      // Using window.location.href triggers the browser's download manager immediately
-      // For cross-origin or same-origin direct streams with Attachment header, this is perfect.
-      window.location.href = downloadApiUrl;
+      // Using a hidden iframe to trigger the download prevents 
+      // the browser from replacing the current tab or opening a new tab
+      // and breaking the single-page experience.
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadApiUrl;
+      document.body.appendChild(iframe);
+      
+      // Cleanup the iframe after a short delay
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 10000);
       
     } catch (err) {
       console.error("Download error:", err);
       // Fallback
-      window.open(url, '_blank');
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 10000);
     }
   }, [isSubscriber]);
 
@@ -286,7 +310,6 @@ export default function MusicPool() {
       }, index * 500); // Stagger to be safe
     });
   }, [handleDownload]);
-;
 
   const handleFindSimilar = useCallback((track: any) => {
     setBpmFilter([track.bpm - 3, track.bpm + 3]);
@@ -301,8 +324,45 @@ export default function MusicPool() {
   // Removed early return for guests to show locked design instead
 
   return (
-    <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 overflow-x-hiddenselection:bg-blue-500/30">
-      <TrialBanner />
+    <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 overflow-x-hidden selection:bg-blue-500/30">
+
+      
+      {/* Subscription Status Banner */}
+      {isSubscriber && user?.subscriptionExpiry && !isAdmin && (
+        <div className="max-w-[1700px] mx-auto px-6 mb-6">
+          <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between group hover:bg-blue-600/20 transition-all">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                <Crown size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 mb-0.5">Active Subscription</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">
+                    {(() => {
+                      const expiry = new Date(user.subscriptionExpiry);
+                      const diff = expiry.getTime() - new Date().getTime();
+                      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                      return days > 0 ? `${days} Days Remaining` : 'Expires Today';
+                    })()}
+                  </span>
+                  <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">•</span>
+                  <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                    Ends {new Date(user.subscriptionExpiry).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <Link 
+              to="/checkout?plan=renew" 
+              className="px-6 py-2 bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-500 transition-colors shadow-[0_0_20px_rgba(37,99,235,0.3)]"
+            >
+              Extend Access
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-[1700px] mx-auto px-6">
         
         {/* Header Section */}
@@ -338,23 +398,29 @@ export default function MusicPool() {
                  className="bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[300px] transition-all placeholder:text-zinc-600"
                />
              </div>
-             <UpgradeButton />
+
              {/* Removed FolderSwitcher */}
           </div>
         </div>
-
         {/* Main Content Layout */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
           {/* Sidebar */}
            <Sidebar 
             hubsWithGenres={dynamicFilters.hubsWithGenres}
+            years={dynamicFilters.years}
             activeGenre={activeGenre}
             onGenreSelect={setActiveGenre}
+            activeSubGenre={activeSubGenre}
+            onSubGenreSelect={setActiveSubGenre}
             searchTerm={genreSearchTerm}
             onSearchChange={setGenreSearchTerm}
             activeHub={activeHub}
             onHubSelect={setActiveHub}
+            activeYear={activeYear}
+            onYearSelect={setActiveYear}
+            activeMonth={activeMonth}
+            onMonthSelect={setActiveMonth}
           />
 
           {/* Track List Area */}
@@ -411,37 +477,18 @@ export default function MusicPool() {
                 
                 <div className="h-8 w-px bg-white/5" />
 
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Year</span>
-                    <select 
-                      id="year-filter"
-                      name="year"
-                      value={activeYear}
-                      onChange={(e) => setActiveYear(e.target.value)}
-                      className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                    >
-                       <option>All Years</option>
-                      {dynamicFilters.years.map(y => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Month</span>
-                    <select 
-                      id="month-filter"
-                      name="month"
-                      value={activeMonth}
-                      onChange={(e) => setActiveMonth(e.target.value)}
-                      className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                    >
-                      <option>All Months</option>
-                      {MONTHS.map(m => <option key={m}>{m}</option>)}
-                    </select>
-                  </div>
-                </div>
+                {/* Hype Toggle */}
+                <button
+                  onClick={() => setHypeOnly(!hypeOnly)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${
+                    hypeOnly 
+                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.2)]' 
+                      : 'bg-zinc-800/40 border-white/5 text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Flame size={14} fill={hypeOnly ? "currentColor" : "none"} className={hypeOnly ? "animate-pulse" : ""} />
+                  <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Hype Only</span>
+                </button>
                 
                 <div className="h-8 w-px bg-white/5" />
                 
@@ -454,8 +501,23 @@ export default function MusicPool() {
               </div>
 
               <div className="flex items-center gap-2">
-                 <button className="p-2 text-zinc-500 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/5">
-                   <SortAsc size={18} />
+                 <button 
+                  onClick={() => {
+                    setSearchTerm('');
+                    setActiveGenre('All');
+                    setActiveSubGenre('all');
+                    setActiveHub('all');
+                    setActiveYear('All Years');
+                    setActiveMonth('All Months');
+                    setBpmFilter([60, 180]);
+                    setActiveKey('All Keys');
+                    setHypeOnly(false);
+                    toast.success('Filters cleared');
+                  }}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/5"
+                  title="Reset All Filters"
+                >
+                   <Trash2 size={18} />
                  </button>
                  <button className="p-2 text-zinc-500 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/5">
                    <Filter size={18} />
@@ -490,7 +552,6 @@ export default function MusicPool() {
                 <Virtuoso
                   useWindowScroll
                   data={poolTracks}
-                  endReached={loadMore}
                   itemContent={(index, track) => {
                     // Logic for "NEW" badge: March 2026 or added from today (March 22, 2026) onwards
                     const trackDate = track.created_at ? new Date(track.created_at) : null;
@@ -576,12 +637,14 @@ export default function MusicPool() {
 
       </div>
 
-      {/* Video Preview Overlay */}
       <MediaOverlay
         isOpen={showVideoOverlay}
         onClose={() => setShowVideoOverlay(false)}
         url={player.url || ''}
         title={player.title}
+        type={player.type}
+        onSkipNext={() => handleSkip('next')}
+        onSkipPrev={() => handleSkip('prev')}
       />
 
       {/* Footer Mini Player (Audio) */}

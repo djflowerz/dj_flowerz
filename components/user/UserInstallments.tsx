@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { STORAGE_WORKER_URL } from '../../utils/r2';
+import { supabase } from '../../utils/supabase';
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
@@ -62,7 +64,7 @@ const UserInstallments: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('Not authenticated');
 
-        const res = await fetch(`/api/installments`, {
+        const res = await fetch(`${STORAGE_WORKER_URL}/api/user/installments`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         if (!res.ok) throw new Error('Failed to load installments');

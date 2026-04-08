@@ -11,8 +11,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
     if (method === 'GET') {
         try {
             const { results } = await env.DB.prepare(`
-                SELECT *, image as image_url FROM products ORDER BY created_at DESC
+                SELECT *, image as image_url, category as category_name FROM products ORDER BY created_at DESC
             `).all();
+            console.log(`[Dashboard/Products] Found ${results?.length || 0} products in D1`);
 
             // Fetch variants for each product and parse JSON fields
             const productsWithVariants = await Promise.all(results.map(async (p) => {
@@ -20,9 +21,11 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     .bind(p.id)
                     .all();
                 
+                const variantsList = variants || [];
                 return { 
                     ...p, 
-                    variants: variants || [],
+                    variants: variantsList,
+                    variant_count: variantsList.length,
                     technicalDetails: p.technical_details ? JSON.parse(p.technical_details) : [],
                     hotspots: p.hotspots ? JSON.parse(p.hotspots) : [],
                     useCases: p.use_cases ? JSON.parse(p.use_cases) : [],
@@ -87,12 +90,11 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 INSERT INTO products (
                     id, name, description, price, image, category, inventory, stock, created_at, 
                     brand, compare_at_price, status, is_active, release_date, logistics, 
-                    slug, technical_details, hotspots, use_cases, variant_groups, type, 
-                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, sku, images,
-                    weight, dimensions, features, shipping_size,
-                    requires_shipping, whatsapp_enabled, digital_file_url, download_password, currency, video_url, visibility, os
+                    slug, technical_details, hotspots, use_cases, variant_groups, 
+                    is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, images,
+                    shipping_size, currency
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -114,27 +116,15 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 hotspots,
                 useCases,
                 variantGroups,
-                body.type || 'physical',
                 isHot ? 1 : 0,
                 isFeatured ? 1 : 0,
                 isBestSeller ? 1 : 0,
                 isSpecialOffer ? 1 : 0,
                 isTrending ? 1 : 0,
                 offerExpiry,
-                sku,
                 body.images ? JSON.stringify(body.images) : null,
-                weight,
-                dimensions,
-                features,
                 shippingSize,
-                requiresShipping,
-                whatsappEnabled,
-                digitalFileUrl,
-                downloadPassword,
-                currency,
-                videoUrl,
-                visibility,
-                os
+                currency
             ).run();
 
             // Handle variants
@@ -210,9 +200,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 UPDATE products 
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, stock = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
-                    technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?, type = ?,
-                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, sku = ?, images = ?, weight = ?, dimensions = ?, features = ?, shipping_size = ?,
-                    requires_shipping = ?, whatsapp_enabled = ?, digital_file_url = ?, download_password = ?, currency = ?, video_url = ?, visibility = ?, os = ?
+                    technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?,
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, images = ?, shipping_size = ?, currency = ?
                 WHERE id = ?
             `).bind(
                 body.name,
@@ -233,27 +222,15 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 hotspots,
                 useCases,
                 variantGroups,
-                body.type || 'physical',
                 isHot ? 1 : 0,
                 isFeatured ? 1 : 0,
                 isBestSeller ? 1 : 0,
                 isSpecialOffer ? 1 : 0,
                 isTrending ? 1 : 0,
                 offerExpiry,
-                sku,
                 body.images ? JSON.stringify(body.images) : null,
-                weight,
-                dimensions,
-                features,
                 shippingSize,
-                requiresShipping,
-                whatsappEnabled,
-                digitalFileUrl,
-                downloadPassword,
                 currency,
-                videoUrl,
-                visibility,
-                os,
                 id
             ).run();
 

@@ -51,6 +51,10 @@ export async function handleDashboardOrders(request, env, ctx, params) {
                 const payment_status = body.payment_status !== undefined ? body.payment_status : body.paymentStatus;
                 const tracking_number = body.tracking_number !== undefined ? body.tracking_number : body.trackingNumber;
                 const shipping_provider = body.shipping_provider !== undefined ? body.shipping_provider : body.courierName;
+                const shipping_status = body.shipping_status !== undefined ? body.shipping_status : body.shippingStatus;
+                const estimated_arrival = body.estimated_arrival !== undefined ? body.estimated_arrival : body.estimatedArrival;
+                const courier_driver_name = body.courier_driver_name !== undefined ? body.courier_driver_name : body.courierDriverName;
+                const courier_driver_contact = body.courier_driver_contact !== undefined ? body.courier_driver_contact : body.courierDriverContact;
                 const notes = body.notes !== undefined ? body.notes : body.adminMessage;
                 const shipped_at = body.shipped_at !== undefined ? body.shipped_at : body.shippedAt;
 
@@ -63,6 +67,10 @@ export async function handleDashboardOrders(request, env, ctx, params) {
                 if (payment_status !== undefined) { sets.push("payment_status = ?"); values.push(payment_status); }
                 if (tracking_number !== undefined) { sets.push("tracking_number = ?"); values.push(tracking_number); }
                 if (shipping_provider !== undefined) { sets.push("shipping_provider = ?"); values.push(shipping_provider); }
+                if (shipping_status !== undefined) { sets.push("shipping_status = ?"); values.push(shipping_status); }
+                if (estimated_arrival !== undefined) { sets.push("estimated_arrival = ?"); values.push(estimated_arrival); }
+                if (courier_driver_name !== undefined) { sets.push("courier_driver_name = ?"); values.push(courier_driver_name); }
+                if (courier_driver_contact !== undefined) { sets.push("courier_driver_contact = ?"); values.push(courier_driver_contact); }
                 if (notes !== undefined) { sets.push("notes = ?"); values.push(notes); }
                 if (shipped_at !== undefined) { sets.push("shipped_at = ?"); values.push(shipped_at); }
 

@@ -1,7 +1,8 @@
 import React from 'react';
 import {
     LayoutDashboard, ShoppingBag, Package, Music, Users,
-    Settings, LogOut, Bell, MessageSquare, CreditCard
+    Settings, LogOut, Bell, MessageSquare, CreditCard, Crown,
+    Mail, Share2, Wallet, Megaphone
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -11,7 +12,13 @@ const navItems = [
     { icon: Package, label: 'Orders', path: '/admin/orders' },
     { icon: Music, label: 'Mixtapes', path: '/admin/mixtapes' },
     { icon: MessageSquare, label: 'Messages', path: '/admin/messages' },
-    { icon: Users, label: 'Customers', path: '/admin/customers' },
+    { icon: Mail, label: 'Newsletter', path: '/admin/newsletter' },
+    { icon: Share2, label: 'Affiliates', path: '/admin/affiliates' },
+    { icon: Wallet, label: 'Lipa Pole Pole', path: '/admin/installments' },
+    { icon: Package, label: 'Shipping', path: '/admin/shipping' },
+    { icon: Megaphone, label: 'Marketing', path: '/admin/marketing' },
+    { icon: Users, label: 'Profiles', path: '/admin/customers' },
+    { icon: Crown, label: 'Subscriptions', path: '/admin/subscriptions' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
 ];

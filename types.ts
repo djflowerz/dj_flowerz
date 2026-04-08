@@ -160,7 +160,7 @@ export interface Review {
   comment: string;
   date: string;
   verifiedPurchase?: boolean;
-  status: 'pending' | 'published' | 'hidden';
+  status: 'pending' | 'published' | 'hidden' | 'approved';
 }
 
 export interface Comment {
@@ -170,7 +170,7 @@ export interface Comment {
   mixtapeId: string;
   text: string;
   date: string;
-  status: 'pending' | 'published' | 'hidden';
+  status: 'pending' | 'published' | 'hidden' | 'approved';
 }
 
 export interface User {
@@ -191,7 +191,6 @@ export interface User {
   phoneNumber?: string;
   downloadsToday?: number;
   lastDownloadDate?: string; // ISO date string YYYY-MM-DD
-  hasUsedTrial?: boolean;
   balance?: number;
   auraPoints?: number;
   auraLevel?: number;
@@ -233,7 +232,6 @@ export interface SubscriptionPlan {
   features: string[];
   active: boolean;
   isBestValue?: boolean;
-  isTrial?: boolean;
   promoExpiry?: string;
   link?: string;
 }
@@ -276,6 +274,10 @@ export interface Order {
   shippingCost?: number;
   couponCode?: string;
   createdAt: string;
+  shippingStatus?: 'pending' | 'packed' | 'shipped' | 'out_for_delivery' | 'delivered';
+  deliveryTime?: string;
+  courierDriverName?: string;
+  courierDriverContact?: string;
   updatedAt: string;
 }
 

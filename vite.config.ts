@@ -25,6 +25,21 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       }
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-supabase': ['@supabase/supabase-js'],
+            'vendor-ui': ['lucide-react', 'framer-motion', 'sonner'],
+            'vendor-utils': ['axios', 'clsx', 'tailwind-merge'],
+            'vendor-charts': ['recharts'],
+            'vendor-player': ['react-player'],
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1000,
     }
   };
 });

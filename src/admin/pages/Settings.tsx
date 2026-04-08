@@ -1,40 +1,73 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { AdminLayout } from '../components/AdminLayout';
-import { 
-    Settings as SettingsIcon, 
-    Shield, 
-    Database, 
-    Bell, 
-    Save, 
-    Truck, 
-    Plus, 
-    Trash2, 
+import {
+    Settings as SettingsIcon,
+    Shield,
+    Database,
+    Bell,
+    Save,
+    Truck,
+    Plus,
+    Trash2,
     AlertCircle,
     Layout,
-    Globe
+    Globe,
+    Share2,
+    Mail,
+    Phone,
+    MapPin,
+    Facebook,
+    Instagram,
+    Youtube,
+    MessageCircle
 } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { toast } from 'sonner';
 
 const Settings: React.FC = () => {
     const { request, loading } = useAdminApi();
-    const [activeSection, setActiveSection] = useState<'general' | 'shipping' | 'system'>('general');
+    const { session } = useAuth();
+    const [activeSection, setActiveSection] = useState<'general' | 'socials' | 'shipping' | 'system'>('general');
+    
     const [settings, setSettings] = useState<any>({
         heroLabel: '',
         heroTitle: '',
+        heroSubtitle: '',
+        heroImage: '',
+        ctaText: '',
         promoCode: '',
         promoCodeEnabled: true,
+        socials: {
+            facebook: '',
+            instagram: '',
+            youtube: '',
+            whatsapp: '',
+            email: ''
+        },
+        contacts: {
+            phone: '',
+            email: '',
+            address: ''
+        },
+        footerText: '',
         shippingMethods: []
     });
 
     useEffect(() => {
-        fetchSettings();
-    }, []);
+        if (session) fetchSettings();
+    }, [session]);
 
     const fetchSettings = async () => {
         try {
             const data = await request('/api/store/settings', { method: 'GET' });
-            setSettings(data);
+            // Merge with initial state to ensure nested objects exist
+            setSettings({
+                ...settings,
+                ...data,
+                socials: { ...settings.socials, ...(data.socials || {}) },
+                contacts: { ...settings.contacts, ...(data.contacts || {}) }
+            });
         } catch (err) {
             console.error('Failed to fetch settings:', err);
         }
@@ -56,7 +89,7 @@ const Settings: React.FC = () => {
         setSettings({
             ...settings,
             shippingMethods: [
-                ...settings.shippingMethods,
+                ...(settings.shippingMethods || []),
                 { id: crypto.randomUUID(), name: '', cost: 0, estimatedDays: '3-5 days', active: true }
             ]
         });
@@ -72,9 +105,19 @@ const Settings: React.FC = () => {
     const updateShippingMethod = (id: string, field: string, value: any) => {
         setSettings({
             ...settings,
-            shippingMethods: settings.shippingMethods.map((m: any) => 
+            shippingMethods: settings.shippingMethods.map((m: any) =>
                 m.id === id ? { ...m, [field]: value } : m
             )
+        });
+    };
+
+    const updateNestedSetting = (section: string, field: string, value: any) => {
+        setSettings({
+            ...settings,
+            [section]: {
+                ...settings[section],
+                [field]: value
+            }
         });
     };
 
@@ -82,20 +125,20 @@ const Settings: React.FC = () => {
         <AdminLayout title="System Configurations">
             <div className="flex flex-col gap-8 pb-20">
                 {/* Section Navigation */}
-                <div className="flex gap-4 p-2 bg-black/40 border border-white/5 rounded-3xl w-fit">
+                <div className="flex flex-wrap gap-4 p-2 bg-black/40 border border-white/5 rounded-3xl w-fit">
                     {[
                         { id: 'general', label: 'Storefront', icon: Layout },
+                        { id: 'socials', label: 'Socials & Contact', icon: Share2 },
                         { id: 'shipping', label: 'Logistics', icon: Truck },
                         { id: 'system', label: 'System', icon: Database }
                     ].map(section => (
                         <button
                             key={section.id}
                             onClick={() => setActiveSection(section.id as any)}
-                            className={`flex items-center gap-3 px-8 py-4 rounded-2xl transition-all ${
-                                activeSection === section.id 
-                                ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20' 
-                                : 'text-gray-500 hover:text-white hover:bg-white/5'
-                            }`}
+                            className={`flex items-center gap-3 px-8 py-4 rounded-2xl transition-all ${activeSection === section.id
+                                    ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                }`}
                         >
                             <section.icon size={18} />
                             <span className="text-[10px] font-black uppercase tracking-widest">{section.label}</span>
@@ -105,7 +148,7 @@ const Settings: React.FC = () => {
 
                 <div className="bg-[#0B0B0F] border border-white/5 rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-brand-purple/5 blur-[120px] -z-10 rounded-full" />
-                    
+
                     {activeSection === 'general' && (
                         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div>
@@ -117,11 +160,9 @@ const Settings: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Tagline</label>
                                     <input
-                                        id="settings-hero-label"
-                                        name="heroLabel"
                                         type="text"
                                         value={settings.heroLabel}
-                                        onChange={e => setSettings({...settings, heroLabel: e.target.value})}
+                                        onChange={e => setSettings({ ...settings, heroLabel: e.target.value })}
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
                                         placeholder="Limited Time Launch Offer"
                                     />
@@ -129,42 +170,182 @@ const Settings: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Title</label>
                                     <input
-                                        id="settings-hero-title"
-                                        name="heroTitle"
                                         type="text"
                                         value={settings.heroTitle}
-                                        onChange={e => setSettings({...settings, heroTitle: e.target.value})}
+                                        onChange={e => setSettings({ ...settings, heroTitle: e.target.value })}
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
                                         placeholder="Super Discount for early birds"
                                     />
                                 </div>
                             </div>
 
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Subtitle</label>
+                                <textarea
+                                    value={settings.heroSubtitle}
+                                    onChange={e => setSettings({ ...settings, heroSubtitle: e.target.value })}
+                                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold min-h-[100px]"
+                                    placeholder="Elevate your sound with DJ Flowerz..."
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-8">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Hero Background Image URL</label>
+                                    <input
+                                        type="text"
+                                        value={settings.heroImage}
+                                        onChange={e => setSettings({ ...settings, heroImage: e.target.value })}
+                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                        placeholder="https://images.unsplash.com/..."
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">CTA Button Text</label>
+                                    <input
+                                        type="text"
+                                        value={settings.ctaText}
+                                        onChange={e => setSettings({ ...settings, ctaText: e.target.value })}
+                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold"
+                                        placeholder="Explore Pool"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-10 border-t border-white/5">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Featured Promo Code</label>
                                     <div className="flex gap-4">
                                         <input
-                                            id="settings-promo-code"
-                                            name="promoCode"
                                             type="text"
                                             value={settings.promoCode}
-                                            onChange={e => setSettings({...settings, promoCode: e.target.value.toUpperCase()})}
+                                            onChange={e => setSettings({ ...settings, promoCode: e.target.value.toUpperCase() })}
                                             className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-mono font-black tracking-widest"
                                             placeholder="FREE256MAC"
                                         />
                                         <button
-                                            onClick={() => setSettings({...settings, promoCodeEnabled: !settings.promoCodeEnabled})}
-                                            className={`px-8 rounded-2xl border transition-all ${
-                                                settings.promoCodeEnabled 
-                                                ? 'bg-brand-purple/10 border-brand-purple/50 text-brand-purple' 
-                                                : 'bg-white/5 border-white/10 text-gray-500'
-                                            }`}
+                                            onClick={() => setSettings({ ...settings, promoCodeEnabled: !settings.promoCodeEnabled })}
+                                            className={`px-8 rounded-2xl border transition-all ${settings.promoCodeEnabled
+                                                    ? 'bg-brand-purple/10 border-brand-purple/50 text-brand-purple'
+                                                    : 'bg-white/5 border-white/10 text-gray-500'
+                                                }`}
                                         >
                                             <span className="text-[10px] font-black uppercase tracking-widest">
                                                 {settings.promoCodeEnabled ? 'Enabled' : 'Disabled'}
                                             </span>
                                         </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeSection === 'socials' && (
+                        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="grid grid-cols-2 gap-12">
+                                {/* Social Links */}
+                                <div className="space-y-8">
+                                    <div>
+                                        <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Social Protocols</h3>
+                                        <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Public profile linkages</p>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#1877F2]/10 border border-[#1877F2]/20 flex items-center justify-center text-[#1877F2]">
+                                                <Facebook size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.facebook}
+                                                onChange={e => updateNestedSetting('socials', 'facebook', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#1877F2]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="Facebook URL"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#E4405F]/10 border border-[#E4405F]/20 flex items-center justify-center text-[#E4405F]">
+                                                <Instagram size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.instagram}
+                                                onChange={e => updateNestedSetting('socials', 'instagram', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#E4405F]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="Instagram URL"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#FF0000]/10 border border-[#FF0000]/20 flex items-center justify-center text-[#FF0000]">
+                                                <Youtube size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.youtube}
+                                                onChange={e => updateNestedSetting('socials', 'youtube', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#FF0000]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="YouTube URL"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center text-[#25D366]">
+                                                <MessageCircle size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.whatsapp}
+                                                onChange={e => updateNestedSetting('socials', 'whatsapp', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#25D366]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="WhatsApp Number"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Contact Details */}
+                                <div className="space-y-8">
+                                    <div>
+                                        <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Direct Terminal</h3>
+                                        <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Business contact details</p>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+                                                <Phone size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.contacts?.phone}
+                                                onChange={e => updateNestedSetting('contacts', 'phone', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-orange-500/50 outline-none transition-all"
+                                                placeholder="Business Phone"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                                                <Mail size={20} />
+                                            </div>
+                                            <input
+                                                type="email"
+                                                value={settings.contacts?.email}
+                                                onChange={e => updateNestedSetting('contacts', 'email', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-blue-500/50 outline-none transition-all"
+                                                placeholder="Business Email"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                                <MapPin size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.contacts?.address}
+                                                onChange={e => updateNestedSetting('contacts', 'address', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-emerald-500/50 outline-none transition-all"
+                                                placeholder="Location / Address"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -193,8 +374,6 @@ const Settings: React.FC = () => {
                                         <div className="col-span-4 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Provider / Method Name</label>
                                             <input
-                                                id={`shipping-name-${method.id}`}
-                                                name={`shippingName_${method.id}`}
                                                 type="text"
                                                 value={method.name}
                                                 onChange={e => updateShippingMethod(method.id, 'name', e.target.value)}
@@ -205,8 +384,6 @@ const Settings: React.FC = () => {
                                         <div className="col-span-3 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Base Cost (KES)</label>
                                             <input
-                                                id={`shipping-cost-${method.id}`}
-                                                name={`shippingCost_${method.id}`}
                                                 type="number"
                                                 value={method.cost}
                                                 onChange={e => updateShippingMethod(method.id, 'cost', parseFloat(e.target.value))}
@@ -216,8 +393,6 @@ const Settings: React.FC = () => {
                                         <div className="col-span-3 space-y-3">
                                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-4">Estimated Time</label>
                                             <input
-                                                id={`shipping-time-${method.id}`}
-                                                name={`shippingTime_${method.id}`}
                                                 type="text"
                                                 value={method.estimatedDays}
                                                 onChange={e => updateShippingMethod(method.id, 'estimatedDays', e.target.value)}
@@ -251,7 +426,7 @@ const Settings: React.FC = () => {
 
                     {activeSection === 'system' && (
                         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                             <div>
+                            <div>
                                 <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Core Architectures</h3>
                                 <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Manage security, database, and notifications</p>
                             </div>
@@ -285,7 +460,7 @@ const Settings: React.FC = () => {
                                 <div>
                                     <h5 className="text-xs font-black text-white uppercase tracking-widest mb-2">Administrative Lock</h5>
                                     <p className="text-xs text-gray-400 leading-relaxed">
-                                        Advanced system configurations are currently locked for stability testing. 
+                                        Advanced system configurations are currently locked for stability testing.
                                         Only storefront and logistics protocols can be modified at this time.
                                     </p>
                                 </div>

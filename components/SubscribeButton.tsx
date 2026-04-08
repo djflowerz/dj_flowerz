@@ -9,7 +9,6 @@ interface SubscribeButtonProps {
         id: string;
         name: string;
         price: number;
-        isTrial?: boolean;
     };
     referralInfo?: {
         code: string;
@@ -21,7 +20,7 @@ interface SubscribeButtonProps {
 }
 
 const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, className }) => {
-    const { user, activateTrial } = useAuth();
+    const { user } = useAuth();
     const { isFirstTimeSubscriber, referralSettings } = useData();
     const navigate = useNavigate();
     const [isFirstTimer, setIsFirstTimer] = React.useState(false);
@@ -98,44 +97,10 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
         }
     };
 
-    const handleTrialActivation = async () => {
-        if (!user) {
-            navigate('/login', { state: { from: '/music-pool' } });
-            return;
-        }
 
-        if (user.hasUsedTrial) {
-            alert("You have already used your free trial.");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            await activateTrial();
-            navigate('/success', {
-                state: {
-                    type: 'subscription',
-                    reference: `trial_${user.id}_${Date.now()}`,
-                    amount: 0,
-                    plan: plan.name,
-                    email: user?.email,
-                    date: new Date().toLocaleDateString()
-                }
-            });
-        } catch (error: any) {
-            alert(error.message || "Failed to activate trial");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-
-        if (plan.isTrial) {
-            handleTrialActivation();
-            return;
-        }
 
         if (!user) {
             navigate('/login', { state: { from: '/music-pool' } });
@@ -151,7 +116,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
             className={className}
             disabled={loading}
         >
-            {loading ? 'Activating...' : plan.isTrial ? 'Start Free Trial' : 'Subscribe Now'}
+            {loading ? 'Processing...' : 'Subscribe Now'}
         </button>
     );
 };

@@ -24,12 +24,12 @@ interface User {
     referral_code: string;
     referral_balance_kes: number;
     is_subscriber: number;
-    subscription_plan?: 'trial' | 'weekly' | 'monthly' | 'pro' | 'master';
+    subscription_plan?: 'weekly' | 'monthly' | 'pro' | 'master';
     subscription_expiry?: string;
     subscription_end_date?: string; // Legacy field name
     daily_download_count?: number;
     last_download_reset?: string;
-    has_used_trial?: number;
+
     role?: string;
     created_at: string;
 }
@@ -39,7 +39,7 @@ const GrantAccessModal: React.FC<{
     onClose: () => void;
     onRefresh: () => void;
 }> = ({ user, onClose, onRefresh }) => {
-    const [plan, setPlan] = useState<'trial' | 'weekly' | 'monthly' | 'pro'>('monthly');
+    const [plan, setPlan] = useState<'weekly' | 'monthly' | 'pro'>('monthly');
     const [loading, setLoading] = useState(false);
 
     const handleGrant = async (action: 'grant' | 'revoke') => {
@@ -93,7 +93,6 @@ const GrantAccessModal: React.FC<{
                         <label className="text-[10px] font-black text-white/50 uppercase tracking-widest ml-1">Select Plan Duration</label>
                         <div className="grid grid-cols-2 gap-3">
                             {[
-                                { id: 'trial', label: '1 Week Trial' },
                                 { id: 'weekly', label: '1 Week Paid' },
                                 { id: 'monthly', label: '1 Month Paid' },
                                 { id: 'pro', label: 'Yearly / Pro' },
@@ -189,7 +188,6 @@ const AdminCommunityDirectory: React.FC = () => {
                 subscription_plan: formData.get('subscription_plan'),
                 subscription_expiry: formData.get('subscription_expiry') || null,
                 daily_download_count: Number(formData.get('daily_download_count')) || 0,
-                has_used_trial: formData.get('has_used_trial') === 'on' ? 1 : 0
             };
 
             const res = await fetch(`${WORKER_URL}/api/admin/users/${editingUser.id}`, {
@@ -264,7 +262,7 @@ const AdminCommunityDirectory: React.FC = () => {
                         <Users size={20} />
                     </div>
                     <div>
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Community Directory</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Profiles Directory</h3>
                         <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{users.length} Registered DJs</p>
                     </div>
                 </div>
@@ -492,7 +490,6 @@ const AdminCommunityDirectory: React.FC = () => {
                                             className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium appearance-none"
                                         >
                                             <option value="">None</option>
-                                            <option value="trial">Trial</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
                                             <option value="pro">Pro (6 Months)</option>
@@ -519,16 +516,6 @@ const AdminCommunityDirectory: React.FC = () => {
                                             defaultValue={editingUser.daily_download_count || 0}
                                             className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 font-medium"
                                         />
-                                    </div>
-                                    <div className="flex items-center gap-3 pt-6">
-                                        <input
-                                            id="has_used_trial"
-                                            name="has_used_trial"
-                                            type="checkbox"
-                                            defaultChecked={editingUser.has_used_trial === 1}
-                                            className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-brand-purple/50"
-                                        />
-                                        <label htmlFor="has_used_trial" className="text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer">Trial Used</label>
                                     </div>
                                 </div>
                             </div>

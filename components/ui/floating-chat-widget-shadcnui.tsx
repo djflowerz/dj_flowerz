@@ -32,6 +32,12 @@ interface ChatSession {
   visitor_name: string | null;
   visitor_email: string | null;
   status: 'bot' | 'human' | 'closed';
+  ticket_number?: string;
+}
+
+interface ChatSessionResponse {
+  session: ChatSession;
+  messages: ChatMessage[];
 }
 
 // ── Animation variants ──────────────────────────────────────────────────────
@@ -149,11 +155,22 @@ export function FloatingChatWidget() {
       if (initial) {
         setMessages(data.messages || []);
       } else if (data.messages?.length) {
-        setMessages(prev => [...prev, ...data.messages]);
-        // Show unread badge if chat is closed or user scrolled up
-        const el = chatAreaRef.current;
-        const atBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-        if (!atBottom) setHasUnread(true);
+        setMessages(prev => {
+          // Filter out any messages that already exist in state (by ID)
+          const newMessages = data.messages.filter((msg: ChatMessage) => {
+            return !prev.some(p => p.id === msg.id);
+          });
+
+          if (newMessages.length === 0) return prev;
+          
+          const updated = [...prev, ...newMessages];
+          // Show unread badge if chat is closed or user scrolled up
+          const el = chatAreaRef.current;
+          const atBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+          if (!atBottom) setHasUnread(true);
+          
+          return updated;
+        });
       }
 
       if (data.session) {
@@ -205,23 +222,14 @@ export function FloatingChatWidget() {
     setInputText('');
     setIsSending(true);
 
-    // Optimistic update
-    const optimistic: ChatMessage = {
-      id: Date.now(),
-      sender: 'user',
-      text,
-      created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, optimistic]);
-
     try {
       await fetch(`${WORKER_URL}/api/chat/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id, text }),
       });
-      // Poll immediately to get bot/agent response
-      await pollMessages(session.id, optimistic.created_at);
+      // Poll immediately to get both the user message and bot/agent response
+      await pollMessages(session.id, lastPolledAt);
     } catch (err) {
       console.error('[Chat] sendMessage failed:', err);
     } finally {
@@ -234,20 +242,82 @@ export function FloatingChatWidget() {
     if (!session || isEscalating || session.status === 'human') return;
     setIsEscalating(true);
     try {
-      await fetch(`${WORKER_URL}/api/chat/human`, {
+      const res = await fetch(`${WORKER_URL}/api/chat/human`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id }),
       });
+      const data = await res.json();
       // Poll immediately to get the confirmation bot message
       await pollMessages(session.id, lastPolledAt);
-      setSession(prev => prev ? { ...prev, status: 'human' } : prev);
+      if (data.success) {
+        setSession(prev => prev ? { ...prev, status: 'human' } : prev);
+      }
     } catch (err) {
       console.error('[Chat] requestHuman failed:', err);
     } finally {
       setIsEscalating(false);
     }
   }, [session, isEscalating, lastPolledAt, pollMessages]);
+
+  const handleReturnToBot = useCallback(async () => {
+    if (!session) return;
+    try {
+      await fetch(`${WORKER_URL}/api/chat/return-to-bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id }),
+      });
+      await pollMessages(session.id, null, true);
+    } catch (err) {
+      console.error('[Chat] returnToBot failed:', err);
+    }
+  }, [session, pollMessages]);
+
+  const handleCloseSession = useCallback(async () => {
+    if (!session) return;
+    if (!confirm("Are you sure you want to end this chat session?")) return;
+    try {
+      await fetch(`${WORKER_URL}/api/chat/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id }),
+      });
+      setSession(null);
+      setMessages([]);
+      setIsOpen(false);
+    } catch (err) {
+      console.error('[Chat] closeSession failed:', err);
+    }
+  }, [session]);
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session) return;
+
+    // Simulate upload to R2 (In a real app, you'd use a dedicated endpoint)
+    // For now, we'll just send a message saying "File uploaded"
+    setIsSending(true);
+    try {
+      // Logic for actual upload would go here
+      // For demo, we send a message
+      await fetch(`${WORKER_URL}/api/chat/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sessionId: session.id, 
+          text: `[File Uploaded: ${file.name}]`,
+          fileUrl: `https://pub-8418579cf4314cdba9a528f804297135.r2.dev/uploads/${file.name}`, // Placeholder
+          fileType: file.type 
+        }),
+      });
+      await pollMessages(session.id, lastPolledAt);
+    } catch (err) {
+      console.error('[Chat] fileUpload failed:', err);
+    } finally {
+      setIsSending(false);
+    }
+  }, [session, lastPolledAt, pollMessages]);
 
   const isHumanMode = session?.status === 'human';
 
@@ -280,19 +350,52 @@ export function FloatingChatWidget() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">DJ Flowerz Support</h3>
-                    <p className="text-xs text-white/60">
-                      {isHumanMode ? '🟢 Human agent connected' : '🤖 AI Assistant'}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[10px] text-white/60">
+                        {isHumanMode ? '🟢 Human agent connected' : '🤖 AI Assistant'}
+                      </p>
+                      {session?.ticket_number && (
+                        <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-white/40 border border-white/5">
+                          #{session.ticket_number}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full hover:bg-white/10 text-white"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {session && session.status !== 'closed' && (
+                    <>
+                      {isHumanMode && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-full hover:bg-white/10 text-white/60 hover:text-white"
+                          title="Return to Bot"
+                          onClick={handleReturnToBot}
+                        >
+                          <ChevronDown className="h-4 w-4 rotate-90" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full hover:bg-white/10 text-white/60 hover:text-red-400"
+                        title="End Session"
+                        onClick={handleCloseSession}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full hover:bg-white/10 text-white"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -424,6 +527,26 @@ export function FloatingChatWidget() {
                 className="flex items-center gap-2"
                 onSubmit={handleSend}
               >
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="chat-file-upload"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    disabled={isSending || isLoading || !session}
+                    onClick={() => document.getElementById('chat-file-upload')?.click()}
+                    className="h-10 w-10 rounded-full hover:bg-white/5 text-white/40 hover:text-white transition-colors"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </Button>
+                </div>
                 <input
                   type="text"
                   value={inputText}

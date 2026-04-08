@@ -197,7 +197,7 @@ const ProductReviews: React.FC<ProductReviewsProps> = ({
     const productReviews = useMemo(
         () =>
             reviews
-                .filter((r) => r.productId === targetId && r.status === 'published')
+                .filter((r) => r.productId === targetId && r.status === 'approved')
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
         [reviews, targetId]
     );
@@ -221,9 +221,7 @@ const ProductReviews: React.FC<ProductReviewsProps> = ({
         setSubmitting(true);
         try {
             await addReview(targetId, rating, comment.trim());
-            toast.success('Review submitted!', {
-                description: "It'll appear once approved.",
-            });
+            toast.success('Review posted successfully!');
             setRating(0);
             setComment('');
             setShowForm(false);

@@ -1,5 +1,37 @@
-// worker/api/dashboard/pool.js
 import { getAuthorizedUser, isAdminEmail } from '../../utils/auth.js';
+
+export async function handleDashboardTracks(request, env, ctx, params) {
+    const user = await getAuthorizedUser(request, env);
+    if (!user || (user.role !== 'admin' && !isAdminEmail(user.email))) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+
+    try {
+        const { results: tracks } = await env.DB.prepare(`
+            SELECT t.*, 
+                   (SELECT json_group_array(json_object(
+                       'id', v.id, 
+                       'versionName', v.version_name, 
+                       'previewUrl', v.preview_url, 
+                       'downloadUrl', v.download_url,
+                       'fileSize', v.file_size
+                   )) FROM track_versions v WHERE v.track_id = t.id) as versions
+            FROM tracks t
+            ORDER BY t.created_at DESC
+        `).all();
+
+        const formattedTracks = tracks.map(t => ({
+            ...t,
+            versions: JSON.parse(t.versions || '[]')
+        }));
+
+        return new Response(JSON.stringify(formattedTracks), {
+            headers: { "Content-Type": "application/json" }
+        });
+    } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    }
+}
 
 export async function handleSyncTrack(request, env, ctx, params) {
     const user = await getAuthorizedUser(request, env);
@@ -14,87 +46,64 @@ export async function handleSyncTrack(request, env, ctx, params) {
         }
 
         const queries = [];
-
-        // 1. Upsert Track
         queries.push(env.DB.prepare(`
             INSERT INTO tracks (
-                id, title, artist, genre, sub_genre, display_genre, collection_hub, 
-                vibe, bpm, [key], release_date, release_year, release_month, 
-                cover_url, audio_url, download_url, duration, is_featured, is_active, tags,
+                id, title, artist, sub_genre, display_genre, collection_hub, 
+                vibe, bpm, release_year, release_month, 
+                is_featured, is_active,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title=excluded.title,
                 artist=excluded.artist,
-                genre=excluded.genre,
                 sub_genre=excluded.sub_genre,
                 display_genre=excluded.display_genre,
                 collection_hub=excluded.collection_hub,
                 vibe=excluded.vibe,
                 bpm=excluded.bpm,
-                [key]=excluded.[key],
-                release_date=excluded.release_date,
                 release_year=excluded.release_year,
                 release_month=excluded.release_month,
-                cover_url=excluded.cover_url,
-                audio_url=excluded.audio_url,
-                download_url=excluded.download_url,
-                duration=excluded.duration,
                 is_featured=excluded.is_featured,
                 is_active=excluded.is_active,
-                tags=excluded.tags,
                 updated_at=excluded.updated_at
         `).bind(
             track.id, 
             track.title, 
             track.artist, 
-            track.genre, 
             track.subGenre || track.sub_genre, 
             track.displayGenre || track.display_genre,
             track.collectionHub || track.collection_hub,
             track.vibe,
             track.bpm,
-            track.key,
-            track.releaseDate || track.release_date,
             track.releaseYear || track.release_year,
             track.releaseMonth || track.release_month,
-            track.coverUrl || track.cover_url,
-            track.audioUrl || track.audio_url,
-            track.downloadUrl || track.download_url,
-            track.duration,
             track.isFeatured ? 1 : 0,
             track.isActive !== false ? 1 : 0,
-            track.tags,
             track.createdAt || new Date().toISOString(),
             new Date().toISOString()
         ));
 
-        // 2. Upsert Versions if present
         if (track.versions && Array.isArray(track.versions)) {
             for (const v of track.versions) {
                 queries.push(env.DB.prepare(`
                     INSERT INTO track_versions (
-                        id, track_id, version_name, preview_url, file_url, download_url, 
-                        file_size, format, is_main_version, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, track_id, version_name, preview_url, download_url, 
+                        file_size, is_main_version, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         track_id=excluded.track_id,
                         version_name=excluded.version_name,
                         preview_url=excluded.preview_url,
-                        file_url=excluded.file_url,
                         download_url=excluded.download_url,
                         file_size=excluded.file_size,
-                        format=excluded.format,
                         is_main_version=excluded.is_main_version
                 `).bind(
                     v.id,
                     track.id,
                     v.versionName || v.version_name,
                     v.previewUrl || v.preview_url,
-                    v.fileUrl || v.file_url,
                     v.downloadUrl || v.download_url,
                     v.fileSize || v.file_size,
-                    v.format || 'mp3',
                     v.isMainVersion ? 1 : 0,
                     v.createdAt || new Date().toISOString()
                 ));
@@ -105,11 +114,10 @@ export async function handleSyncTrack(request, env, ctx, params) {
             await env.DB.batch(queries);
         }
 
-        return new Response(JSON.stringify({ success: true, message: `Synced track ${track.id} to D1` }), {
+        return new Response(JSON.stringify({ success: true, message: `Synced track \${track.id} to D1` }), {
             headers: { "Content-Type": "application/json" }
         });
     } catch (e) {
-        console.error("[Sync Track Error]", e);
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }
 }
@@ -131,17 +139,14 @@ export async function handleBulkSync(request, env, ctx, params) {
 
         for (const track of tracks) {
             if (!track.id) continue;
-
-            // Helper: convert undefined to null for D1 compatibility
             const s = (v) => (v === undefined ? null : v ?? null);
 
-            // 1. Upsert Track
             queries.push(env.DB.prepare(`
                 INSERT INTO tracks (
                     id, title, artist, display_genre, collection_hub, 
                     sub_genre, vibe, bpm, release_year, release_month, 
-                    is_featured, is_active, date_added, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    is_featured, is_active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     title=excluded.title,
                     artist=excluded.artist,
@@ -168,12 +173,10 @@ export async function handleBulkSync(request, env, ctx, params) {
                 s(track.releaseMonth ?? track.release_month),
                 track.isFeatured ? 1 : 0,
                 track.isActive !== false ? 1 : 0,
-                s(track.dateAdded ?? track.date_added ?? timestamp),
                 s(track.createdAt ?? track.created_at ?? timestamp),
                 timestamp
             ));
 
-            // 2. Upsert Versions
             if (track.versions && Array.isArray(track.versions)) {
                 for (const v of track.versions) {
                     queries.push(env.DB.prepare(`
@@ -189,7 +192,7 @@ export async function handleBulkSync(request, env, ctx, params) {
                             file_size=excluded.file_size,
                             is_main_version=excluded.is_main_version
                     `).bind(
-                        s(v.id ?? `${track.id}-${v.versionName ?? v.version_name ?? 'original'}`),
+                        s(v.id ?? `\${track.id}-\${v.versionName ?? v.version_name ?? 'original'}`),
                         s(track.id),
                         s(v.versionName ?? v.version_name ?? 'Original'),
                         s(v.previewUrl ?? v.preview_url),
@@ -205,19 +208,14 @@ export async function handleBulkSync(request, env, ctx, params) {
         if (queries.length > 0) {
             const BATCH_LIMIT = 100;
             for (let i = 0; i < queries.length; i += BATCH_LIMIT) {
-                const chunk = queries.slice(i, i + BATCH_LIMIT);
-                await env.DB.batch(chunk);
+                await env.DB.batch(queries.slice(i, i + BATCH_LIMIT));
             }
         }
 
-        return new Response(JSON.stringify({ 
-            success: true, 
-            message: `Successfully synced ${tracks.length} tracks to D1` 
-        }), {
+        return new Response(JSON.stringify({ success: true, message: `Synced \${tracks.length} tracks to D1` }), {
             headers: { "Content-Type": "application/json" }
         });
     } catch (e) {
-        console.error("[Bulk Sync Error]", e);
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }
 }
@@ -230,35 +228,16 @@ export async function handleSyncGenres(request, env, ctx, params) {
 
     try {
         const { genres } = await request.json();
-        if (!genres || !Array.isArray(genres)) {
-            return new Response(JSON.stringify({ error: "Invalid genres data" }), { status: 400 });
-        }
-
         const queries = [];
-        for (const g of genres) {
+        for (const g of genres || []) {
             queries.push(env.DB.prepare(`
                 INSERT INTO genres (id, name, description, image_url, created_at)
                 VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    description=excluded.description,
-                    image_url=excluded.image_url
-            `).bind(
-                g.id,
-                g.name,
-                g.description,
-                g.imageUrl || g.image_url,
-                g.createdAt || new Date().toISOString()
-            ));
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, image_url=excluded.image_url
+            `).bind(g.id, g.name, g.description, g.imageUrl || g.image_url, g.createdAt || new Date().toISOString()));
         }
-
-        if (queries.length > 0) {
-            await env.DB.batch(queries);
-        }
-
-        return new Response(JSON.stringify({ success: true, message: `Synced ${genres.length} genres to D1` }), {
-            headers: { "Content-Type": "application/json" }
-        });
+        if (queries.length > 0) await env.DB.batch(queries);
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }
@@ -269,23 +248,148 @@ export async function handleDeleteTrack(request, env, ctx, params) {
     if (!user || (user.role !== 'admin' && !isAdminEmail(user.email))) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-
     try {
-        const url = new URL(request.url);
-        const id = url.searchParams.get("id");
-        if (!id) {
-            return new Response(JSON.stringify({ error: "Missing track ID" }), { status: 400 });
-        }
-
-        // Use a batch to delete track and its versions
+        const id = new URL(request.url).searchParams.get("id");
+        if (!id) return new Response(JSON.stringify({ error: "Missing ID" }), { status: 400 });
         await env.DB.batch([
             env.DB.prepare("DELETE FROM track_versions WHERE track_id = ?").bind(id),
             env.DB.prepare("DELETE FROM tracks WHERE id = ?").bind(id)
         ]);
+        return new Response(JSON.stringify({ success: true }));
+    } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    }
+}
 
-        return new Response(JSON.stringify({ success: true, message: `Deleted track ${id} from D1` }), {
-            headers: { "Content-Type": "application/json" }
-        });
+export async function handleRefreshPool(request, env, ctx, params) {
+    const user = await getAuthorizedUser(request, env);
+    if (!user || (user.role !== 'admin' && !isAdminEmail(user.email))) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+
+    try {
+        console.log("[Pool Refresh] Starting full R2 scan...");
+        let allObjects = [];
+        let cursor = undefined;
+        let truncated = true;
+
+        while (truncated) {
+            const list = await env.R2_BUCKET.list({ cursor, include: ['httpMetadata', 'customMetadata'] });
+            allObjects.push(...list.objects);
+            truncated = list.truncated;
+            cursor = list.cursor;
+        }
+
+        const mediaFiles = allObjects.filter(obj => 
+            obj.key.toLowerCase().endsWith('.mp3') || obj.key.toLowerCase().endsWith('.wav') ||
+            obj.key.toLowerCase().endsWith('.m4a') || obj.key.toLowerCase().endsWith('.mp4')
+        );
+
+        if (mediaFiles.length === 0) {
+            return new Response(JSON.stringify({ success: true, message: "R2 is empty.", count: 0 }));
+        }
+
+        const timestamp = new Date().toISOString();
+        const queries = [];
+        queries.push(env.DB.prepare("DELETE FROM track_versions"));
+        queries.push(env.DB.prepare("DELETE FROM tracks"));
+
+        for (const obj of mediaFiles) {
+            const key = obj.key;
+            const parts = (key.startsWith('/') ? key.slice(1) : key).split('/');
+            
+            // Logic: Enforce "Video Pool" hub for everything NOT in "Remix & Mashups Hub"
+            // And use first folder as Genre.
+            let hub = "Video Pool";
+            let genre = parts[0] || "General";
+            let subGenre = "";
+
+            if (parts[0] === "Remix & Mashups Hub") {
+                hub = "Remix & Mashups Hub";
+                genre = parts[1] || "General";
+                subGenre = parts.slice(2, -1).join(" / ");
+            } else {
+                hub = "Video Pool";
+                genre = parts[0];
+                subGenre = parts.length > 2 ? parts.slice(1, -1).join(" / ") : "";
+            }
+
+            let rawTitle = parts[parts.length - 1].replace(/\.[^/.]+$/, "");
+            let displayTitle = rawTitle;
+            let displayArtist = "Unknown Artist";
+
+            if (rawTitle.includes(" - ")) {
+                const s = rawTitle.split(" - ");
+                displayArtist = s[0].trim();
+                displayTitle = s[1].trim();
+            } else if (rawTitle.includes("-")) {
+                 const s = rawTitle.split("-");
+                 displayArtist = s[0].trim();
+                 displayTitle = (s.slice(1).join("-")).trim();
+            }
+
+            const handleRebrand = (s) => (s || "")
+                .replace(/dj[-_\\s]*vick[-_\\s]*nick/gi, "DJ Flowerz")
+                .replace(/vick[-_\\s]*nick/gi, "Flowerz")
+                .replace(/Reggae\\s+Fussion/gi, "Reggae Fusion")
+                .replace(/Reggaetone/gi, "Reggaeton");
+            
+            displayArtist = handleRebrand(displayArtist);
+            displayTitle = handleRebrand(displayTitle);
+            hub = handleRebrand(hub);
+            genre = handleRebrand(genre);
+            subGenre = handleRebrand(subGenre);
+
+            const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const YEAR_REGEX = /\b(20\d{2})\b/;
+
+            let releaseYear = null;
+            let releaseMonth = null;
+
+            for (const p of parts) {
+                if (!releaseYear) {
+                    const match = p.match(YEAR_REGEX);
+                    if (match) releaseYear = parseInt(match[1]);
+                }
+                if (!releaseMonth) {
+                    const monthMatch = MONTH_NAMES.find(m => p.includes(m));
+                    if (monthMatch) releaseMonth = monthMatch;
+                }
+            }
+
+            const trackId = crypto.randomUUID();
+            const fileUrl = `https://cdn.vicknickvideopool.com/${parts.map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/')}`;
+
+            queries.push(env.DB.prepare(`
+                INSERT INTO tracks (
+                    id, title, artist, display_genre, collection_hub, sub_genre, 
+                    release_year, release_month, is_active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+            `).bind(
+                trackId, 
+                displayTitle, 
+                displayArtist, 
+                genre, 
+                hub, 
+                subGenre, 
+                releaseYear || new Date().getFullYear(),
+                releaseMonth || MONTH_NAMES[new Date().getMonth()],
+                timestamp, 
+                timestamp
+            ));
+
+            queries.push(env.DB.prepare(`
+                INSERT INTO track_versions (id, track_id, version_name, preview_url, download_url, file_size, is_main_version, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            `).bind(crypto.randomUUID(), trackId, 'Original Mix', fileUrl, fileUrl, obj.size || 0, timestamp));
+        }
+
+        const BATCH_LIMIT = 50;
+        for (let i = 0; i < queries.length; i += BATCH_LIMIT) {
+            await env.DB.batch(queries.slice(i, i + BATCH_LIMIT));
+        }
+
+        return new Response(JSON.stringify({ success: true, message: `Indexed \${mediaFiles.length} tracks.` }));
     } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }

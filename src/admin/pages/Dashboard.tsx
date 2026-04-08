@@ -3,9 +3,11 @@ import { AdminLayout } from '../components/AdminLayout';
 import { StatCard } from '../components/StatCard';
 import {
     DollarSign, ShoppingBag, Music, Users,
-    Activity, Inbox, Heart
+    Activity, Inbox, Heart, RefreshCw
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAdminApi } from '../hooks/useAdminApi';
+import { useAuth } from '@/context/AuthContext';
 
 interface DashboardStats {
     totalRevenue: number;
@@ -28,10 +30,12 @@ interface DashboardStats {
 
 const Dashboard: React.FC = () => {
     const { request } = useAdminApi();
+    const { session } = useAuth();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!session) return;
         const fetchDashboardStats = async () => {
             try {
                 const data = await request('/api/admin/dashboard');
@@ -44,10 +48,25 @@ const Dashboard: React.FC = () => {
         };
 
         fetchDashboardStats();
-    }, [request]);
+    }, [session, request]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
+    };
+
+    const handleSync = async () => {
+        try {
+            toast.loading("Recovering missing payments...");
+            const res = await request('/api/admin/sync-paystack', { method: 'POST' });
+            if (res.success) {
+                toast.success(`Sync Complete: Recovered ${res.synced} payment(s)`);
+                // Refresh data
+                const data = await request('/api/admin/dashboard');
+                setStats(data);
+            }
+        } catch (e) {
+            toast.error("Sync failed");
+        }
     };
 
     const formatDate = (dateStr: string) => {
@@ -57,6 +76,15 @@ const Dashboard: React.FC = () => {
 
     return (
         <AdminLayout title="System Overview">
+            <div className="flex justify-end mb-8">
+                <button 
+                    onClick={handleSync}
+                    className="flex items-center gap-2 px-6 py-3 bg-brand-purple/10 border border-brand-purple/20 rounded-2xl text-[11px] font-black uppercase tracking-widest text-brand-purple hover:bg-brand-purple/20 transition-all group"
+                >
+                    <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
+                    Sync with Paystack
+                </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
                 <StatCard
                     label="Total Revenue"

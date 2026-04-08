@@ -110,7 +110,6 @@ async function syncCollectionToR2(env, collectionName, dataPromise) {
 // --- Constants & Config ---
 const DOWNLOAD_LIMITS = {
     'none': 0,
-    'trial': 10,
     'weekly': 10,
     // All paid plans = unlimited (9999 daily limit)
     'monthly': 9999,
@@ -309,7 +308,7 @@ async function checkAndIncrementDownloads(user, env) {
         return { allowed: true, remaining: 9999 };
     }
 
-    // Non-subscribers (trial or free) — enforce limit
+    // Non-subscribers — enforce limit (usually zero)
     const userPlan = user?.subscriptionPlan?.toLowerCase() || 'none';
     const limit = DOWNLOAD_LIMITS[userPlan] || 0;
     
@@ -680,9 +679,9 @@ export default {
                     `).bind(profileId).run();
                 } else {
                     // Support a custom day count from the admin UI, or fall back to plan presets
-                    const planDays = { 'trial': 7, 'weekly': 7, 'monthly': 30, '3month': 90, '6month': 180, 'yearly': 365, 'pro': 365 };
+                    const planDays = { 'weekly': 7, 'monthly': 30, '3month': 90, '6month': 180, 'yearly': 365, 'pro': 365 };
                     const days = customDays || planDays[plan] || 30;
-                    const planName = plan || (days <= 7 ? 'trial' : days <= 30 ? 'monthly' : days <= 90 ? '3month' : 'yearly');
+                    const planName = plan || (days <= 7 ? 'weekly' : days <= 30 ? 'monthly' : days <= 90 ? '3month' : 'yearly');
 
                     await env.DB.prepare(`
                         UPDATE profiles SET
@@ -933,8 +932,8 @@ export default {
 
                 if (type === 'subscription') {
                     // Correct thresholds: 700 KES = 30 days, 200 KES = 7 days
-                    const days = amount >= 700 ? 30 : (amount >= 200 ? 7 : 1);
-                    const planName = amount >= 700 ? 'monthly' : (amount >= 200 ? 'weekly' : 'trial');
+                    const days = amount >= 700 ? 30 : 7;
+                    const planName = amount >= 700 ? 'monthly' : 'weekly';
                     
                     // UPSERT logic for profiles
                     await env.DB.prepare(`
@@ -1109,7 +1108,6 @@ export default {
                         isSubscriber: data.is_subscriber !== undefined ? !!data.is_subscriber : (data.isSubscriber !== undefined ? !!data.isSubscriber : undefined),
                         subscriptionPlan: data.subscription_plan || data.subscriptionPlan,
                         subscriptionExpiry: data.subscription_expiry || data.subscriptionExpiry,
-                        hasUsedTrial: data.has_used_trial !== undefined ? !!data.has_used_trial : (data.hasUsedTrial !== undefined ? !!data.hasUsedTrial : undefined),
                         updatedAt: new Date().toISOString()
                     };
 
@@ -2057,7 +2055,7 @@ export default {
                 const isSubscribed = (user?.isSubscriber === true && expiry > now);
 
                 if (!isMaster && !isSubscribed) {
-                    // This section only applies to non-subscribers (e.g. Trial or Free if we had it)
+                    // This section only applies to non-subscribers
                     const userPlan = (user.subscriptionPlan || 'none').toLowerCase();
                     const planLimit = DOWNLOAD_LIMITS[userPlan] || 0;
                     
@@ -2638,17 +2636,6 @@ export default {
                             if (amountKes >= 5000) { plan = 'pro'; days = 365; }
                             else if (amountKes >= 1000) { plan = 'monthly'; days = 30; }
                             else if (amountKes >= 300) { plan = 'weekly'; days = 7; }
-                            else if (amountKes >= 50) {
-                                // Trial check
-                                const user = await db.query.profiles.findFirst({
-                                    where: (p, { eq }) => eq(p.email, email)
-                                });
-                                if (user?.hasUsedTrial) {
-                                    fulfillmentMsg = "TRIAL_ALREADY_USED";
-                                    throw new Error("One-time trial already used.");
-                                }
-                                plan = 'trial'; days = 7;
-                            }
 
                             const expiry = new Date();
                             expiry.setDate(expiry.getDate() + days);
@@ -2657,7 +2644,6 @@ export default {
                                 isSubscriber: true,
                                 subscriptionExpiry: expiry.toISOString(),
                                 subscriptionPlan: plan,
-                                hasUsedTrial: plan === 'trial' ? true : undefined,
                                 updatedAt: sql`CURRENT_TIMESTAMP`
                             }).where(eq(schema.profiles.email, email)).run();
 
@@ -2669,7 +2655,6 @@ export default {
                                 isSubscriber: Boolean(p.is_subscriber),
                                 subscriptionPlan: p.subscription_plan,
                                 subscriptionExpiry: p.subscription_expiry,
-                                hasUsedTrial: Boolean(p.has_used_trial)
                             })));
 
                             fulfillmentMsg = `Subscription Granted (${plan})`;
@@ -2979,6 +2964,35 @@ export default {
             }
 
             // ═══════════════════════════════════════════════════════════════════
+            // USER INSTALLMENTS — GET /api/user/installments
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "GET" && path === "/api/user/installments") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                const token = authHeader.replace("Bearer ", "");
+                let jwtEmail = null;
+                try {
+                    const payloadB64 = token.split(".")[1];
+                    const decoded = JSON.parse(atob(payloadB64));
+                    jwtEmail = decoded.email;
+                } catch (e) {
+                    return new Response("Invalid Token", { status: 401, headers: corsHeaders });
+                }
+
+                try {
+                    const { results } = await env.DB.prepare(`
+                        SELECT * FROM installment_plans 
+                        WHERE user_id IN (SELECT id FROM profiles WHERE email = ?)
+                        ORDER BY created_at DESC
+                    `).bind(jwtEmail).all();
+                    return Response.json(results || [], { headers: corsHeaders });
+                } catch (err) {
+                    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
             // MANUAL PAYSTACK SYNC — POST /api/admin/sync-paystack
             // Fetches last 20 successful transactions from Paystack API,
             // inserts any missing ones into D1, and re-grants subscriptions.
@@ -3145,7 +3159,12 @@ export default {
                         `).all();
                         results = subs || [];
                     } catch (_) {
-                        // subscriptions table may not exist yet — fall back to profiles
+                        results = [];
+                    }
+
+                    // If NO active subscriptions found in the 'subscriptions' table,
+                    // fall back to the 'profiles' table for legacy data.
+                    if (results.length === 0) {
                         const { results: profiles } = await env.DB.prepare(`
                             SELECT id, email, full_name, is_subscriber,
                                    subscription_expiry AS end_date,
@@ -3167,6 +3186,39 @@ export default {
                         }));
                     }
                     return Response.json(results, { headers: corsHeaders });
+                } catch (err) {
+                    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ADMIN REVOKE ACCESS — POST /api/admin/revoke-access
+            // Forcefully terminates a user's subscription in the profiles table.
+            // ═══════════════════════════════════════════════════════════════════
+            if (method === "POST" && path === "/api/admin/revoke-access") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    const { email } = await request.json();
+                    if (!email) return new Response("Email required", { status: 400, headers: corsHeaders });
+
+                    // 1. Update profiles table
+                    await env.DB.prepare(`
+                        UPDATE profiles 
+                        SET is_subscriber = 0, subscription_expiry = NULL 
+                        WHERE email = ?
+                    `).bind(email).run();
+
+                    // 2. Clear any secondary subscription rows
+                    try {
+                        await env.DB.prepare(`
+                            DELETE FROM subscriptions 
+                            WHERE user_id IN (SELECT id FROM profiles WHERE email = ?)
+                        `).bind(email).run();
+                    } catch (_) { }
+
+                    return Response.json({ success: true, message: `Access revoked for ${email}` }, { headers: corsHeaders });
                 } catch (err) {
                     return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
                 }
@@ -3280,10 +3332,10 @@ export default {
                 if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
                 const { results } = await env.DB.prepare(`
-                    SELECT id, customer_email, amount_kes, channel, currency, created_at
+                    SELECT id, customer_email, amount_kes, channel, currency, status, created_at
                     FROM payments
                     ORDER BY created_at DESC
-                    LIMIT 100
+                    LIMIT 200
                 `).all();
 
                 return Response.json(results, { headers: corsHeaders });

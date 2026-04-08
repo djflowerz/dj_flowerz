@@ -1,17 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
 import { useAdminApi } from '../hooks/useAdminApi';
-import { CreditCard, DollarSign, Heart, Search, Filter, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { CreditCard, DollarSign, Heart, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Payments: React.FC = () => {
     const { request, loading } = useAdminApi();
+    const { session } = useAuth();
     const [transactions, setTransactions] = useState<any[]>([]);
     const [filter, setFilter] = useState<'all' | 'sale' | 'tip'>('all');
+    const [syncing, setSyncing] = useState(false);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (session) loadData();
+    }, [session]);
+
+    const syncPaystack = async () => {
+        setSyncing(true);
+        try {
+            const result = await request('/api/admin/sync-paystack', { method: 'POST' });
+            toast.success(`Synced ${result.synced} new transaction(s) from Paystack`);
+            await loadData();
+        } catch (e) {
+            toast.error('Paystack sync failed');
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     const loadData = async () => {
         try {
@@ -26,7 +42,7 @@ const Payments: React.FC = () => {
                 amount: p.amount_kes || 0,
                 method: p.method || 'Paystack',
                 type: 'sale',
-                status: 'success',
+                status: p.status || 'success',
                 createdAt: p.created_at
             }));
 
@@ -82,13 +98,20 @@ const Payments: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="flex gap-6">
+                <div className="flex gap-4">
                     <div className="px-6 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
                         <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Total Processed</p>
                         <p className="text-xl font-black text-white tracking-tighter">
                             {formatCurrency(transactions.reduce((sum, t) => sum + t.amount, 0))}
                         </p>
                     </div>
+                    <button
+                        onClick={syncPaystack}
+                        disabled={syncing}
+                        className="px-6 py-3 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {syncing ? 'Syncing...' : '⟳ Sync Paystack'}
+                    </button>
                 </div>
             </div>
 

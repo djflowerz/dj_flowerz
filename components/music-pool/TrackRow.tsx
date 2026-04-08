@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown, Flame, Zap, Heart
+  Play, Pause, Download, Music, Video, X, Volume2, ChevronDown, Flame, Zap, Heart,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { toast } from 'sonner';
@@ -58,6 +59,8 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   onDownloadAll,
   onFindSimilar,
   onCloseInline,
+  onSkipNext,
+  onSkipPrev,
   isSubscriber = false,
   isHype = false
 }) => {
@@ -116,14 +119,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
     >
       {/* Subtle Hype Background Glow */}
       {isHype && (
-        <div className="absolute -top-12 -right-12 w-24 h-24 bg-orange-500/10 blur-[40px] rounded-full pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/20 blur-[60px] rounded-full pointer-events-none group-hover:bg-orange-500/30 transition-all duration-700" />
       )}
 
       {/* Top Row: Track Info */}
       <div className="flex items-center gap-5">
         {/* Thumbnail / Play button */}
         <div
-          className="relative flex-shrink-0 w-14 h-14 rounded-2xl overflow-hidden bg-zinc-800/80 flex items-center justify-center group/play cursor-pointer border border-white/10 shadow-lg"
+          className={`relative flex-shrink-0 w-14 h-14 rounded-2xl overflow-hidden bg-zinc-800/80 flex items-center justify-center group/play cursor-pointer border shadow-lg transition-all duration-300 ${isHype ? 'border-orange-500/40 shadow-orange-500/10' : 'border-white/10 shadow-black/40'}`}
           onClick={() => {
             if (mainVersion) {
               const vType = getVersionType(mainVersion);
@@ -133,9 +136,9 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           }}
         >
           <div className={`w-full h-full flex items-center justify-center ${
-            isVideo ? 'bg-brand-purple/20 text-brand-purple' : isHype ? 'bg-orange-500/20 text-orange-500' : 'bg-white/10 text-white'
+            isVideo ? 'bg-brand-purple/20 text-brand-purple' : isHype ? 'bg-orange-600/20 text-orange-400' : 'bg-white/10 text-white'
           }`}>
-            {isVideo ? <Video size={24} /> : isHype ? <Zap size={24} className="animate-pulse" /> : <Music size={24} />}
+            {isVideo ? <Video size={24} /> : isHype ? <Zap size={24} className="animate-pulse drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" /> : <Music size={24} />}
           </div>
           <div className={`absolute inset-0 flex items-center justify-center bg-brand-purple/90 transition-all duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover/play:opacity-100'}`}>
             {isPlaying ? <Pause size={20} fill="currentColor" className="text-white" /> : <Play size={20} fill="currentColor" className="text-white ml-0.5" />}
@@ -150,15 +153,19 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             </h3>
             <div className="flex gap-2">
               {isNew && (
-                <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-rose-500/20">
+                <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-rose-500/30">
                   NEW
                 </span>
               )}
               {isHype && (
-                <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-orange-500/20">
-                  <Flame size={10} fill="currentColor" />
+                <motion.span 
+                  animate={{ scale: [1, 1.05, 1] }} 
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 bg-orange-600 text-white text-[9px] font-black uppercase rounded-full tracking-wider shadow-lg shadow-orange-500/40 border border-orange-400/30"
+                >
+                  <Flame size={10} fill="currentColor" className="text-orange-100" />
                   HYPE
-                </span>
+                </motion.span>
               )}
             </div>
           </div>
@@ -287,7 +294,21 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             exit={{ height: 0, opacity: 0 }}
             className="w-full mt-4 rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl relative z-10"
           >
-            <div className="relative aspect-video w-full bg-zinc-900/50">
+            <div className="relative aspect-video w-full bg-zinc-900/50 group/video">
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-between px-4 z-20 pointer-events-none">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSkipPrev?.(); }}
+                  className="w-10 h-10 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:bg-blue-600 transition-all opacity-0 group-hover/video:opacity-100 pointer-events-auto"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSkipNext?.(); }}
+                  className="w-10 h-10 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:bg-blue-600 transition-all opacity-0 group-hover/video:opacity-100 pointer-events-auto"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseInline?.(); }}
                 className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-red-500/80 rounded-xl text-white transition-all border border-white/10 backdrop-blur-md"
@@ -300,7 +321,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 autoPlay={isPlaying}
                 controls
                 playsInline
-                onEnded={() => onCloseInline?.()}
+                onEnded={() => onSkipNext?.() || onCloseInline?.()}
                 controlsList="nodownload"
                 onContextMenu={(e) => e.preventDefault()}
               />
@@ -319,6 +340,20 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             className="w-full mt-4"
           >
             <div className="flex items-center gap-4 bg-zinc-800/80 rounded-2xl px-6 py-4 border border-white/10 shadow-xl backdrop-blur-3xl">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSkipPrev?.(); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSkipNext?.(); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
               <div className="flex-1">
                 <div className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
                   <Volume2 size={10} className="text-blue-400" />
@@ -328,7 +363,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                   src={playingUrl}
                   autoPlay={isPlaying}
                   controls
-                  className="w-full h-8 accent-blue-500"
+                  className="w-full h-8 accent-blue-500 text-xs"
                 />
               </div>
               <button

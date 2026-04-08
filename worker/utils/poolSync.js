@@ -24,7 +24,21 @@ const SOURCES = [
 function sanitizeName(name) {
   if (!name) return name;
   // Replace DJ VickNick or DJ Vick Nick (case-insensitive) with DJ Flowerz
-  return name.replace(/dj\s*vick\s*nick/gi, 'DJ Flowerz');
+  let sanitized = name.replace(/dj\s*vick\s*nick/gi, 'DJ Flowerz');
+  
+  // Also correct common spelling errors in genres/hubs
+  const spellingMap = {
+    'Reggae Fussion': 'Reggae Fusion',
+    'Afrobeat (TBT)': 'Afrobeats (TBT)',
+    'Riddimz F\'': 'Riddimz F',
+    'Bongo Flava (TBT) (TZ)Low Hype': 'Bongo Flava (TBT) (TZ) Low Hype'
+  };
+
+  for (const [bad, good] of Object.entries(spellingMap)) {
+    if (sanitized === bad) return good;
+  }
+  
+  return sanitized;
 }
 
 export async function syncPool(env) {
@@ -88,40 +102,62 @@ export async function syncPool(env) {
           const parts = item.key.split('/');
           const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'];
-          const YEAR_REGEX = /^\d{4}$/;
+          const YEAR_REGEX = /\b(20\d{2})\b/; // Matches 2000-2099
 
-          if (parts.length >= 2) {
+          // --- 1. Extract metadata from parts ---
+          let foundYear;
+          let foundMonth;
+          
+          for (const p of parts) {
+            // Find year (e.g. "2026 VIDEO POOL EDITS" -> 2026)
+            if (!foundYear) {
+              const yearMatch = p.match(YEAR_REGEX);
+              if (yearMatch) foundYear = parseInt(yearMatch[1]);
+            }
+            // Find month (e.g. "March 2026 Edits" -> March)
+            if (!foundMonth) {
+              const monthMatch = MONTH_NAMES.find(m => p.includes(m));
+              if (monthMatch) foundMonth = monthMatch;
+            }
+          }
+          
+          if (foundYear) item.year = foundYear;
+          if (foundMonth) item.month = foundMonth;
+
+          // --- 2. Determine Hub and Genre from path ---
+          if (parts.length >= 1) {
             const topDir = parts[0];
-            const subDir = parts[1];
+            const subDir = parts[1] || 'General';
 
             if (topDir === 'Locals') {
               hub = 'Locals';
-              genre = subDir || 'Locals';
+              genre = subDir;
             } else if (topDir === 'Genres') {
-              hub = 'Genres';
-              genre = subDir || 'Genres';
-            } else if (topDir.includes('Video Pool Edits')) {
+              hub = 'Main Pool';
+              genre = subDir;
+              if (subDir === 'Locals' && parts[2]) genre = parts[2];
+            } else if (topDir.toLowerCase().includes('video pool') || foundYear) {
+              // Any folder with a Year or mention of "Video Pool" goes into the Video Pool hub
               hub = 'Video Pool';
-              genre = (subDir && subDir.length > 3) ? subDir : topDir;
-            } else if (source.origin === 'remix' || topDir === 'Remix & Mashups Hub') {
+              
+              // Determine genre: use subDir if it's not the year/month folder
+              if (subDir && subDir !== 'General' && !MONTH_NAMES.some(m => subDir.includes(m)) && !YEAR_REGEX.test(subDir)) {
+                genre = subDir;
+              } else if (parts[2] && !MONTH_NAMES.some(m => parts[2].includes(m))) {
+                genre = parts[2];
+              } else if (!topDir.toLowerCase().includes('video pool')) {
+                // If it's a year folder but not explicitly "Video Pool", use the year folder name as hint
+                genre = topDir;
+              } else {
+                genre = 'Main Pool Edits';
+              }
+            } else if (source.origin === 'remix' || topDir.toLowerCase().includes('remix')) {
               hub = 'Remix & Mashups Hub';
-              genre = subDir || topDir;
-            } else if (YEAR_REGEX.test(topDir)) {
-              // Path like "2025/Kikuyu/track.mp4" — year is the hub, subfolder is the genre
+              genre = (subDir && subDir !== 'General') ? subDir : 'Mashups';
+            } else {
               hub = topDir;
-              genre = (subDir && subDir.length > 1 && !MONTH_NAMES.includes(subDir) && !YEAR_REGEX.test(subDir))
-                ? subDir
-                : (parts[2] || 'Uncategorized');
-            } else if (MONTH_NAMES.includes(topDir)) {
-              // Path like "March/track.mp4" — month top-level, use subfolder as genre if present
-              genre = (subDir && subDir.length > 1) ? subDir : (item.year ? `${topDir} ${item.year}` : 'Uncategorized');
-            } else if (topDir.length > 2) {
-              // Named folder like "Made In Kenya (DJ Dandana Refixes)" — use it as both hub and genre
-              genre = topDir;
-              hub = topDir;
+              genre = subDir;
             }
-          } else if (parts.length === 1 && parts[0].length > 2) {
-            genre = parts[0];
           }
         }
 
@@ -137,9 +173,15 @@ export async function syncPool(env) {
             title = parts.slice(1).join('-').trim();
           }
 
-          // Apply DJ Name Replacement
+          // Apply DJ Name Replacement & Spelling Correction
           artist = sanitizeName(artist);
           title = sanitizeName(title);
+          genre = sanitizeName(genre);
+          hub = sanitizeName(hub);
+
+          // Month and Year are already extracted and stored in item.year/item.month from the logic above
+          const month = item.month || 'Other';
+          const year = item.year || new Date().getFullYear();
 
           tracksToUpsert.set(safeTrackId, {
             id: safeTrackId,
@@ -149,8 +191,8 @@ export async function syncPool(env) {
             collection_hub: hub,
             audio_url: r2Url,
             download_url: r2Url,
-            release_year: parseInt(item.year) || (new Date().getFullYear()),
-            release_month: item.month || (new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date())),
+            release_year: year,
+            release_month: month,
             created_at: item.uploaded || new Date().toISOString()
           });
         }

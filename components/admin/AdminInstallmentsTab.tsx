@@ -12,7 +12,9 @@ import { useData } from '../../context/DataContext';
 import { User as UserType, Product } from '../../types';
 import CreatePlanModal from './CreatePlanModal';
 
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://api.djflowerz.co.ke';
+import { STORAGE_WORKER_URL } from '../../utils/r2';
+
+const WORKER_URL = STORAGE_WORKER_URL;
 
 interface InstallmentPlan {
   id: string;

@@ -3,13 +3,38 @@
 // Handles PUT /api/admin/store/settings (admin write)
 
 const DEFAULT_SETTINGS = {
+  // Storefront Essentials
   heroLabel: 'Limited Time Launch Offer',
   heroTitle: 'Super Discount for early birds',
+  heroSubtitle: 'Elevate your sound with DJ Flowerz premium music pool and production services.',
+  heroImage: 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?q=80&w=2670&auto=format&fit=crop',
+  ctaText: 'Explore Pool',
+  
+  // Promotional
   promoCode: 'FREE256MAC',
   promoCodeEnabled: true,
-  countdownHours: 12,
-  countdownMinutes: 45,
-  countdownSeconds: 30,
+  
+  // Social Media Handles
+  socials: {
+    facebook: 'https://facebook.com/djflowerz',
+    instagram: 'https://instagram.com/djflowerz',
+    youtube: 'https://youtube.com/@djflowerz',
+    whatsapp: '+254789783258',
+    email: 'admin@djflowerz.co.ke'
+  },
+
+  // Contact Info
+  contacts: {
+    phone: '+254789783258',
+    email: 'admin@djflowerz.co.ke',
+    address: 'Nairobi, Kenya'
+  },
+
+  // Footer & Branding
+  footerText: '© 2024 DJ FLOWERZ. ALL RIGHTS RESERVED.',
+  brandLogo: null,
+
+  // Logistics
   shippingMethods: [],
   shipping: {
     base_weight: 5,

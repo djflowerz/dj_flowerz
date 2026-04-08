@@ -17,7 +17,6 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   subscribe: () => Promise<void>;
-  activateTrial: () => Promise<void>;
   updateUserProfile: (data: Partial<User>) => Promise<void>;
   updateUserPassword: (password: string) => Promise<void>;
   updateUserEmail: (email: string) => Promise<void>;
@@ -89,7 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           auraPoints: profile.aura_points || profile.auraPoints || 0,
           auraLevel: profile.aura_level || profile.auraLevel || 1,
           phoneNumber: profile.phone_number || profile.phoneNumber || '',
-          hasUsedTrial: Boolean(profile.has_used_trial || profile.hasUsedTrial),
+
           createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
           updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
           referralCount: profile.referral_count || profile.referralCount || 0,
@@ -193,7 +192,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           balance: 0,
           auraPoints: 0,
           auraLevel: 1,
-          hasUsedTrial: false,
+
           createdAt: newProfile.created_at,
           updatedAt: newProfile.updated_at
         };
@@ -363,7 +362,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.auraPoints !== undefined) updates.aura_points = data.auraPoints;
       if (data.auraLevel !== undefined) updates.aura_level = data.auraLevel;
       if (data.phoneNumber) updates.phone_number = data.phoneNumber;
-      if (data.hasUsedTrial !== undefined) updates.has_used_trial = data.hasUsedTrial;
+
 
       await updateR2Item('profiles', user.id, updates);
 
@@ -450,48 +449,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const activateTrial = async () => {
-    if (user) {
-      if (user.hasUsedTrial) {
-        throw new Error("You have already used your free trial.");
-      }
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error("Authentication session missing. Please log in again.");
-        }
-
-        const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-        const response = await fetch(`${WORKER_URL}/api/user/trial`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to activate trial on the server.");
-        }
-
-        const data = await response.json();
-
-        setUser(prev => prev ? ({
-          ...prev,
-          isSubscriber: true,
-          subscriptionPlan: 'trial',
-          subscriptionExpiry: data.updatedProfile.subscription_expiry,
-          hasUsedTrial: true
-        }) : null);
-
-      } catch (e: any) {
-        console.error("Failed to activate trial:", e);
-        throw e;
-      }
-    }
-  };
 
   // --- Auto-Remove Expired Subscriptions ---
   useEffect(() => {
@@ -580,7 +538,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       logout,
       subscribe,
       updateUserProfile,
-      activateTrial,
       updateUserPassword,
       updateUserEmail,
       reauthenticate,

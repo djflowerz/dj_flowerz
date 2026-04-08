@@ -12,14 +12,14 @@ interface AccessDeniedProps {
 }
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
-    const { user, activateTrial, refreshProfile } = useAuth() as any;
+    const { user, refreshProfile } = useAuth() as any;
     const { subscriptionPlans, plansLoading } = useData();
     const navigate = useNavigate();
     const location = useLocation();
     const { addToCart } = useCart();
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const eligiblePlans = subscriptionPlans.filter(p => p.active && (!p.isTrial || !user?.hasUsedTrial));
+    const eligiblePlans = subscriptionPlans.filter(p => p.active);
     const [selectedPlanId, setSelectedPlanId] = useState<string>('');
     
     // Set initial selection when plans load
@@ -38,19 +38,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
             return;
         }
 
-        if (selectedPlan.price === 0) {
-            // Free Trial
-            const trialToast = toast.loading("Activating your free trial...");
-            try {
-                await activateTrial();
-                toast.success("Free trial activated! Enjoy the Music Pool.", { id: trialToast });
-                if (onJoinSuccess) onJoinSuccess();
-                else window.location.reload();
-            } catch (error: any) {
-                toast.error(error.message || "Failed to activate trial", { id: trialToast });
-            }
-            return;
-        }
+
 
         // Direct Paystack Redirect Payment
         setIsProcessing(true);
@@ -174,7 +162,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                         ) : user ? (
                             <>
                                 <CreditCard className="w-6 h-6" />
-                                Pay KES {selectedPlan.price.toLocaleString()} via Paystack
+                                {selectedPlan ? `Pay KES ${selectedPlan.price.toLocaleString()} via Paystack` : 'Select a Plan'}
                             </>
                         ) : (
                             <>

@@ -15,73 +15,47 @@ export async function handleScheduled(event, env, ctx) {
         const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
         const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 
-        // 1. Find trials expiring in the next 24 hours that haven't had a warning sent
-        const expiringTrials = await env.DB.prepare(`
-            SELECT t.*, p.email 
-            FROM trial_usage t
-            JOIN profiles p ON t.supabase_user_id = p.id
-            WHERE t.status = 'active' 
-            AND t.trial_expires_at <= ? 
-            AND t.warning_sent = 0
-        `).bind(tomorrow).all();
 
-        if (expiringTrials.results && expiringTrials.results.length > 0) {
-            for (const trial of expiringTrials.results) {
-                console.log(`[Cron] Sending warning to ${trial.email}`);
-                // TODO: Integrate with Resend API
-                // await sendExpiryWarningEmail(trial.email, env);
-                
-                await env.DB.prepare(`
-                    UPDATE trial_usage SET warning_sent = 1 WHERE canonical_email = ?
-                `).bind(trial.canonical_email).run();
-            }
-        }
-
-        // 2. Find expired trials
-        const expiredTrials = await env.DB.prepare(`
-            SELECT * FROM trial_usage 
-            WHERE status = 'active' 
-            AND trial_expires_at <= ?
-        `).bind(now).all();
-
-        if (expiredTrials.results && expiredTrials.results.length > 0) {
-            for (const trial of expiredTrials.results) {
-                console.log(`[Cron] Expiring trial for ${trial.supabase_user_id}`);
-                
-                // Batch update: set status to expired and revoke subscriber access in profiles
-                await env.DB.batch([
-                    env.DB.prepare(`UPDATE trial_usage SET status = 'expired' WHERE canonical_email = ?`).bind(trial.canonical_email),
-                    env.DB.prepare(`UPDATE profiles SET is_subscriber = 0, subscription_plan = NULL WHERE id = ?`).bind(trial.supabase_user_id)
-                ]);
-
-                // Update R2 Cache
-                const userId = trial.supabase_user_id;
-                const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
-                if (existingR2) {
-                    const r2Profile = await existingR2.json();
-                    r2Profile.is_subscriber = 0;
-                    r2Profile.subscription_plan = null;
-                    r2Profile.updated_at = new Date().toISOString();
-                    await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
-                }
-            }
-        }
-
-        // 3. Expire General Subscriptions (non-trial)
         const expiredSubs = await env.DB.prepare(`
             UPDATE profiles 
             SET is_subscriber = 0, subscription_plan = NULL 
             WHERE is_subscriber = 1 
             AND subscription_expiry IS NOT NULL 
             AND datetime(subscription_expiry) < datetime('now')
-            RETURNING id
+            RETURNING id, email, full_name
         `).run();
 
         if (expiredSubs.results && expiredSubs.results.length > 0) {
             console.log(`[Cron] Expired ${expiredSubs.results.length} regular subscriptions.`);
-            // Update R2 Cache for each expired user
             for (const row of expiredSubs.results) {
-                const userId = row.id;
+                const { id: userId, email, full_name } = row;
+                
+                // 1. Send Expiry Email
+                if (email) {
+                    try {
+                        await sendEmail({
+                            to: email,
+                            subject: 'Your Premium Access has Expired 🎧',
+                            html: `
+                                <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff; border-radius: 12px; max-width: 500px; margin: 0 auto;">
+                                    <h2 style="color: #ef4444;">Access Expired</h2>
+                                    <p>Hello ${full_name || 'Legend'},</p>
+                                    <p>Your subscription to the DJ FLOWERZ Music Pool has expired.</p>
+                                    <p>To continue downloading the latest remixes, video edits, and mashups, please renew your plan.</p>
+                                    <div style="margin-top: 30px;">
+                                        <a href="https://www.djflowerz.co.ke/checkout" style="background: #a855f7; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Renew Access</a>
+                                    </div>
+                                    <p style="font-size: 11px; color: #6b7280; margin-top: 25px;">Keep the vibes alive! - DJ Flowerz Team</p>
+                                </div>
+                            `,
+                            text: `Hello ${full_name}, your subscription has expired. Renew here: https://www.djflowerz.co.ke/checkout`
+                        }, env);
+                    } catch (e) {
+                         console.error(`[Cron] Expiry email failed for ${email}:`, e);
+                    }
+                }
+
+                // 2. Update R2 Cache
                 try {
                     const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
                     if (existingR2) {
@@ -95,6 +69,60 @@ export async function handleScheduled(event, env, ctx) {
                     console.error(`[Cron] Failed to update R2 for expired user ${userId}:`, r2Err);
                 }
             }
+
+            // Log activity
+            await env.DB.prepare("INSERT INTO admin_logs (action, details) VALUES (?, ?)")
+                .bind("EXPIRY_NOTIFICATIONS_SENT", `${expiredSubs.results.length} expiry emails sent`).run();
+        }
+
+        // 4. Send Reminders (Expiring in 24-48 hours)
+        try {
+            const expiringSoon = await env.DB.prepare(`
+                SELECT email, full_name, subscription_expiry 
+                FROM profiles 
+                WHERE is_subscriber = 1 
+                AND subscription_expiry IS NOT NULL 
+                AND datetime(subscription_expiry) > datetime('now')
+                AND datetime(subscription_expiry) < datetime('now', '+2 days')
+                AND (last_reminder_sent IS NULL OR datetime(last_reminder_sent) < datetime('now', '-7 days'))
+            `).all();
+
+            if (expiringSoon.results && expiringSoon.results.length > 0) {
+                let count = 0;
+                for (const dj of expiringSoon.results) {
+                    if (!dj.email) continue;
+                    
+                    const success = await sendEmail({
+                        to: dj.email,
+                        subject: "Don't Stop the Music! 🎧 Your Access Expires Soon",
+                        html: `
+                            <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff; border-radius: 12px; max-width: 500px; margin: 0 auto;">
+                                <h2 style="color: #a855f7;">Heads Up, ${dj.full_name || 'Legend'}!</h2>
+                                <p>Your <strong>DJ Flowerz Music Pool</strong> access is set to expire soon.</p>
+                                <p>Renew today to ensure you don't lose access to the latest remixes, club edits, and exclusive mashups.</p>
+                                <div style="background: #15151a; padding: 15px; border-radius: 8px; border: 1px solid #333; margin: 20px 0;">
+                                    <p style="margin: 0; font-size: 14px;"><strong>Expires on:</strong> ${new Date(dj.subscription_expiry).toLocaleDateString()}</p>
+                                </div>
+                                <a href="https://www.djflowerz.co.ke/checkout" style="background: #a855f7; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Renew Now</a>
+                            </div>
+                        `,
+                        text: `Hi ${dj.full_name}, your music pool access expires on ${new Date(dj.subscription_expiry).toLocaleDateString()}. Renew here: https://www.djflowerz.co.ke/checkout`
+                    }, env);
+
+                    if (success) {
+                        count++;
+                        await env.DB.prepare("UPDATE profiles SET last_reminder_sent = ? WHERE email = ?")
+                            .bind(new Date().toISOString(), dj.email).run();
+                    }
+                }
+                
+                if (count > 0) {
+                    await env.DB.prepare("INSERT INTO admin_logs (action, details) VALUES (?, ?)")
+                        .bind("EXPIRY_REMINDERS_SENT", `${count} reminder emails sent`).run();
+                }
+            }
+        } catch (remindError) {
+            console.error("[Cron] Expiry Reminder Error:", remindError);
         }
 
         console.log("[Cron] General maintenance complete.");

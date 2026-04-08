@@ -41,6 +41,10 @@ export const getEmbedUrl = (url: string = ''): string | null => {
     return null;
 };
 
+export const isMediafire = (url: string = ''): boolean => {
+    return url.toLowerCase().includes('mediafire.com');
+};
+
 export const isDirectLink = (url: string = ''): boolean => {
     if (!url) return false;
     const cleanUrl = url.split('?')[0].toLowerCase();

@@ -3,23 +3,27 @@
 import { sendEmail } from '../../utils/email.js';
 
 const PLAN_DURATIONS = {
-    trial: 7,      // 7 days
     weekly: 7,
     monthly: 30,
     pro: 365
 };
 
-export async function handleDashboardSubscriptions(request, env) {
+export async function handleDashboardSubscriptions(request, env, ctx, params) {
     const url = new URL(request.url);
     const method = request.method;
+    const id = params?.id;
 
-    // Verify admin authorization
+    // Verify admin authorization (unless it's public plans)
+    const isPublicPlans = url.pathname === '/api/plans';
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-        });
+    
+    if (!isPublicPlans) {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
     }
 
     try {
@@ -110,31 +114,29 @@ export async function handleDashboardSubscriptions(request, env) {
                 // Revoke: set is_subscriber=0 and subscription_plan to null
                 await env.DB.prepare(
                     `UPDATE profiles SET is_subscriber = 0, subscription_plan = NULL,
-                     subscription_expiry = NULL, updated_at = ?
+                     subscription_expiry = NULL
                      WHERE id = ?`
-                ).bind(nowIso, targetId).run();
+                ).bind(targetId).run();
 
                 // Also mark active subscriptions as cancelled
                 await env.DB.prepare(
-                    `UPDATE subscriptions SET status = 'cancelled', updated_at = ?
-                     WHERE user_id = ? AND status = 'active'`
-                ).bind(nowIso, targetId).run();
+                    `UPDATE subscriptions SET status = 'cancelled'
+                     WHERE user_email = ? AND status = 'active'`
+                ).bind(targetEmail).run();
 
                 // Send Revocation Email
                 if (targetEmail) {
                     try {
                         await sendEmail({
                             to: targetEmail,
-                        subject: 'Subscription Status Update - DJ FLOWERZ',
-                        fromEmail: 'admin@djflowerz.co.ke',
-                        fromName: 'DJ Flowerz Admin',
-                        html: `
-                                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                    <h1 style="color: #ef4444; margin-bottom: 20px;">Subscription Revoked</h1>
-                                    <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${targetName}, your premium subscription has been revoked by the administrator.</p>
-                                    <p style="color: #9ca3af; font-size: 14px;">If you believe this is an error, please reach out to our support team.</p>
-                                    <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                    <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ OFFICIAL</p>
+                            subject: 'Subscription Status Update - DJ FLOWERZ',
+                            fromEmail: 'admin@djflowerz.co.ke',
+                            fromName: 'DJ Flowerz Admin',
+                            html: `
+                                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #000; padding: 30px; border-radius: 10px; color: white;">
+                                    <h2 style="color: red;">Access Revoked</h2>
+                                    <p>Your subscription access to DJ FLOWERZ has been revoked by an administrator.</p>
+                                    <p>If you believe this is an error, please contact support.</p>
                                 </div>
                             `,
                             text: `Hello ${targetName}, your subscription has been revoked. Contact support if you have any questions.`
@@ -173,11 +175,10 @@ export async function handleDashboardSubscriptions(request, env) {
                 ).bind(displayPlan, newExpiryIso, nowIso, targetId).run();
 
                 // Create a record in subscriptions table
-                const subId = crypto.randomUUID();
                 await env.DB.prepare(
-                    `INSERT INTO subscriptions (id, user_id, plan, status, start_date, end_date, created_at, updated_at)
-                     VALUES (?, ?, ?, 'active', ?, ?, ?, ?)`
-                ).bind(subId, targetId, displayPlan, nowIso, newExpiryIso, nowIso, nowIso).run();
+                    `INSERT INTO subscriptions (user_email, plan_name, amount, status, starts_at, expires_at)
+                     VALUES (?, ?, 0, 'active', ?, ?)`
+                ).bind(targetEmail, displayPlan, nowIso, newExpiryIso).run();
 
                 // Send Welcome/Extension Email
                 if (targetEmail) {
@@ -188,18 +189,14 @@ export async function handleDashboardSubscriptions(request, env) {
                             fromEmail: 'admin@djflowerz.co.ke',
                             fromName: 'DJ Flowerz Admin',
                             html: `
-                                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0b0b0f; border: 1px solid #1a1a20; padding: 40px; color: #ffffff;">
-                                    <h1 style="color: #a855f7; margin-bottom: 20px;">Welcome to Premium!</h1>
-                                    <p style="font-size: 16px; color: #9ca3af; line-height: 1.6;">Hello ${targetName}, your <strong>${displayPlan.toUpperCase()}</strong> plan is now active.</p>
-                                    <div style="background: #15151a; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #ffffff10;">
-                                        <h3 style="color: #ffffff; margin-top: 0;">Access Details</h3>
-                                        <p style="margin: 5px 0; color: #9ca3af;">Plan: ${displayPlan.toUpperCase()}</p>
-                                        <p style="margin: 5px 0; color: #9ca3af;">Expiry: ${newExpiry.toLocaleDateString()}</p>
+                                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #000; padding: 30px; border-radius: 10px; color: white;">
+                                    <h2 style="color: #a855f7;">Premium Access Enabled! 🚀</h2>
+                                    <p>Your account has been granted a <strong>${displayPlan.toUpperCase()}</strong> subscription.</p>
+                                    <p>This gives you full access to the DJ FLOWERZ Music Pool.</p>
+                                    <div style="background: #111; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #333;">
+                                        <p style="margin: 0;"><strong>Active Until:</strong> ${new Date(newExpiryIso).toLocaleDateString()}</p>
                                     </div>
-                                    <p style="color: #9ca3af; font-size: 14px;">You now have full access to the Music Pool and exclusive mixtapes. Happy listening!</p>
-                                    <a href="https://djflowerz.co.ke/music-pool" style="display: inline-block; background: #a855f7; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px;">Enter Music Pool</a>
-                                    <hr style="border: 0; border-top: 1px solid #ffffff08; margin: 30px 0;">
-                                    <p style="font-size: 10px; color: #4b5563; text-align: center;">DJ FLOWERZ • Nairobi, Kenya</p>
+                                    <a href="https://djflowerz.co.ke/pool" style="display: inline-block; background: #a855f7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Access Music Pool</a>
                                 </div>
                             `,
                             text: `Hello ${targetName}, your ${displayPlan} plan is now active! Visit djflowerz.co.ke/music-pool to start.`
@@ -224,14 +221,16 @@ export async function handleDashboardSubscriptions(request, env) {
         }
 
         // --- Subscription Plans ---
-        if (url.pathname === '/api/admin/subscription_plans') {
+        if (url.pathname === '/api/admin/subscription_plans' || url.pathname === '/api/plans' || url.pathname === '/api/admin/plans') {
             if (method === 'GET') {
                 const { results } = await env.DB.prepare(
-                    `SELECT * FROM subscription_plans ORDER BY price ASC`
+                    `SELECT * FROM subscription_plans WHERE active = 1 ORDER BY price ASC`
                 ).all();
                 const formatted = results.map(p => ({
                     ...p,
-                    features: p.features ? JSON.parse(p.features) : []
+                    features: p.features ? JSON.parse(p.features) : [],
+                    isBestValue: p.is_best_value === 1,
+                    isEliteChoice: p.is_elite_choice === 1
                 }));
                 return Response.json(formatted);
             }
@@ -247,7 +246,7 @@ export async function handleDashboardSubscriptions(request, env) {
         }
 
         if (url.pathname.startsWith('/api/admin/subscription_plans/')) {
-            const id = url.pathname.split('/').pop();
+            const planId = id || url.pathname.split('/').pop();
             if (method === 'PATCH' || method === 'PUT') {
                 const data = await request.json();
                 await env.DB.prepare(`
@@ -259,11 +258,11 @@ export async function handleDashboardSubscriptions(request, env) {
                         link = COALESCE(?, link), 
                         active = COALESCE(?, active)
                     WHERE id = ?
-                `).bind(data.name, data.price, data.period, data.features ? JSON.stringify(data.features) : null, data.link, data.active !== undefined ? (data.active ? 1 : 0) : null, id).run();
+                `).bind(data.name, data.price, data.period, data.features ? JSON.stringify(data.features) : null, data.link, data.active !== undefined ? (data.active ? 1 : 0) : null, planId).run();
                 return Response.json({ success: true });
             }
             if (method === 'DELETE') {
-                await env.DB.prepare(`DELETE FROM subscription_plans WHERE id = ?`).bind(id).run();
+                await env.DB.prepare(`DELETE FROM subscription_plans WHERE id = ?`).bind(planId).run();
                 return Response.json({ success: true });
             }
         }

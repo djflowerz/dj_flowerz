@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Pause, Download, Share2, Video, Music, Calendar, Clock, Star, MessageSquare, Send, User, Youtube, MessageCircle, Instagram, Twitter, Facebook, ChevronDown, ChevronRight, ThumbsUp, RefreshCw, Heart } from 'lucide-react';
+import { Share2, Heart, Youtube, MessageSquare, Send, Download, ExternalLink, Play, Pause, Calendar, Clock, Music, RefreshCw, MessageCircle, Instagram, Twitter, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
-import { getEmbedUrl, isStreamable } from '../utils/embedHelper';
+import { getEmbedUrl, isStreamable, isMediafire } from '../utils/embedHelper';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Comment } from '../types';
 import ProductReviews from '../components/ProductReviews';
@@ -46,16 +46,6 @@ const MixtapeDetails: React.FC = () => {
 
    const isCurrent = currentTrack?.id === mixtape.id;
 
-   console.log(`[MixtapeDetails] Total mixtapes: ${mixtapes.length}`);
-   console.log(`[MixtapeDetails] ID from URL: "${id}"`);
-   if (mixtape) {
-      console.log(`[MixtapeDetails] Found mix title: "${mixtape.title}", ID: "${mixtape.id}"`);
-      console.log(`[MixtapeDetails] URLs - Audio: "${mixtape.audioUrl}", Download: "${mixtape.downloadUrl}"`);
-      console.log(`[MixtapeDetails] Duration: "${mixtape.duration}"`);
-   } else {
-      console.log(`[MixtapeDetails] No mixtape found at all!`);
-   }
-
    const handleShare = () => {
       if (navigator.share) {
          navigator.share({
@@ -84,22 +74,20 @@ const MixtapeDetails: React.FC = () => {
       }
    };
 
-   const mixtapeComments = (comments || []).filter((c: Comment) => c.mixtapeId === mixtape?.id && (c.status === 'published' || c.status === 'pending'));
+   const mixtapeComments = (comments || []).filter((c: Comment) => c.mixtapeId === mixtape?.id && (c.status === 'approved' || c.status === 'pending'));
    const socials = siteConfig?.socials || {};
 
-   const handleDownload = async (url: string, type: 'mixtape_audio' | 'mixtape_video') => {
-      if (!mixtape) return;
+   const handleDownload = async () => {
+      if (!mixtape || !mixtape.audioUrl) return;
 
-      const fileName = type === 'mixtape_audio'
-         ? `${mixtape.artist || 'DJ Flowerz'} - ${mixtape.title}.mp3`
-         : `${mixtape.artist || 'DJ Flowerz'} - ${mixtape.title}.mp4`;
+      const fileName = `${mixtape.artist || 'DJ Flowerz'} - ${mixtape.title}.mp3`;
 
-      await downloadFileSecurely(url, {
+      await downloadFileSecurely(mixtape.audioUrl, {
          fileName,
          trackId: mixtape.id,
          artist: mixtape.artist || 'DJ Flowerz',
          title: mixtape.title,
-         type
+         type: 'mixtape_audio'
       });
    };
 
@@ -150,7 +138,7 @@ const MixtapeDetails: React.FC = () => {
                   </p>
 
                   {/* Embed Player Section */}
-                   {isStreamable(mixtape.audioUrl) && (
+                   {isStreamable(mixtape.audioUrl) && !isMediafire(mixtape.audioUrl) && (
                       <div className="mb-8 rounded-[2rem] overflow-hidden border border-white/10 bg-black/40 shadow-2xl flex flex-col items-center justify-center min-h-[120px]">
                           {getEmbedUrl(mixtape.audioUrl) ? (
                              <iframe
@@ -175,10 +163,40 @@ const MixtapeDetails: React.FC = () => {
                       </div>
                    )}
 
+                   {isMediafire(mixtape.audioUrl) && (
+                      <div className="mb-8 p-8 rounded-[2rem] bg-amber-500/10 border border-amber-500/20 text-center space-y-4">
+                         <div className="mx-auto w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-500">
+                            <ExternalLink size={32} />
+                         </div>
+                         <div>
+                            <h3 className="text-xl font-bold text-white">Mediafire Link detected</h3>
+                            <p className="text-gray-400 max-w-md mx-auto">This mixtape is stored on Mediafire. To listen or download, please use the button below to visit the official hosting page.</p>
+                         </div>
+                         <a 
+                            href={mixtape.audioUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-8 py-4 bg-amber-500 text-white font-bold rounded-2xl hover:bg-amber-600 transition"
+                         >
+                            Open on Mediafire <ExternalLink size={18} />
+                         </a>
+                      </div>
+                   )}
+
                   <div className="flex flex-col sm:flex-row gap-4 mb-8">
                      <button onClick={handleShare} className="flex-1 px-6 py-4 bg-[#15151A] border border-white/20 text-white font-bold rounded-lg hover:bg-white/10 transition flex items-center justify-center gap-2">
                         <Share2 size={20} /> Share
                      </button>
+                     
+                     {mixtape.audioUrl && (
+                       <button 
+                          onClick={handleDownload}
+                          className="flex-1 px-6 py-4 bg-brand-purple text-white font-bold rounded-lg hover:bg-purple-600 transition flex items-center justify-center gap-2 shadow-lg shadow-brand-purple/20"
+                       >
+                          <Download size={20} /> Download Mix
+                       </button>
+                     )}
+
                      <button 
                         onClick={() => mixtape && toggleWishlist(mixtape.id, 'mixtape')}
                         className={`px-6 py-4 rounded-lg border transition group flex items-center justify-center gap-2 font-bold ${isInWishlist(mixtape.id) ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[#15151A] border-white/20 text-gray-400 hover:text-red-500'}`}

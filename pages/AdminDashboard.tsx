@@ -23,7 +23,7 @@ import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 
-import { uploadFileToR2, saveToR2, updateR2Item } from '../utils/r2';
+import { uploadFileToR2, saveToR2, updateR2Item, STORAGE_WORKER_URL } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
 
@@ -236,7 +236,7 @@ const INITIAL_PRODUCT_STATE: Product = {
 };
 
 const INITIAL_MIXTAPE_STATE: Mixtape = {
-   id: '', title: '', slug: '', genre: '3-Step & Amapiano', description: '', releaseDate: new Date().toISOString().split('T')[0], status: 'draft', coverUrl: '', audioUrl: '', duration: '00:00', allowFullStream: true, allowDownload: true, downloadType: 'free', streamQuality: 'high', tracklist: [], isFeatured: false, showInGallery: true, showInMusicPool: false, tags: [], enableComments: true, requireLoginToComment: false, moderateComments: false, isExclusive: false
+   id: '', title: '', slug: '', genre: '3-Step & Amapiano', description: '', releaseDate: new Date().toISOString().split('T')[0], status: 'published', coverUrl: '', audioUrl: '', duration: '00:00', allowFullStream: true, allowDownload: true, downloadType: 'free', streamQuality: 'high', tracklist: [], isFeatured: false, showInGallery: true, showInMusicPool: false, tags: [], enableComments: true, requireLoginToComment: false, moderateComments: false, isExclusive: false
 };
 
 const INITIAL_BOOKING_STATE: Partial<Booking> = { clientName: '', serviceType: 'manual', date: '', time: '', status: 'confirmed', paymentStatus: 'pending', budget: '' };
@@ -279,7 +279,7 @@ const AdminDashboard: React.FC = () => {
       { id: 'marketing', label: 'Marketing', icon: Tag },
       { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
       { id: 'content', label: 'Site Content', icon: Globe },
-      { id: 'users', label: 'Users', icon: Users },
+      { id: 'users', label: 'Profiles', icon: Users },
       { id: 'referrals', label: 'Referrals', icon: Gift },
       { id: 'payments', label: 'Payments', icon: CreditCard },
       { id: 'live-chat', label: 'Live Chat', icon: MessageSquare },
@@ -1350,25 +1350,41 @@ const AdminDashboard: React.FC = () => {
    };
 
 
-   const handleRevokeSubscription = (subId: string) => {
-      if (confirm("Are you sure you want to revoke this subscription? User access will be removed immediately.")) {
-         updateSubscription(subId, { status: 'expired', expiryDate: new Date().toISOString() });
+   const handleRevokeSubscription = async (userEmail: string) => {
+      if (!userEmail) return;
+      try {
+         const { data: { session } } = await supabase.auth.getSession();
+         const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/revoke-access`, {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({ email: userEmail })
+         });
+
+         const data = await res.json();
+         if (!res.ok) throw new Error(data.error || 'Revoke failed');
+         
+         toast.success("Protocol Terminated: Access revoked for " + userEmail);
+         // Refresh local state
+         if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
+      } catch (e: any) {
+         console.error("Revoke failed:", e);
+         toast.error("Operation Failed: " + e.message);
       }
    }
 
    const handleSyncSubscription = async (id: string, status: string, expiry: string) => {
       // Re-trigger update logic in DataContext using updateSubscription
-      if (!confirm("Sync user access? This will update the user's profile based on subscription status.")) return;
-
       try {
          await updateSubscription(id, {
             status: status as any,
             expiryDate: expiry
          });
-         alert("User profile synced successfully.");
       } catch (e: any) {
          console.error("Sync failed:", e);
-         alert("Sync failed: " + e.message);
+         throw e;
       }
    }
 
@@ -2118,7 +2134,14 @@ const AdminDashboard: React.FC = () => {
                                     </tr>
                                  ) : (
                                     (liveSubscriptions || []).map((sub) => {
-                                       const isExpired = new Date() > new Date(sub.expiryDate);
+                                       const expiry = sub.expiryDate ? new Date(sub.expiryDate) : null;
+                                       const isExpired = !expiry || new Date() > expiry;
+                                       
+                                       // Calculate days left
+                                       const now = new Date();
+                                       const diffTime = expiry ? expiry.getTime() - now.getTime() : 0;
+                                       const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
                                        return (
                                           <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6">
@@ -2132,24 +2155,45 @@ const AdminDashboard: React.FC = () => {
                                                 <div className="text-white font-black">KES {sub.amount?.toLocaleString() || '0'}</div>
                                              </td>
                                              <td className="px-8 py-6 font-black font-display text-xs tracking-wider text-gray-400">
-                                                {new Date(sub.expiryDate).toLocaleDateString()}
+                                                {expiry && expiry.getTime() > 0 ? expiry.toLocaleDateString() : 'N/A'}
+                                                {expiry && !isExpired && (
+                                                   <div className="text-[9px] text-brand-cyan mt-1 uppercase tracking-widest">{diffDays} days left</div>
+                                                )}
                                              </td>
                                              <td className="px-8 py-6">
                                                 <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${!isExpired && sub.status === 'active'
                                                    ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20'
                                                    : 'bg-red-500/5 text-red-500 border-red-500/20'
                                                    }`}>
-                                                   {!isExpired && sub.status === 'active' ? 'Locked On' : 'Frequency Lost'}
+                                                   {!isExpired && sub.status === 'active' ? 'Signal Locked' : 'Frequency Lost'}
                                                 </span>
                                              </td>
                                              <td className="px-8 py-6 text-right">
                                                 <div className="flex justify-end gap-3">
-                                                   {sub.status === 'active' && !isExpired && (
+                                                   {(sub.status === 'active' || sub.status === 'past_due') && (
                                                       <>
-                                                         <button onClick={() => handleSyncSubscription(sub.id, sub.status, sub.expiryDate)} className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110">
+                                                         <button 
+                                                            onClick={() => {
+                                                               toast.promise(handleSyncSubscription(sub.id, sub.status, sub.expiryDate), {
+                                                                  loading: 'Resynchronizing signal...',
+                                                                  success: 'Signal restored',
+                                                                  error: 'Sync failed'
+                                                               });
+                                                            }} 
+                                                            className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110"
+                                                            title="Sync with D1"
+                                                         >
                                                             <RefreshCw size={18} />
                                                          </button>
-                                                         <button onClick={() => handleRevokeSubscription(sub.id)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all">
+                                                         <button 
+                                                            onClick={() => {
+                                                               if (confirm(`Revoke access for ${sub.userEmail}?`)) {
+                                                                  handleRevokeSubscription(sub.userEmail);
+                                                               }
+                                                            }} 
+                                                            className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"
+                                                            title="Terminate Protocol"
+                                                         >
                                                             <UserX size={18} />
                                                          </button>
                                                       </>

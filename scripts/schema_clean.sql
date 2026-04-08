@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS profiles (
     is_subscriber       BOOLEAN DEFAULT 0,
     current_plan        TEXT DEFAULT 'none',      -- 'none' | 'monthly' | 'quarterly' | 'biannual'
     subscription_expiry DATETIME,
-    has_used_trial      BOOLEAN DEFAULT 0,
     -- Pool access tracking
     daily_download_count INTEGER DEFAULT 0,
     last_download_reset DATETIME DEFAULT CURRENT_TIMESTAMP,

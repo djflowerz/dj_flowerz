@@ -201,8 +201,7 @@ export async function handlePaystackWebhook(request, env) {
                     '3months': 90,
                     '6months': 180,
                     'yearly': 365,
-                    'pro': 365,
-                    'trial': 7
+                    'pro': 365
                 };
                 
                 // Robust amount-based detection (Fix for generic plan IDs)
@@ -254,14 +253,6 @@ export async function handlePaystackWebhook(request, env) {
                         console.error('[Paystack Webhook] R2 Sync Error:', r2Err);
                     }
 
-                    // 5. Update trial_usage if exists
-                    try {
-                        await env.DB.prepare(`
-                            UPDATE trial_usage SET status = 'paid_subscriber' WHERE supabase_user_id = ?
-                        `).bind(userId).run();
-                    } catch (trialErr) {
-                        console.error('[Paystack Webhook] trial_usage update error:', trialErr);
-                    }
 
                     // 6. Send Activation Email
                     const userEmail = customer?.email || metadata?.userEmail || 'member@djflowerz.co.ke';

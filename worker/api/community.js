@@ -87,7 +87,11 @@ export async function handleCommunity(request, env) {
     // --- Mixtape Comments ---
     if (method === "GET" && path.startsWith("/api/mixtapes/comments/")) {
         const mixtapeId = path.split("/").pop();
-        const { results } = await env.DB.prepare("SELECT * FROM mixtape_comments WHERE mixtape_id = ? AND status = 'approved' ORDER BY created_at DESC").bind(mixtapeId).all();
+        const { results } = await env.DB.prepare(`
+            SELECT * FROM interactions 
+            WHERE target_id = ? AND target_type = 'mixtape' AND type = 'comment' AND status = 'approved' 
+            ORDER BY createdAt DESC
+        `).bind(mixtapeId).all();
         return Response.json(results);
     }
 
@@ -95,28 +99,60 @@ export async function handleCommunity(request, env) {
         const comment = await request.json();
         const id = `cmt_${Date.now()}`;
         await env.DB.prepare(`
-            INSERT INTO mixtape_comments (id, mixtape_id, user_name, text, status)
-            VALUES (?, ?, ?, ?, 'approved')
+            INSERT INTO interactions (id, target_id, target_type, type, userName, content, status)
+            VALUES (?, ?, 'mixtape', 'comment', ?, ?, 'approved')
         `).bind(id, comment.mixtapeId, comment.userName, comment.text).run();
         return Response.json({ success: true, id });
     }
 
     if (path === "/api/admin/comments" && method === "GET") {
-        const { results } = await env.DB.prepare("SELECT * FROM mixtape_comments ORDER BY created_at DESC").all();
-        return Response.json(results);
+        const { results } = await env.DB.prepare("SELECT * FROM interactions WHERE type = 'comment' ORDER BY createdAt DESC").all();
+        return Response.json(results || []);
+    }
+
+    if (path === "/api/admin/reviews" && method === "GET") {
+        const { results } = await env.DB.prepare("SELECT * FROM interactions WHERE type = 'review' ORDER BY createdAt DESC").all();
+        return Response.json(results || []);
+    }
+
+    // Unified Admin Interactions (Approve/Hide/Edit/Delete)
+    if (path.startsWith("/api/admin/interactions")) {
+        const id = path.split("/").pop();
+        
+        if (method === "GET") {
+            const { results } = await env.DB.prepare("SELECT * FROM interactions ORDER BY createdAt DESC").all();
+            return Response.json(results || []);
+        }
+
+        if (method === "PATCH" || method === "PUT") {
+            const data = await request.json();
+            await env.DB.prepare(`
+                UPDATE interactions 
+                SET status = COALESCE(?, status),
+                    content = COALESCE(?, content),
+                    rating = COALESCE(?, rating)
+                WHERE id = ?
+            `).bind(data.status || null, data.content || null, data.rating || null, id).run();
+            return Response.json({ success: true });
+        }
+
+        if (method === "DELETE") {
+            await env.DB.prepare("DELETE FROM interactions WHERE id = ?").bind(id).run();
+            return Response.json({ success: true });
+        }
     }
 
     // --- Reviews ---
     if (path === "/api/reviews") {
         if (method === "GET") {
             const productId = url.searchParams.get("productId");
-            let query = "SELECT * FROM reviews WHERE status = 'approved'";
+            let query = "SELECT * FROM interactions WHERE type = 'review' AND status = 'approved'";
             let params = [];
             if (productId) {
-                query += " AND product_id = ?";
+                query += " AND target_id = ? AND target_type = 'product'";
                 params.push(productId);
             }
-            query += " ORDER BY created_at DESC";
+            query += " ORDER BY createdAt DESC";
             const { results } = await env.DB.prepare(query).bind(...params).all();
             return Response.json(results);
         }
@@ -124,17 +160,13 @@ export async function handleCommunity(request, env) {
             const review = await request.json();
             const id = `rev_${Date.now()}`;
             await env.DB.prepare(`
-                INSERT INTO reviews (id, product_id, user_name, rating, comment, status)
-                VALUES (?, ?, ?, ?, ?, 'approved')
+                INSERT INTO interactions (id, target_id, target_type, type, userName, rating, content, status)
+                VALUES (?, ?, 'product', 'review', ?, ?, ?, 'approved')
             `).bind(id, review.productId, review.userName, review.rating, review.comment).run();
             return Response.json({ success: true, id });
         }
     }
 
-    if (path === "/api/admin/reviews" && method === "GET") {
-        const { results } = await env.DB.prepare("SELECT * FROM reviews ORDER BY created_at DESC").all();
-        return Response.json(results);
-    }
 
     // --- Studio Maintenance ---
     if (path === "/api/admin/studio/maintenance") {

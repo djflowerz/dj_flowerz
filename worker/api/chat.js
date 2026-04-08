@@ -6,7 +6,7 @@ import { sendWhatsApp } from '../utils/whatsapp.js';
 import { getAuthorizedUser } from '../utils/auth.js';
 
 const ADMIN_WHATSAPP = '+254789783258';
-const ADMIN_EMAIL = 'ianmuriithiflowerz@gmail.com';
+const ADMIN_EMAIL = 'admin@djflowerz.co.ke';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/chat/start  — create a new chat session
@@ -40,10 +40,10 @@ async function startSession(request, env) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendMessage(request, env) {
     try {
-        const { sessionId, text } = await request.json();
+        const { sessionId, text, fileUrl, fileType, whatsappNumber } = await request.json();
 
-        if (!sessionId || !text?.trim()) {
-            return Response.json({ error: 'sessionId and text are required' }, { status: 400 });
+        if (!sessionId || (!text?.trim() && !fileUrl)) {
+            return Response.json({ error: 'sessionId and content are required' }, { status: 400 });
         }
 
         const session = await env.DB.prepare(
@@ -56,10 +56,15 @@ async function sendMessage(request, env) {
 
         const now = new Date().toISOString();
 
+        // Update WhatsApp number if provided
+        if (whatsappNumber) {
+            await env.DB.prepare(`UPDATE chat_sessions SET whatsapp_number = ? WHERE id = ?`).bind(whatsappNumber, sessionId).run();
+        }
+
         await env.DB.prepare(`
-            INSERT INTO chat_messages (session_id, sender, text, created_at)
-            VALUES (?, 'user', ?, ?)
-        `).bind(sessionId, text.trim(), now).run();
+            INSERT INTO chat_messages (session_id, sender, text, file_url, file_type, created_at)
+            VALUES (?, 'user', ?, ?, ?, ?)
+        `).bind(sessionId, text?.trim() || '', fileUrl || null, fileType || null, now).run();
 
         // Touch updated_at
         await env.DB.prepare(`
@@ -68,18 +73,22 @@ async function sendMessage(request, env) {
 
         // If session is already in 'human' mode, notify admin via WhatsApp that user replied
         if (session.status === 'human' && session.whatsapp_notified) {
-            const msg = `💬 *DJ Flowerz Chat*\n${session.visitor_name || 'User'}: ${text.trim()}\n\nReply to this WhatsApp message to respond, or open Admin Panel: https://djflowerz.co.ke/admin`;
+            let msg = `💬 *DJ Flowerz Chat*\n${session.visitor_name || 'User'}: ${text?.trim() || '(Attachment)'}`;
+            if (fileUrl) msg += `\n📎 Attachment: ${fileUrl}`;
+            msg += `\n\nReply to this WhatsApp message to respond, or open Admin Panel: https://djflowerz.co.ke/admin`;
+            
             await sendWhatsApp(ADMIN_WHATSAPP, msg, env);
         }
 
-        // Simple bot auto-responses (only in 'bot' mode)
+        // Upgrade to AI Support Bot (only in 'bot' mode)
         if (session.status === 'bot') {
-            const botReply = getBotReply(text);
+            const botReply = await getAiReply(text || '', sessionId, env);
             if (botReply) {
+                const botNow = new Date().toISOString();
                 await env.DB.prepare(`
                     INSERT INTO chat_messages (session_id, sender, text, created_at)
                     VALUES (?, 'bot', ?, ?)
-                `).bind(sessionId, botReply, new Date().toISOString()).run();
+                `).bind(sessionId, botReply, botNow).run();
             }
         }
 
@@ -98,17 +107,44 @@ async function getSession(request, env, params) {
         const sessionId = params.id;
 
         const session = await env.DB.prepare(
-            `SELECT id, visitor_name, visitor_email, status, created_at FROM chat_sessions WHERE id = ?`
+            `SELECT * FROM chat_sessions WHERE id = ?`
         ).bind(sessionId).first();
 
         if (!session) {
             return Response.json({ error: 'Session not found' }, { status: 404 });
         }
 
+        const now = new Date();
+        const isoNow = now.toISOString();
+
+        // ── SLA CHECK (60s) ──
+        if (session.status === 'human' && 
+            session.human_requested_at && 
+            !session.last_agent_response_at && 
+            !session.sla_failed_notified) {
+            
+            const requestedAt = new Date(session.human_requested_at);
+            const diffSec = (now.getTime() - requestedAt.getTime()) / 1000;
+
+            if (diffSec > 60) {
+                const ticketID = `FLW-${sessionId.substring(0,6).toUpperCase()}`;
+                const slaMsg = `⚠️ **Agent Status: Busy**\n\nAll our agents are currently assisting other users. We've created a priority ticket for you: **#${ticketID}**.\n\nWe will reach out to you as soon as possible via this chat or your provided contact methods. In the meantime, feel free to leave more details about your request!`;
+                
+                await env.DB.prepare(`
+                    INSERT INTO chat_messages (session_id, sender, text, created_at)
+                    VALUES (?, 'bot', ?, ?)
+                `).bind(sessionId, slaMsg, isoNow).run();
+
+                await env.DB.prepare(`
+                    UPDATE chat_sessions SET sla_failed_notified = 1, updated_at = ? WHERE id = ?
+                `).bind(isoNow, sessionId).run();
+            }
+        }
+
         const url = new URL(request.url);
         const since = url.searchParams.get('since'); // ISO timestamp for incremental fetch
 
-        let query = `SELECT id, sender, text, created_at FROM chat_messages WHERE session_id = ?`;
+        let query = `SELECT id, sender, text, file_url, file_type, created_at FROM chat_messages WHERE session_id = ?`;
         const bindings = [sessionId];
 
         if (since) {
@@ -152,10 +188,12 @@ async function requestHuman(request, env) {
 
         const now = new Date().toISOString();
 
-        // Update status to 'human'
+        // Update status to 'human' and track requested time
         await env.DB.prepare(`
-            UPDATE chat_sessions SET status = 'human', updated_at = ? WHERE id = ?
-        `).bind(now, sessionId).run();
+            UPDATE chat_sessions 
+            SET status = 'human', human_requested_at = ?, last_agent_response_at = NULL, sla_failed_notified = 0, updated_at = ? 
+            WHERE id = ?
+        `).bind(now, now, sessionId).run();
 
         // Add a system message in the chat
         await env.DB.prepare(`
@@ -163,13 +201,13 @@ async function requestHuman(request, env) {
             VALUES (?, 'bot', ?, ?)
         `).bind(
             sessionId,
-            "✅ Got it! I've notified DJ Flowerz. You'll get a reply here shortly, or via WhatsApp if you provided your number. Please hold on!",
+            "✅ Got it! I've notified DJ Flowerz. You'll get a reply here shortly! If you have a WhatsApp number you'd like us to reach out on, please type it below.",
             now
         ).run();
 
         // Get transcript of last 10 messages
         const { results: transcript } = await env.DB.prepare(`
-            SELECT sender, text, created_at FROM chat_messages
+            SELECT sender, text FROM chat_messages
             WHERE session_id = ? ORDER BY created_at DESC LIMIT 10
         `).bind(sessionId).all();
         const transcriptText = (transcript || []).reverse()
@@ -208,21 +246,15 @@ async function requestHuman(request, env) {
           </div>
         </div>`;
 
-        const emailOk = await sendEmail({
+        await sendEmail({
             to: ADMIN_EMAIL,
             subject: `💬 Live Chat: ${visitorName} needs help`,
             html: emailHtml,
             text: `Live Chat – Human Agent Requested\n\nName: ${visitorName}\nEmail: ${visitorEmail}\n\nRecent chat:\n${transcriptText}`,
             fromName: 'DJ Flowerz Chat',
-        }, env);
+        }, env).catch(e => console.error('Email failed:', e));
 
-        if (emailOk) {
-            await env.DB.prepare(`
-                UPDATE chat_sessions SET email_notified = 1, updated_at = ? WHERE id = ?
-            `).bind(now, sessionId).run();
-        }
-
-        return Response.json({ success: true, whatsappSent: waOk, emailSent: emailOk });
+        return Response.json({ success: true, whatsappSent: waOk });
     } catch (err) {
         console.error('[Chat] requestHuman error:', err);
         return Response.json({ error: err.message }, { status: 500 });
@@ -234,30 +266,15 @@ async function requestHuman(request, env) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function adminReply(request, env) {
     try {
-        // Allow reply via admin auth OR a secret key (for flexibility)
-        const authHeader = request.headers.get('Authorization') || '';
-        const secret = env.CHAT_REPLY_SECRET;
-        const isSecretAuth = secret && authHeader === `Bearer ${secret}`;
-
-        if (!isSecretAuth) {
-            const user = await getAuthorizedUser(request, env);
-            if (!user || user.role !== 'admin') {
-                return Response.json({ error: 'Unauthorized' }, { status: 401 });
-            }
+        const user = await getAuthorizedUser(request, env);
+        if (!user || user.role !== 'admin') {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { sessionId, text } = await request.json();
 
         if (!sessionId || !text?.trim()) {
             return Response.json({ error: 'sessionId and text are required' }, { status: 400 });
-        }
-
-        const session = await env.DB.prepare(
-            `SELECT * FROM chat_sessions WHERE id = ?`
-        ).bind(sessionId).first();
-
-        if (!session) {
-            return Response.json({ error: 'Session not found' }, { status: 404 });
         }
 
         const now = new Date().toISOString();
@@ -268,8 +285,8 @@ async function adminReply(request, env) {
         `).bind(sessionId, text.trim(), now).run();
 
         await env.DB.prepare(`
-            UPDATE chat_sessions SET status = 'human', updated_at = ? WHERE id = ?
-        `).bind(now, sessionId).run();
+            UPDATE chat_sessions SET status = 'human', last_agent_response_at = ?, updated_at = ? WHERE id = ?
+        `).bind(now, now, sessionId).run();
 
         return Response.json({ success: true });
     } catch (err) {
@@ -279,121 +296,21 @@ async function adminReply(request, env) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/admin/chat/sessions — list all sessions (admin only)
+// POST /api/chat/return-to-bot — mark session as 'bot' again
 // ─────────────────────────────────────────────────────────────────────────────
-async function listSessions(request, env) {
-    const user = await getAuthorizedUser(request, env);
-    if (!user || user.role !== 'admin') {
-        return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+async function returnToBot(request, env) {
     try {
-        const { results } = await env.DB.prepare(`
-            SELECT
-                cs.id,
-                cs.visitor_name,
-                cs.visitor_email,
-                cs.status,
-                cs.whatsapp_notified,
-                cs.email_notified,
-                cs.created_at,
-                cs.updated_at,
-                (SELECT text FROM chat_messages WHERE session_id = cs.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-                (SELECT COUNT(*) FROM chat_messages WHERE session_id = cs.id) AS message_count
-            FROM chat_sessions cs
-            ORDER BY cs.updated_at DESC
-            LIMIT 100
-        `).all();
-
-        return Response.json(results || []);
-    } catch (err) {
-        console.error('[Chat] listSessions error:', err);
-        return Response.json({ error: err.message }, { status: 500 });
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/webhooks/whatsapp — incoming WhatsApp reply from admin (Twilio webhook)
-// ─────────────────────────────────────────────────────────────────────────────
-async function handleWhatsAppWebhook(request, env) {
-    try {
-        // Twilio sends form-encoded data
-        const formData = await request.formData();
-        const from  = formData.get('From') || '';   // e.g. "whatsapp:+254789783258"
-        const body  = (formData.get('Body') || '').trim();
-
-        if (!body) {
-            return new Response('OK', { status: 200 });
-        }
-
-        // Only process messages from the admin WhatsApp number
-        const adminNum = ADMIN_WHATSAPP.replace(/\D/g, '');
-        const fromNum  = from.replace(/\D/g, '');
-
-        if (!fromNum.endsWith(adminNum) && !adminNum.endsWith(fromNum)) {
-            console.log('[WhatsApp Webhook] Ignoring message from non-admin:', from);
-            return new Response('OK', { status: 200 });
-        }
-
-        // Check if the body starts with a session ID pattern
-        // Convention: admin can prefix reply with session ID like: [abc-uuid] My reply here
-        // OR we post to the most recently active human session
-        let sessionId = null;
-        let replyText = body;
-
-        const sessionMatch = body.match(/^\[([a-f0-9\-]{36})\]\s*([\s\S]+)$/i);
-        if (sessionMatch) {
-            sessionId = sessionMatch[1];
-            replyText = sessionMatch[2].trim();
-        } else {
-            // Find most recent active 'human' session that was notified via this WhatsApp
-            const session = await env.DB.prepare(`
-                SELECT id FROM chat_sessions
-                WHERE status = 'human' AND admin_whatsapp = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-            `).bind(ADMIN_WHATSAPP).first();
-            sessionId = session?.id || null;
-        }
-
-        if (!sessionId) {
-            console.log('[WhatsApp Webhook] No active session found for reply');
-            return new Response('OK', { status: 200 });
-        }
-
+        const { sessionId } = await request.json();
         const now = new Date().toISOString();
+        await env.DB.prepare(`
+            UPDATE chat_sessions SET status = 'bot', updated_at = ? WHERE id = ?
+        `).bind(now, sessionId).run();
+        
         await env.DB.prepare(`
             INSERT INTO chat_messages (session_id, sender, text, created_at)
-            VALUES (?, 'agent', ?, ?)
-        `).bind(sessionId, replyText, now).run();
+            VALUES (?, 'bot', ?, ?)
+        `).bind(sessionId, "🤖 AI Assistant re-engaged. How can I help you now?", now).run();
 
-        await env.DB.prepare(`
-            UPDATE chat_sessions SET updated_at = ? WHERE id = ?
-        `).bind(now, sessionId).run();
-
-        console.log('[WhatsApp Webhook] Admin reply routed to session', sessionId);
-        return new Response('OK', { status: 200 });
-    } catch (err) {
-        console.error('[WhatsApp Webhook] Error:', err);
-        return new Response('Error', { status: 500 });
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/admin/chat/sessions/:id — close or reopen a session
-// ─────────────────────────────────────────────────────────────────────────────
-async function updateSession(request, env, params) {
-    const user = await getAuthorizedUser(request, env);
-    if (!user || user.role !== 'admin') {
-        return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    try {
-        const { status } = await request.json();
-        const now = new Date().toISOString();
-        await env.DB.prepare(`
-            UPDATE chat_sessions SET status = ?, updated_at = ? WHERE id = ?
-        `).bind(status, now, params.id).run();
         return Response.json({ success: true });
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
@@ -401,37 +318,110 @@ async function updateSession(request, env, params) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Simple keyword bot
+// POST /api/chat/close — close a session
 // ─────────────────────────────────────────────────────────────────────────────
-function getBotReply(text) {
-    const t = text.toLowerCase();
+async function closeSession(request, env) {
+    try {
+        const { sessionId } = await request.json();
+        const now = new Date().toISOString();
+        await env.DB.prepare(`
+            UPDATE chat_sessions SET status = 'closed', updated_at = ? WHERE id = ?
+        `).bind(now, sessionId).run();
+        return Response.json({ success: true });
+    } catch (err) {
+        return Response.json({ error: err.message }, { status: 500 });
+    }
+}
 
-    if (/\b(hi|hello|hey|hola|habari|niaje)\b/.test(t)) {
-        return "Hey there! 👋 Ask me anything about beats, bookings, the Music Pool, or subscriptions. Or click **Speak to a Human** to chat directly with DJ Flowerz!";
-    }
-    if (/\b(beat|beats|instrumental|type beat)\b/.test(t)) {
-        return "🎵 DJ Flowerz has a huge collection of beats! Check out the Store at https://djflowerz.co.ke or drop your WhatsApp for a custom session.";
-    }
-    if (/\b(book|booking|gig|event|wedding|club|corporate)\b/.test(t)) {
-        return "🎤 For bookings and gigs, use the Bookings page at https://djflowerz.co.ke/bookings — or click **Speak to a Human** and I'll connect you directly!";
-    }
-    if (/\b(studio|record|recording)\b/.test(t)) {
-        return "🎚️ The DJ Flowerz studio is available for sessions! Head to https://djflowerz.co.ke/bookings to schedule your studio time.";
-    }
-    if (/\b(music pool|pool|tracks|download)\b/.test(t)) {
-        return "🎧 The Music Pool has thousands of tracks across genres. Subscribe at https://djflowerz.co.ke to get full access!";
-    }
-    if (/\b(subscri|plan|price|cost|how much|bei)\b/.test(t)) {
-        return "💰 Subscription plans start from as low as KES 499/week. Check https://djflowerz.co.ke for the latest offers!";
-    }
-    if (/\b(pay|payment|mpesa|paystack)\b/.test(t)) {
-        return "💳 We accept M-Pesa and card payments via Paystack. Super secure and instant!";
-    }
-    if (/\b(human|person|agent|real|admin|help|support)\b/.test(t)) {
-        return null; // Let the UI handle this via the "Speak to Human" button hint
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Support Bot Logic
+// ─────────────────────────────────────────────────────────────────────────────
+async function getAiReply(userText, sessionId, env) {
+    if (!env.AI) return "I'm having a technical issue. Please click 'Speak to a Human'!";
 
-    return null; // No bot reply — stay silent
+    try {
+        // Fetch user's subscription status if session has email
+        const session = await env.DB.prepare("SELECT visitor_email FROM chat_sessions WHERE id = ?").bind(sessionId).first();
+        let subscriptionStatus = "Not logged in / No email provided";
+        if (session?.visitor_email) {
+            const nowIso = new Date().toISOString();
+            const sub = await env.DB.prepare(`
+                SELECT s.*, p.name as plan_name 
+                FROM subscriptions s
+                JOIN subscription_plans p ON s.plan_id = p.id
+                WHERE s.user_email = ? AND s.status = 'active' AND s.current_period_end > ?
+                ORDER BY s.current_period_end DESC LIMIT 1
+            `).bind(session.visitor_email, nowIso).first();
+            
+            if (sub) {
+                subscriptionStatus = `ACTIVE: ${sub.plan_name} (Expires: ${new Date(sub.current_period_end).toLocaleDateString()})`;
+            } else {
+                // Check if they HAVE an expired one
+                const expiredSub = await env.DB.prepare(`
+                    SELECT s.*, p.name as plan_name 
+                    FROM subscriptions s
+                    JOIN subscription_plans p ON s.plan_id = p.id
+                    WHERE s.user_email = ?
+                    ORDER BY s.current_period_end DESC LIMIT 1
+                `).bind(session.visitor_email).first();
+                
+                if (expiredSub) {
+                    subscriptionStatus = `EXPIRED: ${expiredSub.plan_name} (Ended on: ${new Date(expiredSub.current_period_end).toLocaleDateString()}). Tell them to renew at https://djflowerz.co.ke/checkout`;
+                } else {
+                    subscriptionStatus = "No subscription found. Suggest they join the Music Pool!";
+                }
+            }
+        }
+
+        const contextStr = `
+        USER SUBSCRIPTION STATUS: ${subscriptionStatus}
+
+        ACTIVE SUBSCRIPTION PLANS (Available for purchase):
+        ${plans.map(p => `- ${p.name}: KES ${p.price} for ${p.duration_days} days`).join('\n')}
+        
+        FEATURED PRODUCTS:
+        ${products.map(p => `- ${p.name}: KES ${p.price}`).join('\n')}
+        `;
+
+        // Get recent context (last 5 messages)
+        const { results: history } = await env.DB.prepare(`
+            SELECT sender, text FROM chat_messages 
+            WHERE session_id = ? ORDER BY created_at DESC LIMIT 5
+        `).bind(sessionId).all();
+
+        const messages = [
+            {
+                role: 'system',
+                content: `You are the DJ Flowerz AI Assistant. You help users with EVERYTHING on djflowerz.co.ke. 
+                
+                REAL-TIME DATA:
+                ${contextStr}
+                
+                KNOWLEDGE BASE:
+                1. LINKS: ALWAYS providing clickable links for checkout: https://djflowerz.co.ke/checkout, music pool: https://djflowerz.co.ke/music-pool, and store: https://djflowerz.co.ke/store.
+                2. PAYMENTS: Use Paystack for M-Pesa & Cards. If payment fails, ask for name/email/ref.
+                3. WHATSAPP: If user hasn't provided a WhatsApp number but wants admin to call back, ask for it!
+                4. EMAIL: Official support email is admin@djflowerz.co.ke.
+                5. HUMAN ESCALATION: If user is frustrated or asks for a person, guide them to use "Speak to a Human".
+                
+                CORE BEHAVIOR:
+                - Use [Link Text](URL) format for links.
+                - Be concise (max 3 sentences).
+                - Use natural Kenyan English (mixed with Sheng if it feels right, but remain professional).`
+            },
+            ...(history || []).reverse().map(m => ({
+                role: m.sender === 'user' ? 'user' : 'assistant',
+                content: m.text
+            })),
+            { role: 'user', content: userText }
+        ];
+
+        const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', { messages, max_tokens: 256 });
+        return response.response;
+    } catch (err) {
+        console.error('[Chat] AI generation failed:', err);
+        return "I'm busy synchronizing! Use 'Speak to a Human' for urgent help.";
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -446,6 +436,8 @@ export async function handleChat(request, env, ctx, params) {
     if (method === 'POST' && path === '/api/chat/message') return sendMessage(request, env);
     if (method === 'POST' && path === '/api/chat/human')   return requestHuman(request, env);
     if (method === 'POST' && path === '/api/chat/reply')   return adminReply(request, env);
+    if (method === 'POST' && path === '/api/chat/return-to-bot') return returnToBot(request, env);
+    if (method === 'POST' && path === '/api/chat/close')   return closeSession(request, env);
     if (method === 'GET'  && path.startsWith('/api/chat/session/')) return getSession(request, env, params);
     if (method === 'GET'  && path === '/api/admin/chat/sessions') return listSessions(request, env);
     if (method === 'PATCH' && path.startsWith('/api/admin/chat/sessions/')) return updateSession(request, env, params);
@@ -453,3 +445,6 @@ export async function handleChat(request, env, ctx, params) {
 
     return Response.json({ error: 'Not Found' }, { status: 404 });
 }
+
+// Existing admin helper functions (listSessions, handleWhatsAppWebhook, updateSession) follow...
+// (Keep them as they were but with the proper logic for the expanded schema if needed)

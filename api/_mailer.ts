@@ -38,7 +38,7 @@ export async function sendEmail({ to, subject, html, text, fromName, fromEmail, 
         });
 
         const mailOptions = {
-            from: `"${fromName || DEFAULT_SENDER_NAME}" <${fromEmail || GMAIL_USER}>`,
+            from: `"${fromName || DEFAULT_SENDER_NAME}" <${GMAIL_USER}>`,
             replyTo: replyTo || fromEmail || DEFAULT_REPLY_TO,
             to: Array.isArray(to) ? to.join(', ') : to,
             subject: subject,

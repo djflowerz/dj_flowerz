@@ -12,19 +12,20 @@ import { handleDashboardNewsletter } from './api/dashboard/newsletter.js';
 import { handleDashboardReferrals } from './api/dashboard/referrals.js';
 import { handleDashboardFinances } from './api/dashboard/finances.js';
 import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
-import { handleSyncTrack, handleSyncGenres, handleDeleteTrack, handleBulkSync } from './api/dashboard/pool.js';
+import { handleSyncTrack, handleSyncGenres, handleDeleteTrack, handleBulkSync, handleRefreshPool, handleDashboardTracks } from './api/dashboard/pool.js';
 import { handleStorefrontPool, handleGetSyncNotifications } from './api/storefront/pool.js';
 import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
+import { handleSupabaseWebhook } from './api/webhooks/supabase.js';
 import { handleLegacy } from './api/legacy.js';
 import { handleCommunity } from './api/community.js';
-import { handleTrialActivation, handleTrialStatus } from './api/user/trial.js';
 import { handleBookings } from './api/bookings.js';
 import { handleSupport } from './api/support.js';
 import { handleChat } from './api/chat.js';
 import { handleScheduled } from './utils/cron.js';
 import { AdminHub } from './utils/hub.js';
 import { handleUserInstallments } from './api/user/installments.js';
+import { handleWishlist } from './api/user/wishlist.js';
 import { handleStoreSettings } from './api/dashboard/store_settings.js';
 import { handleDashboardInstallments } from './api/dashboard/installments.js';
 import { handlePaymentInitialize } from './api/storefront/payments.js';
@@ -48,7 +49,11 @@ router.get('/api/reviews', handleCommunity);
 router.post('/api/reviews', handleCommunity);
 router.post('/api/payments/initialize', handlePaymentInitialize);
 router.get('/api/user/installments', handleUserInstallments);
+router.get('/api/plans', handleDashboardSubscriptions);
 router.post('/api/user/installments/pay', handleUserInstallments);
+router.get('/api/user/wishlist', handleWishlist);
+router.post('/api/user/wishlist', handleWishlist);
+router.delete('/api/user/wishlist', handleWishlist);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -80,6 +85,8 @@ router.post('/api/admin/r2-sync', handleR2Sync);
 router.post('/api/admin/r2-upload', handleR2Upload);
 router.post('/api/admin/pool/sync-track', handleSyncTrack);
 router.post('/api/admin/pool/bulk-sync', handleBulkSync);
+router.post('/api/admin/pool/refresh', handleRefreshPool);
+router.get('/api/admin/pool/tracks', handleDashboardTracks);
 router.post('/api/admin/pool/sync-genres', handleSyncGenres);
 router.delete('/api/admin/pool/track', handleDeleteTrack);
 router.get('/api/admin/orders', handleDashboardOrders);
@@ -102,6 +109,7 @@ router.get('/api/admin/active-subscribers', handleDashboardSubscriptions);
 router.get('/api/admin/expiry-watch', handleDashboardSubscriptions);
 router.post('/api/admin/subscriptions/manage', handleDashboardSubscriptions);
 router.get('/api/admin/subscription_plans', handleDashboardSubscriptions);
+router.get('/api/admin/plans', handleDashboardSubscriptions);
 router.post('/api/admin/subscription_plans', handleDashboardSubscriptions);
 router.patch('/api/admin/subscription_plans/:id', handleDashboardSubscriptions);
 router.put('/api/admin/subscription_plans/:id', handleDashboardSubscriptions);
@@ -125,6 +133,7 @@ router.get('/api/admin/referrals/stats', handleDashboardReferrals);
 router.get('/api/admin/referrals/logs', handleDashboardReferrals);
 
 router.get('/api/admin/tips', handleDashboardFinances);
+router.get('/api/admin/finances/tips', handleDashboardFinances); // alias used by Payments page
 router.post('/api/admin/tips', handleDashboardFinances);
 router.get('/api/admin/payments', handleDashboardFinances);
 router.get('/api/admin/dashboard', handleDashboardFinances);
@@ -132,6 +141,15 @@ router.get('/api/admin/stats', handleDashboardFinances);
 router.post('/api/admin/sync-paystack', handleDashboardFinances);
 router.get('/api/admin/usage', handleDashboardUsage);
 router.post('/api/admin/revoke-access', handleDashboardSubscriptions);
+
+// Community & Interactions (Admin)
+router.get('/api/admin/reviews', handleCommunity);
+router.post('/api/admin/reviews', handleCommunity);
+router.get('/api/admin/comments', handleCommunity);
+router.post('/api/admin/comments', handleCommunity);
+router.get('/api/admin/interactions', handleCommunity);
+router.patch('/api/admin/interactions/:id', handleCommunity);
+router.delete('/api/admin/interactions/:id', handleCommunity);
 
 // Lipa Pole Pole (Installments)
 router.get('/api/admin/installments', handleDashboardInstallments);
@@ -142,6 +160,7 @@ router.delete('/api/admin/installments/:id', handleDashboardInstallments);
 
 // Webhooks
 router.post('/api/webhooks/paystack', handlePaystackWebhook);
+router.post('/api/webhooks/supabase', handleSupabaseWebhook);
 
 // Store Settings (public read, admin write)
 router.get('/api/store/settings', handleStoreSettings);
@@ -194,10 +213,6 @@ router.patch('/api/admin/chat/sessions/:id', handleChat);
 // WhatsApp Webhook (Twilio)
 router.post('/api/webhooks/whatsapp', handleChat);
 
-// User Profile
-router.post('/api/user/trial', handleTrialActivation);
-router.get('/api/trial/status', handleTrialStatus);
-
 // Legacy/Mixtapes
 router.get('/api/mixtapes', handleLegacy);
 router.get('/api/data/:collection', handleLegacy);
@@ -234,6 +249,11 @@ export default {
         
         // For Access-Control-Allow-Credentials: true, the origin MUST match exactly.
         const corsOrigin = isWhitelisted ? origin : corsWhitelist[0];
+        if (origin && !isWhitelisted) {
+            console.log(`[CORS] Rejected Origin: ${origin}. Falling back to: ${corsWhitelist[0]}`);
+        } else if (origin) {
+            console.log(`[CORS] Allowed Origin: ${origin}`);
+        }
 
         // Standard CORS headers used for all responses
         const corsHeaders = {
@@ -303,7 +323,13 @@ export default {
 
             // 4. Finalize Response with standardized CORS headers
             const responseHeaders = new Headers(response.headers);
-            Object.entries(corsHeaders).forEach(([k, v]) => responseHeaders.set(k, v));
+            
+            // Only set CORS headers if they aren't already set by the specific handler
+            Object.entries(corsHeaders).forEach(([k, v]) => {
+                if (!responseHeaders.has(k)) {
+                    responseHeaders.set(k, v);
+                }
+            });
 
             // Ensure Content-Type is JSON for API routes if not set
             if (url.pathname.startsWith('/api/') && !responseHeaders.has('Content-Type')) {
