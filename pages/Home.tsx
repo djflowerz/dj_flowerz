@@ -45,7 +45,6 @@ const Home: React.FC = () => {
       const combined = [...featured, ...shuffle(others)];
       setDisplayProducts(combined.slice(0, 8));
    }, [products, user]);
-   }, [products, user]);
 
    return (
       <div className="pb-20">
