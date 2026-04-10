@@ -61,8 +61,8 @@ export async function handleLoyalty(request, env) {
                     env.DB.prepare("UPDATE profiles SET loyalty_points = ? WHERE id = ?").bind(newPoints, userId),
                     // Create coupon
                     env.DB.prepare(`
-                        INSERT INTO coupons (id, code, discount_type, discount_value, max_uses_total, is_active, created_by_ref_user_id, expiry_date)
-                        VALUES (?, ?, 'percentage', ?, 1, 1, ?, datetime('now', '+30 days'))
+                        INSERT INTO coupons (id, code, scope, discount_type, discount_value, usage_limit, is_active, created_by_ref_user_id, expiry_date)
+                        VALUES (?, ?, 'all', 'percentage', ?, 1, 1, ?, datetime('now', '+30 days'))
                     `).bind(crypto.randomUUID(), couponCode, reward.value, userId),
                     // Log history
                     env.DB.prepare(`

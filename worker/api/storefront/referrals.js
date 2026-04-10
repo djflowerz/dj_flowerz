@@ -25,7 +25,7 @@ export async function handleStorefrontReferrals(request, env, ctx, params) {
             const { results: logs } = await env.DB.prepare(`
                 SELECT l.*, u.email as referred_email
                 FROM referral_logs l
-                JOIN users u ON l.referred_id = u.id
+                JOIN profiles u ON l.referred_id = u.id
                 WHERE l.referrer_id = ?
                 ORDER BY l.created_at DESC
                 LIMIT 50

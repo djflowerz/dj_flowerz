@@ -30,10 +30,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         brand: '',
         type: 'physical',
         description: '',
-        category_id: '',
+        category: '',
         is_active: true,
         release_date: new Date().toISOString().split('T')[0],
         image_url: '',
+        images: [] as string[],
         technicalDetails: [] as { title: string; description: string }[],
         hotspots: [] as { x: number; y: number; title: string; description: string }[],
         useCases: [] as { title: string; description: string; icon?: string }[],
@@ -46,7 +47,18 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         material: '',
         shippingSize: '',
         weight: 0,
-        sku: ''
+        sku: '',
+        // Digital fields
+        digital_file_url: '',
+        os: 'None',
+        download_password: '',
+        // Visibility & Marketing
+        is_hot: false,
+        is_featured: false,
+        is_best_seller: false,
+        is_special_offer: false,
+        is_trending: false,
+        offer_expiry: ''
     });
 
     useEffect(() => {
@@ -74,7 +86,17 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 material: product.material || '',
                 shippingSize: product.shipping_size || product.shippingSize || '',
                 weight: product.weight || 0,
-                sku: product.sku || ''
+                sku: product.sku || '',
+                images: product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [],
+                digital_file_url: product.digital_file_url || '',
+                os: product.os || 'None',
+                download_password: product.download_password || '',
+                is_hot: product.is_hot === 1 || product.is_hot === true,
+                is_featured: product.is_featured === 1 || product.is_featured === true,
+                is_best_seller: product.is_best_seller === 1 || product.is_best_seller === true,
+                is_special_offer: product.is_special_offer === 1 || product.is_special_offer === true,
+                is_trending: product.is_trending === 1 || product.is_trending === true,
+                offer_expiry: product.offer_expiry || ''
             });
         }
     }, [product]);
@@ -170,7 +192,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         { id: 'specs', label: 'Specs & Details', icon: Layers },
         { id: 'interactive', label: 'Interactive', icon: ImageIcon },
         { id: 'pricing', label: 'Pricing & Variants', icon: Tag },
-        { id: 'shipping', label: 'Shipping & Dimensions', icon: Truck },
+        ...(formData.type === 'physical' ? [{ id: 'shipping', label: 'Shipping & Dimensions', icon: Truck }] : []),
+        { id: 'marketing', label: 'Marketing', icon: Tag },
         { id: 'media', label: 'Media Highlights', icon: ImageIcon }
     ];
 
@@ -341,6 +364,52 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     placeholder="Describe the matrix item..."
                                 />
                             </div>
+
+                            {formData.type === 'digital' && (
+                                <div className="p-8 bg-brand-purple/5 border border-brand-purple/10 rounded-[2.5rem] space-y-6 animate-in zoom-in-95 duration-300">
+                                    <div className="flex items-center gap-3">
+                                        <Layers className="text-brand-purple" size={20} />
+                                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Digital Fulfillment Asset</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">OS Compatibility</label>
+                                            <select
+                                                value={formData.os}
+                                                onChange={e => setFormData({ ...formData, os: e.target.value })}
+                                                className="w-full bg-[#111116] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-medium appearance-none"
+                                            >
+                                                <option value="None">None / Universal</option>
+                                                <option value="macOS">macOS</option>
+                                                <option value="Windows">Windows</option>
+                                                <option value="Android">Android</option>
+                                                <option value="iOS">iOS</option>
+                                                <option value="Linux">Linux</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Download Password</label>
+                                            <input
+                                                type="text"
+                                                value={formData.download_password}
+                                                onChange={e => setFormData({ ...formData, download_password: e.target.value })}
+                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                placeholder="Leave blank for none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Asset URL / Matrix File</label>
+                                        <input
+                                            type="text"
+                                            value={formData.digital_file_url}
+                                            onChange={e => setFormData({ ...formData, digital_file_url: e.target.value })}
+                                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                            placeholder="https://... or Dropbox / GDrive Link"
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-6 mt-6">
                                 <div className="flex justify-between items-center">
@@ -910,11 +979,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                     )}
 
                     {activeTab === 'media' && (
-                        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-300">
+                            {/* Hero Image */}
                             <div className="space-y-6">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Product Hero Image</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Product Hero Image (Primary Cover)</label>
                                 
-                                <div className="flex gap-6">
+                                <div className="flex gap-8">
                                     <div className="flex-1 space-y-4">
                                         <div className="relative group">
                                             <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
@@ -924,7 +994,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                 type="url"
                                                 value={formData.image_url}
                                                 onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
+                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2-xl py-5 pl-16 pr-8 text-white focus:outline-none focus:border-brand-purple/50 focus:bg-white/[0.05] transition-all"
                                                 placeholder="https://... or upload below"
                                             />
                                         </div>
@@ -962,6 +1032,137 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                             </button>
                                         </div>
                                     )}
+                                </div>
+                            </div>
+
+                            {/* Multi-Image Gallery */}
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Display Gallery Highlights</label>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const url = prompt("Enter image URL:");
+                                            if (url) setFormData(prev => ({ ...prev, images: [...prev.images, url] }));
+                                        }}
+                                        className="text-[10px] font-black uppercase tracking-widest text-brand-purple hover:text-white transition-colors"
+                                    >
+                                        + Add by URL
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-5 gap-4">
+                                    {formData.images.map((img, idx) => (
+                                        <div key={idx} className="relative aspect-square group">
+                                            <img 
+                                                src={img} 
+                                                className="w-full h-full object-cover rounded-2xl border border-white/10" 
+                                                alt={`Gallery ${idx}`} 
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <label className="aspect-square rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2 hover:border-brand-purple/50 hover:bg-white/[0.02] cursor-pointer transition-all">
+                                        <Plus size={20} className="text-gray-600" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Add Media</span>
+                                        <input 
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/*" 
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploading(true);
+                                                try {
+                                                    const response = await fetch('/api/admin/r2-upload', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Authorization': `Bearer ${session?.access_token}`,
+                                                            'x-file-name': file.name,
+                                                            'x-folder': 'products',
+                                                            'content-type': file.type
+                                                        },
+                                                        body: file
+                                                    });
+                                                    const result = await response.json();
+                                                    if (result.success) {
+                                                        setFormData(prev => ({ ...prev, images: [...prev.images, result.url] }));
+                                                        toast.success('Gallery image added');
+                                                    }
+                                                } finally {
+                                                    setUploading(false);
+                                                }
+                                            }} 
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'marketing' && (
+                        <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-300">
+                            <div className="grid grid-cols-2 gap-12">
+                                <div className="space-y-6">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <Tag size={18} />
+                                        Visibility & Highlights
+                                    </h3>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {[
+                                            { id: 'is_hot', label: 'Hot & New', color: 'bg-orange-500' },
+                                            { id: 'is_featured', label: 'Featured Matrix', color: 'bg-blue-500' },
+                                            { id: 'is_best_seller', label: 'Best Seller', color: 'bg-amber-500' },
+                                            { id: 'is_trending', label: 'Trending Now', color: 'bg-purple-500' },
+                                            { id: 'is_special_offer', label: 'Special Offer', color: 'bg-red-500' }
+                                        ].map(item => (
+                                            <label 
+                                                key={item.id}
+                                                className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all ${
+                                                    (formData as any)[item.id] 
+                                                        ? 'bg-white/[0.05] border-brand-purple/50' 
+                                                        : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-2 h-2 rounded-full ${item.color} ${ (formData as any)[item.id] ? 'animate-pulse' : 'opacity-20' }`} />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-white">{item.label}</span>
+                                                </div>
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={(formData as any)[item.id]}
+                                                    onChange={e => setFormData({ ...formData, [item.id]: e.target.checked } as any)}
+                                                    className="w-5 h-5 rounded border-white/10 bg-white/5 text-brand-purple focus:ring-brand-purple transition-all"
+                                                />
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-brand-purple flex items-center gap-3">
+                                        <Calendar size={18} />
+                                        Offer Termination
+                                    </h3>
+                                    <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4">
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
+                                            Set an expiry date for special offers. The product will revert to standard visibility after this pulse.
+                                        </p>
+                                        <div className="space-y-3 pt-4">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-4">Offer Expire Date</label>
+                                            <input
+                                                type="date"
+                                                value={formData.offer_expiry}
+                                                onChange={e => setFormData({ ...formData, offer_expiry: e.target.value })}
+                                                className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-mono"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

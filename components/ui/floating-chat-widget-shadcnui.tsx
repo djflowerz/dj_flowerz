@@ -150,7 +150,12 @@ export function FloatingChatWidget() {
     try {
       const url = `${WORKER_URL}/api/chat/session/${sid}${since ? `?since=${encodeURIComponent(since)}` : ''}`;
       const res = await fetch(url);
-      if (!res.ok) return;
+      
+      if (!res.ok) {
+        if (initial) setIsLoading(false);
+        return;
+      }
+      
       const data = await res.json();
 
       if (initial) {
@@ -184,6 +189,8 @@ export function FloatingChatWidget() {
       }
     } catch (err) {
       console.error('[Chat] pollMessages failed:', err);
+    } finally {
+      if (initial) setIsLoading(false);
     }
   }, []);
 

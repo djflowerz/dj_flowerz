@@ -460,7 +460,7 @@ const mapR2Product = (p: any): Product => {
       images: images,
       isActive: Boolean(p.is_active !== undefined ? p.is_active : (p.isActive !== undefined ? p.isActive : (p.status === 'published' || p.status === 'active'))),
       status: p.status === 'active' ? 'published' : (p.status || (Boolean(p.is_active || p.isActive) ? 'published' : 'draft')),
-      isHot: Boolean(p.is_featured !== undefined ? p.is_featured : (p.isHot !== undefined ? p.isHot : false)),
+      isHot: Boolean(p.is_hot !== undefined ? p.is_hot : (p.isHot !== undefined ? p.isHot : false)),
       isFeatured: Boolean(p.is_featured !== undefined ? p.is_featured : (p.isFeatured !== undefined ? p.isFeatured : false)),
       price: Number(p.price !== undefined ? p.price : 0),
       discountPrice: p.discount_price !== undefined ? Number(p.discount_price) : (p.discountPrice !== undefined ? Number(p.discountPrice) : undefined),
@@ -780,7 +780,7 @@ const mapR2Campaign = (c: any): NewsletterCampaign => ({
 
 const mapR2Subscriber = (s: any): NewsletterSubscriber => ({
   ...s,
-  dateSubscribed: s.date_subscribed || s.dateSubscribed,
+  dateSubscribed: s.dateSubscribed || s.date_subscribed || s.created_at || s.subscribed_at,
   updatedAt: s.updated_at || s.updatedAt
 });
 

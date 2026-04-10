@@ -32,8 +32,11 @@ import { handlePaymentInitialize } from './api/storefront/payments.js';
 import { handleLoyalty } from './api/loyalty.js';
 
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
+import { handleSetupDB } from './api/run_setup.js';
 
 const router = new Router();
+
+router.get('/api/admin/setup-db', handleSetupDB);
 
 // Storefront API
 router.get('/api/products', handleStorefrontProducts);

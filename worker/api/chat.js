@@ -104,13 +104,17 @@ async function sendMessage(request, env) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function getSession(request, env, params) {
     try {
-        const sessionId = params.id;
+        const url = new URL(request.url);
+        const sessionId = params?.id || url.pathname.split('/').pop();
+        
+        console.log(`[Chat] getSession: id=${sessionId}, params.id=${params?.id}, path=${url.pathname}`);
 
         const session = await env.DB.prepare(
             `SELECT * FROM chat_sessions WHERE id = ?`
         ).bind(sessionId).first();
 
         if (!session) {
+            console.warn(`[Chat] Session not found: ${sessionId}`);
             return Response.json({ error: 'Session not found' }, { status: 404 });
         }
 
@@ -141,7 +145,6 @@ async function getSession(request, env, params) {
             }
         }
 
-        const url = new URL(request.url);
         const since = url.searchParams.get('since'); // ISO timestamp for incremental fetch
 
         let query = `SELECT id, sender, text, file_url, file_type, created_at FROM chat_messages WHERE session_id = ?`;
@@ -343,44 +346,93 @@ async function getAiReply(userText, sessionId, env) {
         // Fetch user's subscription status if session has email
         const session = await env.DB.prepare("SELECT visitor_email FROM chat_sessions WHERE id = ?").bind(sessionId).first();
         let subscriptionStatus = "Not logged in / No email provided";
+        
         if (session?.visitor_email) {
-            const nowIso = new Date().toISOString();
-            const sub = await env.DB.prepare(`
-                SELECT s.*, p.name as plan_name 
-                FROM subscriptions s
-                JOIN subscription_plans p ON s.plan_id = p.id
-                WHERE s.user_email = ? AND s.status = 'active' AND s.current_period_end > ?
-                ORDER BY s.current_period_end DESC LIMIT 1
-            `).bind(session.visitor_email, nowIso).first();
-            
-            if (sub) {
-                subscriptionStatus = `ACTIVE: ${sub.plan_name} (Expires: ${new Date(sub.current_period_end).toLocaleDateString()})`;
-            } else {
-                // Check if they HAVE an expired one
-                const expiredSub = await env.DB.prepare(`
+            try {
+                const nowIso = new Date().toISOString();
+                const sub = await env.DB.prepare(`
                     SELECT s.*, p.name as plan_name 
                     FROM subscriptions s
                     JOIN subscription_plans p ON s.plan_id = p.id
-                    WHERE s.user_email = ?
-                    ORDER BY s.current_period_end DESC LIMIT 1
-                `).bind(session.visitor_email).first();
+                    WHERE s.user_email = ? AND s.status = 'active' AND s.expires_at > ?
+                    ORDER BY s.expires_at DESC LIMIT 1
+                `).bind(session.visitor_email, nowIso).first();
                 
-                if (expiredSub) {
-                    subscriptionStatus = `EXPIRED: ${expiredSub.plan_name} (Ended on: ${new Date(expiredSub.current_period_end).toLocaleDateString()}). Tell them to renew at https://djflowerz.co.ke/checkout`;
+                if (sub) {
+                    subscriptionStatus = `ACTIVE: ${sub.plan_name} (Expires: ${new Date(sub.expires_at).toLocaleDateString()})`;
                 } else {
-                    subscriptionStatus = "No subscription found. Suggest they join the Music Pool!";
+                    // Check if they HAVE an expired one
+                    const expiredSub = await env.DB.prepare(`
+                        SELECT s.*, p.name as plan_name 
+                        FROM subscriptions s
+                        JOIN subscription_plans p ON s.plan_id = p.id
+                        WHERE s.user_email = ?
+                        ORDER BY s.expires_at DESC LIMIT 1
+                    `).bind(session.visitor_email).first();
+                    
+                    if (expiredSub) {
+                        subscriptionStatus = `EXPIRED: ${expiredSub.plan_name} (Ended on: ${new Date(expiredSub.expires_at).toLocaleDateString()}). Tell them to renew at https://djflowerz.co.ke/checkout`;
+                    } else {
+                        subscriptionStatus = "No subscription found. Suggest they join the Music Pool!";
+                    }
                 }
+            } catch (subErr) {
+                console.error('[Chat] Subscription check failed:', subErr);
+                subscriptionStatus = "Error checking subscription (server limit)";
             }
         }
 
+        // Fetch live plans and products from DB
+        let plansText = 'Visit https://djflowerz.co.ke/checkout for current plans.';
+        let productsText = 'Visit https://djflowerz.co.ke/store for current products.';
+        
+        try {
+            // Safer query: Fetch all and filter in JS to avoid "no such column" errors
+            const { results: plansData } = await env.DB.prepare(
+                `SELECT * FROM subscription_plans LIMIT 20`
+            ).all();
+            
+            if (plansData && plansData.length > 0) {
+                // Filter for active plans (handle missing is_active column gracefully)
+                const activePlans = plansData.filter(p => p.is_active === undefined || p.is_active === 1 || p.is_active === true);
+                if (activePlans.length > 0) {
+                    plansText = activePlans.map(p => `- ${p.name}: KES ${p.price}${p.duration_days ? ` for ${p.duration_days} days` : ''}`).join('\n');
+                }
+            }
+        } catch (e) {
+            console.error('[Chat] Failed to fetch plans context:', e);
+        }
+
+        try {
+            const { results: productsData } = await env.DB.prepare(
+                `SELECT * FROM products ORDER BY created_at DESC LIMIT 10`
+            ).all();
+            
+            if (productsData && productsData.length > 0) {
+                // Filter for active products
+                const activeProducts = productsData.filter(p => 
+                    p.active === 1 || p.is_active === 1 || p.active === true || p.is_active === true || 
+                    (p.active === undefined && p.is_active === undefined)
+                );
+                if (activeProducts.length > 0) {
+                    productsText = activeProducts.map(p => `- ${p.name}: KES ${p.price}`).join('\n');
+                }
+            }
+        } catch (e) {
+            console.error('[Chat] Failed to fetch products context:', e);
+        }
+
+        const currentDate = new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
         const contextStr = `
-        USER SUBSCRIPTION STATUS: ${subscriptionStatus}
+        CURRENT DATE: ${currentDate}
+        USER SUBSCRIPTION STATUS (Based on chat session email): ${subscriptionStatus}
 
         ACTIVE SUBSCRIPTION PLANS (Available for purchase):
-        ${plans.map(p => `- ${p.name}: KES ${p.price} for ${p.duration_days} days`).join('\n')}
+        ${plansText}
         
         FEATURED PRODUCTS:
-        ${products.map(p => `- ${p.name}: KES ${p.price}`).join('\n')}
+        ${productsText}
         `;
 
         // Get recent context (last 5 messages)
@@ -392,22 +444,26 @@ async function getAiReply(userText, sessionId, env) {
         const messages = [
             {
                 role: 'system',
-                content: `You are the DJ Flowerz AI Assistant. You help users with EVERYTHING on djflowerz.co.ke. 
-                
+                content: `You are DJ Flowerz's AI Virtual Assistant. Act as a friendly, highly interactive, and sales-oriented human staff member.
+
                 REAL-TIME DATA:
                 ${contextStr}
                 
-                KNOWLEDGE BASE:
-                1. LINKS: ALWAYS providing clickable links for checkout: https://djflowerz.co.ke/checkout, music pool: https://djflowerz.co.ke/music-pool, and store: https://djflowerz.co.ke/store.
-                2. PAYMENTS: Use Paystack for M-Pesa & Cards. If payment fails, ask for name/email/ref.
-                3. WHATSAPP: If user hasn't provided a WhatsApp number but wants admin to call back, ask for it!
-                4. EMAIL: Official support email is admin@djflowerz.co.ke.
-                5. HUMAN ESCALATION: If user is frustrated or asks for a person, guide them to use "Speak to a Human".
+                KNOWLEDGE BASE & GUIDELINES:
+                1. SALES & RECOMMENDATIONS: Be proactive! If a user asks a general question about products or prices (e.g., "what 20k laptops do you have?"), analyze the FEATURED PRODUCTS context and provide tailored recommendations that match their budget or needs. Use an enthusiastic, helpful tone that encourages them to purchase.
+                2. LINKS: ALWAYS provide clickable links to facilitate sales and navigation: 
+                   - Store: [Browse Store](https://djflowerz.co.ke/store)
+                   - Checkout: [Go to Checkout](https://djflowerz.co.ke/checkout)
+                   - Music Pool: [Music Pool](https://djflowerz.co.ke/music-pool)
+                3. PAYMENTS & RECEIPTS: If a user pastes a payment receipt, compare the payment date to the CURRENT DATE. Match the amount paid to the ACTIVE SUBSCRIPTION PLANS to determine duration (e.g. KES 200 = 1 Day). If the duration has passed, explicitly and politely tell them the pass has EXPIRED and guide them to renew via the [Music Pool](https://djflowerz.co.ke/music-pool) link.
+                4. SUBSCRIPTION LOOKUPS: You ONLY know the "USER SUBSCRIPTION STATUS" provided above. You CANNOT dynamically search the DB for arbitrary emails. If the status doesn't match their claims, politely ask them to log in correctly or click "Speak to a Human" for admin verification.
+                5. ESCALATION & CONTACT: If they want to talk to a human or need a call-back, ask for their WhatsApp number. Official support email is admin@djflowerz.co.ke. Guide frustrated users to click the "Speak to a Human" button.
                 
                 CORE BEHAVIOR:
-                - Use [Link Text](URL) format for links.
-                - Be concise (max 3 sentences).
-                - Use natural Kenyan English (mixed with Sheng if it feels right, but remain professional).`
+                - ALWAYS use Markdown for links: [Link Text](URL).
+                - Use natural, friendly Kenyan English (feel free to sprinkle a bit of polite Sheng like "sasa" or "karibu" if it fits perfectly, but remain professional).
+                - Be conversational. Don't just list facts—ask follow-up questions to engage the user (e.g., "Are you looking for a specific brand?").
+                - Keep responses reasonably concise but detailed enough to be helpful as a sales rep.`
             },
             ...(history || []).reverse().map(m => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',

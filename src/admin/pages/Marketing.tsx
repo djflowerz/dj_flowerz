@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
 import { useAdminApi } from '../hooks/useAdminApi';
-import { Megaphone, Search, Tag, BarChart3, Plus, X, RefreshCw, Trash2, Percent, Calendar, CheckCircle2 } from 'lucide-react';
+import { Megaphone, Search, Tag, BarChart3, Plus, X, RefreshCw, Trash2, Percent, Calendar, CheckCircle2, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -19,6 +19,7 @@ const Marketing: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showCampaignModal, setShowCampaignModal] = useState(false);
     const [showCouponModal, setShowCouponModal] = useState(false);
+    const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [campaign, setCampaign] = useState({ subject: '', content: '', target_audience: 'all', status: 'draft' });
     const [coupon, setCoupon] = useState({
@@ -26,6 +27,25 @@ const Marketing: React.FC = () => {
         min_spend: 0, expiry_date: '', usage_limit: '', is_one_time_per_user: false,
         scope: 'all', is_active: true
     });
+
+    const BLANK_COUPON = { code: '', discount_type: 'percentage', discount_value: 10, min_spend: 0, expiry_date: '', usage_limit: '', is_one_time_per_user: false, scope: 'all', is_active: true };
+
+    const openNewCoupon = () => { setCoupon(BLANK_COUPON); setEditingCouponId(null); setShowCouponModal(true); };
+    const openEditCoupon = (c: any) => {
+        setCoupon({
+            code: c.code || '',
+            discount_type: c.discount_type || 'percentage',
+            discount_value: c.discount_value ?? 10,
+            min_spend: c.min_spend ?? 0,
+            expiry_date: c.expiry_date?.split('T')[0] || '',
+            usage_limit: c.usage_limit ? String(c.usage_limit) : '',
+            is_one_time_per_user: !!c.is_one_time_per_user,
+            scope: c.scope || 'all',
+            is_active: c.is_active !== false,
+        });
+        setEditingCouponId(c.id);
+        setShowCouponModal(true);
+    };
 
     useEffect(() => {
         loadCampaigns();
@@ -76,15 +96,24 @@ const Marketing: React.FC = () => {
         if (!coupon.code.trim()) { toast.error('Coupon code is required'); return; }
         setSaving(true);
         try {
-            await request('/api/admin/coupons', {
-                method: 'POST',
-                body: JSON.stringify({ ...coupon, code: coupon.code.toUpperCase() })
-            });
-            toast.success('Coupon created');
+            if (editingCouponId) {
+                await request(`/api/admin/coupons/${editingCouponId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ ...coupon, code: coupon.code.toUpperCase() })
+                });
+                toast.success('Coupon updated');
+            } else {
+                await request('/api/admin/coupons', {
+                    method: 'POST',
+                    body: JSON.stringify({ ...coupon, code: coupon.code.toUpperCase() })
+                });
+                toast.success('Coupon created');
+            }
             setShowCouponModal(false);
-            setCoupon({ code: '', discount_type: 'percentage', discount_value: 10, min_spend: 0, expiry_date: '', usage_limit: '', is_one_time_per_user: false, scope: 'all', is_active: true });
+            setEditingCouponId(null);
+            setCoupon(BLANK_COUPON);
             await loadCoupons();
-        } catch { toast.error('Failed to create coupon'); }
+        } catch { toast.error(editingCouponId ? 'Failed to update coupon' : 'Failed to create coupon'); }
         finally { setSaving(false); }
     };
 
@@ -167,8 +196,8 @@ const Marketing: React.FC = () => {
                     <div className="bg-[#0B0B0F] border border-white/10 w-full max-w-2xl rounded-[3rem] shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
                         <div className="px-10 py-7 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl font-black text-white tracking-tight uppercase">Generate Coupon</h2>
-                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-1">Promotional Discount Code</p>
+                                <h2 className="text-xl font-black text-white tracking-tight uppercase">{editingCouponId ? 'Edit Coupon' : 'Generate Coupon'}</h2>
+                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-1">{editingCouponId ? 'Update Discount Parameters' : 'New Promotional Discount Code'}</p>
                             </div>
                             <button onClick={() => setShowCouponModal(false)} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all"><X size={18} /></button>
                         </div>
@@ -225,18 +254,27 @@ const Marketing: React.FC = () => {
                                         className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-brand-purple/50 transition-all" />
                                 </div>
                             </div>
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <div onClick={() => setCoupon(p => ({ ...p, is_one_time_per_user: !p.is_one_time_per_user }))}
-                                    className={`w-12 h-6 rounded-full border transition-all flex items-center ${coupon.is_one_time_per_user ? 'bg-brand-purple border-brand-purple' : 'bg-white/5 border-white/10'}`}>
-                                    <div className={`w-5 h-5 bg-white rounded-full mx-0.5 transition-all ${coupon.is_one_time_per_user ? 'translate-x-6' : ''}`} />
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">One-time use per user</span>
-                            </label>
+                            <div className="flex gap-6">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div onClick={() => setCoupon(p => ({ ...p, is_one_time_per_user: !p.is_one_time_per_user }))}
+                                        className={`w-12 h-6 rounded-full border transition-all flex items-center ${coupon.is_one_time_per_user ? 'bg-brand-purple border-brand-purple' : 'bg-white/5 border-white/10'}`}>
+                                        <div className={`w-5 h-5 bg-white rounded-full mx-0.5 transition-all ${coupon.is_one_time_per_user ? 'translate-x-6' : ''}`} />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">One-time use per user</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div onClick={() => setCoupon(p => ({ ...p, is_active: !p.is_active }))}
+                                        className={`w-12 h-6 rounded-full border transition-all flex items-center ${coupon.is_active ? 'bg-green-500 border-green-500' : 'bg-white/5 border-white/10'}`}>
+                                        <div className={`w-5 h-5 bg-white rounded-full mx-0.5 transition-all ${coupon.is_active ? 'translate-x-6' : ''}`} />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status: {coupon.is_active ? 'Active' : 'Paused'}</span>
+                                </label>
+                            </div>
                             <div className="flex justify-end gap-3 pt-2">
-                                <button onClick={() => setShowCouponModal(false)} className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all">Cancel</button>
+                                <button onClick={() => { setShowCouponModal(false); setEditingCouponId(null); }} className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all">Cancel</button>
                                 <button onClick={handleSaveCoupon} disabled={saving} className="px-8 py-3 bg-brand-purple text-white text-[11px] font-black rounded-2xl hover:bg-brand-purple/80 transition-all uppercase tracking-widest flex items-center gap-2 disabled:opacity-50">
                                     {saving ? <RefreshCw size={14} className="animate-spin" /> : <Tag size={14} />}
-                                    {saving ? 'Creating...' : 'Create Coupon'}
+                                    {saving ? 'Saving...' : editingCouponId ? 'Save Changes' : 'Create Coupon'}
                                 </button>
                             </div>
                         </div>
@@ -251,7 +289,7 @@ const Marketing: React.FC = () => {
                     <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Campaign Orchestration & Reach Analysis</p>
                 </div>
                 <div className="flex gap-3">
-                    <button onClick={() => setShowCouponModal(true)}
+                    <button onClick={openNewCoupon}
                         className="px-6 py-3 bg-white/5 border border-white/10 text-white text-[11px] font-black rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest flex items-center gap-2">
                         <Tag size={14} /> New Coupon
                     </button>
@@ -393,9 +431,12 @@ const Marketing: React.FC = () => {
                                     <td className="px-8 py-6">
                                         <div className="text-[11px] font-black text-white">{c.times_used || 0}{c.usage_limit ? ` / ${c.usage_limit}` : ''}</div>
                                     </td>
-                                    <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
-                                        {c.is_active ? <CheckCircle2 size={14} className="text-green-500" /> : <span className="w-3.5 h-3.5 rounded-full bg-gray-700" />}
-                                        <button onClick={() => handleDeleteCoupon(c.id)} className="p-2 text-gray-600 hover:text-red-500 transition-colors"><Trash2 size={15} /></button>
+                                    <td className="px-8 py-6 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            {c.is_active ? <CheckCircle2 size={14} className="text-green-500" /> : <span className="w-3.5 h-3.5 rounded-full bg-gray-700" />}
+                                            <button onClick={() => openEditCoupon(c)} className="p-2 text-gray-600 hover:text-brand-purple transition-colors"><Edit2 size={14} /></button>
+                                            <button onClick={() => handleDeleteCoupon(c.id)} className="p-2 text-gray-600 hover:text-red-500 transition-colors"><Trash2 size={15} /></button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

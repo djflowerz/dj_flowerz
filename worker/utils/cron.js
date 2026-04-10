@@ -1,14 +1,22 @@
 import { syncPool } from './poolSync.js';
 import { sendEmail } from './email.js';
+import { scrapeAndSave } from '../api/dashboard/scraped_tracks.js';
 
 export async function handleScheduled(event, env, ctx) {
     console.log("[Cron] Running maintenance...");
     
-    // 1. Sync Music Pool from external sources
+    // 1. Sync Music Pool from external sources (Auto-import)
     try {
         await syncPool(env);
     } catch (err) {
         console.error("[Cron] Music Pool Sync failed:", err);
+    }
+
+    // 2. Trigger Search Pool Scraper (Manual queue)
+    try {
+        await scrapeAndSave(env);
+    } catch (err) {
+        console.error("[Cron] Search Pool Scraper failed:", err);
     }
     
     try {

@@ -25,6 +25,24 @@ export class ErrorBoundary extends Component<Props, State> {
         console.error(error);
         console.error(errorInfo);
         console.groupEnd();
+
+        // Automatically recover from chunk load errors caused by deployments
+        const isChunkError = 
+            error.message && (
+                error.message.includes('Failed to fetch dynamically imported module') || 
+                error.message.includes('Importing a module script failed') ||
+                error.message.includes('ChunkLoadError') ||
+                error.message.includes('Loading chunk') ||
+                error.message.includes('Unexpected token') // Often happens when index.html is returned instead of JS
+            );
+
+        if (isChunkError) {
+            const reloaded = sessionStorage.getItem('chunk_error_reloaded');
+            if (reloaded !== 'true') {
+                sessionStorage.setItem('chunk_error_reloaded', 'true');
+                window.location.reload();
+            }
+        }
     }
 
     render() {

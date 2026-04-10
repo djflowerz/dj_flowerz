@@ -4,7 +4,7 @@ import { useAdminApi } from '../hooks/useAdminApi';
 import { useAuth } from '@/context/AuthContext';
 import {
     Music, Search, RefreshCw, FolderOpen, Play,
-    Download, Hash, Clock, Layers, ChevronRight
+    Download, Hash, Clock, Layers, ChevronRight, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,8 +25,11 @@ const MusicPool: React.FC = () => {
     const [selectedScanIds, setSelectedScanIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        if (session) loadPool();
-    }, [session]);
+        if (session) {
+            if (poolSubTab === 'tracks') loadPool();
+            else loadScanned();
+        }
+    }, [session, poolSubTab]);
 
     const loadPool = async () => {
         try {
@@ -39,6 +42,15 @@ const MusicPool: React.FC = () => {
             setFolders(uniqueFolders);
         } catch {
             toast.error('Failed to load music pool');
+        }
+    };
+
+    const loadScanned = async () => {
+        try {
+            const data = await request('/api/admin/scraped-tracks');
+            setScannedTracks(Array.isArray(data) ? data : (data?.tracks || []));
+        } catch {
+            toast.error('Failed to load scanned updates');
         }
     };
 
@@ -72,37 +84,12 @@ const MusicPool: React.FC = () => {
 
     const handleManualScan = async () => {
         setIsManualScanning(true);
-        setManualScanMsg('Fetching tracks from sources...');
+        setManualScanMsg('Initializing signal scan...');
         try {
-            const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
-            const VID_POOL_URL = 'https://r2.vicknickvideopool.com/';
-
-            let allIncoming: any[] = [];
-
-            // 1. Fetch from Remix Hub (JSON)
-            try {
-                const resp = await fetch(REMIX_HUB_URL);
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (Array.isArray(data)) {
-                        allIncoming = [...allIncoming, ...data.map(t => ({
-                            ...t,
-                            source: 'Remix Hub',
-                            id: t.id || `rh-${t.title}-${t.artist}`
-                        }))];
-                    }
-                }
-            } catch (e) {
-                console.error("Remix Hub fetch error:", e);
-            }
-
-            // 2. Fetch from Video Pool (HTML/List)
-            // (Mocking this part as it requires complex HTML parsing usually handled on backend)
-            // For now, let's assume we use the worker endpoint if it exists
-            
-            setScannedTracks(allIncoming);
-            setManualScanMsg(`Scan complete. Found ${allIncoming.length} tracks.`);
-            toast.success(`Found ${allIncoming.length} tracks from external sources.`);
+            const res = await request('/api/admin/scraped-tracks/scan', { method: 'POST' });
+            setManualScanMsg(`Scan complete. Found ${res.new_tracks || 0} news tracks.`);
+            toast.success(`Detected ${res.new_tracks || 0} new external track signals.`);
+            await loadScanned();
         } catch (err: any) {
             toast.error('Scan failed: ' + err.message);
         } finally {
@@ -111,19 +98,30 @@ const MusicPool: React.FC = () => {
     };
 
     const handleBulkAdd = async () => {
-        const toAdd = scannedTracks.filter(t => selectedScanIds.has(t.id));
-        if (toAdd.length === 0) return;
-
+        if (selectedScanIds.size === 0) return;
+        
+        const toProcess = Array.from(selectedScanIds);
         try {
-            const res = await request('/api/admin/pool/bulk-add', {
+            const res = await request('/api/admin/scraped-tracks/approve', {
                 method: 'POST',
-                body: JSON.stringify({ tracks: toAdd })
+                body: JSON.stringify({ ids: toProcess })
             });
-            toast.success(`Successfully added ${res.added || 0} tracks to the pool.`);
+            toast.success(`Successfully approved ${res.approved || 0} tracks into the pool.`);
             setSelectedScanIds(new Set());
+            await loadScanned();
             await loadPool();
         } catch (e: any) {
-            toast.error('Bulk add failed: ' + e.message);
+            toast.error('Approval failed: ' + e.message);
+        }
+    };
+
+    const handleReject = async (id: string) => {
+        try {
+            await request(`/api/admin/scraped-tracks/${id}`, { method: 'DELETE' });
+            toast.success('Track signal dismissed');
+            await loadScanned();
+        } catch (e: any) {
+            toast.error('Failed to dismiss signal');
         }
     };
 
@@ -254,8 +252,16 @@ const MusicPool: React.FC = () => {
                                 placeholder="SEARCH TRACKS..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="bg-[#0B0B0F] border border-white/5 rounded-full py-4 pl-12 pr-6 text-[10px] font-black tracking-widest text-white outline-none focus:border-brand-purple/50 w-72"
+                                className="bg-[#0B0B0F] border border-white/5 rounded-full py-4 pl-12 pr-12 text-[10px] font-black tracking-widest text-white outline-none focus:border-brand-purple/50 w-72"
                             />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors p-1"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -438,7 +444,24 @@ const MusicPool: React.FC = () => {
                                                     <span className="px-3 py-1 bg-brand-purple/10 border border-brand-purple/20 rounded-full text-[9px] font-black uppercase tracking-widest text-brand-purple">{track.genre || 'Unclassified'}</span>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
-                                                    <button className="px-4 py-2 bg-white/5 hover:bg-brand-purple hover:text-white border border-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 transition-all">Add to Index</button>
+                                                    <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                const next = new Set([track.id]);
+                                                                setSelectedScanIds(next);
+                                                                handleBulkAdd();
+                                                            }}
+                                                            className="px-4 py-2 bg-brand-purple text-white border border-brand-purple/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-brand-purple/80 transition-all"
+                                                        >
+                                                            Approve
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleReject(track.id)}
+                                                            className="px-4 py-2 bg-white/5 hover:bg-red-500/20 hover:text-red-500 border border-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 transition-all"
+                                                        >
+                                                            Dismiss
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
-import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye } from 'lucide-react';
+import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, Flame } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { toast } from 'sonner';
 
@@ -10,6 +10,12 @@ interface ProductCardProps {
   product: Product;
   viewMode?: 'grid' | 'list';
 }
+
+const getStockStatus = (inventory: number) => {
+    if (inventory <= 0) return { label: 'OUT OF STOCK', color: 'text-red-500 bg-red-500/10 border-red-500/20', icon: AlertTriangle };
+    if (inventory <= 5) return { label: `FEW REMAINING (${inventory} left)`, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', icon: Zap };
+    return { label: 'IN STOCK', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', icon: Zap };
+};
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' }) => {
   const { addToCart } = useCart();
@@ -79,8 +85,28 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
               </div>
             )}
             {product.isHot && (
-              <div className="bg-brand-purple text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
-                TOP PRODUCT
+              <div className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
+                <Flame size={10} fill="currentColor" /> HOT
+              </div>
+            )}
+            {product.isFeatured && (
+              <div className="bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                FEATURED
+              </div>
+            )}
+            {product.isBestSeller && (
+              <div className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                BEST SELLER
+              </div>
+            )}
+            {product.isTrending && (
+              <div className="bg-purple-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
+                <Zap size={10} fill="currentColor" /> TRENDING
+              </div>
+            )}
+            {product.isSpecialOffer && (
+              <div className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                SPECIAL OFFER
               </div>
             )}
             {product.sku && (
@@ -127,9 +153,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-green-400 font-bold mt-1">
-                <Zap size={10} fill="currentColor" /> IN STOCK
-              </div>
+              {(() => {
+                const inventory = product.inventory ?? product.stock ?? 0;
+                const status = getStockStatus(inventory);
+                return (
+                  <div className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg border ${status.color} mt-1 w-fit`}>
+                    <status.icon size={10} fill="currentColor" /> {status.label}
+                  </div>
+                );
+              })()}
             </div>
 
             <button
@@ -184,8 +216,28 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             </div>
           )}
           {product.isHot && (
-            <div className="bg-brand-purple text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
-              TOP PRODUCT
+            <div className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
+              <Flame size={10} fill="currentColor" /> HOT
+            </div>
+          )}
+          {product.isFeatured && (
+            <div className="bg-blue-500 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                FEATURED
+            </div>
+          )}
+          {product.isBestSeller && (
+            <div className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                BEST SELLER
+            </div>
+          )}
+          {product.isTrending && (
+            <div className="bg-purple-500 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
+                <Zap size={10} fill="currentColor" /> TRENDING
+            </div>
+          )}
+          {product.isSpecialOffer && (
+            <div className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
+                SPECIAL OFFER
             </div>
           )}
           {product.sku && (
@@ -212,6 +264,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             </h3>
             <p className="text-lg font-black text-brand-cyan whitespace-nowrap">KES {product.price.toLocaleString()}</p>
           </div>
+          {(() => {
+            const inventory = product.inventory ?? product.stock ?? 0;
+            const status = getStockStatus(inventory);
+            return (
+              <div className={`flex items-center gap-1.5 text-[9px] font-black px-2 py-0.5 rounded border ${status.color} w-fit`}>
+                <status.icon size={10} fill="currentColor" /> {status.label}
+              </div>
+            );
+          })()}
           <div className="flex items-center gap-1.5">
             {product.sku && (
               <p className="text-[9px] font-bold text-gray-500 tracking-widest uppercase">SKU: {product.sku}</p>

@@ -409,8 +409,18 @@ export default function MusicPool() {
                  placeholder="Search Pool..."
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
-                 className="bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[300px] transition-all placeholder:text-zinc-600"
+                 className="bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[300px] transition-all placeholder:text-zinc-600"
                />
+               {searchTerm && (
+                 <button
+                   type="button"
+                   onClick={() => setSearchTerm('')}
+                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                   aria-label="Clear search"
+                 >
+                   <X size={14} />
+                 </button>
+               )}
              </div>
 
              {/* Removed FolderSwitcher */}

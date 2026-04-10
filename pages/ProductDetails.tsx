@@ -3,11 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import {
-  Star, Heart, ShieldCheck, Truck, RefreshCw, ChevronRight,
-  Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
-  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package
-} from 'lucide-react';
+import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, ChevronRight, Minus, Plus, PlayCircle, Check, Share2, Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Flame } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import ProductReviews from '../components/ProductReviews';
@@ -212,9 +208,27 @@ export default function ProductDetails() {
                     alt={product.name} 
                     className="w-full h-auto object-contain transition-transform duration-700 group-hover:scale-105"
                 />
-                {product.isHot && (
-                    <div className="absolute top-8 left-8 bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg z-20">HOT</div>
-                )}
+                <div className="absolute top-8 left-8 flex flex-col gap-2 z-20">
+                    {product.isHot && (
+                        <div className="bg-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                           <Flame size={12} fill="currentColor" /> HOT
+                        </div>
+                    )}
+                    {product.isFeatured && (
+                        <div className="bg-blue-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">FEATURED</div>
+                    )}
+                    {product.isBestSeller && (
+                        <div className="bg-amber-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">BEST SELLER</div>
+                    )}
+                    {product.isTrending && (
+                        <div className="bg-purple-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                           <Zap size={12} fill="currentColor" /> TRENDING
+                        </div>
+                    )}
+                    {product.isSpecialOffer && (
+                        <div className="bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">SPECIAL OFFER</div>
+                    )}
+                </div>
             </div>
             
             <div className="grid grid-cols-4 gap-4">
@@ -281,11 +295,47 @@ export default function ProductDetails() {
                 );
             })()}
 
-            {/* Inventory Note */}
-            <div className="p-4 rounded-2xl bg-green-400/5 border border-green-400/20 flex items-center gap-4">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-                <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">In Stock - Free Delivery Within Nairobi</p>
-            </div>
+            {/* Inventory Status */}
+            {(() => {
+                const inventory = product.inventory ?? product.stock ?? 0;
+                if (inventory <= 0) {
+                    return (
+                        <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
+                            <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center text-red-500">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-black text-white uppercase tracking-widest">OUT OF STOCK</p>
+                                <p className="text-[10px] font-bold text-red-500/80 uppercase">Contact Support for Restock Info</p>
+                            </div>
+                        </div>
+                    );
+                }
+                if (inventory <= 5) {
+                    return (
+                        <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
+                            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                                <Zap size={20} fill="currentColor" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-black text-white uppercase tracking-widest">FEW REMAINING</p>
+                                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Only {inventory} units left in the sequence!</p>
+                            </div>
+                        </div>
+                    );
+                }
+                return (
+                    <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+                            <Check size={20} />
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black text-white uppercase tracking-widest">STABLE INVENTORY</p>
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Available for immediate deployment</p>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Variant Selectors */}
             {product.variantGroups?.map((group) => (

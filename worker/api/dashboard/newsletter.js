@@ -134,8 +134,8 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
                     body.discount_type, 
                     body.discount_value, 
                     body.min_spend || 0, 
-                    body.expiry_date, 
-                    body.max_uses_total || body.usage_limit || null, 
+                    body.expiry_date || null, 
+                    body.usage_limit || null, 
                     body.is_one_time_per_user ? 1 : 0,
                     body.applicable_plans || null,
                     body.is_active ?? 1,
@@ -159,19 +159,19 @@ export async function handleDashboardNewsletter(request, env, ctx, params) {
             if (url.pathname.includes('/coupons/')) {
                 await env.DB.prepare(`
                     UPDATE coupons 
-                    SET code = ?, scope = ?, discount_type = ?, discount_value = ?, min_spend = ?, expiry_date = ?, usage_limit = ?, is_one_time_per_user = ?, applicable_plans = ?, is_active = ?
+                    SET code = ?, scope = ?, discount_type = ?, discount_value = ?, min_spend = ?, expiry_date = ?, usage_limit = ?, is_one_time_per_user = ?, applicable_plans = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 `).bind(
                     body.code.toUpperCase(), 
-                    body.scope, 
+                    body.scope || 'all', 
                     body.discount_type, 
                     body.discount_value, 
-                    body.min_spend, 
-                    body.expiry_date, 
-                    body.max_uses_total || body.usage_limit, 
+                    body.min_spend || 0, 
+                    body.expiry_date || null,
+                    body.usage_limit || null,
                     body.is_one_time_per_user ? 1 : 0,
-                    body.applicable_plans,
-                    body.is_active, 
+                    body.applicable_plans || null,
+                    body.is_active ?? 1, 
                     id
                 ).run();
                 return Response.json({ success: true });

@@ -37,15 +37,14 @@ const Home: React.FC = () => {
          return p.status !== 'hidden' && p.status !== 'draft';
       });
 
-      const shuffleProducts = () => {
-         if (activeProducts.length === 0) return;
-         const shuffled = [...activeProducts].sort(() => 0.5 - Math.random());
-         setDisplayProducts(shuffled.slice(0, 6));
-      };
-
-      shuffleProducts();
-      const interval = setInterval(shuffleProducts, 5000);
-      return () => clearInterval(interval);
+      const featured = activeProducts.filter(p => p.isFeatured);
+      const others = activeProducts.filter(p => !p.isFeatured);
+      
+      const shuffle = (arr: any[]) => [...arr].sort(() => 0.5 - Math.random());
+      
+      const combined = [...featured, ...shuffle(others)];
+      setDisplayProducts(combined.slice(0, 8));
+   }, [products, user]);
    }, [products, user]);
 
    return (

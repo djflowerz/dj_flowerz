@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown, MapPin } from 'lucide-react'; // Added ChevronDown, MapPin
+import { Search, Folder, Music, Video, Zap, Hash, Layers, ChevronDown, MapPin, X } from 'lucide-react'; // Added ChevronDown, MapPin, X
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface HubWithGenres {
@@ -136,8 +136,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             placeholder="Filter list..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-black/40 border border-white/5 rounded-xl py-2.5 pl-11 pr-4 text-[12px] text-white placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-brand-purple/30 transition-all font-bold"
+            className="w-full bg-black/40 border border-white/5 rounded-xl py-2.5 pl-11 pr-10 text-[12px] text-white placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-brand-purple/30 transition-all font-bold"
           />
+          {searchTerm && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-white/10 text-zinc-500 hover:text-white transition-all"
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
