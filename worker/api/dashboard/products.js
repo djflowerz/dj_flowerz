@@ -21,7 +21,29 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     .bind(p.id)
                     .all();
                 
-                const variantsList = variants || [];
+                let variantsList = variants || [];
+                const variantGroups = p.variant_groups ? JSON.parse(p.variant_groups) : [];
+                
+                // Fallback: If relational table is empty, try to get variants from variant_groups JSON
+                if (variantsList.length === 0 && variantGroups.length > 0) {
+                    variantGroups.forEach(group => {
+                        if (group.variants && Array.isArray(group.variants)) {
+                            group.variants.forEach(v => {
+                                variantsList.push({
+                                    id: v.id,
+                                    product_id: p.id,
+                                    name: v.name,
+                                    price: v.price || v.discountPrice || p.price,
+                                    compare_at_price: v.compareAtPrice || v.discountPrice || 0,
+                                    inventory: v.stock || v.inventory || 0,
+                                    image_url: v.image_url || v.image || p.image,
+                                    sku: v.sku || null
+                                });
+                            });
+                        }
+                    });
+                }
+
                 return { 
                     ...p, 
                     variants: variantsList,
@@ -29,7 +51,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     technicalDetails: p.technical_details ? JSON.parse(p.technical_details) : [],
                     hotspots: p.hotspots ? JSON.parse(p.hotspots) : [],
                     useCases: p.use_cases ? JSON.parse(p.use_cases) : [],
-                    variantGroups: p.variant_groups ? JSON.parse(p.variant_groups) : [],
+                    variantGroups: variantGroups,
                     images: p.images ? JSON.parse(p.images) : []
                 };
             }));
