@@ -21,6 +21,8 @@ export default function ProductDetails() {
   const [copied, setCopied] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', userName: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<'local' | 'air' | 'sea'>('local');
+
 
   const { addToCart } = useCart();
   const navigate = useNavigate();
@@ -108,7 +110,9 @@ export default function ProductDetails() {
 
       addToCart({
         ...product,
-        selectedVariant: selectedVariantString || undefined
+        price: displayPrice, // Use the tier-specific price
+        selectedVariant: selectedVariantString || undefined,
+        shippingTier: selectedTier
       } as any, quantity);
     }
   };
@@ -170,7 +174,12 @@ export default function ProductDetails() {
   }
 
   const activePriceVar = currentVariant || product;
-  const displayPrice = (activePriceVar.discountPrice || activePriceVar.price || product.price) || 0;
+  const tierPriceMap = {
+    local: product.price_local || product.price || 0,
+    air: product.price_air || (product.price_local ? product.price_local * 0.9 : product.price),
+    sea: product.price_sea || (product.price_local ? product.price_local * 0.8 : product.price)
+  };
+  const displayPrice = (selectedTier === 'local' ? (activePriceVar.discountPrice || activePriceVar.price || tierPriceMap.local) : tierPriceMap[selectedTier]) || 0;
   const originalPrice = activePriceVar.compareAtPrice || (activePriceVar.discountPrice ? activePriceVar.price : product.compareAtPrice);
 
   const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
@@ -337,7 +346,50 @@ export default function ProductDetails() {
                 );
             })()}
 
+            {/* Shipping Tier Selector (Patience Discount) */}
+            <div className="space-y-4 pt-4">
+                <div className="flex justify-between items-center">
+                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select Import & Logistics Tier</h4>
+                    <button className="text-[9px] font-black text-brand-purple uppercase hover:underline flex items-center gap-1">
+                        <Info size={10} /> PATIENCE DISCOUNT
+                    </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                        { id: 'local', label: 'Local Stock', sub: 'Immediate', icon: <Package size={14} />, color: 'brand-purple', points: 0 },
+                        { id: 'air', label: 'Air Import', sub: '7-14 Days', icon: <Zap size={14} />, color: 'blue-500', points: 50 },
+                        { id: 'sea', label: 'Sea Import', sub: '30-45 Days', icon: <RefreshCw size={14} />, color: 'emerald-500', points: 150 }
+                    ].map((tier) => (
+                        <button
+                            key={tier.id}
+                            onClick={() => setSelectedTier(tier.id as any)}
+                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-300 ${
+                                selectedTier === tier.id 
+                                    ? `bg-${tier.color}/10 border-${tier.color}/50 shadow-lg shadow-${tier.color}/5` 
+                                    : 'bg-white/5 border-white/5 hover:border-white/20'
+                            }`}
+                        >
+                            <div className={`mb-2 ${selectedTier === tier.id ? `text-${tier.color}` : 'text-gray-500'}`}>
+                                {tier.icon}
+                            </div>
+                            <span className={`text-[10px] font-black uppercase tracking-tight ${selectedTier === tier.id ? 'text-white' : 'text-gray-400'}`}>
+                                {tier.label}
+                            </span>
+                            <span className={`text-[8px] font-bold uppercase tracking-widest ${selectedTier === tier.id ? `text-${tier.color}` : 'text-gray-600'}`}>
+                                {tier.sub}
+                            </span>
+                            {tier.points > 0 && (
+                                <div className={`mt-2 px-2 py-0.5 rounded-full bg-${tier.color}/20 text-[8px] font-black uppercase text-${tier.color}`}>
+                                    +{tier.points} PTS
+                                </div>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Variant Selectors */}
+
             {product.variantGroups?.map((group) => (
                 <div key={group.name} className="space-y-4">
                     <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{group.name}</h4>

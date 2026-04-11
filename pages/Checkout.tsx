@@ -163,65 +163,33 @@ export default function Checkout() {
     return isNaN(total) ? 0 : total;
   }, [isDigitalOnly, isHardshipArea, totalWeight, storeSettings]);
 
-  // Generate dynamic delivery speed options based on G4S / market standard tiers.
-  // Labels/timelines come from the PREMIUM_SERVICES constant; surcharge amounts
-  // are overridden by `premium_prices` in storeSettings when available.
-  const deliverySpeedOptions = useMemo(() => {
-    if (isDigitalOnly || !storeSettings?.shipping) return [];
+  // DJ Flowerz Regional Shipping Matrix (Flat Fees)
+  const shippingCost = useMemo(() => {
+    if (isDigitalOnly || !items.length) return 0;
     
-    const isNairobi = selectedZoneId === 'zone1';
-    const isNearby = selectedZoneId === 'zone1' || selectedZoneId === 'zone2';
-    // Safely pull overrides from storeSettings — backend stores flat numbers under premium_prices
-    const premiumPrices = storeSettings.shipping.premium_prices || {};
+    // Check if any physical item belongs to DJ Flowerz (default true)
+    const hasDJFlowerzItems = items.some((i: any) => 
+      (i.type === 'physical' || i.requiresShipping) && (!i.vendor || i.vendor === 'DJ Flowerz')
+    );
 
-    const overnightSurcharge = Number(premiumPrices.overnight ?? 150);
-    const sameDayMin        = Number(premiumPrices.same_day  ?? (PREMIUM_SERVICES.same_day.price || 0));
-    const oneHourMin        = Number(premiumPrices.one_hour  ?? (PREMIUM_SERVICES.one_hour.price || 0));
+    if (!hasDJFlowerzItems) return 0;
+
+    // Nairobi vs Towns vs Remote
+    if (selectedZoneId === 'zone1') return 300; // Nairobi
+    if (selectedZoneId === 'zone5') return 1000; // Remote/Hardship
+    if (selectedZoneId) return 600; // All other towns
     
-    const baseRate = Number(baseShippingRate) || 0;
-    
-    return [
-      { 
-        id: 'standard', 
-        type: 'standard', 
-        label: PREMIUM_SERVICES.standard.label, 
-        timeline: PREMIUM_SERVICES.standard.timeline, 
-        price: baseRate 
-      },
-      { 
-        id: 'overnight', 
-        type: 'express', 
-        label: 'Overnight Courier', 
-        timeline: '1-2 Business Days', 
-        price: baseRate + overnightSurcharge
-      },
-      ...(isNearby ? [
-        { 
-          id: 'sameday', 
-          type: 'instant', 
-          label: PREMIUM_SERVICES.same_day.label,
-          timeline: PREMIUM_SERVICES.same_day.timeline, 
-          price: Math.max(sameDayMin, baseRate) 
-        }
-      ] : []),
-      ...(isNairobi ? [
-        { 
-          id: 'onehour', 
-          type: 'instant', 
-          label: PREMIUM_SERVICES.one_hour.label, 
-          timeline: PREMIUM_SERVICES.one_hour.timeline, 
-          price: Math.max(oneHourMin, baseRate)
-        }
-      ] : [])
-    ];
-  }, [isDigitalOnly, baseShippingRate, selectedZoneId, storeSettings]);
+    return 300; // Fallback
+  }, [isDigitalOnly, items, selectedZoneId]);
 
-  // Safe fallback to 'standard' if the selected rate ID is not in the generated list
-  const selectedSpeed = useMemo(() => {
-    return deliverySpeedOptions.find(o => o.id === selectedRateId) || deliverySpeedOptions[0];
-  }, [deliverySpeedOptions, selectedRateId]);
-
-  const shippingCost = selectedSpeed ? selectedSpeed.price : 0;
+  // Total Patience Points
+  const totalPoints = useMemo(() => {
+    return items.reduce((sum: number, item: any) => {
+      const tier = item.shippingTier || 'local';
+      const points = tier === 'sea' ? 150 : (tier === 'air' ? 50 : 0);
+      return sum + (points * (item.quantity || 1));
+    }, 0);
+  }, [items]);
 
   // Price Calculations
   const subtotal = useMemo(() => items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0), [items]);
@@ -330,9 +298,10 @@ export default function Checkout() {
           shipping_landmark: data.landmark,
           shipping_details: data.buildingDetails,
           shipping_address: `${data.buildingDetails}, ${data.landmark}, ${selectedTown || data.town}, ${data.county}`,
-          shipping_provider: selectedZone.name,
-          shipping_method: selectedSpeed.label,
+          shipping_provider: "Local Distribution",
+          shipping_method: "Regional Dispatch",
           shipping_cost: shippingCost,
+          patience_points: totalPoints,
           whatsapp_updates: data.whatsappUpdates,
           delivery_time: data.deliveryTime,
         }),
@@ -342,6 +311,7 @@ export default function Checkout() {
           quantity: item.quantity,
           price: item.price,
           type: item.type || 'physical',
+          shipping_tier: item.shippingTier || 'local',
           digital_file_url: item.digitalFileUrl || null,
           download_password: item.downloadPassword || null,
         })),
@@ -619,25 +589,24 @@ export default function Checkout() {
                       <div className="w-10 h-10 bg-brand-cyan/10 rounded-xl flex items-center justify-center text-brand-cyan border border-brand-cyan/20">
                         <Zap size={20} />
                       </div>
-                      <h3 className="text-xl font-black tracking-tight uppercase">Delivery Method</h3>
+                      <h3 className="text-xl font-black tracking-tight uppercase">Confirm Regional Delivery</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
-                      {deliverySpeedOptions.map((rate) => (
-                        <button key={rate.id} type="button" onClick={() => setSelectedRateId(rate.id)}
-                          className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all duration-300 ${selectedRateId === rate.id ? 'border-brand-purple bg-brand-purple/5 ring-4 ring-brand-purple/10' : 'border-white/5 bg-[#0B0B0F] hover:border-white/20'}`}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${selectedRateId === rate.id ? 'bg-brand-purple text-white shadow-lg' : 'bg-white/5 text-gray-500'}`}>
-                              <Truck size={24} />
+                    <div className="p-6 rounded-3xl border-2 border-brand-purple bg-brand-purple/5 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-brand-purple flex items-center justify-center text-white shadow-lg">
+                                <Truck size={24} />
                             </div>
                             <div>
-                                <p className="font-black text-white tracking-tight leading-none mb-1">{rate.label}</p>
-                                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{rate.timeline}</p>
+                                <p className="font-black text-white tracking-tight leading-none mb-1">
+                                    {selectedZoneId === 'zone1' ? 'Nairobi Dispatch' : 'Upcountry Regional Dispatch'}
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                                    Delivered via Sacco / Local Courier (1-3 Days)
+                                </p>
                             </div>
-                          </div>
-                          <span className="text-xl font-black text-brand-cyan">KES {rate.price.toLocaleString()}</span>
-                        </button>
-                      ))}
+                        </div>
+                        <span className="text-xl font-black text-brand-cyan">KES {shippingCost.toLocaleString()}</span>
                     </div>
 
                     <div className="flex gap-4 mt-6">
@@ -774,6 +743,18 @@ export default function Checkout() {
                     </div>
                   </div>
                 ))}
+                {totalPoints > 0 && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Zap size={16} className="text-emerald-500" />
+                      <div>
+                        <p className="text-[10px] font-black text-white uppercase tracking-widest">Patience Rewards</p>
+                        <p className="text-[8px] font-bold text-emerald-500 uppercase">You'll earn {totalPoints} Points</p>
+                      </div>
+                    </div>
+                    <Check size={16} className="text-emerald-500" />
+                  </div>
+                )}
               </div>
  
               {/* Coupon Code Section */}

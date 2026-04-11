@@ -55,6 +55,11 @@ export async function handleDashboardOrders(request, env, ctx, params) {
                 const estimated_arrival = body.estimated_arrival !== undefined ? body.estimated_arrival : body.estimatedArrival;
                 const courier_driver_name = body.courier_driver_name !== undefined ? body.courier_driver_name : body.courierDriverName;
                 const courier_driver_contact = body.courier_driver_contact !== undefined ? body.courier_driver_contact : body.courierDriverContact;
+                const sacco_name = body.sacco_name || body.saccoName;
+                const vehicle_plate = body.vehicle_plate || body.vehiclePlate;
+                const driver_phone = body.driver_phone || body.driverPhone;
+                const dispatch_status = body.dispatch_status || body.dispatchStatus;
+                const loyalty_points_earned = body.loyalty_points_earned || body.loyaltyPointsEarned;
                 const notes = body.notes !== undefined ? body.notes : body.adminMessage;
                 const shipped_at = body.shipped_at !== undefined ? body.shipped_at : body.shippedAt;
 
@@ -71,6 +76,11 @@ export async function handleDashboardOrders(request, env, ctx, params) {
                 if (estimated_arrival !== undefined) { sets.push("estimated_arrival = ?"); values.push(estimated_arrival); }
                 if (courier_driver_name !== undefined) { sets.push("courier_driver_name = ?"); values.push(courier_driver_name); }
                 if (courier_driver_contact !== undefined) { sets.push("courier_driver_contact = ?"); values.push(courier_driver_contact); }
+                if (sacco_name !== undefined) { sets.push("sacco_name = ?"); values.push(sacco_name); }
+                if (vehicle_plate !== undefined) { sets.push("vehicle_plate = ?"); values.push(vehicle_plate); }
+                if (driver_phone !== undefined) { sets.push("driver_phone = ?"); values.push(driver_phone); }
+                if (dispatch_status !== undefined) { sets.push("dispatch_status = ?"); values.push(dispatch_status); }
+                if (loyalty_points_earned !== undefined) { sets.push("loyalty_points_earned = ?"); values.push(loyalty_points_earned); }
                 if (notes !== undefined) { sets.push("notes = ?"); values.push(notes); }
                 if (shipped_at !== undefined) { sets.push("shipped_at = ?"); values.push(shipped_at); }
 

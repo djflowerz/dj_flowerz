@@ -92,9 +92,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, 
                     is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, images,
-                    shipping_size, currency
+                    shipping_size, currency, price_local, price_air, price_sea
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 id,
                 body.name || 'Unnamed Product',
@@ -124,7 +124,10 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 offerExpiry,
                 body.images ? JSON.stringify(body.images) : null,
                 shippingSize,
-                currency
+                currency,
+                body.price_local || body.price || 0,
+                body.price_air || body.price_air_shipping || 0,
+                body.price_sea || body.price_sea_shipping || 0
             ).run();
 
             // Handle variants
@@ -201,7 +204,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, stock = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?,
-                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, images = ?, shipping_size = ?, currency = ?
+                    is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, 
+                    images = ?, shipping_size = ?, currency = ?, 
+                    price_local = ?, price_air = ?, price_sea = ?
                 WHERE id = ?
             `).bind(
                 body.name,
@@ -231,6 +236,9 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 body.images ? JSON.stringify(body.images) : null,
                 shippingSize,
                 currency,
+                body.price_local || body.price || 0,
+                body.price_air || body.price_air_shipping || 0,
+                body.price_sea || body.price_sea_shipping || 0,
                 id
             ).run();
 

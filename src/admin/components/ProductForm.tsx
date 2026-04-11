@@ -58,7 +58,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
         is_best_seller: false,
         is_special_offer: false,
         is_trending: false,
-        offer_expiry: ''
+        offer_expiry: '',
+        price_local: 0,
+        price_air: 0,
+        price_sea: 0
     });
 
     useEffect(() => {
@@ -96,7 +99,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 is_best_seller: product.is_best_seller === 1 || product.is_best_seller === true,
                 is_special_offer: product.is_special_offer === 1 || product.is_special_offer === true,
                 is_trending: product.is_trending === 1 || product.is_trending === true,
-                offer_expiry: product.offer_expiry || ''
+                offer_expiry: product.offer_expiry || '',
+                price_local: product.price_local || product.price || 0,
+                price_air: product.price_air || 0,
+                price_sea: product.price_sea || 0
             });
         }
     }, [product]);
@@ -168,6 +174,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                 ...formData,
                 id: product ? product.id : (formData.slug || generateSlug(formData.name)),
                 inventory: formData.variants.reduce((total, v) => total + (parseInt(v.stock_quantity as any) || 0), 0),
+                price: formData.price_local, // Main price is local price
+                price_local: formData.price_local,
+                price_air: formData.price_air,
+                price_sea: formData.price_sea,
                 variants: formData.variants.map((v, i) => ({
                     ...v,
                     image_url: v.image_url || (i === 0 ? formData.image_url : null)
@@ -836,20 +846,46 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                                     placeholder="Default / Red"
                                                 />
                                             </div>
-                                            <div className="col-span-2 space-y-2">
-                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Base Price</label>
+                                             <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-brand-purple ml-2">Local Price (KES)</label>
                                                 <div className="relative group">
-                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={12} />
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-purple" size={12} />
                                                     <input
-                                                        id={`variant-price-${index}`}
-                                                        name={`variant_price_${index}`}
                                                         type="number"
-                                                        value={variant.price}
-                                                        onChange={e => handleVariantChange(variant.id, 'price', parseFloat(e.target.value))}
-                                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all"
+                                                        value={formData.price_local}
+                                                        onChange={e => setFormData({ ...formData, price_local: parseFloat(e.target.value) })}
+                                                        className="w-full bg-brand-purple/5 border border-brand-purple/20 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-brand-purple/50 transition-all font-black"
+                                                        placeholder="Local Stock"
                                                     />
                                                 </div>
                                             </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-blue-400 ml-2">Air Price (KES)</label>
+                                                <div className="relative group">
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" size={12} />
+                                                    <input
+                                                        type="number"
+                                                        value={formData.price_air}
+                                                        onChange={e => setFormData({ ...formData, price_air: parseFloat(e.target.value) })}
+                                                        className="w-full bg-blue-500/5 border border-blue-500/20 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all font-black"
+                                                        placeholder="Air Import"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-emerald-400 ml-2">Sea Price (KES)</label>
+                                                <div className="relative group">
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400" size={12} />
+                                                    <input
+                                                        type="number"
+                                                        value={formData.price_sea}
+                                                        onChange={e => setFormData({ ...formData, price_sea: parseFloat(e.target.value) })}
+                                                        className="w-full bg-emerald-500/5 border border-emerald-500/20 rounded-xl py-3 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-all font-black"
+                                                        placeholder="Sea Import"
+                                                    />
+                                                </div>
+                                            </div>
+
                                             <div className="col-span-2 space-y-2">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2">Old Price (Disc.)</label>
                                                 <div className="relative group">

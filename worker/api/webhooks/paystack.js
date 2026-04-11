@@ -110,10 +110,72 @@ export async function handlePaystackWebhook(request, env) {
         if (orderId) {
             try {
                 // Update orders table
-                await env.DB.prepare(`
-                    UPDATE orders SET payment_status = 'paid', status = 'processing', loyalty_points_earned = ?
-                    WHERE id = ?
-                `).bind(Math.floor(amount / 10000), orderId).run();
+                // [NAIROBI LOGISTICS ENGINE]: Award Patience Points based on Shipping Tier
+                try {
+                    const orderData = await env.DB.prepare("SELECT items, customer_email, customer_phone, metadata FROM orders WHERE id = ?").bind(orderId).first();
+                    if (orderData) {
+                        const items = typeof orderData.items === 'string' ? JSON.parse(orderData.items) : orderData.items;
+                        let patiencePoints = 0;
+                        items.forEach(item => {
+                            if (item.shipping_tier === 'sea') patiencePoints += (150 * (item.quantity || 1));
+                            else if (item.shipping_tier === 'air') patiencePoints += (50 * (item.quantity || 1));
+                        });
+
+                        // Standard spending points (1 per 100 KES) + Patience Points
+                        const spendingPoints = Math.floor(amount / 10000); 
+                        const totalAwarded = spendingPoints + patiencePoints;
+
+                        await env.DB.prepare(`
+                            UPDATE orders SET loyalty_points_earned = ? WHERE id = ?
+                        `).bind(totalAwarded, orderId).run();
+
+                        if (userId && totalAwarded > 0) {
+                            await env.DB.prepare(`
+                                UPDATE profiles SET loyalty_points = loyalty_points + ? WHERE id = ?
+                            `).bind(totalAwarded, userId).run();
+                            
+                            const historyId = `lh_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+                            await env.DB.prepare(`
+                                INSERT INTO loyalty_history (id, user_id, points, type, description)
+                                VALUES (?, ?, ?, 'purchase', ?)
+                            `).bind(historyId, userId, totalAwarded, `Earned ${totalAwarded} points (${patiencePoints} from Patience Discount) - Order: ${orderId}`).run();
+                        }
+
+                        // REFERRAL ANTI-FRAUD LOGIC
+                        const meta = typeof orderData.metadata === 'string' ? JSON.parse(orderData.metadata || '{}') : (orderData.metadata || {});
+                        const refCode = meta.referral_code || meta.ref;
+                        
+                        if (refCode) {
+                            const referrer = await env.DB.prepare("SELECT id, email, phone_number, last_ip FROM profiles WHERE referral_code = ?").bind(refCode).first();
+                            if (referrer) {
+                                const buyerEmail = orderData.customer_email;
+                                const buyerPhone = orderData.customer_phone;
+                                const buyerIp = metadata?.ip || request.headers.get('cf-connecting-ip');
+
+                                const isFraud = referrer.email === buyerEmail || 
+                                              (referrer.phone_number && referrer.phone_number === buyerPhone) ||
+                                              (referrer.last_ip && referrer.last_ip === buyerIp);
+
+                                if (!isFraud) {
+                                    // Award 5% commission as balance
+                                    const commission = (amount / 100) * 0.05;
+                                    await env.DB.prepare(`
+                                        UPDATE profiles SET referral_balance = referral_balance + ? WHERE id = ?
+                                    `).bind(commission, referrer.id).run();
+                                    
+                                    await env.DB.prepare(`
+                                        INSERT INTO referral_logs (id, referrer_id, referred_id, order_id, commission_amount, status)
+                                        VALUES (?, ?, ?, ?, ?, 'completed')
+                                    `).bind(crypto.randomUUID(), referrer.id, userId || 'guest', orderId, commission).run();
+                                } else {
+                                    console.warn(`[Referral Anti-Fraud] Blocked commission for ${refCode} - Potential self-referral detected.`);
+                                }
+                            }
+                        }
+                    }
+                } catch (ptsErr) {
+                    console.error('[Nairobi Logistics Engine] Points/Referral Error:', ptsErr);
+                }
 
                 // 1b. Handle Coupon Usage tracking
                 try {
