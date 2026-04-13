@@ -1,5 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { Toaster } from 'sonner';
@@ -116,9 +116,27 @@ const App: React.FC = () => {
 
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
+    
+    // Global Presence Heartbeat
+    let heartbeatInterval: any;
+    const sendHeartbeat = async () => {
+        try {
+            await fetch('/api/presence', { method: 'POST' });
+        } catch (e) {
+            // Silently ignore heartbeat errors
+        }
+    };
+
+    // Initial heartbeat
+    sendHeartbeat();
+    
+    // Frequent heartbeat while tab is active
+    heartbeatInterval = setInterval(sendHeartbeat, 60000); // 1 minute
+
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
   }, []);
 
@@ -135,6 +153,8 @@ const App: React.FC = () => {
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
                     <Route path="/" element={<Home />} />
+                    <Route path="/pool" element={<Navigate to="/music-pool" replace />} />
+                    <Route path="/track/:id" element={<Navigate to="/music-pool" replace />} />
                     <Route path="/mixtapes" element={<Mixtapes />} />
                     <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
                     <Route path="/music-pool" element={<MusicPool />} />

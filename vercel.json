@@ -57,6 +57,21 @@
             "destination": "/api/og-proxy?slug=$1"
         },
         {
+            "source": "/sitemap.xml",
+            "destination": "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/sitemap.xml"
+        },
+        {
+            "source": "/track/(.*)",
+            "has": [
+                {
+                    "type": "header",
+                    "key": "user-agent",
+                    "value": "(?i).*(bot|facebookexternalhit|whatsapp|telegram|discord|slack|twitter).*"
+                }
+            ],
+            "destination": "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/seo/track/$1"
+        },
+        {
             "source": "/r2/(.*)",
             "destination": "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/$1"
         },

@@ -13,6 +13,8 @@ import { handleDashboardReferrals } from './api/dashboard/referrals.js';
 import { handleDashboardFinances } from './api/dashboard/finances.js';
 import { handleR2Sync, handleR2Upload } from './api/dashboard/sync.js';
 import { handleSyncTrack, handleSyncGenres, handleDeleteTrack, handleBulkSync, handleRefreshPool, handleDashboardTracks } from './api/dashboard/pool.js';
+import { handlePoolScan } from './api/dashboard/scan.js';
+import { handlePoolConsolidate } from './api/dashboard/consolidate.js';
 import { handleStorefrontPool, handleGetSyncNotifications } from './api/storefront/pool.js';
 import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
@@ -30,13 +32,21 @@ import { handleStoreSettings } from './api/dashboard/store_settings.js';
 import { handleDashboardInstallments } from './api/dashboard/installments.js';
 import { handlePaymentInitialize } from './api/storefront/payments.js';
 import { handleLoyalty } from './api/loyalty.js';
+import { handlePresence } from './api/presence.js';
+import { handleAdminNotifications, handleUserStatus } from './api/dashboard/notifications.js';
 
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
 import { handleSetupDB } from './api/run_setup.js';
+import { handleHealth } from './api/health.js';
+import { handleSitemap } from './api/seo/sitemap.js';
+import { handleTrackSEO } from './api/seo/track.js';
 
 const router = new Router();
 
 router.get('/api/admin/setup-db', handleSetupDB);
+router.get('/api/health', handleHealth);
+router.get('/sitemap.xml', handleSitemap);
+router.get('/api/seo/track/:id', handleTrackSEO);
 
 // Storefront API
 router.get('/api/products', handleStorefrontProducts);
@@ -59,6 +69,8 @@ router.get('/api/user/wishlist', handleWishlist);
 router.post('/api/user/wishlist', handleWishlist);
 router.delete('/api/user/wishlist', handleWishlist);
 router.get('/api/loyalty/history', handleLoyalty);
+router.post('/api/presence', handlePresence);
+router.get('/api/user/status', handleUserStatus);
 
 // Dashboard API
 router.get('/api/admin/products', handleDashboardProducts);
@@ -94,6 +106,8 @@ router.post('/api/admin/pool/refresh', handleRefreshPool);
 router.get('/api/admin/pool/tracks', handleDashboardTracks);
 router.post('/api/admin/pool/sync-genres', handleSyncGenres);
 router.delete('/api/admin/pool/track', handleDeleteTrack);
+router.post('/api/admin/pool/scan', handlePoolScan);
+router.post('/api/admin/pool/consolidate', handlePoolConsolidate);
 router.get('/api/admin/orders', handleDashboardOrders);
 router.get('/api/admin/orders/:id', handleDashboardOrders);
 router.put('/api/admin/orders/:id', handleDashboardOrders);
@@ -147,6 +161,7 @@ router.get('/api/admin/dashboard', handleDashboardFinances);
 router.get('/api/admin/stats', handleDashboardFinances);
 router.post('/api/admin/sync-paystack', handleDashboardFinances);
 router.get('/api/admin/usage', handleDashboardUsage);
+router.get('/api/admin/notifications', handleAdminNotifications);
 router.post('/api/admin/revoke-access', handleDashboardSubscriptions);
 
 // Community & Interactions (Admin)
