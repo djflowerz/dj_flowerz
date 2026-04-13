@@ -20,6 +20,7 @@ const Mixtapes = lazy(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazy(() => import('./pages/MixtapeDetails'));
 const MusicPool = lazy(() => import('./pages/MusicPool'));
 const BpmTapper = lazy(() => import('./pages/BpmTapper'));
+const Community = lazy(() => import('./pages/Community'));
 const Store = lazy(() => import('./pages/Store'));
 const ProductDetails = lazy(() => import('./pages/ProductDetails'));
 const Cart = lazy(() => import('./pages/Cart'));
@@ -160,6 +161,7 @@ const App: React.FC = () => {
                     <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
                     <Route path="/music-pool" element={<MusicPool />} />
                     <Route path="/dj-tools/bpm-tapper" element={<BpmTapper />} />
+                    <Route path="/community" element={<Community />} />
                     <Route path="/store" element={<Store />} />
                     <Route path="/store/:slug" element={<ProductDetails />} />
                     <Route path="/cart" element={<Cart />} />

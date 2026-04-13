@@ -25,6 +25,7 @@ const Navbar: React.FC = () => {
     { name: 'Home', path: '/' },
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
+    { name: 'Community', path: '/community' },
     { name: 'Track Order', path: '/order-tracking' },
     { name: 'Music Pool', path: '/music-pool' },
     { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },

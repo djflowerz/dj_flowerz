@@ -20,7 +20,8 @@ import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleSupabaseWebhook } from './api/webhooks/supabase.js';
 import { handleLegacy } from './api/legacy.js';
-import { handleCommunity } from './api/community.js';
+import { handleCommunity } from './api/community.js'; // Note: community.js is legacy reviews/etc.
+import { handleCommunityFeed, handleCommunityInteraction } from './api/community/feed.js';
 import { handleBookings } from './api/bookings.js';
 import { handleSupport } from './api/support.js';
 import { handleChat } from './api/chat.js';
@@ -172,6 +173,15 @@ router.post('/api/admin/comments', handleCommunity);
 router.get('/api/admin/interactions', handleCommunity);
 router.patch('/api/admin/interactions/:id', handleCommunity);
 router.delete('/api/admin/interactions/:id', handleCommunity);
+
+// Community interactions (New unified feed)
+router.get('/api/community/posts', handleCommunityFeed);
+router.post('/api/community/posts', handleCommunityFeed);
+router.post('/api/community/likes', handleCommunityInteraction);
+router.get('/api/community/comments', handleCommunityInteraction);
+router.post('/api/community/comments', handleCommunityInteraction);
+router.post('/api/community/follows', handleCommunityInteraction);
+router.get('/api/community/follows', handleCommunityInteraction);
 
 // Lipa Pole Pole (Installments)
 router.get('/api/admin/installments', handleDashboardInstallments);
