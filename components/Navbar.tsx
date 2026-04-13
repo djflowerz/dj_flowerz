@@ -17,6 +17,7 @@ const Navbar: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userStatus, setUserStatus] = useState({ unreadMessages: 0, unreadNotifications: 0 });
 
   const isAdminPage = location.pathname.startsWith('/admin');
 
@@ -26,6 +27,7 @@ const Navbar: React.FC = () => {
     { name: 'Store', path: '/store' },
     { name: 'Track Order', path: '/order-tracking' },
     { name: 'Music Pool', path: '/music-pool' },
+    { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },
     { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
     { name: 'Tip Jar', path: '/tip-jar' },
@@ -39,6 +41,33 @@ const Navbar: React.FC = () => {
     setShowMessages(false);
     setShowUserMenu(false);
   }, [location.pathname]);
+
+  // Status Polling (Messages & Notifications)
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const sessionId = localStorage.getItem('dj_flowerz_chat_session');
+        const userId = user?.id;
+        if (!sessionId && !userId) return;
+
+        const url = `${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev'}/api/user/status?${sessionId ? `sessionId=${sessionId}` : ''}${userId ? `&userId=${userId}` : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setUserStatus({
+            unreadMessages: data.unreadMessages || 0,
+            unreadNotifications: data.unreadNotifications || 0
+          });
+        }
+      } catch (e) {
+        console.warn("[Navbar] Status fetch failed", e);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000); // Poll every 30s for better user experience
+    return () => clearInterval(interval);
+  }, [user]);
 
   if (isAdminPage) return null;
 
@@ -116,8 +145,8 @@ const Navbar: React.FC = () => {
                   className="text-gray-300 hover:text-white transition group relative p-1"
                 >
                   <Bell size={22} className="group-hover:text-brand-purple transition" />
-                  {notifications?.filter(n => n.userId === user?.id && !n.read).length > 0 && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0B0B0F]"></span>
+                  {(userStatus.unreadNotifications > 0 || (notifications?.filter(n => n.userId === user?.id && !n.read).length > 0)) && (
+                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-brand-purple rounded-full border-2 border-[#0B0B0F] animate-pulse"></span>
                   )}
                 </button>
 
@@ -169,6 +198,11 @@ const Navbar: React.FC = () => {
                   className="text-gray-300 hover:text-white transition group relative p-1"
                 >
                   <MessageCircle size={22} className="group-hover:text-brand-purple transition" />
+                  {userStatus.unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-purple text-white text-[9px] font-black rounded-full border-2 border-[#0B0B0F] flex items-center justify-center animate-bounce">
+                      {userStatus.unreadMessages > 9 ? '9+' : userStatus.unreadMessages}
+                    </span>
+                  )}
                 </button>
 
                 {showMessages && (
