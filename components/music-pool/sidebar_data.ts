@@ -47,10 +47,10 @@ export const SIDEBAR_DATA = {
     "Lingalla Hits", "Bongo Flava (TBT) (TZ) Hype", "Bongo Flava (TBT) (TZ)Low Hype",
     "Kenyan Amapiano", "Urban Amapiano", "dombolo"
   ],
-  "Remix & Mashups Hub": [
+  "Redrums & Afro Extended": [
     "Redrums Video Remixes",
     "DaPhonk (Audio) Remixes",
-    "Made In Kenya (DJ Dandana Refixes)",
+    "ReFixes",
     "Afro Beats (Audio) Remixes",
     "Reggaetone (Audio) Remixes",
     "Audio Redrums",
@@ -69,7 +69,7 @@ export const SIDEBAR_DATA = {
   "Riddim Videos": [
     "WYFL Riddim", "Love Echoes Riddim", "Recovery Riddim"
   ],
-  "Riddimz F'": [
+  "Full Riddims": [
     "OVER PROOF RIDDIM (PT. 2) - JA-PRODS", "back it up", "BIG DOG RIDDIM - BOARDHOUSE",
     "SIGNATURE BOUNCE RIDDIM - SOUNIQUE", "(97) Riva Stone Riddim(Dj Frass Records)",
     "SOULMATERIDDIM - DUNWELL", "[101]BRIXTON B OUNCE RIDDIM", "Tomatoe Riddim [2012]",

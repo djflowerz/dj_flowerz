@@ -1,5 +1,6 @@
 
 import { getAuthorizedUser, isAdminEmail } from '../../utils/auth.js';
+import { cleanMetadata, extractVersionInfo } from '../../utils/normalization.js';
 
 function sanitizeName(name) {
     if (!name) return name;
@@ -210,11 +211,11 @@ async function handlePoolFilters(request, env) {
         ]
       },
       {
-        name: "REMIX & MASHUPS HUB",
+        name: "Redrums & Afro Extended",
         genres: [
           { name: "Redrums Video Remixes", sub_genres: [] },
           { name: "DaPhonk", sub_genres: [] },
-          { name: "DJ Dandana Refixes", sub_genres: [] },
+          { name: "ReFixes", sub_genres: [] },
           { name: "Amapiano", sub_genres: [] },
           { name: "Afro House", sub_genres: [] },
           { name: "R&B Remixes", sub_genres: [] },
@@ -230,7 +231,7 @@ async function handlePoolFilters(request, env) {
         ]
       },
       {
-        name: "Riddimz F'",
+        name: "Full Riddims",
         genres: [
           { name: "OVER PROOF RIDDIM (PT. 2) - JA-PRODS", sub_genres: [] },
           { name: "back it up", sub_genres: [] },
@@ -739,7 +740,8 @@ async function handlePoolDownload(request, env) {
     }
 
     const contentType = fileResponse.headers.get("Content-Type") || "application/octet-stream";
-    const safeFilename = filename.replace(/[^\w.\- ()]/g, '_');
+    const cleanFn = cleanMetadata(filename);
+    const safeFilename = cleanFn.replace(/[^\w.\- ()]/g, '_');
 
     return new Response(fileResponse.body, {
         status: 200,
