@@ -1,4 +1,7 @@
 // worker/api/webhooks/supabase.js
+import { sendEmail } from '../../utils/email.js';
+import { templates } from '../../utils/templates.js';
+
 export async function handleSupabaseWebhook(request, env) {
     const signature = request.headers.get('x-supabase-signature');
     const secret = env.SUPABASE_WEBHOOK_SECRET;
@@ -56,6 +59,14 @@ export async function handleSupabaseWebhook(request, env) {
                 await env.PROFILES_BUCKET.put(`profiles/${id}.json`, JSON.stringify(existing));
             } else {
                 await env.PROFILES_BUCKET.put(`profiles/${id}.json`, JSON.stringify(profileData));
+                
+                // NEW USER: Send Welcome Email
+                ctx.waitUntil(sendEmail({
+                    to: email,
+                    subject: 'Welcome to DJ FLOWERZ! 🎧',
+                    html: templates.welcome(fullName || 'Legend'),
+                    text: `Welcome to DJ FLOWERZ, ${fullName}! Your account is now active.`
+                }, env));
             }
         } catch (r2Err) {
             console.error('[Supabase Webhook] R2 Sync Error:', r2Err);

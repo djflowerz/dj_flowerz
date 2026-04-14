@@ -82,7 +82,43 @@ export async function handleSetupDB(request, env) {
         `UPDATE subscribers SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END`,
         
         `ALTER TABLE newsletter_campaigns ADD COLUMN target_audience TEXT DEFAULT 'all'`,
-        `ALTER TABLE profiles ADD COLUMN referral_code TEXT`
+        `ALTER TABLE profiles ADD COLUMN referral_code TEXT`,
+        `ALTER TABLE profiles ADD COLUMN last_login DATETIME`,
+        `ALTER TABLE profiles ADD COLUMN presence_status TEXT DEFAULT 'offline'`,
+        `ALTER TABLE profiles ADD COLUMN last_seen DATETIME`,
+        `ALTER TABLE profiles ADD COLUMN loyalty_points INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN daily_download_count INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN last_download_reset DATETIME DEFAULT CURRENT_TIMESTAMP`,
+        `ALTER TABLE profiles ADD COLUMN username TEXT`,
+        `ALTER TABLE profiles ADD COLUMN bio TEXT`,
+        `ALTER TABLE profiles ADD COLUMN avatar_url TEXT`,
+        `ALTER TABLE profiles ADD COLUMN location TEXT`,
+        `CREATE TABLE IF NOT EXISTS escrow_orders (
+            id TEXT PRIMARY KEY,
+            post_id TEXT NOT NULL,
+            buyer_id TEXT NOT NULL,
+            seller_id TEXT NOT NULL,
+            amount REAL NOT NULL,
+            status TEXT DEFAULT 'HELD',
+            shipping_address TEXT,
+            tracking_number TEXT,
+            dispute_reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            actor_id TEXT,
+            actor_name TEXT,
+            actor_avatar TEXT,
+            type TEXT NOT NULL,
+            target_id TEXT,
+            message TEXT,
+            is_read INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)`
     ];
 
     let errs = [];

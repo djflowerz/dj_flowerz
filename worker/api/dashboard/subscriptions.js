@@ -2,11 +2,23 @@
 // [VERIFIED] Subscription logic and expiry watch for dashboard sync.
 import { sendEmail } from '../../utils/email.js';
 
-const PLAN_DURATIONS = {
-    weekly: 7,
-    monthly: 30,
-    pro: 365
+export const PLAN_DURATIONS = {
+    'weekly': 7,
+    '1 Week': 7,
+    '1 week': 7,
+    'monthly': 30,
+    '1 Month': 30,
+    '1 month': 30,
+    '3months': 90,
+    '3 Months': 90,
+    '6months': 180,
+    '6 Months': 180,
+    'yearly': 365,
+    'pro': 365,
+    '1 Year': 365,
+    '1 year': 365
 };
+
 
 export async function handleDashboardSubscriptions(request, env, ctx, params) {
     const url = new URL(request.url);
@@ -150,8 +162,8 @@ export async function handleDashboardSubscriptions(request, env, ctx, params) {
             }
 
             if (action === 'grant') {
-                // Determine expiry date
-                let extensionDays = days || (plan ? PLAN_DURATIONS[plan] : 30);
+                // Determine expiry date securely
+                let extensionDays = days || PLAN_DURATIONS[plan] || 30;
                 let newExpiry = new Date();
                 
                 // If user is already active, extend from their current expiry
@@ -196,7 +208,7 @@ export async function handleDashboardSubscriptions(request, env, ctx, params) {
                                     <div style="background: #111; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #333;">
                                         <p style="margin: 0;"><strong>Active Until:</strong> ${new Date(newExpiryIso).toLocaleDateString()}</p>
                                     </div>
-                                    <a href="https://djflowerz.co.ke/pool" style="display: inline-block; background: #a855f7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Access Music Pool</a>
+                                    <a href="https://djflowerz.co.ke/music-pool" style="display: inline-block; background: #a855f7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Access Music Pool</a>
                                 </div>
                             `,
                             text: `Hello ${targetName}, your ${displayPlan} plan is now active! Visit djflowerz.co.ke/music-pool to start.`

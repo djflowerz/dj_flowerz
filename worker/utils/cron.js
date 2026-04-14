@@ -1,5 +1,6 @@
 import { syncPool } from './poolSync.js';
 import { sendEmail } from './email.js';
+import { templates } from './templates.js';
 import { scrapeAndSave } from '../api/dashboard/scraped_tracks.js';
 
 export async function handleScheduled(event, env, ctx) {
@@ -44,18 +45,7 @@ export async function handleScheduled(event, env, ctx) {
                         await sendEmail({
                             to: email,
                             subject: 'Your Premium Access has Expired 🎧',
-                            html: `
-                                <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff; border-radius: 12px; max-width: 500px; margin: 0 auto;">
-                                    <h2 style="color: #ef4444;">Access Expired</h2>
-                                    <p>Hello ${full_name || 'Legend'},</p>
-                                    <p>Your subscription to the DJ FLOWERZ Music Pool has expired.</p>
-                                    <p>To continue downloading the latest remixes, video edits, and mashups, please renew your plan.</p>
-                                    <div style="margin-top: 30px;">
-                                        <a href="https://www.djflowerz.co.ke/checkout" style="background: #a855f7; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Renew Access</a>
-                                    </div>
-                                    <p style="font-size: 11px; color: #6b7280; margin-top: 25px;">Keep the vibes alive! - DJ Flowerz Team</p>
-                                </div>
-                            `,
+                            html: templates.subscriptionExpiry(full_name || 'Legend', new Date().toLocaleDateString(), 'https://djflowerz.co.ke/checkout'),
                             text: `Hello ${full_name}, your subscription has expired. Renew here: https://www.djflowerz.co.ke/checkout`
                         }, env);
                     } catch (e) {
@@ -103,17 +93,7 @@ export async function handleScheduled(event, env, ctx) {
                     const success = await sendEmail({
                         to: dj.email,
                         subject: "Don't Stop the Music! 🎧 Your Access Expires Soon",
-                        html: `
-                            <div style="font-family: sans-serif; background: #0b0b0f; border: 1px solid #1a1a20; padding: 30px; color: #ffffff; border-radius: 12px; max-width: 500px; margin: 0 auto;">
-                                <h2 style="color: #a855f7;">Heads Up, ${dj.full_name || 'Legend'}!</h2>
-                                <p>Your <strong>DJ Flowerz Music Pool</strong> access is set to expire soon.</p>
-                                <p>Renew today to ensure you don't lose access to the latest remixes, club edits, and exclusive mashups.</p>
-                                <div style="background: #15151a; padding: 15px; border-radius: 8px; border: 1px solid #333; margin: 20px 0;">
-                                    <p style="margin: 0; font-size: 14px;"><strong>Expires on:</strong> ${new Date(dj.subscription_expiry).toLocaleDateString()}</p>
-                                </div>
-                                <a href="https://www.djflowerz.co.ke/checkout" style="background: #a855f7; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Renew Now</a>
-                            </div>
-                        `,
+                        html: templates.subscriptionExpiry(dj.full_name || 'Legend', new Date(dj.subscription_expiry).toLocaleDateString(), 'https://djflowerz.co.ke/checkout'),
                         text: `Hi ${dj.full_name}, your music pool access expires on ${new Date(dj.subscription_expiry).toLocaleDateString()}. Renew here: https://www.djflowerz.co.ke/checkout`
                     }, env);
 
@@ -179,6 +159,34 @@ export async function handleScheduled(event, env, ctx) {
             console.log("[Cron] Installment reminders complete.");
         } catch (instError) {
             console.error("[Cron] Installment Reminder Error:", instError);
+        }
+
+        // 4. DAILY ADMIN SUMMARY
+        try {
+            const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            
+            const [newUsers, revenue, openTickets, activeChats] = await Promise.all([
+                env.DB.prepare("SELECT COUNT(*) as count FROM profiles WHERE created_at > ?").bind(last24h).first('count'),
+                env.DB.prepare("SELECT SUM(total_amount) as total FROM store_orders WHERE payment_status = 'paid' AND created_at > ?").bind(last24h).first('total'),
+                env.DB.prepare("SELECT COUNT(*) as count FROM support_tickets WHERE status = 'pending'").first('count'),
+                env.DB.prepare("SELECT COUNT(*) as count FROM chat_sessions WHERE status = 'active'").first('count')
+            ]);
+
+            await sendEmail({
+                to: env.GMAIL_USER || 'admin@djflowerz.co.ke',
+                subject: '📊 DJ Flowerz Daily Pulse Summary',
+                html: templates.adminDailySummary({
+                    newSignups: newUsers || 0,
+                    totalPayments: revenue || 0,
+                    expiredSubs: (expiredSubs.results?.length || 0),
+                    activeChats: (openTickets || 0) + (activeChats || 0)
+                }),
+                text: `Daily Summary: ${newUsers} new signups, KES ${revenue} revenue, ${expiredSubs.results?.length} expired subs.`
+            }, env);
+            
+            console.log("[Cron] Daily Admin Summary sent.");
+        } catch (summaryErr) {
+            console.error("[Cron] Daily Summary Error:", summaryErr);
         }
 
     } catch (error) {

@@ -59,46 +59,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv;
 
     try {
-      // Fetch Profiles from R2
-      const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
-      const profile = profiles.find(p => p.id === sbUser.id);
+      // 1. Fetch Real-time Profile from D1 (Source of Truth)
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBase}/api/user/me`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
 
-      let userData: User;
-
-      if (profile) {
-        // Profile exists
-        // Update last seen in R2 (Optimistic/Background)
-        updateR2Item('profiles', sbUser.id, {
-          last_seen: new Date().toISOString(),
-          presence_status: 'online'
-        }).catch(err => console.error("Error updating last_seen:", err));
-
+      if (response.ok) {
+        const { user: profile } = await response.json();
+        
         userData = {
-          id: sbUser.id,
-          name: profile.name || sbUser.user_metadata?.full_name || 'User',
-          email: sbUser.email || '',
-          role: profile.role || (isAdminEmail ? 'admin' : 'user'),
-          isAdmin: isAdminEmail,
-          isSubscriber: isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
-          subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
-          subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
-          avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
-          referralCode: profile.referral_code || profile.referralCode,
-          balance: profile.balance || 0,
-          auraPoints: profile.loyalty_points || profile.loyaltyPoints || profile.aura_points || profile.auraPoints || 0,
-          auraLevel: profile.aura_level || profile.auraLevel || 1,
-          phoneNumber: profile.phone_number || profile.phoneNumber || '',
-
-          createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
-          updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
-          referralCount: profile.referral_count || profile.referralCount || 0,
-          downloadCountTotal: profile.download_count_total || profile.downloadCountTotal || 0,
-          downloadsToday: profile.downloads_today || profile.downloadsToday || 0,
-          lastDownloadDate: profile.last_download_date || profile.lastDownloadDate
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role,
+          isAdmin: profile.role === 'admin',
+          isSubscriber: profile.isSubscriber,
+          subscriptionPlan: profile.subscriptionPlan,
+          subscriptionExpiry: profile.subscriptionExpiry,
+          avatarUrl: profile.avatarUrl,
+          referralCode: profile.referralCode,
+          balance: profile.balance,
+          auraPoints: profile.loyaltyPoints,
+          auraLevel: profile.auraLevel || 1,
+          phoneNumber: profile.phoneNumber,
+          username: profile.username,
+          bio: profile.bio,
+          location: profile.location,
+          createdAt: profile.createdAt,
+          updatedAt: profile.updatedAt,
+          referralCount: profile.referralCount || 0,
+          downloadCountTotal: profile.downloadCountTotal || 0,
+          downloadsToday: profile.downloadsToday || 0,
+          lastDownloadDate: profile.lastDownloadDate
         };
       } else {
-        // Profile doesn't exist, create it in R2
-        const now = new Date().toISOString();
+        // Fallback or legacy check if /api/user/me fails (e.g., during migration)
+        const profiles = await fetchFromR2<any[]>('profiles').catch(() => []);
+        const profile = profiles.find(p => p.id === sbUser.id);
+        
+        if (profile) {
+          userData = {
+            id: sbUser.id,
+            name: profile.name || sbUser.user_metadata?.full_name || 'User',
+            email: sbUser.email || '',
+            role: profile.role || (isAdminEmail ? 'admin' : 'user'),
+            isAdmin: isAdminEmail,
+            isSubscriber: isAdminEmail || profile.is_subscriber || profile.isSubscriber || false,
+            subscriptionPlan: profile.subscription_plan || profile.subscriptionPlan,
+            subscriptionExpiry: profile.subscription_expiry || profile.subscriptionExpiry,
+            avatarUrl: profile.avatar_url || profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
+            referralCode: profile.referral_code || profile.referralCode,
+            balance: profile.balance || 0,
+            auraPoints: profile.loyalty_points || profile.loyaltyPoints || profile.aura_points || profile.auraPoints || 0,
+            auraLevel: profile.aura_level || profile.auraLevel || 1,
+            phoneNumber: profile.phone_number || profile.phoneNumber || '',
+            username: profile.username || '',
+            bio: profile.bio || '',
+            location: profile.location || '',
+            createdAt: profile.created_at || profile.createdAt || new Date().toISOString(),
+            updatedAt: profile.updated_at || profile.updatedAt || new Date().toISOString(),
+          } as any;
+        } else {
+          // Profile doesn't exist, create it in R2
+          const now = new Date().toISOString();
         const referralCode = generateReferralCode(sbUser.user_metadata?.full_name || 'USR');
 
         let referrerId = null;
@@ -114,13 +140,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let initialSubscriptionExpiry = null;
 
         const subscriptions = await fetchFromR2<any[]>('subscriptions').catch(() => []);
-        const existingSub = subscriptions.find(s => s.user_email === sbUser.email && s.status === 'active');
+        const existingSub = subscriptions.find(s => {
+          const subEmail = (s.user_email || '').toLowerCase().trim();
+          const targetEmail = (sbUser.email || '').toLowerCase().trim();
+          return subEmail === targetEmail && s.status === 'active';
+        });
 
         if (existingSub) {
           initialSubscriberStatus = true;
           initialSubscriptionPlan = existingSub.plan_id;
           initialSubscriptionExpiry = existingSub.expiry_date;
         }
+
+        const defaultUsername = (sbUser.user_metadata?.full_name || 'user')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .substring(0, 20);
 
         const newProfile = {
           id: sbUser.id,
@@ -143,7 +178,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           last_seen: now,
           presence_status: 'online',
           referral_count: 0,
-          download_count_total: 0
+          download_count_total: 0,
+          username: defaultUsername,
+          bio: '',
+          location: ''
         };
 
         // Save to local state
@@ -165,7 +203,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           createdAt: newProfile.created_at,
           updatedAt: newProfile.updated_at,
           referralCount: newProfile.referral_count,
-          downloadCountTotal: newProfile.download_count_total
+          downloadCountTotal: newProfile.download_count_total,
+          username: newProfile.username,
+          bio: newProfile.bio,
+          location: newProfile.location
         };
 
         // Save to R2
@@ -190,17 +231,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           subscriptionPlan: newProfile.subscription_plan as any,
           subscriptionExpiry: newProfile.subscription_expiry as string,
           avatarUrl: newProfile.avatar_url,
+          username: newProfile.username,
+          bio: newProfile.bio,
+          location: newProfile.location,
           referralCode: newProfile.referral_code,
           balance: 0,
           auraPoints: 0,
           auraLevel: 1,
-
           createdAt: newProfile.created_at,
           updatedAt: newProfile.updated_at
         };
       }
+    }
 
-      setUser(userData);
+    setUser(userData);
       setLoading(false);
     } catch (err) {
       console.error("Auth sync error:", err);
@@ -367,6 +411,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       if (data.auraLevel !== undefined) updates.aura_level = data.auraLevel;
       if (data.phoneNumber) updates.phone_number = data.phoneNumber;
+      if (data.username !== undefined) updates.username = data.username;
+      if (data.bio !== undefined) updates.bio = data.bio;
+      if (data.location !== undefined) updates.location = data.location;
 
 
       await updateR2Item('profiles', user.id, updates);
@@ -487,7 +534,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             subscriptionExpiry: undefined
           }) : null);
 
-          alert("Your subscription has expired. Please renew to continue accessing the Music Pool.");
+          alert("Your subscription has expired. Please renew to continue accessing premium features.");
         } catch (e) {
           console.error("Failed to expire subscription:", e);
         }
@@ -511,20 +558,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const updatePresence = async () => {
       try {
         const now = new Date().toISOString();
-        await updateR2Item('profiles', user.id, {
+        
+        // 1. Update R2 (Legacy/Compatibility)
+        updateR2Item('profiles', user.id, {
           last_seen: now,
           presence_status: 'online',
           updated_at: now
-        });
+        }).catch(() => {});
+
+        // 2. Update D1 (For Admin Dashboard)
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        fetch(`${apiBase}/api/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        }).catch(err => console.warn("Presence API update failed:", err));
+
       } catch (e) {
-        console.warn("Presence update failed:", e);
+        console.warn("Presence loop error:", e);
       }
     };
 
     updatePresence();
-    const presenceInterval = setInterval(updatePresence, 30000);
+    const presenceInterval = setInterval(updatePresence, 45000); // 45s heartbeat
     return () => clearInterval(presenceInterval);
-  }, [user?.id, loading]);
+  }, [user?.id, loading, session?.access_token]);
 
   // --- Removed Real-time Profile Sync (Supabase) ---
 

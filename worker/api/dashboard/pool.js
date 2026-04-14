@@ -329,9 +329,9 @@ export async function handleRefreshPool(request, env, ctx, params) {
             }
 
             const handleRebrand = (s) => (s || "")
-                .replace(/dj[-_\\s]*vick[-_\\s]*nick/gi, "DJ Flowerz")
-                .replace(/vick[-_\\s]*nick/gi, "Flowerz")
-                .replace(/Reggae\\s+Fussion/gi, "Reggae Fusion")
+                .replace(/dj[-_\s]*vick[-_\s]*nick/gi, "DJ Flowerz")
+                .replace(/vick[-_\s]*nick/gi, "Flowerz")
+                .replace(/Reggae\s+Fussion/gi, "Reggae Fusion")
                 .replace(/Reggaetone/gi, "Reggaeton");
             
             displayArtist = handleRebrand(displayArtist);
@@ -358,7 +358,9 @@ export async function handleRefreshPool(request, env, ctx, params) {
             }
 
             const trackId = crypto.randomUUID();
-            const fileUrl = `https://cdn.vicknickvideopool.com/${parts.map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/')}`;
+            // Using the worker's own proxy endpoint for branded URLs
+            const encodedPath = parts.map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/');
+            const fileUrl = `/api/files/${encodedPath}`;
 
             queries.push(env.DB.prepare(`
                 INSERT INTO tracks (

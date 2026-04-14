@@ -11,7 +11,12 @@ const supabaseKey = isServer
     ? (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
     : (import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 
-if (!supabaseUrl || !supabaseKey) {
+const sanitizeEnv = (val: string) => (val || '').trim().replace(/\\n/g, '');
+
+const trimmedUrl = sanitizeEnv(supabaseUrl);
+const trimmedKey = sanitizeEnv(supabaseKey);
+
+if (!trimmedUrl || !trimmedKey) {
     console.error('⚠️ Supabase credentials missing! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
 }
 
@@ -32,8 +37,8 @@ const createNoOpClient = () => ({
 });
 
 // Enhanced client with retry logic and increased timeouts
-export const supabase = (supabaseUrl && supabaseKey)
-    ? createClient(supabaseUrl, supabaseKey, {
+export const supabase = (trimmedUrl && trimmedKey)
+    ? createClient(trimmedUrl, trimmedKey, {
         auth: {
             persistSession: !isServer,
             autoRefreshToken: !isServer,

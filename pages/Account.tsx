@@ -134,6 +134,9 @@ const Account: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editLocation, setEditLocation] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [loyaltyHistory, setLoyaltyHistory] = useState<any[]>([]);
   const [loadingLoyalty, setLoadingLoyalty] = useState(false);
@@ -209,6 +212,9 @@ const Account: React.FC = () => {
       setEditName(user.name);
       setEditPhone(user.phoneNumber || '');
       setEditAvatar(user.avatarUrl || '');
+      setEditUsername(user.username || '');
+      setEditBio(user.bio || '');
+      setEditLocation(user.location || '');
 
       // Get Downloads (Orders) from context
       if (orders.length > 0) {
@@ -252,7 +258,14 @@ const Account: React.FC = () => {
   const handleSaveProfile = async () => {
     setEditLoading(true);
     try {
-      await updateUserProfile({ name: editName, phoneNumber: editPhone, avatarUrl: editAvatar });
+      await updateUserProfile({ 
+        name: editName, 
+        phoneNumber: editPhone, 
+        avatarUrl: editAvatar,
+        username: editUsername,
+        bio: editBio,
+        location: editLocation
+      });
       alert("Profile updated successfully!");
       setIsEditing(false);
     } catch (error: any) {
@@ -355,6 +368,45 @@ const Account: React.FC = () => {
                           className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple"
                         />
                       </div>
+                      <div>
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Community Handle</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-purple font-bold">@</span>
+                          <input
+                            id="editUsername"
+                            name="editUsername"
+                            type="text"
+                            value={editUsername}
+                            onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                            placeholder="username"
+                            className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg pl-8 pr-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Location</label>
+                        <input
+                          id="editLocation"
+                          name="editLocation"
+                          type="text"
+                          value={editLocation}
+                          onChange={(e) => setEditLocation(e.target.value)}
+                          placeholder="e.g. Nairobi, Kenya"
+                          className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Bio / Artist Description</label>
+                        <textarea
+                          id="editBio"
+                          name="editBio"
+                          rows={3}
+                          value={editBio}
+                          onChange={(e) => setEditBio(e.target.value)}
+                          placeholder="Tell the community about your sound..."
+                          className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all resize-none"
+                        />
+                      </div>
                       <div className="md:col-span-2">
                         <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Profile Picture URL (Optional)</label>
                         <input
@@ -438,7 +490,7 @@ const Account: React.FC = () => {
                   { id: 'aura-rewards', icon: Zap, label: 'Aura Rewards' },
                   { id: 'orders', icon: Clock, label: 'Order History' },
                   { id: 'downloads', icon: Download, label: 'Direct Downloads' },
-                  { id: 'subscription', icon: CreditCard, label: 'Subscription' },
+                  { id: 'subscription', icon: CreditCard, label: 'Subscription', show: user.isSubscriber || user.isAdmin },
                   { id: 'referrals', icon: Gift, label: 'Referrals' },
                   { id: 'wishlist', icon: Heart, label: 'My Wishlist' },
                   { id: 'installments', icon: CreditCard, label: 'Lipa Pole Pole' },
@@ -657,7 +709,7 @@ const Account: React.FC = () => {
                         {[
                           { id: 'REWARD_10_PERCENT', label: '10% OFF Store', cost: 500, desc: 'Single-use coupon' },
                           { id: 'REWARD_25_PERCENT', label: '25% OFF Store', cost: 1000, desc: 'Single-use coupon' },
-                          { id: 'REWARD_1_MONTH_SUB', label: '1 Month Access', cost: 2000, desc: 'Music Pool VIP Month' },
+                          { id: 'REWARD_1_MONTH_SUB', label: '1 Month Access', cost: 2000, desc: 'Premium VIP Access Month' },
                         ].map((reward) => {
                           const currentPoints = user.auraPoints || user.loyaltyPoints || 0;
                           const canAfford = currentPoints >= reward.cost;

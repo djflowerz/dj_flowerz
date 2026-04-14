@@ -4,7 +4,7 @@
 PROJECT_DIR="admin-dashboard"
 
 vars=(
-    "VITE_API_URL=https://djflowerz-worker.ianmuriithiflowerz.workers.dev"
+    "VITE_API_URL=https://api.djflowerz.co.ke"
     "VITE_SUPABASE_URL=https://yevqnoynsqidtplxggzs.supabase.co"
     "VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnFub3luc3FpZHRwbHhnZ3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNjQ3ODAsImV4cCI6MjA4NzY0MDc4MH0.cb_79oC-RKNkhJBshhGw_tcFIVG50Wg6K0HIIK2Uyms"
     "VITE_APP_URL=https://djflowerz.co.ke"

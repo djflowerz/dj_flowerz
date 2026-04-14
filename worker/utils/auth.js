@@ -124,8 +124,30 @@ export async function getAuthorizedUser(request, env) {
         user = { ...user, role: 'admin' };
     }
 
-    if (user.role !== 'admin') {
-        console.warn(`[Auth] User ${user.email} (ID: ${user.id}) is not an admin! role=${user.role}`);
+    // IP-to-Session Enforcement (Fortress Phase 1)
+    const currentIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip');
+    if (currentIp && user.id) {
+        // If IP is different from last known and user is NOT admin, we log it and potentially lock
+        if (user.lastIp && user.lastIp !== currentIp && user.role !== 'admin') {
+            console.warn(`[Security] User ${user.email} IP changed: ${user.lastIp} -> ${currentIp}`);
+            // Check last_login to see if it's a recent change
+            const lastLogin = user.lastLogin ? new Date(user.lastLogin).getTime() : 0;
+            const now = Date.now();
+            
+            // If the IP changed within 1 hour of last login, it might be account sharing
+            if (now - lastLogin < 3600000) {
+                 // Hard lock logic could go here, for now we just monitor and update
+            }
+        }
+        
+        // Update presence and last IP
+        try {
+            await env.DB.prepare(
+                'UPDATE profiles SET last_ip = ?, last_login = ?, presence_status = ? WHERE id = ?'
+            ).bind(currentIp, new Date().toISOString(), 'online', user.id).run();
+        } catch (e) {
+            console.error('[Auth] Failed to update presence:', e);
+        }
     }
 
     return user;

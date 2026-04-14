@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -18,21 +18,22 @@ const Navbar: React.FC = () => {
   const [showMessages, setShowMessages] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userStatus, setUserStatus] = useState({ unreadMessages: 0, unreadNotifications: 0 });
+  const [communityNotifications, setCommunityNotifications] = useState<any[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+
 
   const isAdminPage = location.pathname.startsWith('/admin');
 
-  const navLinks = [
+  // Filter navLinks based on subscription status for Absolute Stealth Mode
+  const filteredNavLinks = [
     { name: 'Home', path: '/' },
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
     { name: 'Community', path: '/community' },
-    { name: 'Track Order', path: '/order-tracking' },
-    { name: 'Music Pool', path: '/music-pool' },
-    { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },
-    { name: 'Sessions', path: '/sessions' },
+    { name: 'Aura Vision', path: '/aura-vision' },
     { name: 'Bookings', path: '/bookings' },
-    { name: 'Tip Jar', path: '/tip-jar' },
-    { name: 'Contact', path: '/contact' },
+    // Only show Music Pool to active subscribers (Stealth Mode)
+    ...(user?.isSubscriber ? [{ name: 'Music Pool', path: '/music-pool' }] : [])
   ];
 
   // Close mobile menu and dropdowns when route changes
@@ -51,7 +52,7 @@ const Navbar: React.FC = () => {
         const userId = user?.id;
         if (!sessionId && !userId) return;
 
-        const url = `${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev'}/api/user/status?${sessionId ? `sessionId=${sessionId}` : ''}${userId ? `&userId=${userId}` : ''}`;
+        const url = `${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/user/status?${sessionId ? `sessionId=${sessionId}` : ''}${userId ? `&userId=${userId}` : ''}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -112,7 +113,7 @@ const Navbar: React.FC = () => {
             {/* Desktop Menu - Visible on md and up */}
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-6">
-                {navLinks.map((link) => (
+                {filteredNavLinks.map((link) => (
                   <Link
                     key={link.name}
                     to={link.path}
@@ -135,16 +136,30 @@ const Navbar: React.FC = () => {
                 </div>
               )}
 
-              <Link to="/music-pool" className="btn-cyber-outline px-5 py-2 text-[10px] font-black">
-                JOIN POOL
-              </Link>
+              {/* JOIN POOL button removed per request */}
 
               {/* Notifications Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => { setShowNotifications(!showNotifications); setShowMessages(false); setShowUserMenu(false); }}
+                  onClick={async () => { 
+                    const next = !showNotifications;
+                    setShowNotifications(next); 
+                    setShowMessages(false); 
+                    setShowUserMenu(false); 
+                    if (next && user) {
+                        setLoadingNotifs(true);
+                        try {
+                            const res = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/user/notifications`);
+                            const data = await res.json();
+                            setCommunityNotifications(data);
+                        } finally {
+                            setLoadingNotifs(false);
+                        }
+                    }
+                  }}
                   className="text-gray-300 hover:text-white transition group relative p-1"
                 >
+
                   <Bell size={22} className="group-hover:text-brand-purple transition" />
                   {(userStatus.unreadNotifications > 0 || (notifications?.filter(n => n.userId === user?.id && !n.read).length > 0)) && (
                     <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-brand-purple rounded-full border-2 border-[#0B0B0F] animate-pulse"></span>
@@ -157,25 +172,36 @@ const Navbar: React.FC = () => {
                       <h3 className="text-sm font-bold text-white">Notifications</h3>
                       <button className="text-[10px] text-brand-purple font-bold hover:underline">Mark all read</button>
                     </div>
-                    <div className="max-h-[350px] overflow-y-auto">
-                      {notifications?.filter(n => n.userId === user?.id).length > 0 ? (
-                        notifications.filter(n => n.userId === user?.id).slice(0, 5).map(n => (
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {loadingNotifs ? (
+                        <div className="p-8 text-center"><Loader className="animate-spin mx-auto text-brand-purple" size={20} /></div>
+                      ) : communityNotifications.length > 0 ? (
+                        communityNotifications.map(n => (
                           <div
                             key={n.id}
-                            onClick={() => { markNotificationAsRead(n.id); if (n.link) window.location.href = n.link; }}
-                            className={`p-4 border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition ${!n.read ? 'bg-brand-purple/5' : ''}`}
+                            onClick={async () => { 
+                                if (!n.is_read) {
+                                    await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/user/notifications/read`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ id: n.id })
+                                    });
+                                }
+                                if (n.type === 'follow') window.location.href = `/@${n.actor_id}`;
+                                else if (n.target_id) window.location.href = `/community?post=${n.target_id}`;
+                            }}
+                            className={`p-4 border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition ${!n.is_read ? 'bg-brand-purple/5 border-l-2 border-l-brand-purple' : ''}`}
                           >
-                            <div className="flex justify-between items-start mb-1">
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${n.type === 'mixtape' ? 'bg-brand-purple/20 text-brand-purple' :
-                                n.type === 'product' ? 'bg-brand-cyan/20 text-brand-cyan' :
-                                  'bg-white/10 text-gray-400'
-                                }`}>
-                                {n.type}
-                              </span>
-                              <span className="text-[10px] text-gray-500">{new Date(n.createdAt).toLocaleDateString()}</span>
+                            <div className="flex gap-3">
+                                <img src={n.actor_avatar || ''} className="w-8 h-8 rounded-full bg-white/10" alt="" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-white leading-snug">
+                                        <span className="font-bold">{n.actor_name}</span> {n.message}
+                                    </p>
+                                    <span className="text-[10px] text-gray-500">{new Date(n.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <div className={`w-2 h-2 rounded-full mt-1.5 ${n.type === 'like' ? 'bg-red-500' : n.type === 'follow' ? 'bg-blue-500' : 'bg-brand-purple'}`}></div>
                             </div>
-                            <h4 className="text-sm font-bold text-white mb-1">{n.title}</h4>
-                            <p className="text-xs text-gray-400 line-clamp-2">{n.message}</p>
                           </div>
                         ))
                       ) : (
@@ -185,6 +211,7 @@ const Navbar: React.FC = () => {
                         </div>
                       )}
                     </div>
+
                     <Link to="/notifications" className="block text-center p-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
                       View All Notifications
                     </Link>
@@ -251,6 +278,12 @@ const Navbar: React.FC = () => {
                       <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <User size={16} /> My Profile
                       </Link>
+                      <Link to="/escrow-mngt" className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-500 hover:bg-white/5 transition">
+                        <ShieldCheck size={16} /> Escrow Dashboard
+                      </Link>
+                      <Link to="/notifications" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
+                        <Bell size={16} /> All Notifications
+                      </Link>
                       {user?.role === 'admin' && (
                         <Link to="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-brand-purple/10 transition">
                           <LogIn size={16} /> Admin Panel
@@ -315,7 +348,7 @@ const Navbar: React.FC = () => {
       >
             <div className="hidden"><GlobalClock /></div>
         <div className="flex flex-col space-y-4 flex-1 overflow-y-auto">
-          {navLinks.map((link) => (
+          {filteredNavLinks.map((link) => (
             <Link
               key={link.name}
               to={link.path}
@@ -355,12 +388,7 @@ const Navbar: React.FC = () => {
                 </Link>
               </div>
             )}
-            <Link
-              to="/music-pool"
-              className="block w-full bg-gradient-to-r from-brand-purple to-brand-cyan text-white text-center py-4 rounded-xl font-bold shadow-lg shadow-brand-purple/20"
-            >
-              Join Music Pool
-            </Link>
+            {/* Join Music Pool mobile removed per request */}
           </div>
         </div>
 

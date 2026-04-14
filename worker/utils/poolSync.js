@@ -10,23 +10,33 @@ const SOURCES = [
     origin: "remix"
   },
   {
-    name: "Vicknick Video Pool (Latest)",
+    name: "Member Pool (Latest)",
     url: "https://r2.vicknickvideopool.com/api/tracks?limit=1000",
-    origin: "vicknick"
+    origin: "master"
   },
   ...TARGET_GENRES.map(genre => ({
-    name: `Vicknick Video Pool (${genre})`,
+    name: `Member Pool (${genre})`,
     url: `https://r2.vicknickvideopool.com/api/tracks?search=${encodeURIComponent(genre)}`,
-    origin: "vicknick"
+    origin: "master"
   }))
 ];
 
 function sanitizeName(name) {
   if (!name) return name;
-  // Replace DJ VickNick or DJ Vick Nick (case-insensitive) with DJ Flowerz
-  let sanitized = name.replace(/dj\s*vick\s*nick/gi, 'DJ Flowerz');
   
-  // Also correct common spelling errors in genres/hubs
+  let sanitized = name;
+  
+  // Rebrand all variants of VickNick to Flowerz
+  const rules = [
+    { regex: /dj[-_\s]*vick[-_\s]*nick/gi, replacement: 'DJ Flowerz' },
+    { regex: /vick[-_\s]*nick/gi, replacement: 'Flowerz' }
+  ];
+
+  for (const rule of rules) {
+    sanitized = sanitized.replace(rule.regex, rule.replacement);
+  }
+  
+  // Correct common spelling errors
   const spellingMap = {
     'Reggae Fussion': 'Reggae Fusion',
     'Afrobeat (TBT)': 'Afrobeats (TBT)',
@@ -89,10 +99,10 @@ export async function syncPool(env) {
         }
         const safeTrackId = 'ext_' + Math.abs(trackIdNum);
 
-        // Ensure URLs are consistent and defined BEFORE used in Track record
+        // --- New Branded URL Construction ---
         const r2Url = source.origin === "remix" 
           ? `https://remix-and-mashups-worker.dennismacharia20.workers.dev/${item.key.split('/').map(encodeURIComponent).join('/')}`
-          : `https://cdn.vicknickvideopool.com/${item.key.split('/').map(encodeURIComponent).join('/')}`;
+          : `/api/files/${item.key.split('/').map(encodeURIComponent).join('/')}`;
 
         // --- Categorization: derive hub and genre from the R2 file path ---
         let hub = item.year || 'Collection';

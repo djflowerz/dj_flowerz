@@ -22,6 +22,14 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     const eligiblePlans = subscriptionPlans.filter(p => p.active);
     const [selectedPlanId, setSelectedPlanId] = useState<string>('');
     
+    // Stealth Redirect: If accessed by a non-subscriber/non-admin, redirect to Home.
+    // Effectively hides the "Subscription Plans" page from the public eye.
+    useEffect(() => {
+        if (!plansLoading && !user?.isSubscriber && !user?.isAdmin) {
+            navigate('/', { replace: true });
+        }
+    }, [user, plansLoading, navigate]);
+
     // Set initial selection when plans load
     useEffect(() => {
         if (eligiblePlans.length > 0 && !selectedPlanId) {
@@ -40,7 +48,22 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
 
 
 
-        // Direct Paystack Redirect Payment
+        // Check for Original VITE_PLAN links first
+        const planUrlMap: Record<string, string | undefined> = {
+            'weekly': (import.meta as any).env.VITE_PLAN_1_WEEK,
+            'monthly': (import.meta as any).env.VITE_PLAN_1_MONTH,
+            '3months': (import.meta as any).env.VITE_PLAN_3_MONTHS,
+            '6months': (import.meta as any).env.VITE_PLAN_6_MONTHS,
+            'yearly': (import.meta as any).env.VITE_PLAN_12_MONTHS,
+        };
+
+        const directUrl = planUrlMap[selectedPlan?.id];
+        if (directUrl) {
+            window.location.href = directUrl;
+            return;
+        }
+
+        // Fallback: Direct Paystack Redirect Payment Initialization API
         setIsProcessing(true);
         try {
             const response = await fetch('/api/payments/initialize', {
@@ -54,9 +77,11 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                     metadata: {
                         userId: user?.id,
                         customerName: user?.name || user?.email?.split('@')[0],
-                        planName: selectedPlan?.name
+                        planName: selectedPlan?.name,
+                        plan_type: selectedPlan?.id, // Explicitly pass plan_type for webhook processing
+                        type: 'subscription'
                     },
-                    callback_url: `${window.location.origin}/success`
+                    callback_url: `${window.location.origin}/checkout`
                 })
             });
 
@@ -89,8 +114,8 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">Members Only Area</h1>
                     <p className="text-gray-400 max-w-2xl mx-auto text-lg leading-relaxed">
-                        The DJ Flowerz Music Pool is restricted to active subscribers.
-                        Choose a plan below to unlock exclusive service packs, high-quality audio, and video edits.
+                        Premium features are restricted to active subscribers.
+                        Access exclusive service packs, high-quality audio, and video edits by joining the community.
                     </p>
                 </div>
 
@@ -148,38 +173,62 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
                 </div>
 
                 {/* Actions */}
-                <div className="max-w-md mx-auto space-y-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-                    <button
-                        onClick={handleJoinNow}
-                        disabled={isProcessing}
-                        className="w-full py-5 bg-gradient-to-r from-brand-purple to-brand-cyan hover:from-purple-500 hover:to-brand-cyan text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isProcessing ? (
-                            <div className="flex items-center gap-3">
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                <span>Initializing Payment...</span>
-                            </div>
-                        ) : user ? (
-                            <>
-                                <CreditCard className="w-6 h-6" />
-                                {selectedPlan ? `Pay KES ${selectedPlan.price.toLocaleString()} via Paystack` : 'Select a Plan'}
-                            </>
-                        ) : (
-                            <>
-                                <Lock className="w-6 h-6" />
-                                Sign In & Subscribe
-                            </>
-                        )}
-                    </button>
+                    <div className="max-w-md mx-auto space-y-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+                        <button
+                            onClick={handleJoinNow}
+                            disabled={isProcessing}
+                            className="w-full py-5 bg-gradient-to-r from-brand-purple to-brand-cyan hover:from-purple-500 hover:to-brand-cyan text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isProcessing ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <span>Initializing Payment...</span>
+                                </div>
+                            ) : user ? (
+                                <>
+                                    <CreditCard className="w-6 h-6" />
+                                    {selectedPlan ? `Pay KES ${selectedPlan.price.toLocaleString()} via Paystack` : 'Select a Plan'}
+                                </>
+                            ) : (
+                                <>
+                                    <Lock className="w-6 h-6" />
+                                    Sign In & Subscribe
+                                </>
+                            )}
+                        </button>
 
-                    <button
-                        onClick={handleWhatsAppHelp}
-                        className="w-full py-4 bg-[#15151A] hover:bg-white/10 border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
-                    >
-                        <MessageCircle className="w-5 h-5 text-green-400" />
-                        Contact Admin for Support / M-Pesa Till
-                    </button>
-                </div>
+                        {user && (
+                            <button
+                                onClick={async () => {
+                                    setIsProcessing(true);
+                                    toast.loading("Verifying your subscription status...");
+                                    try {
+                                        await refreshProfile();
+                                        toast.dismiss();
+                                        toast.success("Profile refreshed!");
+                                    } catch (err) {
+                                        toast.dismiss();
+                                        toast.error("Failed to refresh status.");
+                                    } finally {
+                                        setIsProcessing(false);
+                                    }
+                                }}
+                                disabled={isProcessing}
+                                className="w-full py-4 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 text-blue-400 font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                            >
+                                <Check size={18} />
+                                I've Already Paid - Refresh Access
+                            </button>
+                        )}
+                        
+                        <button
+                            onClick={handleWhatsAppHelp}
+                            className="w-full py-4 bg-[#15151A] hover:bg-white/10 border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                        >
+                            <MessageCircle className="w-5 h-5 text-green-400" />
+                            Contact Admin for Support / M-Pesa Till
+                        </button>
+                    </div>
 
                     </>
                 )}

@@ -29,8 +29,8 @@ const INITIAL_CONFIG: SiteConfig = {
   baseUrl: "https://djflowerz.co.ke",
   hero: {
     title: "DJ FLOWERZ",
-    subtitle: "Nairobi's Premier DJ. Mixtapes, Music Pool & Merch.",
-    ctaText: "Join Music Pool",
+    subtitle: "Nairobi's Premier DJ. Exclusive Mixtapes & Professional Gear.",
+    ctaText: "Explore Community",
     bgImage: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=2070&auto=format&fit=crop"
   },
   contact: {
@@ -47,16 +47,16 @@ const INITIAL_CONFIG: SiteConfig = {
     telegram: "https://t.me/dj_flowerz"
   },
   home: {
-    featuredMixtapes: { title: "Featured Mixtapes", subtitle: "Listen to the vibe before you subscribe.", ctaText: "View All" },
+    featuredMixtapes: { title: "Featured Mixtapes", subtitle: "Listen to the latest vibes from Nairobi.", ctaText: "View All" },
     musicPool: {
-      title: "Unlock The Music Pool",
-      description: "Get unlimited access to exclusive DJ edits, remixes, and tools. All plans include Telegram community access.",
-      benefits: ['Weekly High-Quality Drops', 'Exclusive Edits & Remixes', 'Intro/Outro Clean Edits', 'Direct Telegram Access'],
-      ctaText: "Unlock Access"
+      title: "Join The Community",
+      description: "Connect with the culture, get exclusive access to events, and stay updated with the latest music trends.",
+      benefits: ['Exclusive Community Access', 'Early Event Updates', 'Member-Only Discussions', 'Direct Support Access'],
+      ctaText: "Join Now"
     },
-    storePromo: { title: "Trending Merch", description: "Fresh drips and exclusive digital packs.", ctaText: "Shop All" },
+    storePromo: { title: "Trending Merch", description: "Fresh drips and professional gear for the modern DJ.", ctaText: "Shop All" },
     studioPromo: { title: "Bookings & Studio Sessions", description: "Need a DJ for your next event or studio time to record your hit? We provide professional services tailored to your needs.", ctaText: "Book Now" },
-    tipJar: { title: "Support The Craft", message: "Enjoying the free mixes? Drop a tip to keep the servers running and the music flowing.", ctaText: "Tip Jar" }
+    tipJar: { title: "Support The Craft", message: "Enjoying the sets? Drop a tip to keep the culture alive and the music flowing.", ctaText: "Tip Jar" }
   },
   about: {
     title: "The Man Behind The Mix",
@@ -65,12 +65,12 @@ const INITIAL_CONFIG: SiteConfig = {
     careerTimeline: [
       { year: "2015", event: "Started professional DJing in Westlands" },
       { year: "2018", event: "Launched DJ Flowerz Brand & Merch" },
-      { year: "2020", event: "Founded the Music Pool Service" }
+      { year: "2020", event: "Expanded Professional Audio Services" }
     ]
   },
   footer: {
-    description: "The ultimate destination for exclusive mixtapes, premium music pool access, and official merchandise.",
-    copyright: "© 2023 DJ FLOWERZ. All rights reserved."
+    description: "The ultimate destination for exclusive mixtapes, culture, and professional DJ gear.",
+    copyright: "© 2026 DJ FLOWERZ. All rights reserved."
   },
   legal: {
     terms: "These are the terms of service...",
@@ -78,15 +78,15 @@ const INITIAL_CONFIG: SiteConfig = {
     refunds: "No refunds on digital items..."
   },
   seo: {
-    siteTitle: "DJ FLOWERZ | Premium Music Experience",
-    description: "Premium music platform for DJ FLOWERZ featuring mixtapes, music pool, store, and bookings.",
+    siteTitle: "DJ FLOWERZ | Premium Audio Experience",
+    description: "Nairobi's premier DJ platform featuring professional mixtapes, gear, and event bookings.",
     keywords: "DJ, Nairobi, Music, Mixtapes, Afrobeat, Amapiano",
     ogImage: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04"
   },
   notice: {
     enabled: false,
     title: "Welcome",
-    message: "Welcome to DJ Flowerz. Experience the best mixtapes and music pool.",
+    message: "Welcome to DJ Flowerz. Experience the best in Nairobi culture.",
     type: "info"
   }
 };
@@ -334,37 +334,29 @@ const getYoutubeId = (url: string | undefined): string | null => {
 // R2 Mapping Helpers
 const mapR2Track = (t: any): Track => {
   // Common CDN bases for relative URLs
-  const WORKER_BASE = 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-  const DEFAULT_CDN_BASE = `${WORKER_BASE}/files`;
+  const WORKER_BASE = 'https://api.djflowerz.co.ke';
+  // Use the branded proxy for file access
+  const DEFAULT_CDN_BASE = `/api/files`;
 
   /**
-   * Fix track media URLs so they point to the correct publicly accessible CDN.
-   *
-   * Key insight:
-   *  - `r2.vicknickvideopool.com` is the private/origin R2 bucket (403/404 publicly)
-   *  - `cdn.vicknickvideopool.com` is the PUBLIC Cloudflare CDN that serves the actual files
-   *  - `remix-and-mashups-worker.dennismacharia20.workers.dev` is a UI worker, NOT a file CDN;
-   *    all its tracks are also served from `cdn.vicknickvideopool.com`
-   *
-   * Pool tracks JSON was built with `r2.` domain — we fix that here at read time.
+   * Fix track media URLs so they point to the branded proxy.
    */
   const encodeR2Url = (u: string): string => {
     if (!u) return u;
+    
+    // If it's already a masked URL, return it
+    if (u.startsWith('/api/files/')) return u;
+
     try {
       const urlObj = new URL(u);
-      const PUBLIC_CDN = 'cdn.vicknickvideopool.com';
+      const lowerHost = urlObj.hostname.toLowerCase();
 
-      // Fix private/origin R2 domain → public CDN
-      if (urlObj.hostname === 'r2.vicknickvideopool.com') {
-        urlObj.hostname = PUBLIC_CDN;
-      }
-
-      // Remix-and-mashups-worker is a UI, its actual files live on the vicknick CDN.
-      // The path structure in pool_tracks.json already has the correct key path.
-      if (urlObj.hostname === 'remix-and-mashups-worker.dennismacharia20.workers.dev') {
-        urlObj.hostname = PUBLIC_CDN;
-        // Strip any leading /api path if present from the remix worker fetch
-        urlObj.pathname = urlObj.pathname.replace(/^\/api\//, '/');
+      // If it matches legacy domains, mask it immediately
+      if (lowerHost.includes('vicknickvideopool.com') || lowerHost.includes('dennismacharia20')) {
+        const parts = u.split(lowerHost.includes('.com/') ? '.com/' : '.dev/');
+        const path = parts[1] || '';
+        const origin = lowerHost.includes('dennismacharia20') ? '?origin=remix' : '';
+        return `/api/files/${path}${origin}`;
       }
 
       // Encode each path segment individually (handles spaces, &, parens, etc.)
@@ -374,12 +366,16 @@ const mapR2Track = (t: any): Track => {
         .join('/');
       return urlObj.toString();
     } catch {
-      return u.replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
+      // Fallback for non-URL strings or relative paths
+      if (u.startsWith('http')) return u;
+      const cleanPath = u.replace(/^\//, '').replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
+      return `/api/files/${cleanPath}`;
     }
   };
 
   const ensureAbsolute = (u: string) => {
     if (!u) return u;
+    // Data level masking: ensure all URLs pass through the proxy
     if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return encodeR2Url(u);
     return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
   };
@@ -396,12 +392,33 @@ const mapR2Track = (t: any): Track => {
     is_main_version: Boolean(v.is_main_version || v.isMainVersion || false)
   }));
 
-  // Deduplicate versions by name and URL to prevent "2 same versions" issue
-  versions = versions.filter((v, index, self) =>
-    index === self.findIndex((t) => (
-      t.version_name === v.version_name && (t.download_url === v.download_url || t.preview_url === v.preview_url)
-    ))
-  );
+  // 1. Deduplicate true URL clones (Clones like (1))
+  const seenUrls = new Set();
+  versions = versions.filter((v: any) => {
+    const url = v.download_url || v.preview_url || '';
+    const normalized = url.split('?')[0].replace(/\(\d+\)\.[^.]+$/, (m) => m.split('.').pop() || '');
+    if (!normalized || seenUrls.has(normalized)) return false;
+    seenUrls.add(normalized);
+    return true;
+  });
+
+  // 2. Format Labeling Helper
+  // If we have both Audio and Video for the same label, ensure they are distinct
+  const labelCounts = new Map<string, number>();
+  versions.forEach((v: any) => {
+    const base = (v.version_name || v.type || 'Main').replace(/\((Audio|Video)\)$/i, '').trim();
+    labelCounts.set(base, (labelCounts.get(base) || 0) + 1);
+  });
+
+  versions = versions.map((v: any) => {
+    const base = (v.version_name || v.type || 'Main').replace(/\((Audio|Video)\)$/i, '').trim();
+    if (labelCounts.get(base)! > 1 && !v.version_name.includes('(Audio)') && !v.version_name.includes('(Video)')) {
+      const url = (v.download_url || '').toLowerCase();
+      const isVideo = url.endsWith('.mp4') || url.endsWith('.mkv') || url.endsWith('.mov') || url.includes('/video/');
+      return { ...v, version_name: `${base} (${isVideo ? 'Video' : 'Audio'})` };
+    }
+    return v;
+  });
 
   // Robustly handle URLs - prioritizing streamable content
   let previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
@@ -1118,15 +1135,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log(`[DataContext] Fetched ${tracksArray.length} pool tracks from D1`);
         
         // If it's page 1, replace. If it's > 1, append with de-duplication.
+        const mappedTracks = tracksArray.map(mapR2Track);
+
+        // Final artist/title deduplication pass + Zero-Version Safety Filter
+        const getFingerprint = (t: Track) => `${t.artist.toLowerCase().trim()}|${t.title.toLowerCase().trim().replace(/dj\s*vick\s*nick/gi, 'dj flowerz')}`;
+
         if (filters.page && filters.page > 1) {
           setPoolTracks(prev => {
-            const newTracks = tracksArray.map(mapR2Track);
-            const existingIds = new Set(prev.map(t => t.id));
-            const uniqueNew = newTracks.filter(t => !existingIds.has(t.id));
+            const seen = new Set(prev.map(getFingerprint));
+            const uniqueNew = mappedTracks.filter(t => {
+              // Priority: 1. Must have versions (buttons) 2. Must not be a duplicate artist/title
+              if (!t.versions || t.versions.length === 0) return false;
+              
+              const fp = getFingerprint(t);
+              if (seen.has(fp)) return false;
+              seen.add(fp);
+              return true;
+            });
             return [...prev, ...uniqueNew];
           });
         } else {
-          setPoolTracks(tracksArray.map(mapR2Track));
+          const seen = new Set();
+          const unique = mappedTracks.filter(t => {
+            if (!t.versions || t.versions.length === 0) return false;
+            
+            const fp = getFingerprint(t);
+            if (seen.has(fp)) return false;
+            seen.add(fp);
+            return true;
+          });
+          setPoolTracks(unique);
         }
 
         if (result.pagination) {
@@ -1389,7 +1427,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: notifId,
           userId: user.id,
           title: 'Subscription Expired',
-          message: `Your ${userProfile.subscription_plan || 'Music Pool'} access has expired. Please renew to continue downloading.`,
+          message: `Your ${userProfile.subscription_plan || 'Premium'} access has expired. Please renew to continue downloading.`,
           type: 'subscription',
           read: false,
           createdAt: new Date().toISOString()

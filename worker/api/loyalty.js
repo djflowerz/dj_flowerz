@@ -128,3 +128,28 @@ export async function handleLoyalty(request, env) {
 
     return new Response("Not Found", { status: 404 });
 }
+
+export async function awardAuraPoints(env, userId, points, description, type = 'earning') {
+    if (!userId || !points) return;
+    
+    try {
+        const profile = await env.DB.prepare("SELECT loyalty_points FROM profiles WHERE id = ?").bind(userId).first();
+        if (!profile) return;
+
+        const newTotal = (profile.loyalty_points || 0) + Number(points);
+        const transactionId = `${type === 'earning' ? 'earn' : 'adj'}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+
+        await env.DB.batch([
+            env.DB.prepare("UPDATE profiles SET loyalty_points = ? WHERE id = ?").bind(newTotal, userId),
+            env.DB.prepare(`
+                INSERT INTO loyalty_history (id, user_id, points, type, description)
+                VALUES (?, ?, ?, ?, ?)
+            `).bind(transactionId, userId, points, type, description)
+        ]);
+        
+        console.log(`[Aura] Awarded ${points} points to ${userId}: ${description}`);
+        return { success: true, newTotal };
+    } catch (err) {
+        console.error('[Aura Award Error]', err);
+    }
+}

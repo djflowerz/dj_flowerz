@@ -69,7 +69,7 @@ const AnalyticsTab: React.FC = () => {
                         <span>Last 30 Days</span>
                     </button>
                     <button
-                        onClick={() => window.open('https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/admin/reports/monthly', '_blank')}
+                        onClick={() => window.open('https://djflowerz.co.ke/api/admin/reports/monthly', '_blank')}
                         className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-600/20 hover:scale-105 active:scale-95 transition-all text-sm font-bold"
                     >
                         <FileText className="w-4 h-4" />

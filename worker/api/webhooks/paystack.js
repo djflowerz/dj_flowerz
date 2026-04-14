@@ -1,6 +1,9 @@
 // worker/api/webhooks/paystack.js
 import { sendEmail } from '../../utils/email.js';
 import { templates } from '../../utils/templates.js';
+import { PLAN_DURATIONS } from '../dashboard/subscriptions.js';
+import { awardAuraPoints } from '../loyalty.js';
+
 
 // [VERIFIED]: Paystack Webhook Handler for DJ Flowerz.
 // Logic for Subscriptions, Downloads, and Lipa Pole Pole automated installments.
@@ -40,9 +43,17 @@ export async function handlePaystackWebhook(request, env) {
     const event = JSON.parse(body);
     if (event.event === 'charge.success') {
         const { reference, metadata, amount, customer, channel } = event.data;
-        const type = metadata?.type;
+        const rawType = metadata?.type;
         const orderId = metadata?.order_id;
         const userId = metadata?.userId;
+        
+        // --- NORMALIZATION & FALLBACKS ---
+        const customerEmail = (customer?.email || '').toLowerCase().trim();
+        const userEmail = (metadata?.userEmail || metadata?.email || customerEmail).toLowerCase().trim();
+        
+        // Fallback: If reference starts with 'subscription_', force type to 'subscription' 
+        // even if metadata failed to send. This fixes the 'Music Pool access' bug.
+        const type = (rawType === 'subscription' || reference?.startsWith('subscription_')) ? 'subscription' : rawType;
 
         // 0. Record the financial transaction in the central 'payments' table (Universal Ledger)
         try {
@@ -52,54 +63,20 @@ export async function handlePaystackWebhook(request, env) {
             `).bind(
                 reference, 
                 userId || null, 
-                customer?.email || null, 
+                customerEmail || null, 
                 amount / 100, 
                 event.data.currency || 'KES',
                 channel || 'unknown',
-                JSON.stringify(metadata || {})
+                JSON.stringify({ ...metadata, type }) // Ensure type is persisted correctly
             ).run();
             console.log(`[Paystack Webhook] Recorded universal payment: ${reference} (${amount/100} KES)`);
 
             // --- AURA LOYALTY SYSTEM ---
-            if (userId || customer?.email) {
+            if (userId) {
                 const kesAmount = amount / 100;
                 const pointsEarned = Math.floor(kesAmount / 100);
-                
                 if (pointsEarned > 0) {
-                    try {
-                        // 1. Update Profile (using email as fallback if userId is missing)
-                        const userIdentifier = userId ? "id" : "email";
-                        const userValue = userId || customer?.email;
-                        
-                        await env.DB.prepare(`
-                            UPDATE profiles SET loyalty_points = loyalty_points + ? WHERE ${userIdentifier} = ?
-                        `).bind(pointsEarned, userValue).run();
-
-                        // 1b. Log to Loyalty History
-                        if (userId) {
-                            const historyId = `lh_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
-                            await env.DB.prepare(`
-                                INSERT INTO loyalty_history (id, user_id, points, type, description)
-                                VALUES (?, ?, ?, 'purchase', ?)
-                            `).bind(historyId, userId, pointsEarned, `Earned ${pointsEarned} points from purchase (Ref: ${reference})`).run();
-                        }
-                        
-                        // 2. Sync to R2 if possible (for immediate UI update)
-                        if (userId) {
-                            try {
-                                const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
-                                if (existingR2) {
-                                    let r2Profile = await existingR2.json();
-                                    r2Profile.loyalty_points = (r2Profile.loyalty_points || 0) + pointsEarned;
-                                    await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
-                                }
-                            } catch (r2Err) { console.error('[Loyalty R2 Sync Error]', r2Err); }
-                        }
-                        
-                        console.log(`[Aura Loyalty] Awarded ${pointsEarned} points to ${userValue}`);
-                    } catch (loyaltyErr) {
-                        console.error('[Aura Loyalty] Accrual Error:', loyaltyErr);
-                    }
+                    await awardAuraPoints(env, userId, pointsEarned, `Earned ${pointsEarned} points from purchase (Ref: ${reference})`, 'purchase');
                 }
             }
         } catch (paymentLogErr) {
@@ -289,93 +266,76 @@ export async function handlePaystackWebhook(request, env) {
             console.error('[Admin Notify Error]', adminErr);
         }
 
-        // 2. Handle Subscription Activation (if type is subscription OR planId is present)
-        if (type === 'subscription' || metadata?.planId) {
+        // 2. Handle Subscription Activation (Hardened Metadata-Driven Logic)
+        if (type === 'subscription' || metadata?.planId || metadata?.plan_type) {
             const userId = metadata?.userId;
-            const planId = metadata?.planId;
-            const planName = metadata?.plan || 'Premium Plan';
+            const planType = metadata?.plan_type || metadata?.planId;
+            const planName = metadata?.plan || metadata?.planName || (planType ? planType.charAt(0).toUpperCase() + planType.slice(1) : 'Premium Plan');
 
-            if (userId && planId) {
-                const now = new Date();
-                const nowIso = now.toISOString();
-                
-                // Calculate durations in days
-                const durations = {
-                    'weekly': 7,
-                    'monthly': 30,
-                    '3months': 90,
-                    '6months': 180,
-                    'yearly': 365,
-                    'pro': 365
-                };
-                
-                // Robust amount-based detection (Fix for generic plan IDs)
-                const amtKes = amount / 100;
-                let durationDays = durations[planId] || 30;
-                
-                if (amtKes === 200) durationDays = 7;
-                else if (amtKes === 600) durationDays = 30;
-                else if (amtKes === 1500) durationDays = 90;
-                else if (amtKes === 2800) durationDays = 180;
-                else if (amtKes === 5000) durationDays = 365;
-                
-                const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-                const expiryIso = expiryDate.toISOString();
-                
+            if (userEmail || userId) {
                 try {
-                    // 1. Update D1 Profile
-                    await env.DB.prepare(`
-                        UPDATE profiles 
-                        SET is_subscriber = 1, 
-                            subscription_plan = ?, 
-                            subscription_expiry = ?, 
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    `).bind(planId, expiryIso, userId).run();
+                    // [STRICT MAPPING]: Derive duration strictly from plan durations metadata
+                    let durationDays = PLAN_DURATIONS[planType];
 
-                    const subId = crypto.randomUUID();
-                    await env.DB.prepare(`
-                        INSERT INTO subscriptions (id, user_id, plan, status, starts_at, expires_at, created_at)
-                        VALUES (?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP)
-                    `).bind(subId, userId, planId, nowIso, expiryIso).run();
+                    const amtKes = amount / 100;
 
-                    // 3. Sync to R2 for immediate frontend update
-                    try {
-                        const existingR2 = await env.PROFILES_BUCKET.get(`profiles/${userId}.json`);
-                        let r2Profile = {};
-                        if (existingR2) {
-                            r2Profile = await existingR2.json();
-                        }
-                        
-                        r2Profile.id = userId; // ensure ID exists
-                        r2Profile.is_subscriber = 1;
-                        r2Profile.subscription_plan = planId;
-                        r2Profile.subscription_expiry = expiryIso;
-                        r2Profile.updated_at = new Date().toISOString();
-                        
-                        await env.PROFILES_BUCKET.put(`profiles/${userId}.json`, JSON.stringify(r2Profile));
-                    } catch (r2Err) {
-                        console.error('[Paystack Webhook] R2 Sync Error:', r2Err);
+                    // If no valid plan was identified via metadata, this is a technical failure/misconfiguration
+                    if (!durationDays) {
+                        throw new Error(`Invalid or missing planType: "${planType}". Cannot calculate duration.`);
                     }
 
+                    const now = new Date();
+                    const expiryDate = new Date(now.getTime() + (durationDays * 24 * 60 * 60 * 1000));
+                    const expiryIso = expiryDate.toISOString();
 
-                    // 6. Send Activation Email
-                    const userEmail = customer?.email || metadata?.userEmail || 'member@djflowerz.co.ke';
-                    const userName = metadata?.userName || customer?.first_name || 'Member';
+                    // [JIT PROFILE CREATION]: Robust upsert that preserves identity
+                    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+                    await env.DB.prepare(`
+                        INSERT INTO profiles (id, email, full_name, is_subscriber, subscription_plan, subscription_expiry, subscription_end_date, created_at, updated_at)
+                        VALUES (?, ?, ?, 1, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(email) DO UPDATE SET
+                            is_subscriber = 1,
+                            subscription_plan = EXCLUDED.subscription_plan,
+                            subscription_expiry = EXCLUDED.subscription_expiry,
+                            subscription_end_date = EXCLUDED.subscription_end_date,
+                            updated_at = CURRENT_TIMESTAMP
+                    `).bind(
+                        userId || guestId,
+                        userEmail,
+                        metadata?.customerName || customer?.first_name || 'VIP Member',
+                        planName,
+                        expiryIso,
+                        expiryIso
+                    ).run();
 
+                    // Log the subscription record
+                    await env.DB.prepare(`
+                        INSERT INTO subscriptions (user_email, plan_name, amount, status, starts_at, expires_at, created_at)
+                        VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
+                    `).bind(userEmail, planName, amtKes, expiryIso).run();
+
+                    // [R2 SYNC]: Rebuild profiles cache
                     try {
-                        const amountFormatted = (amount / 100).toLocaleString();
+                        const { results: allProfiles } = await env.DB.prepare("SELECT * FROM profiles").all();
+                        const bucket = env.R2_BUCKET || env.PROFILES_BUCKET;
+                        if (bucket) {
+                            await bucket.put("data/profiles.json", JSON.stringify(allProfiles), {
+                                httpMetadata: { contentType: "application/json" }
+                            });
+                        }
+                    } catch (r2Err) { console.error('[Paystack Webhook] R2 Cache Sync Error:', r2Err); }
+
+                    // Success Email
+                    const userName = metadata?.customerName || customer?.first_name || 'Legend';
+                    try {
                         const isWeekly = durationDays === 7;
-                        
-                        let subject = `Access Active! 🎧 Welcome to the VIP Circle`;
-                        if (durationDays === 7) subject = '7-Day Music Pool Access Active! 🎧';
-                        else if (durationDays === 90) subject = '3-Month Music Pool Access Active! ⚡️';
-                        else if (durationDays === 180) subject = '6-Month VIP Music Pool Access Active! 💎';
-                        else if (durationDays === 365) subject = 'Yearly VIP All-Access Active! 🏆';
+                        let emailSubject = `Access Active! 🎧 Welcome to the VIP Circle`;
+                        if (durationDays === 7) emailSubject = '1-Week VIP Access Active! 🎧';
+                        else if (durationDays === 365) emailSubject = 'Yearly VIP All-Access Active! 🏆';
 
                         await sendEmail({
                             to: userEmail,
-                            subject: subject,
+                            subject: emailSubject,
                             fromEmail: 'admin@djflowerz.co.ke',
                             fromName: 'DJ FLOWERZ VIP',
                             html: isWeekly ? `
@@ -383,24 +343,47 @@ export async function handlePaystackWebhook(request, env) {
                                   <h2 style="color: #a855f7;">Access Granted!</h2>
                                   <p>Your 1-week VIP access is now live.</p>
                                   <p><b>Valid Until:</b> ${expiryDate.toDateString()}</p>
-                                  <p><b>Amount:</b> KES ${amountFormatted}</p>
+                                  <p><b>Amount:</b> KES ${amtKes.toLocaleString()}</p>
                                   <a href="https://djflowerz.co.ke/music-pool" style="display:inline-block; background:linear-gradient(135deg,#a855f7,#9333ea); color:#fff; padding:12px 24px; text-decoration:none; border-radius:8px; font-weight: bold; margin-top: 10px;">
                                     Open Music Pool
                                   </a>
                                   <p style="font-size: 12px; color: #6b7280; margin-top: 20px;">Stay Legendary — DJ FLOWERZ</p>
                                 </div>
                             ` : templates.subscriptionActivation(userName, planName, expiryDate.toLocaleDateString()),
-                            text: isWeekly ? `Your 1-week VIP access is now live. Valid until ${expiryDate.toDateString()}.` : `Welcome to the Inner Circle, ${userName}! Your ${planName} is now active. Renewal date: ${expiryDate.toLocaleDateString()}.`
+                            text: `Welcome to the Inner Circle! Your ${planName} is active until ${expiryDate.toLocaleDateString()}.`
                         }, env);
-                    } catch (emailErr) {
-                        console.error('[Subscription Activation Email Error]', emailErr);
-                    }
+                    } catch (emailErr) { console.error('[Webhook Activation Email Error]', emailErr); }
 
-                } catch (dbErr) {
-                    console.error('[Paystack Webhook] Subscription Database Error:', dbErr);
+                    console.log(`[Paystack Webhook] Successfully activated ${planType} for ${userEmail}`);
+                } catch (activationErr) {
+                    console.error('[CRITICAL FAILURE] Music Pool Activation Failed:', activationErr);
+                    
+                    // [ADMIN SOS ALERT]: Immediate notification that payment succeeded but access failed
+                    try {
+                        const adminEmail = env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+                        const detailRows = [
+                            ['Issue', 'Music Pool Activation Failed'],
+                            ['Customer', userEmail],
+                            ['Amount Paid', `KES ${amount/100}`],
+                            ['Reference', reference],
+                            ['Target Plan', planName || 'Unknown'],
+                            ['Error Message', activationErr.message]
+                        ];
+
+                        await sendEmail({
+                            to: adminEmail,
+                            cc: 'djflowerz254@gmail.com',
+                            subject: `🚨 SOS: Activation Failed for ${userEmail}`,
+                            fromEmail: 'system@djflowerz.co.ke',
+                            fromName: 'DJ FLOWERZ SOS',
+                            html: templates.adminAlert('CRITICAL ACTIVATION FAILURE', detailRows),
+                            text: `SOS: Activation failed for ${userEmail}. Ref: ${reference}. Error: ${activationErr.message}`
+                        }, env);
+                    } catch (sosEmailErr) { console.error('[SOS Email Failed]', sosEmailErr); }
                 }
             }
         }
+
 
         // 3. Handle Installment Payments (Lipa Pole Pole)
         const isInstallmentDeposit = type === 'installment_deposit' || metadata?.is_installment === true || metadata?.payment_type === 'store_hire';
@@ -525,6 +508,13 @@ export async function handlePaystackWebhook(request, env) {
                     VALUES (?, ?, ?, ?, ?, ?, 'completed')
                 `).bind(reference, amount / 100, message, customerName, userEmail, userId).run();
 
+                if (userId && userId !== 'guest') {
+                    const points = Math.floor(amount / 5000); // 1 point per 50 KES for tips (Higher reward for support!)
+                    if (points > 0) {
+                        await awardAuraPoints(env, userId, points, `Legendary Status: Earned ${points} points for supporting the channel with a tip!`, 'tip');
+                    }
+                }
+
                 // Send Tip Receipt
                 try {
                     const amountFormatted = (amount / 100).toLocaleString();
@@ -541,6 +531,65 @@ export async function handlePaystackWebhook(request, env) {
                 }
             } catch (e) {
                 console.error("Tip webhook error:", e);
+            }
+        }
+
+        // 5. Handle Marketplace Sales (Fortress Phase 2)
+        if (type === 'marketplace' && metadata?.listingId) {
+            const listingId = metadata.listingId;
+            const buyerId = metadata?.userId || 'guest';
+            const totalAmount = amount / 100;
+
+            try {
+                // Fetch listing and vendor details
+                const listing = await env.DB.prepare(`
+                    SELECT mi.*, p.commission_rate, p.email as vendor_email
+                    FROM marketplace_items mi
+                    JOIN profiles p ON mi.vendor_id = p.id
+                    WHERE mi.id = ?
+                `).bind(listingId).first();
+
+                if (listing) {
+                    const commissionRate = listing.commission_rate || 0.15;
+                    const commission = totalAmount * commissionRate;
+                    const vendorEarnings = totalAmount - commission;
+
+                    // Log the sale
+                    await env.DB.prepare(`
+                        INSERT INTO marketplace_sales (id, listing_id, vendor_id, buyer_id, amount, vendor_earnings, commission, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'completed')
+                    `).bind(reference, listingId, listing.vendor_id, buyerId, totalAmount, vendorEarnings, commission).run();
+
+                    // Update Vendor Balance
+                    await env.DB.prepare(`
+                        UPDATE profiles SET vendor_balance = vendor_balance + ? WHERE id = ?
+                    `).bind(vendorEarnings, listing.vendor_id).run();
+
+                    // Notify Vendor
+                    try {
+                        await sendEmail({
+                            to: listing.vendor_email,
+                            subject: `💰 Marketplace Sale: ${listing.name}`,
+                            fromEmail: 'marketplace@djflowerz.co.ke',
+                            fromName: 'DJ FLOWERZ Marketplace',
+                            html: `
+                                <div style="font-family: sans-serif; background: #0b0b0f; padding: 30px; color: #fff; border-radius: 12px; border: 1px solid #ffffff10;">
+                                    <h2 style="color: #a855f7;">Cha-Ching! New Sale</h2>
+                                    <p>Your item <strong>${listing.name}</strong> was just purchased.</p>
+                                    <div style="background: #15151a; padding: 20px; border-radius: 8px;">
+                                        <p><strong>Total Paid:</strong> KES ${totalAmount.toLocaleString()}</p>
+                                        <p><strong>Your Earnings:</strong> KES ${vendorEarnings.toLocaleString()}</p>
+                                        <p><strong>Commission:</strong> KES ${commission.toLocaleString()}</p>
+                                    </div>
+                                    <p style="margin-top: 20px;">Funds have been added to your vendor balance.</p>
+                                </div>
+                            `,
+                            text: `New Sale: ${listing.name}. You earned KES ${vendorEarnings}.`
+                        }, env);
+                    } catch (emailErr) { console.error('[Marketplace Notify Error]', emailErr); }
+                }
+            } catch (marketplaceErr) {
+                console.error('[Paystack Webhook] Marketplace processing error:', marketplaceErr);
             }
         }
     }

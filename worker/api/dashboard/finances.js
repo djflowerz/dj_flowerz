@@ -16,39 +16,47 @@ export async function handleDashboardFinances(request, env) {
             // GET /api/admin/dashboard - Unified Dashboard Stats
             if (url.pathname.endsWith('/dashboard')) {
                 // 1. Revenue Stats
-                const statsRow = await env.DB.prepare(`
-                    SELECT 
-                        CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) + 
-                             COALESCE((SELECT SUM(total_amount) FROM orders WHERE payment_status = 'paid'), 0) AS REAL) as total,
-                        CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) AS REAL) as confirmed
-                `).first();
+                let statsRow = null;
+                let ordersCount = null;
+                let mixtapesCount = null;
+                let subscribersCount = null;
+                let totalUsersCount = null;
+                let tipsCount = null;
+                let recentOrders = [];
+                let recentPayments = [];
 
-                // 2. Counts
-                const ordersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM orders`).first();
-                const mixtapesCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM mixtapes`).first();
-                const subscribersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1`).first();
-                const totalUsersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles`).first();
-                const tipsCount = await env.DB.prepare(`SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) as total FROM tips`).first();
+                try {
+                    statsRow = await env.DB.prepare(`
+                        SELECT 
+                            CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) + 
+                                 COALESCE((SELECT SUM(total_amount) FROM orders WHERE payment_status = 'paid'), 0) AS REAL) as total,
+                            CAST(COALESCE((SELECT SUM(amount_kes) FROM payments WHERE status = 'success'), 0) AS REAL) as confirmed
+                    `).first();
+                } catch(e) { console.error('[Stats] Revenue error', e.message); }
 
-                console.log('[Dashboard Stats] Data Sync Check:', {
-                    revenue: statsRow,
-                    users: totalUsersCount?.count,
-                    subscribers: subscribersCount?.count,
-                    time: new Date().toISOString()
-                });
+                try { ordersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM orders`).first(); } catch(e) {}
+                try { mixtapesCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM mixtapes`).first(); } catch(e) {}
+                try { subscribersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles WHERE is_subscriber = 1`).first(); } catch(e) {}
+                try { totalUsersCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM profiles`).first(); } catch(e) {}
+                try { tipsCount = await env.DB.prepare(`SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) as total FROM tips`).first(); } catch(e) {}
 
-                // 3. Recent Activity (Orders + Payments)
-                const { results: recentOrders } = await env.DB.prepare(
-                    `SELECT id, customer_email, customer_name, total_amount as amount, payment_status as status, created_at, 'order' as type 
-                     FROM orders ORDER BY created_at DESC LIMIT 5`
-                ).all();
+                try {
+                    const res = await env.DB.prepare(
+                        `SELECT id, customer_email, customer_name, total_amount as amount, payment_status as status, created_at, 'order' as type 
+                         FROM orders ORDER BY created_at DESC LIMIT 5`
+                    ).all();
+                    recentOrders = res.results || [];
+                } catch(e) {}
 
-                const { results: recentPayments } = await env.DB.prepare(
-                    `SELECT id, customer_email, '' as customer_name, amount_kes as amount, status, created_at, 'payment' as type 
-                     FROM payments ORDER BY created_at DESC LIMIT 5`
-                ).all();
+                try {
+                    const res = await env.DB.prepare(
+                        `SELECT id, customer_email, '' as customer_name, amount_kes as amount, status, created_at, 'payment' as type 
+                         FROM payments ORDER BY created_at DESC LIMIT 5`
+                    ).all();
+                    recentPayments = res.results || [];
+                } catch(e) {}
 
-                const combinedActivity = [...(recentOrders || []), ...(recentPayments || [])]
+                const combinedActivity = [...recentOrders, ...recentPayments]
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .slice(0, 10)
                     .map(o => ({

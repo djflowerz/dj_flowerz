@@ -6,9 +6,10 @@ import { useAuth } from '../context/AuthContext';
 interface ProtectedRouteProps {
     children: React.ReactNode;
     adminOnly?: boolean;
+    subscriberOnly?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false, subscriberOnly = false }) => {
     const { user, loading } = useAuth();
     const location = useLocation();
 
@@ -23,8 +24,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
         );
     }
 
+    // SILENT REDIRECT FOR STEALTH MODE: 
+    // If the route is subscriber-only and we aren't a subscriber (and aren't the admin either), 
+    // we redirect to '/' immediately without checking login. 
+    // This hides the fact that a "Login" or "Access Denied" page even exists for this route.
+    if (subscriberOnly && (!user || (!user.isSubscriber && !user.isAdmin))) {
+        return <Navigate to="/" replace />;
+    }
+
     if (!user) {
-        // Redirect to login and remember where they came from
+        // Normal protected pages go to login
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 

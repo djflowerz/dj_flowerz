@@ -1,5 +1,7 @@
 // worker/api/bookings.js
 import { getAuthorizedUser } from '../utils/auth.js';
+import { sendEmail } from '../utils/email.js';
+import { templates } from '../utils/templates.js';
 
 export async function handleBookings(request, env, ctx, params) {
     const url = new URL(request.url);
@@ -23,6 +25,27 @@ export async function handleBookings(request, env, ctx, params) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(id, client_name, client_email, event_date, event_type, location_details, requirements, 'inquiry').run();
 
+                // 1. Send Confirmation to Client
+                ctx.waitUntil(sendEmail({
+                    to: client_email,
+                    subject: 'Gig Inquiry Received! 🗓️',
+                    html: templates.bookingConfirmation(client_name || 'Legend', event_type || 'Event', event_date, ''),
+                    text: `Hello ${client_name}, we've received your gig inquiry for ${event_date}. DJ Flowerz will contact you shortly.`
+                }, env));
+
+                // 2. Send Alert to Admin
+                ctx.waitUntil(sendEmail({
+                    to: env.GMAIL_USER || 'admin@djflowerz.co.ke',
+                    subject: '🚨 New Gig Inquiry!',
+                    html: templates.adminAlert('New Gig Inquiry', [
+                        ['Client', client_name],
+                        ['Email', client_email],
+                        ['Date', event_date],
+                        ['Type', event_type || 'Gig']
+                    ]),
+                    text: `New Gig Inquiry from ${client_name} (${client_email}) for ${event_date}.`
+                }, env));
+
                 return Response.json({ success: true, id });
             }
 
@@ -37,6 +60,27 @@ export async function handleBookings(request, env, ctx, params) {
                     INSERT INTO studio_sessions (id, customer_email, session_date, start_time, duration_hours, extras, total_price_kes, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(id, customer_email, session_date, start_time, duration_hours || 1, JSON.stringify(extras || []), total_price_kes || 0, 'pending').run();
+
+                // 1. Send Confirmation to Customer
+                ctx.waitUntil(sendEmail({
+                    to: customer_email,
+                    subject: 'Studio Booking Received! 🎙️',
+                    html: templates.bookingConfirmation('Legend', 'Studio Session', session_date, start_time),
+                    text: `Hello, we've received your studio booking for ${session_date} at ${start_time}.`
+                }, env));
+
+                // 2. Send Alert to Admin
+                ctx.waitUntil(sendEmail({
+                    to: env.GMAIL_USER || 'admin@djflowerz.co.ke',
+                    subject: '🚨 New Studio Booking!',
+                    html: templates.adminAlert('New Studio Booking', [
+                        ['Customer', customer_email],
+                        ['Date', session_date],
+                        ['Time', start_time],
+                        ['Price', `KES ${total_price_kes}`]
+                    ]),
+                    text: `New Studio Booking from ${customer_email} for ${session_date} at ${start_time}.`
+                }, env));
 
                 return Response.json({ success: true, id });
             }

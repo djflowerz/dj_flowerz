@@ -435,35 +435,49 @@ async function getAiReply(userText, sessionId, env) {
         ${productsText}
         `;
 
-        // Get recent context (last 5 messages)
+        // Get expanded recent context (last 15 messages for better continuity)
         const { results: history } = await env.DB.prepare(`
             SELECT sender, text FROM chat_messages 
-            WHERE session_id = ? ORDER BY created_at DESC LIMIT 5
+            WHERE session_id = ? ORDER BY created_at DESC LIMIT 15
         `).bind(sessionId).all();
 
         const messages = [
             {
                 role: 'system',
-                content: `You are DJ Flowerz's AI Virtual Assistant. Act as a friendly, highly interactive, and sales-oriented human staff member.
+                content: `You are DJ Flowerz's AI Executive Assistant. Your primary goal is to provide a premium client experience while maximizing sales and lead quality.
 
-                REAL-TIME DATA:
-                ${contextStr}
+                CURRENT CONTEXT:
+                - DATE/TIME: ${currentDate}
+                - TIMEZONE: East Africa Time (EAT) / Nairobi
+                - LOCATION: Nairobi, Kenya
+                - USER STATUS: ${subscriptionStatus}
+
+                REAL-TIME CATALOG:
+                ACTIVE PLANS:
+                ${plansText}
                 
-                KNOWLEDGE BASE & GUIDELINES:
-                1. SALES & RECOMMENDATIONS: Be proactive! If a user asks a general question about products or prices (e.g., "what 20k laptops do you have?"), analyze the FEATURED PRODUCTS context and provide tailored recommendations that match their budget or needs. Use an enthusiastic, helpful tone that encourages them to purchase.
-                2. LINKS: ALWAYS provide clickable links to facilitate sales and navigation: 
-                   - Store: [Browse Store](https://djflowerz.co.ke/store)
-                   - Checkout: [Go to Checkout](https://djflowerz.co.ke/checkout)
-                   - Music Pool: [Music Pool](https://djflowerz.co.ke/music-pool)
-                3. PAYMENTS & RECEIPTS: If a user pastes a payment receipt, compare the payment date to the CURRENT DATE. Match the amount paid to the ACTIVE SUBSCRIPTION PLANS to determine duration (e.g. KES 200 = 1 Day). If the duration has passed, explicitly and politely tell them the pass has EXPIRED and guide them to renew via the [Music Pool](https://djflowerz.co.ke/music-pool) link.
-                4. SUBSCRIPTION LOOKUPS: You ONLY know the "USER SUBSCRIPTION STATUS" provided above. You CANNOT dynamically search the DB for arbitrary emails. If the status doesn't match their claims, politely ask them to log in correctly or click "Speak to a Human" for admin verification.
-                5. ESCALATION & CONTACT: If they want to talk to a human or need a call-back, ask for their WhatsApp number. Official support email is admin@djflowerz.co.ke. Guide frustrated users to click the "Speak to a Human" button.
+                TOP PRODUCTS:
+                ${productsText}
+
+                YOUR CORE RESPONSIBILITIES (IN ORDER OF PRIORITY):
+                1. SALES CONVERSION: Proactively suggest the Music Pool or Store products. If a user asks about pricing, explain the value of the Weekly (KES 200) or Monthly (KES 700) plans. Always use Markdown for links: [Browse Music Pool](https://djflowerz.co.ke/music-pool).
                 
-                CORE BEHAVIOR:
-                - ALWAYS use Markdown for links: [Link Text](URL).
-                - Use natural, friendly Kenyan English (feel free to sprinkle a bit of polite Sheng like "sasa" or "karibu" if it fits perfectly, but remain professional).
-                - Be conversational. Don't just list facts—ask follow-up questions to engage the user (e.g., "Are you looking for a specific brand?").
-                - Keep responses reasonably concise but detailed enough to be helpful as a sales rep.`
+                2. LEAD QUALIFICATION: If a user wants to BOOK a Gig or Studio session, you MUST gather details before escalating:
+                   - GIGS: Ask for Date, Type (Wedding, Club, Corporate), Location, and Duration.
+                   - STUDIO: Ask for Genre, Number of Artists, and Preferred Time (Mon-Thu 10am-6pm).
+                   - Only guide them to "Speak to a Human" AFTER you have extracted at least 2 of these details.
+                
+                3. SOFT-BOOKING: If they suggest a time, acknowledge it relative to Nairobi business hours. Say: "I've noted your interest for [Date/Time]. I'll pass this straight to DJ Flowerz so he can confirm the slot for you."
+                
+                4. SUPPORT & RECEIPTS: Analyze paste-in receipts. If the payment date was more than 24h ago for a daily pass, explicitly tell them it has EXPIRED and provide the [Renew Link](https://djflowerz.co.ke/checkout).
+                
+                5. ESCALATION: Use the "Speak to a Human" button as a fallback. For inquiries outside your remit, ask for their WhatsApp number so DJ Flowerz can reach out directly.
+
+                TONE & BRANDING:
+                - Professional, enthusiastic, and "Finnesse" (smooth).
+                - Use Kenyan English/Sheng naturally (e.g., "Sasa!", "Karibu sana").
+                - Refer to the business globally as "us" or "our team".
+                - Keep responses concise but information-dense. Facilitate the sale at every turn.`
             },
             ...(history || []).reverse().map(m => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',
@@ -502,5 +516,126 @@ export async function handleChat(request, env, ctx, params) {
     return Response.json({ error: 'Not Found' }, { status: 404 });
 }
 
-// Existing admin helper functions (listSessions, handleWhatsAppWebhook, updateSession) follow...
-// (Keep them as they were but with the proper logic for the expanded schema if needed)
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin / Webhook Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function listSessions(request, env) {
+    try {
+        const user = await getAuthorizedUser(request, env);
+        if (!user || user.role !== 'admin') {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Fetch sessions joined with the latest message
+        const { results } = await env.DB.prepare(`
+            SELECT 
+                s.*,
+                (SELECT text FROM chat_messages WHERE session_id = s.id ORDER BY created_at DESC LIMIT 1) as last_message,
+                (SELECT created_at FROM chat_messages WHERE session_id = s.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+                (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.id AND sender = 'user' AND created_at > s.last_agent_response_at) as unread_count
+            FROM chat_sessions s
+            ORDER BY s.updated_at DESC
+            LIMIT 100
+        `).all();
+
+        return Response.json(results || []);
+    } catch (err) {
+        console.error('[Chat] listSessions error:', err);
+        return Response.json({ error: err.message }, { status: 500 });
+    }
+}
+
+async function updateSession(request, env, params) {
+    try {
+        const user = await getAuthorizedUser(request, env);
+        if (!user || user.role !== 'admin') {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const url = new URL(request.url);
+        const id = params?.id || url.pathname.split('/').pop();
+        const body = await request.json();
+
+        const fields = [];
+        const values = [];
+
+        if (body.status) {
+            fields.push('status = ?');
+            values.push(body.status);
+        }
+        if (body.visitor_name) {
+            fields.push('visitor_name = ?');
+            values.push(body.visitor_name);
+        }
+
+        if (fields.length === 0) return Response.json({ error: 'Nothing to update' }, { status: 400 });
+
+        fields.push('updated_at = ?');
+        values.push(new Date().toISOString());
+        values.push(id);
+
+        await env.DB.prepare(`
+            UPDATE chat_sessions SET ${fields.join(', ')} WHERE id = ?
+        `).bind(...values).run();
+
+        return Response.json({ success: true });
+    } catch (err) {
+        console.error('[Chat] updateSession error:', err);
+        return Response.json({ error: err.message }, { status: 500 });
+    }
+}
+
+async function handleWhatsAppWebhook(request, env) {
+    // This handles incoming messages from Twilio/WhatsApp
+    // Twilio sends Form Data (x-www-form-urlencoded)
+    try {
+        const formData = await request.formData();
+        const from = formData.get('From'); // e.g., 'whatsapp:+254...'
+        const body = formData.get('Body');
+        const mediaUrl = formData.get('MediaUrl0');
+        const now = new Date().toISOString();
+
+        console.log(`[WhatsApp] Incoming from ${from}: ${body}`);
+
+        // Check if this is the admin replying
+        if (from === ADMIN_WHATSAPP) {
+            // Need to find which session they are replying to. 
+            // Usually, Twilio sends the 'To' number which is our proxy, but here 'from' is admin.
+            // A simple way is to find the most recent 'human' session that was notified.
+            const session = await env.DB.prepare(`
+                SELECT id FROM chat_sessions WHERE status = 'human' AND whatsapp_notified = 1 ORDER BY updated_at DESC LIMIT 1
+            `).first();
+
+            if (session) {
+                await env.DB.prepare(`
+                    INSERT INTO chat_messages (session_id, sender, text, file_url, created_at)
+                    VALUES (?, 'agent', ?, ?, ?)
+                `).bind(session.id, body || '', mediaUrl || null, now).run();
+
+                await env.DB.prepare(`
+                    UPDATE chat_sessions SET last_agent_response_at = ?, updated_at = ? WHERE id = ?
+                `).bind(now, now, session.id).run();
+            }
+        } else {
+            // It's a user message
+            const session = await env.DB.prepare(`
+                SELECT id FROM chat_sessions WHERE whatsapp_number = ? ORDER BY updated_at DESC LIMIT 1
+            `).bind(from).first();
+
+            if (session) {
+                await env.DB.prepare(`
+                    INSERT INTO chat_messages (session_id, sender, text, file_url, created_at)
+                    VALUES (?, 'user', ?, ?, ?)
+                `).bind(session.id, body || '', mediaUrl || null, now).run();
+
+                await env.DB.prepare(`UPDATE chat_sessions SET updated_at = ? WHERE id = ?`).bind(now, session.id).run();
+            }
+        }
+
+        return new Response('OK', { status: 200 });
+    } catch (err) {
+        console.error('[WhatsApp Webhook] error:', err);
+        return new Response('Error', { status: 500 });
+    }
+}

@@ -12,16 +12,23 @@ import { AuthProvider } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
+import LiveEventStreamer from './components/LiveEventStreamer';
+
 import AccessDenied from './components/AccessDenied';
 
 // Lazy load pages to reduce initial bundle size
 const Home = lazy(() => import('./pages/Home'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const EscrowManager = lazy(() => import('./pages/EscrowManager'));
 const Mixtapes = lazy(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazy(() => import('./pages/MixtapeDetails'));
 const MusicPool = lazy(() => import('./pages/MusicPool'));
 const BpmTapper = lazy(() => import('./pages/BpmTapper'));
 const Community = lazy(() => import('./pages/Community'));
 const Store = lazy(() => import('./pages/Store'));
+const Marketplace = lazy(() => import('./pages/Marketplace'));
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
+const AuraVision = lazy(() => import('./pages/AuraVision'));
 const ProductDetails = lazy(() => import('./pages/ProductDetails'));
 const Cart = lazy(() => import('./pages/Cart'));
 const Checkout = lazy(() => import('./pages/Checkout'));
@@ -40,6 +47,8 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 // const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+
 
 // Modular Admin Pages
 const AdminHome = lazy(() => import('./src/admin/pages/Dashboard'));
@@ -57,6 +66,7 @@ const AdminAffiliates = lazy(() => import('./src/admin/pages/Affiliates'));
 const AdminInstallments = lazy(() => import('./src/admin/pages/Installments'));
 const AdminMarketing = lazy(() => import('./src/admin/pages/Marketing'));
 const AdminShipping = lazy(() => import('./src/admin/pages/Shipping'));
+const VideoSession = lazy(() => import('./pages/VideoSession'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -70,7 +80,8 @@ const ScrollToTop = () => {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
-  const hideChrome = isAdmin;
+  const isVideo = location.pathname.startsWith('/sessions/video');
+  const hideChrome = isAdmin || isVideo;
 
   return (
     <>
@@ -151,19 +162,28 @@ const App: React.FC = () => {
               <ScrollToTop />
               <Toaster position="top-right" richColors closeButton theme="dark" />
               <FloatingChatWidget />
+              <LiveEventStreamer />
+
               <Layout>
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
                     <Route path="/" element={<Home />} />
-                    <Route path="/pool" element={<Navigate to="/music-pool" replace />} />
-                    <Route path="/track/:id" element={<Navigate to="/music-pool" replace />} />
+                    <Route path="/pool" element={<Navigate to="/" replace />} />
+                    <Route path="/track/:id" element={<Navigate to="/" replace />} />
                     <Route path="/mixtapes" element={<Mixtapes />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/escrow-mngt" element={<EscrowManager />} />
                     <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
-                    <Route path="/music-pool" element={<MusicPool />} />
+                    <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
                     <Route path="/dj-tools/bpm-tapper" element={<BpmTapper />} />
+                    <Route path="/@:username" element={<PublicProfile />} />
                     <Route path="/community" element={<Community />} />
+
                     <Route path="/store" element={<Store />} />
-                    <Route path="/store/:slug" element={<ProductDetails />} />
+                    <Route path="/marketplace" element={<Marketplace />} />
+                    <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+                    <Route path="/aura-vision" element={<AuraVision />} />
+                    <Route path="/product/:id" element={<ProductDetails />} />
                     <Route path="/cart" element={<Cart />} />
                     <Route path="/checkout" element={<Checkout />} />
                     <Route path="/success" element={<Success />} />
@@ -171,11 +191,12 @@ const App: React.FC = () => {
                     <Route path="/order-tracking" element={<OrderTracking />} />
                     <Route path="/bookings" element={<Bookings />} />
                     <Route path="/recording-sessions" element={<RecordingSessions />} />
-                    <Route path="/sessions" element={<Sessions />} />
+                     <Route path="/sessions" element={<Sessions />} />
+                     <Route path="/sessions/video/:sessionId" element={<ProtectedRoute><VideoSession /></ProtectedRoute>} />
                     <Route path="/tip-jar" element={<TipJar />} />
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/about" element={<About />} />
-                     <Route path="/premium" element={<AccessDenied />} />
+                     <Route path="/premium" element={<ProtectedRoute subscriberOnly><AccessDenied /></ProtectedRoute>} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />

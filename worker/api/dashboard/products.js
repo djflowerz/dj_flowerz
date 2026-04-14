@@ -10,12 +10,23 @@ export async function handleDashboardProducts(request, env, ctx, params) {
 
     if (method === 'GET') {
         try {
+            // Updated to products_new logic if available, otherwise products
             const { results } = await env.DB.prepare(`
-                SELECT *, image as image_url, category as category_name FROM products ORDER BY created_at DESC
-            `).all();
-            console.log(`[Dashboard/Products] Found ${results?.length || 0} products in D1`);
+                SELECT *, 
+                       COALESCE(image, image_url) as image_url, 
+                       COALESCE(category, category_id) as category_name 
+                FROM products_new 
+                ORDER BY created_at DESC
+            `).all().catch(async () => {
+                // Fallback to legacy products table
+                return await env.DB.prepare(`
+                    SELECT *, image as image_url, category as category_name FROM products ORDER BY created_at DESC
+                `).all();
+            });
 
-            // Fetch variants for each product and parse JSON fields
+            console.log(`[Dashboard/Products] Found ${results?.length || 0} tracks/products in D1`);
+
+            // Fetch variants for each product
             const productsWithVariants = await Promise.all(results.map(async (p) => {
                 const { results: variants } = await env.DB.prepare("SELECT * FROM product_variants WHERE product_id = ?")
                     .bind(p.id)
@@ -30,7 +41,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                         if (group.variants && Array.isArray(group.variants)) {
                             group.variants.forEach(v => {
                                 variantsList.push({
-                                    id: v.id,
+                                    id: v.id || `v_${Math.random().toString(36).substr(2, 9)}`,
                                     product_id: p.id,
                                     name: v.name,
                                     price: v.price || v.discountPrice || p.price,
@@ -48,20 +59,15 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                     ...p, 
                     variants: variantsList,
                     variant_count: variantsList.length,
-                    technicalDetails: p.technical_details ? JSON.parse(p.technical_details) : [],
-                    hotspots: p.hotspots ? JSON.parse(p.hotspots) : [],
-                    useCases: p.use_cases ? JSON.parse(p.use_cases) : [],
+                    technicalDetails: p.technical_details ? (typeof p.technical_details === 'string' ? JSON.parse(p.technical_details) : p.technical_details) : [],
+                    hotspots: p.hotspots ? (typeof p.hotspots === 'string' ? JSON.parse(p.hotspots) : p.hotspots) : [],
+                    useCases: p.use_cases ? (typeof p.use_cases === 'string' ? JSON.parse(p.use_cases) : p.use_cases) : [],
                     variantGroups: variantGroups,
-                    images: p.images ? JSON.parse(p.images) : []
+                    images: p.images ? (typeof p.images === 'string' ? JSON.parse(p.images) : p.images) : []
                 };
             }));
 
-            return new Response(JSON.stringify(productsWithVariants), {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Cache-Control": "no-store, no-cache, must-revalidate"
-                }
-            });
+            return Response.json(productsWithVariants);
         } catch (e) {
             console.error("[Dashboard Products GET Error]", e);
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -109,8 +115,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const os = body.os || 'None';
 
             await env.DB.prepare(`
-                INSERT INTO products (
-                    id, name, description, price, image, category, inventory, stock, created_at, 
+                INSERT INTO products_new (
+                    id, name, description, price, image_url, category_id, inventory, stock, created_at, 
                     brand, compare_at_price, status, is_active, release_date, logistics, 
                     slug, technical_details, hotspots, use_cases, variant_groups, 
                     is_hot, is_featured, is_best_seller, is_special_offer, is_trending, offer_expiry, images,
@@ -150,7 +156,13 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 body.price_local || body.price || 0,
                 body.price_air || body.price_air_shipping || 0,
                 body.price_sea || body.price_sea_shipping || 0
-            ).run();
+            ).run().catch(async () => {
+                // Fallback to legacy products table
+                await env.DB.prepare(`
+                    INSERT INTO products (id, name, description, price, image, category, inventory, stock, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, body.name, description, body.price, image, category, inventory, inventory, new Date().toISOString()).run();
+            });
 
             // Handle variants
             if (body.variants && Array.isArray(body.variants)) {
@@ -222,8 +234,8 @@ export async function handleDashboardProducts(request, env, ctx, params) {
             const os = body.os || 'None';
 
             await env.DB.prepare(`
-                UPDATE products 
-                SET name = ?, description = ?, price = ?, image = ?, category = ?, inventory = ?, stock = ?, 
+                UPDATE products_new 
+                SET name = ?, description = ?, price = ?, image_url = ?, category_id = ?, inventory = ?, stock = ?, 
                     brand = ?, compare_at_price = ?, status = ?, is_active = ?, release_date = ?, logistics = ?, slug = ?,
                     technical_details = ?, hotspots = ?, use_cases = ?, variant_groups = ?,
                     is_hot = ?, is_featured = ?, is_best_seller = ?, is_special_offer = ?, is_trending = ?, offer_expiry = ?, 
@@ -237,7 +249,7 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 image,
                 category,
                 inventory,
-                inventory, // Use same value for stock
+                inventory, 
                 body.brand || null,
                 compareAtPrice,
                 status,
@@ -262,7 +274,12 @@ export async function handleDashboardProducts(request, env, ctx, params) {
                 body.price_air || body.price_air_shipping || 0,
                 body.price_sea || body.price_sea_shipping || 0,
                 id
-            ).run();
+            ).run().catch(async () => {
+                // Fallback to legacy
+                await env.DB.prepare(`
+                    UPDATE products SET name = ?, price = ?, image = ? WHERE id = ?
+                `).bind(body.name, body.price, image, id).run();
+            });
 
             // Refresh variants: Delete and Re-insert
             await env.DB.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(id).run();

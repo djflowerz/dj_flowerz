@@ -14,18 +14,36 @@ export async function handleDashboardUsers(request, env) {
 
         if (request.method === 'GET') {
             // Fetch directly from D1 (Bypass R2 for Admin as requested)
-            const query = `
-                SELECT 
-                    id, full_name AS name, email, role, is_subscriber, subscription_plan,
-                    subscription_expiry, created_at, last_login, presence_status,
-                    phone_number, referral_code, referral_balance AS referral_balance_kes,
-                    loyalty_points
-                FROM profiles
-                ORDER BY created_at DESC
-            `;
-            const { results } = await env.DB.prepare(query).all();
+            let results = [];
+            try {
+                const query = `SELECT * FROM profiles ORDER BY created_at DESC`;
+                const res = await env.DB.prepare(query).all();
+                results = res.results || [];
+            } catch(e) {
+                console.error('[Dashboard/Users] Query error', e.message);
+            }
+            
+            // Post-process to handle offline timeout (e.g., 2 minutes)
+            const now = Date.now();
+            const processed = results.map(u => {
+                let status = u.presence_status || 'offline';
+                if (status === 'online' && u.last_seen) {
+                    const lastSeen = new Date(u.last_seen).getTime();
+                    if (now - lastSeen > 120000) { // 2 minutes
+                        status = 'offline';
+                    }
+                }
+                return { 
+                    ...u, 
+                    presence_status: status,
+                    name: u.full_name || u.name || 'Anonymous DJ',
+                    phone_number: u.phone_number || u.phone || '',
+                    loyalty_points: u.loyalty_points || u.aura_points || 0
+                };
+            });
+
             console.log(`[Dashboard/Users] Found ${results?.length || 0} profiles in D1`);
-            return new Response(JSON.stringify(results || []), {
+            return Response.json(processed, {
                 headers: { 
                     'Content-Type': 'application/json', 
                     'Access-Control-Allow-Origin': '*',
@@ -62,10 +80,10 @@ export async function handleDashboardUsers(request, env) {
             const fieldMap = {
                 full_name: 'full_name',
                 name: 'full_name',
-                phone_number: 'phone_number',
-                phone: 'phone_number',
+                phone_number: 'phone',
+                phone: 'phone',
                 is_subscriber: 'is_subscriber',
-                referral_balance_kes: 'referral_balance',
+                referral_balance_kes: 'referral_balance_kes',
                 referral_code: 'referral_code',
                 role: 'role',
                 subscription_plan: 'subscription_plan',

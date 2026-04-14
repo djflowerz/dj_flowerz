@@ -267,7 +267,7 @@ const Success: React.FC = () => {
                         </p>
                      </div>
 
-                     {/* Instant Music Pool Access for Subscriptions */}
+                     {/* Instant Activation Status (Subscribers) */}
                      {isSubscription && user?.isSubscriber && (
                          <motion.div 
                             initial={{ opacity: 0, scale: 0.9 }}
@@ -276,15 +276,10 @@ const Success: React.FC = () => {
                          >
                              <div className="flex items-center justify-center gap-2 mb-2">
                                  <Sparkles className="text-brand-purple w-5 h-5 animate-pulse" />
-                                 <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">Instant Activation Success</span>
+                                 <span className="text-[10px] font-black text-brand-purple uppercase tracking-widest">VIP Activation Success</span>
                              </div>
-                             <h3 className="text-xl font-black text-white italic mb-4 uppercase tracking-tighter">VIP Access Granted</h3>
-                             <Link 
-                                to="/music-pool"
-                                className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-brand-purple/80 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]"
-                             >
-                                <Zap size={18} /> Enter Music Pool
-                             </Link>
+                             <h3 className="text-xl font-black text-white italic mb-2 uppercase tracking-tighter">Account Status: Active</h3>
+                             <p className="text-xs text-gray-400 font-medium">Your premium protocols are now synchronized. Refresh the page or check your dashboard for updates.</p>
                          </motion.div>
                      )}
 

@@ -5,6 +5,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DJ FLOWERZ | Premium Music Experience</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7C3AED" />
+  <link rel="apple-touch-icon" href="/logo192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DJ Flowerz" />
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js');
+      });
+    }
+  </script>
+
   <link rel="canonical" href="https://djflowerz.co.ke" />
   <!-- Content Security Policy: allows trusted origins for scripts, styles, media, and frames -->
   <meta http-equiv="Content-Security-Policy" content="
@@ -14,8 +29,8 @@
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.hearthis.at https://hearthis.at https://paystack.com;
     font-src 'self' data: https://fonts.gstatic.com;
     img-src 'self' data: blob: https: http:;
-    media-src 'self' blob: https: https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com https://djflowerz-worker.ianmuriithiflowerz.workers.dev https://*.hearthis.at https://hearthis.at https://*.soundcloud.com;
-    connect-src 'self' https://djflowerz-worker.ianmuriithiflowerz.workers.dev https://api.paystack.co https://checkout.paystack.com https://*.supabase.co wss://*.supabase.co https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com https://*.hearthis.at https://hearthis.at https://*.soundcloud.com https://*.mixcloud.com https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev wss://api.djflowerz.co.ke https://www.google-analytics.com;
+    media-src 'self' blob: https: https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com https://api.djflowerz.co.ke https://*.hearthis.at https://hearthis.at https://*.soundcloud.com;
+    connect-src 'self' https://api.djflowerz.co.ke https://api.paystack.co https://checkout.paystack.com https://*.supabase.co wss://*.supabase.co https://cdn.vicknickvideopool.com https://r2.vicknickvideopool.com https://*.hearthis.at https://hearthis.at https://*.soundcloud.com https://*.mixcloud.com https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev wss://api.djflowerz.co.ke https://www.google-analytics.com;
     frame-src 'self' https: https://*.youtube.com https://youtube.com https://checkout.paystack.com https://*.hearthis.at https://hearthis.at https://*.soundcloud.com https://soundcloud.com https://*.mixcloud.com https://mixcloud.com;
     worker-src 'self' blob:;
     object-src 'none';
@@ -25,7 +40,7 @@
   <link rel="preconnect" href="https://js.paystack.co">
   <link rel="preconnect" href="https://r2.vicknickvideopool.com">
   <link rel="preconnect" href="https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev">
-  <link rel="dns-prefetch" href="https://djflowerz-worker.ianmuriithiflowerz.workers.dev">
+  <link rel="dns-prefetch" href="https://api.djflowerz.co.ke">
   <link rel="dns-prefetch" href="https://cdn.vicknickvideopool.com">
   <link rel="dns-prefetch" href="https://supabase.co">
   

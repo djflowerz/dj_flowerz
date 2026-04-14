@@ -7,7 +7,7 @@ export async function handlePaymentInitialize(request, env) {
 
     try {
         const body = await request.json();
-        const { type, amount, email, metadata, callback_url } = body;
+        const { type, amount, email, metadata, callback_url, planId } = body;
 
         if (!email || !amount || !type) {
             return new Response(JSON.stringify({ error: "Missing required fields: email, amount, type" }), { 
@@ -28,11 +28,12 @@ export async function handlePaymentInitialize(request, env) {
                 email,
                 amount: Math.round(amount), // Must be in cents/kobo
                 reference,
-                callback_url: callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/success`,
+                callback_url: callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/checkout`,
                 metadata: {
                     ...metadata,
                     type,
-                    reference
+                    reference,
+                    ...(planId ? { planId } : {})
                 }
             })
         });

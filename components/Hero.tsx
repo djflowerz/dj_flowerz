@@ -156,10 +156,10 @@ const Hero: React.FC<HeroProps> = ({
                                 onClick={handleSubscribe}
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting ? 'Accessing...' : 'Join Pool'}
+                                {isSubmitting ? 'Accessing...' : 'Join Now'}
                             </button>
                         </div>
-                        <p className="text-[9px] text-gray-500 mt-3 uppercase tracking-[0.2em] font-black opacity-60">Verified portal access for 5,000+ elite members</p>
+                        <p className="text-[9px] text-gray-500 mt-3 uppercase tracking-[0.2em] font-black opacity-60">Verified community access for 5,000+ elite members</p>
                     </motion.div>
                 )}
             </div>

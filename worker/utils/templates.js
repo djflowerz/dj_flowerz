@@ -336,4 +336,61 @@ export const templates = {
     <p style="text-align:center;margin:16px 0 0;font-size:13px;color:#6b7280;">Stay legendary — DJ FLOWERZ</p>
   `),
 
+  // 12. Booking Confirmation
+  bookingConfirmation: (userName, type, date, time) => emailWrap(`
+    ${heroSection('🗓️', 'Booking Received!', `Yo <strong style="color:#ffffff;">${userName}</strong>, we've received your request for a <strong style="color:#a855f7;">${type}</strong>.`)}
+    ${divider}
+    ${infoCard([
+      ['Type', type],
+      ['Date', date],
+      ['Time', time || 'TBD'],
+      ['Status', '<span style="color:#facc15;">⏳ Pending Review</span>'],
+    ])}
+    <div style="background:#15151f;border:1px solid #ffffff08;border-radius:16px;padding:24px 32px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#a855f7;">Next Steps</p>
+      <p style="margin:6px 0;font-size:14px;color:#9ca3af;">• DJ Flowerz will review your request personally.</p>
+      <p style="margin:6px 0;font-size:14px;color:#9ca3af;">• You'll receive a confirmation or a follow-up via email/WhatsApp.</p>
+    </div>
+    <p style="text-align:center;margin:16px 0 0;font-size:13px;color:#6b7280;">Get ready to level up your sound! 🎧</p>
+  `),
+
+  // 13. Support / Contact Confirmation
+  supportConfirmation: (name, subject) => emailWrap(`
+    ${heroSection('✉️', 'Message Received', `Hey <strong style="color:#ffffff;">${name}</strong>, thanks for reaching out. We've got your message.`)}
+    ${divider}
+    <div style="background:#15151f;border:1px solid #ffffff08;border-radius:16px;padding:24px 32px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#6b7280;">Subject</p>
+      <p style="margin:0;font-size:16px;color:#ffffff;">${subject}</p>
+      <p style="margin:20px 0 0;font-size:14px;color:#9ca3af;">Our team will get back to you within 24 hours. Hang tight!</p>
+    </div>
+  `),
+
+  // 14. Admin Alert (Internal)
+  adminAlert: (title, details) => emailWrap(`
+    ${heroSection('🚨', 'Action Required', `<strong style="color:#ffffff;">New Activity</strong> requires your attention.`)}
+    ${divider}
+    <div style="background:#15151f;border:1px solid #ef444430;border-radius:16px;padding:24px 32px;margin:24px 0;">
+      <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#ffffff;">${title}</p>
+      ${details.map(d => `<p style="margin:8px 0;font-size:14px;color:#d1d5db;"><strong style="color:#6b7280;">${d[0]}:</strong> ${d[1]}</p>`).join('')}
+    </div>
+    ${ctaButton('https://djflowerz.co.ke/admin', '🔓 Open Admin Panel', 'secondary')}
+  `),
+
+  // 15. Admin Daily Summary
+  adminDailySummary: (stats) => emailWrap(`
+    ${heroSection('📊', 'Daily Pulse Report', `Here is how the DJ Flowerz ecosystem performed in the last 24 hours.`)}
+    ${divider}
+    ${infoCard([
+      ['New Signups', stats.newSignups],
+      ['Total Payments', `KES ${stats.totalPayments}`],
+      ['Expired Subs', stats.expiredSubs],
+      ['Active Chats', stats.activeChats],
+    ], '#28E6DC')}
+    <div style="background:#15151f;border:1px solid #ffffff08;border-radius:16px;padding:24px 32px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#6b7280;">Quick Links</p>
+      <p style="margin:6px 0;font-size:14px;"><a href="https://djflowerz.co.ke/admin/orders" style="color:#a855f7;text-decoration:none;">View Orders →</a></p>
+      <p style="margin:6px 0;font-size:14px;"><a href="https://djflowerz.co.ke/admin/users" style="color:#a855f7;text-decoration:none;">Manage Users →</a></p>
+    </div>
+  `),
+
 };

@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Send, MessageSquare, User, Bot, Headphones, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke';
 const ADMIN_POLL = 5000; // 5s refresh for sessions list
 const CHAT_POLL  = 3000; // 3s refresh for open conversation
 

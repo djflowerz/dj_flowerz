@@ -9,13 +9,22 @@ const TipJar: React.FC = () => {
   const navigate = useNavigate();
   const [amount, setAmount] = useState<number | ''>('');
   const [message, setMessage] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   const presets = [100, 200, 500, 1000];
 
   const handlePayment = async () => {
-    if (!amount || Number(amount) <= 0) {
+    if (!amount || amount <= 0) {
       toast.error("Please enter a valid amount.");
+      return;
+    }
+
+    if (!user && !guestEmail) {
+      toast.error("Please provide an email for the receipt.");
+      const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+      emailInput?.focus();
       return;
     }
 
@@ -27,14 +36,15 @@ const TipJar: React.FC = () => {
         body: JSON.stringify({
           type: 'tip',
           amount: Number(amount) * 100, // Amount in KES kobo
-          email: user?.email || "guest_tipper@djflowerz.co.ke",
+          email: user?.email || guestEmail,
           metadata: {
             userId: user?.id,
-            userEmail: user?.email,
-            customerName: user?.name || 'Guest Tipper',
+            userEmail: user?.email || guestEmail,
+            customerName: user?.name || guestName || 'Guest Tipper',
             message: message,
+            type: 'tip', // Explicitly pass type for webhook processing
           },
-          callback_url: `${window.location.origin}/success`
+          callback_url: `${window.location.origin}/checkout`
         })
       });
 
@@ -92,6 +102,25 @@ const TipJar: React.FC = () => {
               className="w-full bg-black/20 border border-white/10 rounded-xl py-4 pl-16 pr-4 text-white text-lg font-bold focus:outline-none focus:border-brand-purple placeholder-gray-600 transition-colors"
             />
           </div>
+
+          {!user && (
+            <div className="space-y-4 mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+              <input
+                type="text"
+                placeholder="Your Name (Optional)"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-brand-purple placeholder-gray-600 transition-colors text-sm"
+              />
+              <input
+                type="email"
+                placeholder="Email for Receipt (Required)"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-brand-purple placeholder-gray-600 transition-colors text-sm"
+              />
+            </div>
+          )}
 
           <div className="mb-8">
             <textarea

@@ -26,6 +26,11 @@ export const profiles = sqliteTable('profiles', {
     presenceStatus: text('presence_status').default('offline'),
     loyaltyPoints: integer('loyalty_points').default(0),
     totalSpent: real('total_spent').default(0),
+    isVendor: integer('is_vendor', { mode: 'boolean' }).default(false),
+    vendorSlug: text('vendor_slug').unique(),
+    commissionRate: real('commission_rate').default(0.15), // Default 15%
+    vendorStatus: text('vendor_status').default('none'), // none, pending, approved, suspended
+    vendorBalance: real('vendor_balance').default(0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -420,5 +425,35 @@ export const syncNotifications = sqliteTable('sync_notifications', {
     action: text('action').notNull(), // e.g., 'POOL_SYNC'
     details: text('details'),
     status: text('status').default('info'), // info, success, warning, error
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 26. MARKETPLACE ITEMS (User generated)
+export const marketplaceItems = sqliteTable('marketplace_items', {
+    id: text('id').primaryKey(),
+    vendorId: text('vendor_id').references(() => profiles.id).notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    price: real('price').notNull(),
+    category: text('category'), // loop, sample, preset, service
+    fileUrl: text('file_url'),
+    previewUrl: text('preview_url'),
+    imageUrl: text('image_url'),
+    status: text('status').default('pending'), // pending, active, sold, rejected
+    isDigital: integer('is_digital', { mode: 'boolean' }).default(true),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 27. MARKETPLACE SALES
+export const marketplaceSales = sqliteTable('marketplace_sales', {
+    id: text('id').primaryKey(), // Payment reference
+    listingId: text('listing_id').references(() => marketplaceItems.id).notNull(),
+    vendorId: text('vendor_id').references(() => profiles.id).notNull(),
+    buyerId: text('buyer_id').references(() => profiles.id),
+    amount: real('amount').notNull(),
+    vendorEarnings: real('vendor_earnings').notNull(),
+    commission: real('commission').notNull(),
+    status: text('status').default('completed'),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

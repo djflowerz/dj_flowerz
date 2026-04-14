@@ -74,6 +74,8 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({ plan, referralInfo, c
                         customerName: user?.name || 'Guest',
                         plan: plan.name,
                         planId: plan.id,
+                        plan_type: plan.id, // Explicitly pass plan_type for webhook processing
+                        type: 'subscription', // Explicitly pass type for webhook processing
                         referralCode: referralInfo?.code,
                         referrerId: referralInfo?.referrerId,
                         discount: referralInfo?.discount || (isFirstTimer ? referralSettings?.firstTimeDiscount : 0),

@@ -31,7 +31,10 @@ interface TrackVersion {
 import { Sidebar } from '../components/music-pool/Sidebar';
 import { TrackRow } from '../components/music-pool/TrackRow';
 import { MediaOverlay } from '../components/music-pool/MediaOverlay';
+import CrateDigger from '../components/music-pool/CrateDigger';
+import { SecurityWatchdog } from '../utils/watchdog';
 import AccessDenied from '../components/AccessDenied';
+import { maskMediaUrl } from '../utils/branding';
 
 // --- Constants ---
 const MONTH_MAP: Record<string, string> = {
@@ -46,6 +49,7 @@ interface PlayerState {
   title: string;
   type: 'audio' | 'video';
   isPlaying: boolean;
+  id?: string;
 }
 
 interface HubWithGenres {
@@ -83,6 +87,50 @@ export default function MusicPool() {
   const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
   const [activeKey, setActiveKey] = useState<string>('All Keys');
   const [hypeOnly, setHypeOnly] = useState(false);
+  const [isCrateDiggerOpen, setIsCrateDiggerOpen] = useState(false);
+  const [securityViolation, setSecurityViolation] = useState(false);
+  const [shadowSalt, setShadowSalt] = useState<string | null>(null);
+
+  // Helper to construct shadow URLs
+  const getShadowUrl = (path: string) => {
+    if (!shadowSalt) return `${import.meta.env.VITE_API_BASE_URL || ''}${path}`;
+    const cleanPath = path.replace('/api/', '');
+    return `${import.meta.env.VITE_API_BASE_URL || ''}/api/v1/sh-${shadowSalt}/${cleanPath}`;
+  };
+
+  useEffect(() => {
+    // 1. Initial Handshake to get Shadow Salt
+    const fetchSalt = async () => {
+        try {
+            const token = localStorage.getItem('sb-access-token');
+            const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL || ''}/api/handshake`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setShadowSalt(res.data.salt);
+        } catch (e) {
+            console.error("[Stealth] Handshake failed");
+        }
+    };
+    fetchSalt();
+
+    // 2. Start Security Watchdog
+    const watchdog = SecurityWatchdog.getInstance();
+    
+    watchdog.start(() => {
+        setSecurityViolation(true);
+        setTimeout(() => {
+            navigate('/');
+        }, 1500);
+    });
+
+    return () => {
+        watchdog.stop();
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
   
   const [dynamicFilters, setDynamicFilters] = useState<DynamicFilters>({ 
     hubsWithGenres: [], 
@@ -120,11 +168,6 @@ export default function MusicPool() {
     }
   }, []);
 
-
-  useEffect(() => {
-    fetchFilters();
-  }, [fetchFilters]);
-  
   const [player, setPlayer] = useState<PlayerState>({ 
     url: null, 
     title: '', 
@@ -141,8 +184,14 @@ export default function MusicPool() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+    
+    // Hard Redirect for non-subscribers/non-admins (Stealth Mode)
+    if (!poolLoading && !isSubscriber && !user?.isAdmin) {
+      navigate('/', { replace: true });
+    }
+    
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [poolLoading, isSubscriber, navigate]);
 
   // Sync refresh on filter change
   useEffect(() => {
@@ -191,7 +240,7 @@ export default function MusicPool() {
     const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
     
     // Always open in MediaOverlay popup for all track types to satisfy "pop up for preview player" request
-    setPlayer({ url, title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
+    setPlayer({ url: maskMediaUrl(url), title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
     if (trackId) setExpandedTrackId(trackId);
     
     // Pause background footer audio if playing something new in the overlay
@@ -243,9 +292,33 @@ export default function MusicPool() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSkip]);
+
+  // Loading and Access Control Checks
+  if (poolLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 pt-24">
+        <Disc3 className="w-16 h-16 text-brand-purple animate-spin" />
+        <div className="text-center">
+            <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Initializing <span className="text-brand-purple">Portal</span></h2>
+            <p className="text-gray-400 mt-2 font-medium">Synchronizing with storage workers...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback in case redirect takes a frame
+  if (!isSubscriber) return null;
   const handleDownload = useCallback(async (url: string, fileName: string, versionId?: string) => {
     if (!isSubscriber) {
       toast.error("Subscription required to download.");
+      return;
+    }
+    
+    if (!user || !isUserSubscriber(user) || securityViolation) {
+      if (securityViolation) {
+          console.warn("[Stealth] Module unmounted due to security violation.");
+      }
+      navigate('/');
       return;
     }
     
@@ -277,7 +350,7 @@ export default function MusicPool() {
       // 2. TRIGGER NATIVE BROWSER DOWNLOAD IMMEDIATELY
       // We use the GET version of the endpoint with ?token=... to support window.location.href
       // This will return the body with Content-Disposition: attachment
-      const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+      const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz.co.ke';
       const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${encodeURIComponent(versionId || '')}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
       // Using a hidden iframe to trigger the download prevents 
@@ -392,7 +465,7 @@ export default function MusicPool() {
               </div>
               <div>
                 <h1 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
-                  Music <span className="text-blue-500">Pool</span>
+                  DJ FLOWERZ <span className="text-blue-500">VIDEOPOOL</span>
                 </h1>
                 <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-1">Version 4.0 // 92,000+ Tracks</p>
               </div>
@@ -668,6 +741,15 @@ export default function MusicPool() {
         onSkipPrev={() => handleSkip('prev')}
       />
 
+      <CrateDigger 
+        onSuggest={(s) => {
+          if (s.search !== undefined) setSearchTerm(s.search);
+          if (s.genre !== undefined) setActiveGenre(s.genre);
+          if (s.bpmMin !== undefined && s.bpmMax !== undefined) setBpmFilter([s.bpmMin, s.bpmMax]);
+          if (s.isHype !== undefined) setHypeOnly(s.isHype);
+        }} 
+      />
+
       {/* Footer Mini Player (Audio) */}
       <AnimatePresence>
         {player.url && player.type === 'audio' && (
@@ -684,10 +766,10 @@ export default function MusicPool() {
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold truncate">{player.title}</h4>
                 <div className="flex items-center gap-2">
-                   <div className="flex items-center gap-1 text-green-400">
-                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                     <span className="text-[10px] font-black uppercase tracking-widest">Playing Preview</span>
-                   </div>
+                  <div className="flex items-center gap-1 text-green-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Playing Preview</span>
+                  </div>
                 </div>
               </div>
               

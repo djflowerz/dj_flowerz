@@ -128,7 +128,8 @@ const DOWNLOAD_LIMITS = {
 };
 
 const ADMIN_EMAILS = [
-    'ianmuriithiflowerz@gmail.com'
+    'ianmuriithiflowerz@gmail.com',
+    'admin@djflowerz.co.ke'
 ];
 
 function isAdminEmail(email) {
@@ -138,7 +139,7 @@ function isAdminEmail(email) {
 
 function sanitizeName(name) {
     if (!name) return name;
-    return name.replace(/dj\s*vick\s*nick/gi, 'DJ Flowerz');
+    return name.replace(/dj[-_\s]*vick[-_\s]*nick/gi, 'DJ Flowerz');
 }
 
 // --- Helpers ---
@@ -554,20 +555,21 @@ export default {
                 }
             }
 
-            // --- PUBLIC FILE PROXY: GET /files/* ---
-            // Proxies track media (mp3, mp4, etc.) from the correct origin R2/worker CDN
-            // via the djflowerz worker so all media uses one unified domain.
-            // Supports ?origin= param to select the upstream CDN:
-            //   - default: r2.vicknickvideopool.com
-            //   - remix: remix-and-mashups-worker.dennismacharia20.workers.dev
-            if (method === "GET" && path.startsWith("/files/")) {
-                const filePath = decodeURIComponent(path.replace("/files/", ""));
+            // --- PUBLIC FILE PROXY: GET /api/files/* ---
+            // Proxies track media (mp3, mp4, etc.) from the correct origin storage
+            // via the DJ Flowerz worker so all media uses one unified domain.
+            // Supports ?origin= param to select the upstream source:
+            //   - default: Production Storage
+            //   - remix: Remix & Mashups Source
+            if (method === "GET" && path.startsWith("/api/files/")) {
+                const filePath = decodeURIComponent(path.replace("/api/files/", ""));
                 const originParam = url.searchParams.get("origin");
 
                 let originBase;
                 if (originParam === "remix") {
                     originBase = "https://remix-and-mashups-worker.dennismacharia20.workers.dev";
                 } else {
+                    // Internal storage origin (hidden from public view)
                     originBase = "https://r2.vicknickvideopool.com";
                 }
 
@@ -618,9 +620,13 @@ export default {
                     const planDays = { 'weekly': 7, 'monthly': 30, 'pro': 365 };
                     let days = planDays[plan_type] || 30;
 
-                    // Override if amount matches specific thresholds
+                    // Override if amount matches specific thresholds (supporting direct Paystack Shop links)
+                    if (amount_kes === 6000) days = 365;
+                    if (amount_kes === 3500) days = 180;
+                    if (amount_kes === 1800) days = 90;
                     if (amount_kes === 700) days = 30;
                     if (amount_kes === 200) days = 7;
+
 
                     // UPSERT logic to handle users who haven't registered yet
                     await env.DB.prepare(`
@@ -2290,6 +2296,181 @@ export default {
                 } catch (error) {
                     console.error("[Bulk Sync] Failed:", error);
                     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+                }
+            }
+
+            // Admin: POST /api/admin/pool/scan — Server-side scraper
+            if (method === "POST" && path === "/api/admin/pool/scan") {
+                const authHeader = request.headers.get("Authorization");
+                if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+                try {
+                    const { scanSince } = await request.json();
+                    const sinceTime = new Date(scanSince || Date.now() - 30 * 24 * 60 * 60 * 1000).getTime();
+
+                    const db = drizzle(env.DB, { schema });
+
+                    const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
+                    const VID_POOL_URL = 'https://r2.vicknickvideopool.com/';
+
+                    let allIncoming = [];
+
+                    // 1. Fetch from Remix Hub (JSON)
+                    try {
+                        const resp = await fetch(REMIX_HUB_URL);
+                        if (resp.ok) {
+                            const tracks = await resp.json();
+                            allIncoming = [...allIncoming, ...tracks.map(t => ({ ...t, _origin: 'remixHub' }))];
+                        }
+                    } catch (e) {
+                        console.error('Remix Hub fetch failed:', e);
+                    }
+
+                    // 2. Fetch from Video Pool (HTML + Regex)
+                    try {
+                        const resp = await fetch(VID_POOL_URL);
+                        if (resp.ok) {
+                            const html = await resp.text();
+                            const match = html.match(/ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/);
+                            if (match && match[1]) {
+                                const tracks = JSON.parse(match[1]);
+                                allIncoming = [...allIncoming, ...tracks.map(t => ({ ...t, _origin: 'vidPool' }))];
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Video Pool fetch failed:', e);
+                    }
+
+                    // Build de-duplication sets (existing pool tracks from DB)
+                    const norm = (u) => (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+                    const poolUrls = new Set();
+                    const existingTracks = await db.select({
+                        audioUrl: schema.tracks.audioUrl,
+                        downloadUrl: schema.tracks.downloadUrl,
+                        previewUrl: schema.tracks.previewUrl
+                    }).from(schema.tracks).run();
+                    
+                    const existingVersions = await db.select({
+                        downloadUrl: schema.trackVersions.downloadUrl
+                    }).from(schema.trackVersions).run();
+
+                    (existingTracks.results || []).forEach(t => {
+                        if (t.audioUrl) poolUrls.add(norm(t.audioUrl));
+                        if (t.downloadUrl) poolUrls.add(norm(t.downloadUrl));
+                        if (t.previewUrl) poolUrls.add(norm(t.previewUrl));
+                    });
+                    
+                    (existingVersions.results || []).forEach(v => {
+                        if (v.downloadUrl) poolUrls.add(norm(v.downloadUrl));
+                    });
+
+                    // Build staged tracks sets (from R2 scanned_tracks bucket/folder)
+                    const stagedIds = new Set();
+                    const stagedUrls = new Set();
+                    const scannedList = await env.R2_BUCKET.list({ prefix: 'scanned_tracks/' });
+                    
+                    (scannedList.objects || []).forEach(obj => {
+                        const id = obj.key.replace('scanned_tracks/', '').replace('.json', '');
+                        stagedIds.add(id);
+                    });
+                    
+                    // We also fetch them to get their URLs for dedupe (limit to 100 to avoid long runs, usually queue is empty)
+                    let fetches = 0;
+                    for (const obj of (scannedList.objects || [])) {
+                        if (fetches++ > 100) break;
+                        try {
+                           const r2Obj = await env.R2_BUCKET.get(obj.key);
+                           if (r2Obj) {
+                               const data = await r2Obj.json();
+                               if (data.downloadUrl) stagedUrls.add(norm(data.downloadUrl));
+                           }
+                        } catch(e) {}
+                    }
+
+                    const toSave = [];
+                    let skippedOld = 0;
+                    let skippedDupe = 0;
+
+                    for (const t of allIncoming) {
+                        const uploadTime = new Date(t.uploaded || t.date || Date.now()).getTime();
+                        if (uploadTime < sinceTime) { skippedOld++; continue; }
+
+                        const key = t.key || t.storagePath || t.id;
+                        if (!key) continue;
+
+                        const scannedId = `scanned_${key.replace(/\//g, '_')}`;
+
+                        // Construct absolute URL
+                        let downloadUrl = t.url || t.downloadUrl || '';
+                        if (!downloadUrl && t._origin === 'remixHub' && t.key) {
+                            const encodedPath = t.key.split('/').map(encodeURIComponent).join('/');
+                            downloadUrl = `https://cdn.vicknickvideopool.com/${encodedPath}`;
+                        } else if (downloadUrl && !downloadUrl.startsWith('http')) {
+                            const base = t._origin === 'vidPool' ? 'https://r2.vicknickvideopool.com' : 'https://cdn.vicknickvideopool.com';
+                            downloadUrl = `${base}/${downloadUrl.replace(/^\//, '')}`;
+                        } else if (!downloadUrl) {
+                            downloadUrl = `/mashups/${key}`;
+                        }
+                        const normalizedDl = norm(downloadUrl);
+
+                        // Skip if already in pool (by URL) or already staged (by ID or URL)
+                        if (poolUrls.has(normalizedDl) || stagedIds.has(scannedId) || stagedUrls.has(normalizedDl)) {
+                            skippedDupe++;
+                            continue;
+                        }
+
+                        // Prevent duplicates WITHIN the same scan
+                        stagedIds.add(scannedId);
+                        if (downloadUrl) stagedUrls.add(downloadUrl);
+
+                        let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
+                        title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
+                        const parts = title.split(' - ');
+                        const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
+                        const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
+
+                        let collectionHub = t.collectionHub || t.collection_hub || '';
+                        if (!collectionHub) {
+                            if (t._origin === 'remixHub') collectionHub = 'Edits';
+                            else if (t._origin === 'vidPool') collectionHub = 'Video Pool';
+                        }
+
+                        let genre = t.genre || t.month || 'Other';
+                        if (key.toLowerCase().includes('march 2026')) {
+                            genre = 'March 2026 Edits';
+                        }
+
+                        toSave.push({
+                            id: scannedId,
+                            source: t.source || 'CloudFlare R2 (Auto)',
+                            title: displayTitle,
+                            artist,
+                            genre,
+                            collection_hub: collectionHub,
+                            bpm: t.bpm || null,
+                            downloadUrl,
+                            previewUrl: t.previewUrl || downloadUrl,
+                            dateAdded: t.uploaded || t.date || new Date().toISOString(),
+                            status: 'scanned',
+                            created_at: new Date().toISOString(),
+                        });
+                    }
+
+                    // Save to R2 using put
+                    for (const track of toSave) {
+                        await env.R2_BUCKET.put(`scanned_tracks/${track.id}.json`, JSON.stringify(track), {
+                            httpMetadata: { contentType: "application/json" }
+                        });
+                    }
+
+                    return Response.json({
+                        success: true,
+                        message: `✅ Found ${allIncoming.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`
+                    }, { headers: corsHeaders });
+
+                } catch (e) {
+                    console.error("[Admin Scan] Error:", e);
+                    return Response.json({ error: e.message }, { status: 500, headers: corsHeaders });
                 }
             }
 

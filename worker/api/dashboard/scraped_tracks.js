@@ -1,182 +1,86 @@
 // worker/api/dashboard/scraped_tracks.js
-// Handles the "Scanned Updates" queue — tracks fetched from external sources
-// pending admin approval before they are added to the live music pool.
-import { getAuthorizedUser } from '../../utils/auth.js';
+// Cron-triggered scheduled scan — re-uses the same core logic as the manual
+// POST /api/admin/pool/scan endpoint but runs with a 30-day lookback window.
 
-const REMIX_HUB_URL  = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
-const VID_POOL_BASE  = 'https://r2.vicknickvideopool.com/';
+const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
+const norm = (u) =>
+    (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
 
-// ── Main Handler ─────────────────────────────────────────────────────────────
-export async function handleScrapedTracks(request, env, ctx, params) {
-    const url    = new URL(request.url);
-    const method = request.method;
-
-    const user = await getAuthorizedUser(request, env);
-    if (!user || user.role !== 'admin') {
-        return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    try {
-        // GET /api/admin/scraped-tracks — list pending tracks
-        if (method === 'GET' && !url.pathname.includes('/scan')) {
-            const status = url.searchParams.get('status') || 'pending';
-            const { results } = await env.DB.prepare(`
-                SELECT * FROM scraped_tracks
-                WHERE status = ?
-                ORDER BY scraped_at DESC
-                LIMIT 200
-            `).bind(status).all();
-            return Response.json(results || []);
-        }
-
-        // POST /api/admin/scraped-tracks/scan — trigger a fresh scrape
-        if (method === 'POST' && url.pathname.includes('/scan')) {
-            const added = await scrapeAndSave(env);
-            return Response.json({ success: true, new_tracks: added });
-        }
-
-        // POST /api/admin/scraped-tracks/approve — approve selected IDs
-        if (method === 'POST' && url.pathname.includes('/approve')) {
-            const { ids } = await request.json();
-            if (!Array.isArray(ids) || ids.length === 0) {
-                return Response.json({ error: 'No track IDs provided' }, { status: 400 });
-            }
-
-            let approved = 0;
-            for (const id of ids) {
-                const track = await env.DB.prepare(`SELECT * FROM scraped_tracks WHERE id = ?`).bind(id).first();
-                if (!track) continue;
-
-                // Insert into main pool tracks table
-                try {
-                    await env.DB.prepare(`
-                        INSERT OR IGNORE INTO tracks (
-                            id, title, artist, genre, bpm, key_signature,
-                            collection_hub, source_url, file_url, duration,
-                            created_at, updated_at
-                        ) VALUES (
-                            lower(hex(randomblob(16))),
-                            ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?,
-                            datetime('now'), datetime('now')
-                        )
-                    `).bind(
-                        track.title, track.artist, track.genre, track.bpm, track.key_signature,
-                        track.collection_hub || 'External Pool',
-                        track.source_url, track.file_url, track.duration
-                    ).run();
-                    approved++;
-                } catch (e) {
-                    console.error('[ScrapedTracks] Insert to pool failed:', e.message);
-                }
-
-                // Mark as approved
-                await env.DB.prepare(`
-                    UPDATE scraped_tracks SET status = 'approved', reviewed_at = datetime('now')
-                    WHERE id = ?
-                `).bind(id).run();
-            }
-
-            await env.DB.prepare(`INSERT INTO admin_logs (action, details) VALUES (?, ?)`)
-                .bind('SCRAPED_TRACKS_APPROVED', `${approved} of ${ids.length} tracks approved into pool`).run().catch(() => {});
-
-            return Response.json({ success: true, approved });
-        }
-
-        // DELETE /api/admin/scraped-tracks/:id — reject / dismiss
-        if (method === 'DELETE') {
-            const id = params?.id || url.pathname.split('/').filter(Boolean).pop();
-            await env.DB.prepare(`
-                UPDATE scraped_tracks SET status = 'rejected', reviewed_at = datetime('now')
-                WHERE id = ?
-            `).bind(id).run();
-            return Response.json({ success: true });
-        }
-
-        return Response.json({ error: 'Not Found' }, { status: 404 });
-    } catch (err) {
-        console.error('[ScrapedTracks API Error]', err);
-        return Response.json({ error: err.message }, { status: 500 });
-    }
-}
-
-// ── Scraper Logic ─────────────────────────────────────────────────────────────
 export async function scrapeAndSave(env) {
-    let newCount = 0;
+    const sinceTime = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30-day lookback
+    let allIncoming = [];
 
-    // 1. Remix & Mashups Worker
+    // Remix Hub
     try {
-        const resp = await fetch(REMIX_HUB_URL, { signal: AbortSignal.timeout(8000) });
+        const resp = await fetch(REMIX_HUB_URL, { headers: { 'User-Agent': 'DJFlowerz-Cron/1.0' } });
         if (resp.ok) {
             const tracks = await resp.json();
             if (Array.isArray(tracks)) {
-                for (const t of tracks) {
-                    const exists = await env.DB.prepare(
-                        `SELECT id FROM scraped_tracks WHERE source_url = ? OR (title = ? AND artist = ?)`
-                    ).bind(t.url || '', t.title || '', t.artist || '').first().catch(() => null);
-
-                    if (!exists) {
-                        await env.DB.prepare(`
-                            INSERT OR IGNORE INTO scraped_tracks
-                                (id, title, artist, genre, bpm, key_signature, file_url, source_url,
-                                 duration, source_name, status, scraped_at)
-                            VALUES
-                                (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?,
-                                 ?, 'Remix Hub', 'pending', datetime('now'))
-                        `).bind(
-                            t.title || 'Untitled', t.artist || 'Unknown',
-                            t.genre || null, t.bpm || null, t.key || null,
-                            t.url || t.download_url || null,
-                            t.source_url || REMIX_HUB_URL,
-                            t.duration || null
-                        ).run().catch(() => {});
-                        newCount++;
-                    }
-                }
+                allIncoming = tracks.map(t => ({ ...t, _origin: 'remixHub' }));
             }
         }
     } catch (e) {
-        console.error('[Scraper] Remix Hub error:', e.message);
+        console.error('[Cron Scan] Remix Hub fetch failed:', e.message);
+        return;
     }
 
-    // 2. Video Pool — parse S3/R2 XML listing
-    try {
-        const resp = await fetch(VID_POOL_BASE + '?list-type=2&max-keys=100', {
-            signal: AbortSignal.timeout(8000)
-        });
-        if (resp.ok) {
-            const xml = await resp.text();
-            // Extract Key elements from XML
-            const keys = [...xml.matchAll(/<Key>([^<]+\.(mp3|wav|flac|aiff|ogg))<\/Key>/gi)]
-                .map(m => m[1]);
+    // Build existing URL set
+    const poolUrls = new Set();
+    const { results: existing } = await env.DB.prepare(
+        'SELECT audio_url, download_url, preview_url FROM tracks'
+    ).all();
+    (existing || []).forEach(t => {
+        if (t.audio_url)    poolUrls.add(norm(t.audio_url));
+        if (t.download_url) poolUrls.add(norm(t.download_url));
+        if (t.preview_url)  poolUrls.add(norm(t.preview_url));
+    });
 
-            for (const key of keys) {
-                const title = key.split('/').pop().replace(/\.[^.]+$/, '').replace(/_/g, ' ');
-                const fileUrl = `${VID_POOL_BASE}${key}`;
-                const exists = await env.DB.prepare(
-                    `SELECT id FROM scraped_tracks WHERE file_url = ?`
-                ).bind(fileUrl).first().catch(() => null);
+    // Staged IDs
+    const stagedIds = new Set();
+    const scannedList = await env.R2_BUCKET.list({ prefix: 'scanned_tracks/' });
+    (scannedList.objects || []).forEach(o => stagedIds.add(o.key.replace('scanned_tracks/', '').replace('.json', '')));
 
-                if (!exists) {
-                    await env.DB.prepare(`
-                        INSERT OR IGNORE INTO scraped_tracks
-                            (id, title, artist, genre, file_url, source_url,
-                             source_name, status, scraped_at)
-                        VALUES
-                            (lower(hex(randomblob(16))), ?, 'Unknown', 'Video Pool', ?, ?,
-                             'Video Pool', 'pending', datetime('now'))
-                    `).bind(title, fileUrl, VID_POOL_BASE).run().catch(() => {});
-                    newCount++;
-                }
-            }
+    let saved = 0;
+    for (const t of allIncoming) {
+        const uploadTime = new Date(t.uploaded || t.date || Date.now()).getTime();
+        if (uploadTime < sinceTime) continue;
+
+        const key = t.key || t.storagePath || t.id;
+        if (!key) continue;
+
+        const scannedId = `scanned_${key.replace(/\//g, '_').replace(/\s+/g, '_')}`;
+        if (stagedIds.has(scannedId)) continue;
+
+        let downloadUrl = t.url || t.downloadUrl || '';
+        if (!downloadUrl && t.key) {
+            const encodedPath = t.key.split('/').map(encodeURIComponent).join('/');
+            downloadUrl = `https://cdn.vicknickvideopool.com/${encodedPath}`;
         }
-    } catch (e) {
-        console.error('[Scraper] Video Pool error:', e.message);
+
+        if (poolUrls.has(norm(downloadUrl))) continue;
+
+        const title = (t.baseTitle || t.title || 'Untitled').replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
+        const parts = title.split(' - ');
+        const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
+        const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
+
+        stagedIds.add(scannedId);
+        await env.R2_BUCKET.put(`scanned_tracks/${scannedId}.json`, JSON.stringify({
+            id:             scannedId,
+            source:         'CloudFlare R2 (Cron)',
+            title:          displayTitle,
+            artist,
+            genre:          t.genre || t.month || 'Other',
+            collection_hub: t.year || 'Edits',
+            bpm:            t.bpm || null,
+            downloadUrl,
+            previewUrl:     t.previewUrl || downloadUrl,
+            dateAdded:      t.uploaded || new Date().toISOString(),
+            status:         'scanned',
+            created_at:     new Date().toISOString(),
+        }), { httpMetadata: { contentType: 'application/json' } });
+        saved++;
     }
 
-    await env.DB.prepare(`INSERT INTO admin_logs (action, details) VALUES (?, ?)`)
-        .bind('POOL_SCRAPE_COMPLETE', `${newCount} new tracks added to pending queue`).run().catch(() => {});
-
-    console.log(`[Scraper] Scrape complete — ${newCount} new tracks queued`);
-    return newCount;
+    console.log(`[Cron Scan] Staged ${saved} new tracks.`);
 }

@@ -16,6 +16,11 @@ import { handleSyncTrack, handleSyncGenres, handleDeleteTrack, handleBulkSync, h
 import { handlePoolScan } from './api/dashboard/scan.js';
 import { handlePoolConsolidate } from './api/dashboard/consolidate.js';
 import { handleStorefrontPool, handleGetSyncNotifications } from './api/storefront/pool.js';
+import { handleBulkRebrand } from './api/admin/rebrand.js';
+import { handleSetupDB } from './api/run_setup.js';
+import { handleHealth } from './api/health.js';
+import { handleSitemap } from './api/seo/sitemap.js';
+import { handleTrackSEO } from './api/seo/track.js';
 import { handleStorefrontReferrals } from './api/storefront/referrals.js';
 import { handlePaystackWebhook } from './api/webhooks/paystack.js';
 import { handleSupabaseWebhook } from './api/webhooks/supabase.js';
@@ -34,20 +39,48 @@ import { handleDashboardInstallments } from './api/dashboard/installments.js';
 import { handlePaymentInitialize } from './api/storefront/payments.js';
 import { handleLoyalty } from './api/loyalty.js';
 import { handlePresence } from './api/presence.js';
-import { handleAdminNotifications, handleUserStatus } from './api/dashboard/notifications.js';
-
+import { handleAdminNotifications, handleUserStatus, handleUserNotifications, handleMarkNotificationsRead } from './api/dashboard/notifications.js';
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
-import { handleSetupDB } from './api/run_setup.js';
-import { handleHealth } from './api/health.js';
-import { handleSitemap } from './api/seo/sitemap.js';
-import { handleTrackSEO } from './api/seo/track.js';
+import { handleCommunityProfile } from './api/community/profile.js';
+import { handleEscrow } from './api/escrow.js';
+import { handleMe } from './api/user.js';
+import { handleOffers } from './api/community/offers.js';
+import { getShadowSalt } from './utils/shadow.js';
+import { getAuthorizedUser } from './utils/auth.js';
 
 const router = new Router();
 
 router.get('/api/admin/setup-db', handleSetupDB);
+router.post('/api/admin/rebrand', handleBulkRebrand);
 router.get('/api/health', handleHealth);
 router.get('/sitemap.xml', handleSitemap);
 router.get('/api/seo/track/:id', handleTrackSEO);
+
+// Community & Profile
+router.get('/api/user/me', handleMe);
+router.get('/api/community/profile/:username', handleCommunityProfile);
+router.post('/api/community/profile/update', handleCommunityProfile);
+router.get('/api/community/suggested', handleCommunityProfile);
+router.get('/api/community/offers', handleOffers);
+router.get('/api/handshake', async (req, env) => {
+    const user = await getAuthorizedUser(req, env);
+    if (!user) return new Response("Unauthorized", { status: 401 });
+    const salt = await getShadowSalt(env.ENVIRONMENT_SECRET || 'djflowerz_stealth_default');
+    return Response.json({ salt });
+});
+router.post('/api/community/offers', handleOffers);
+router.patch('/api/community/offers/:id', handleOffers);
+
+// Escrow System
+router.get('/api/escrow/orders', handleEscrow);
+router.get('/api/escrow/order/:id', handleEscrow);
+router.post('/api/escrow/order', handleEscrow);
+router.patch('/api/escrow/order/:id', handleEscrow);
+
+// User Notifications (D1)
+router.get('/api/user/notifications', handleUserNotifications);
+router.post('/api/user/notifications/read', handleMarkNotificationsRead);
+
 
 // Storefront API
 router.get('/api/products', handleStorefrontProducts);
@@ -263,6 +296,28 @@ export default {
     async fetch(request, env, ctx) {
         const origin = request.headers.get("Origin");
         const url = new URL(request.url);
+        const salt = await getShadowSalt(env.ENVIRONMENT_SECRET || 'djflowerz_stealth_default');
+        
+        // 0. Shadow Route Pre-processor
+        // If a request starts with /api/v1/sh-, we validate salt and strip it
+        let pathname = url.pathname;
+        if (pathname.startsWith('/api/v1/sh-')) {
+            const parts = pathname.split('/');
+            const requestSalt = parts[3].replace('sh-', '');
+            
+            if (requestSalt !== salt) {
+                 return new Response(JSON.stringify({ error: "Access Denied: Expired Signature" }), { 
+                     status: 403, 
+                     headers: { "Content-Type": "application/json" } 
+                 });
+            }
+            
+            // Rewrite pathname for the router: /api/v1/sh-xyz/pool/tracks -> /api/pool/tracks
+            pathname = '/api/' + parts.slice(4).join('/');
+            
+            // Re-bind pathname to url for router.handle (which uses url.pathname)
+            // Note: Since we can't easily modify url.pathname directly, we'll pass a proxy-like request or just match manually
+        }
 
         // 1. CORS Pre-flight & Origin Determination
         const corsWhitelist = [
@@ -303,15 +358,16 @@ export default {
         }
 
         try {
-            // --- PUBLIC FILE PROXY: GET /files/* ---
-            if (request.method === "GET" && url.pathname.startsWith("/files/")) {
-                const filePath = decodeURIComponent(url.pathname.replace("/files/", ""));
+            // --- PUBLIC FILE PROXY: GET /api/files/* ---
+            if (request.method === "GET" && url.pathname.startsWith("/api/files/")) {
+                const filePath = decodeURIComponent(url.pathname.replace("/api/files/", ""));
                 const originParam = url.searchParams.get("origin");
 
                 let originBase;
                 if (originParam === "remix") {
                     originBase = "https://remix-and-mashups-worker.dennismacharia20.workers.dev";
                 } else {
+                    // Internal storage origin (hidden from public view)
                     originBase = "https://r2.vicknickvideopool.com";
                 }
 
@@ -346,7 +402,14 @@ export default {
                 });
             }
 
-            const response = await router.handle(request, env, ctx);
+            // Standardize request for router with potential shadow pathname
+            const shadowRequest = new Request(url.origin + pathname, {
+                method: request.method,
+                headers: request.headers,
+                body: request.body
+            });
+
+            const response = await router.handle(shadowRequest, env, ctx);
 
             // Special handling for WebSockets
             if (response.status === 101) {

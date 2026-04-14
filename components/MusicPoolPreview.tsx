@@ -370,7 +370,7 @@ const MusicPoolPreview: React.FC = () => {
                         <div className="flex-1 text-center md:text-left">
                             <h3 className="text-3xl lg:text-4xl font-display font-bold text-white mb-4">Wanna Download These Tracks?</h3>
                             <p className="text-gray-300 text-lg max-w-lg mb-0" id="unlock-cta-desc">
-                                Grab the full versions in high fidelity (320kbps). Join Kenyan's #1 Music Pool for professional DJs.
+                                Grab the full versions in high fidelity (320kbps). Join Kenyan's #1 Community for professional DJs.
                             </p>
                         </div>
                         <div className="flex flex-col items-center gap-4">

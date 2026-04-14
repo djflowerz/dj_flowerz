@@ -202,6 +202,9 @@ export interface User {
   loyaltyPoints?: number;
   totalSpent?: number;
   auraTier?: 'Pioneer' | 'Elite' | 'Legend';
+  username?: string;
+  bio?: string;
+  location?: string;
 }
 
 export interface LoyaltyRecord {

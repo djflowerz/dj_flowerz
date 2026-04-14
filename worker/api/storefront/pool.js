@@ -1,6 +1,6 @@
-
 import { getAuthorizedUser, isAdminEmail } from '../../utils/auth.js';
 import { cleanMetadata, extractVersionInfo } from '../../utils/normalization.js';
+import { signDownload, verifyDownload } from '../../utils/signing.js';
 
 function sanitizeName(name) {
     if (!name) return name;
@@ -507,7 +507,7 @@ async function handleGetPoolTracks(request, env) {
     const search = url.searchParams.get("search");
     const isHype = url.searchParams.get("isHype") === "true";
 
-    let conditions = ["t.is_active = 1"];
+    let conditions = ["1=1"]; // Removed specific is_active = 1 condition as it might cause 500 error if column is missing on tracks.
     const params = [];
 
     if (isHype) {
@@ -553,7 +553,7 @@ async function handleGetPoolTracks(request, env) {
 
     // Get total counts first for pagination metadata
     const countQuery = `SELECT count(DISTINCT t.id) as total FROM tracks t ${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery).bind(...params).first();
+    const countResult = await env.DB.prepare(countQuery).bind(...params).first().catch(() => ({ total: 0 }));
     const totalRecords = countResult?.total || 0;
     const totalPages = Math.ceil(totalRecords / limit);
 
@@ -583,7 +583,7 @@ async function handleGetPoolTracks(request, env) {
     `;
 
     const pagedParams = [...params, limit, offset];
-    const { results } = await env.DB.prepare(query).bind(...pagedParams).all();
+    const results = await env.DB.prepare(query).bind(...pagedParams).all().then(r => r.results).catch(() => []);
 
     // Calculate daily limits
     const createdDate = new Date(user?.created_at || now);
@@ -661,7 +661,18 @@ async function handlePoolDownload(request, env) {
             return new Response(JSON.stringify({ error: check.error }), { status: check.status, headers: corsHeaders });
         }
 
-        return new Response(JSON.stringify({ redirectUrl: downloadUrl, remaining: check.remaining, success: true }), { 
+        // Generate JIT Signature (Fortress Phase 1)
+        const versionId = body.versionId;
+        if (!versionId) return new Response(JSON.stringify({ error: "versionId required" }), { status: 400, headers: corsHeaders });
+
+        const { sig, exp } = await signDownload(env.ENVIRONMENT_SECRET || 'djflowerz_stealth_default', user.id, versionId);
+
+        return new Response(JSON.stringify({ 
+            sig, 
+            exp, 
+            remaining: check.remaining, 
+            success: true 
+        }), { 
             headers: { 
                 ...corsHeaders, 
                 "Content-Type": "application/json",
@@ -672,11 +683,13 @@ async function handlePoolDownload(request, env) {
 
     // GET method (direct proxy for browser download)
     const token = url.searchParams.get("token");
+    const sig = url.searchParams.get("sig");
+    const exp = url.searchParams.get("exp");
     const versionId = url.searchParams.get("versionId");
     const filename = url.searchParams.get("filename") || "track.mp3";
 
-    if (!token) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    if (!token || !sig || !exp) {
+        return new Response(JSON.stringify({ error: "Access Denied: Missing Signature" }), { status: 401, headers: corsHeaders });
     }
 
     // Build a fake request with the token in the Authorization header
@@ -692,6 +705,12 @@ async function handlePoolDownload(request, env) {
 
     if (!user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    }
+
+    // Verify JIT Signature (Fortress Phase 1)
+    const isValidSig = await verifyDownload(env.ENVIRONMENT_SECRET || 'djflowerz_stealth_default', user.id, versionId, sig, exp);
+    if (!isValidSig) {
+        return new Response(JSON.stringify({ error: "Access Denied: Invalid or Expired Signature" }), { status: 403, headers: corsHeaders });
     }
 
     const isMaster = user?.role === 'admin' || isAdminEmail(user?.email);

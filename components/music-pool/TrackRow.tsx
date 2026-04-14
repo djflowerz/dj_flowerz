@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { toast } from 'sonner';
+import { maskMediaUrl } from '../../utils/branding';
 
 interface TrackVersion {
   id: string;
@@ -131,7 +132,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             if (mainVersion) {
               const vType = getVersionType(mainVersion);
               const vUrl = (vType === 'video' ? (videoUrl || mainVersion.preview_url) : mainVersion.preview_url) || '';
-              onPlay(vUrl, `${artist} - ${title}`, vType, id);
+              onPlay(maskMediaUrl(vUrl), `${artist} - ${title}`, vType, id);
             }
           }}
         >
@@ -245,7 +246,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPlay(vUrl, `${artist} - ${title} (${v.version_name})`, vType, id);
+                    onPlay(maskMediaUrl(vUrl), `${artist} - ${title} (${v.version_name})`, vType, id);
                   }}
                   className={`flex items-center gap-1.5 pl-2.5 pr-2 py-2 transition-all font-bold text-[9px] uppercase tracking-wider whitespace-nowrap ${
                     isActive ? 'text-blue-400' : 'text-zinc-300 hover:text-white'
@@ -316,7 +317,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <X size={18} />
               </button>
               <video
-                src={playingUrl}
+                src={maskMediaUrl(playingUrl)}
                 className="w-full h-full object-contain"
                 autoPlay={isPlaying}
                 controls
@@ -360,7 +361,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                   Now Previewing: {title}
                 </div>
                 <audio
-                  src={playingUrl}
+                  src={maskMediaUrl(playingUrl)}
                   autoPlay={isPlaying}
                   controls
                   className="w-full h-8 accent-blue-500 text-xs"

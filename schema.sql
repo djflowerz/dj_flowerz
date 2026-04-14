@@ -195,6 +195,21 @@ CREATE TABLE store_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE community_offers (
+  id TEXT PRIMARY KEY,
+  post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  buyer_id TEXT NOT NULL REFERENCES profiles(id),
+  seller_id TEXT NOT NULL REFERENCES profiles(id),
+  amount REAL NOT NULL,
+  status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected', 'expired'
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_offers_post ON community_offers(post_id);
+CREATE INDEX idx_offers_buyer ON community_offers(buyer_id);
+CREATE INDEX idx_offers_seller ON community_offers(seller_id);
+
 CREATE TABLE tips (
   id TEXT PRIMARY KEY,
   amount REAL NOT NULL,

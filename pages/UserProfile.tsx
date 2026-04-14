@@ -13,7 +13,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Download, Users, TrendingUp, Heart, Star, Coins,
     CircleDashed, Copy, Share2, ExternalLink, Zap, Crown,
-    Gift, AlertCircle, CheckCircle2, Info, Clock, Wallet, ArrowRight
+    Gift, AlertCircle, CheckCircle2, Info, Clock, Wallet, ArrowRight,
+    User, MapPin, Globe, PenLine, Save, X as CloseIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -30,7 +31,62 @@ const UserProfile: React.FC = () => {
     const { wishlist, products, poolTracks, mixtapes, toggleWishlist, isInWishlist } = useData();
     const [showMpesa, setShowMpesa] = useState(false);
     const [showTOS, setShowTOS] = useState(false);
+    const [showEditProfile, setShowEditProfile] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'wishlist'>('dashboard');
+
+    // Form State
+    const [editForm, setEditForm] = useState({
+        name: user?.name || '',
+        username: user?.username || '',
+        bio: user?.bio || '',
+        location: user?.location || '',
+        avatar_url: user?.avatarUrl || ''
+    });
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            setEditForm({
+                name: user.name || '',
+                username: user.username || '',
+                bio: user.bio || '',
+                location: user.location || '',
+                avatar_url: user.avatarUrl || ''
+            });
+        }
+    }, [user]);
+
+    const handleUpdateProfile = async () => {
+        if (!user) return;
+        setSaving(true);
+        try {
+            const token = localStorage.getItem('sb-access-token');
+            const res = await fetch(`${WORKER_URL}/api/community/profile/update`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(editForm)
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            toast.success("Profile System Synchronized", {
+                description: "Your digital identity has been updated across the network."
+            });
+            
+            // Note: In a real app we'd refresh the whole user context here
+            // For now, we assume the D1 update was successful and the next reload will pick it up.
+            setShowEditProfile(false);
+        } catch (err: any) {
+            toast.error("Protocol Error", {
+                description: err.message || "Failed to sync profile data."
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (authLoading) {
         return (
@@ -77,10 +133,16 @@ const UserProfile: React.FC = () => {
     // Calculate days left
     let daysLeft = 0;
     if (user.subscriptionExpiry) {
-        const expiry = new Date(user.subscriptionExpiry);
-        const now = new Date();
-        const diffTime = expiry.getTime() - now.getTime();
-        daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        try {
+            const expiry = new Date(user.subscriptionExpiry);
+            const now = new Date();
+            if (!isNaN(expiry.getTime())) {
+                const diffTime = expiry.getTime() - now.getTime();
+                daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+            }
+        } catch (e) {
+            console.error("Date parsing error:", e);
+        }
     }
 
     const containerVariants = {
@@ -129,7 +191,9 @@ const UserProfile: React.FC = () => {
                     </div>
                     <div className="text-right hidden md:block">
                         <p className="text-xs text-white/30 font-mono">STATION: {user.name?.toUpperCase() || 'UNIT-01'}</p>
-                        <p className="text-[10px] text-white/20 font-mono uppercase">EST. {new Date(user.createdAt || '').toLocaleDateString()}</p>
+                        <p className="text-[10px] text-white/20 font-mono uppercase">
+                            EST. {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'INITIALIZING...'}
+                        </p>
                     </div>
                 </motion.div>
 
@@ -180,6 +244,12 @@ const UserProfile: React.FC = () => {
 
                                 <div className="flex flex-wrap gap-3">
                                     <button
+                                        onClick={() => setShowEditProfile(true)}
+                                        className="px-5 py-3 rounded-2xl bg-brand-purple text-white shadow-lg shadow-brand-purple/20 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-105"
+                                    >
+                                        <PenLine size={14} /> Adjust Profile
+                                    </button>
+                                    <button
                                         onClick={() => setShowTOS(true)}
                                         className="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
                                     >
@@ -218,7 +288,7 @@ const UserProfile: React.FC = () => {
                                         : 'bg-gradient-to-r from-brand-purple to-brand-pink text-white shadow-brand-purple/20'
                                         }`}
                                 >
-                                    {isSubscribed ? 'Extend Subscription' : 'Force Upgrade Link'}
+                                    {isSubscribed ? 'Extend Membership' : 'Explore Membership'}
                                 </motion.button>
 
                                 <motion.button
@@ -469,10 +539,10 @@ const UserProfile: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-12">
                     {[
                         { label: 'SUPPORT HUB', icon: Zap },
-                        { label: 'MUSIC POOL', icon: Crown },
+                        { label: 'EXCLUSIVE ACCESS', icon: Crown, show: isSubscribed },
                         { label: 'EQUIPMENT STORE', icon: Gift },
                         { label: 'ACCOUNT SECURITY', icon: AlertCircle },
-                    ].map((link, idx) => (
+                    ].filter(l => l.show !== false).map((link, idx) => (
                         <motion.button
                             key={idx}
                             whileHover={{ y: -5, backgroundColor: 'rgba(255,255,255,0.05)' }}
@@ -503,7 +573,7 @@ const UserProfile: React.FC = () => {
                                 <div className="flex flex-col items-center justify-center p-12 text-center h-[300px]">
                                     <Heart className="w-12 h-12 text-white/10 mb-4" />
                                     <h4 className="text-lg font-bold text-white/40 uppercase tracking-wider mb-2">No signals intercepted</h4>
-                                    <p className="text-xs text-white/20">Explore the Music Pool to save tracks and mixtapes.</p>
+                                    <p className="text-xs text-white/20">Explore exclusive content to save tracks and mixtapes.</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 gap-4">
@@ -573,6 +643,99 @@ const UserProfile: React.FC = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+            {/* ── Edit Profile Modal ─────────────────────────────────────────── */}
+            <AnimatePresence>
+                {showEditProfile && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xl bg-black/60"
+                        onClick={() => setShowEditProfile(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                            className="bg-[#0B0B0F] border border-white/10 w-full max-w-2xl rounded-[3rem] p-10 relative overflow-hidden shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Identity Management</h3>
+                                <button onClick={() => setShowEditProfile(false)} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+                                    <CloseIcon size={20} className="text-white/40" />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Display Name</label>
+                                    <input 
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={e => setEditForm({...editForm, name: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 focus:border-brand-purple outline-none transition-colors"
+                                        placeholder="DJ Name"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Custom Handle (@)</label>
+                                    <input 
+                                        type="text"
+                                        value={editForm.username}
+                                        onChange={e => setEditForm({...editForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 focus:border-brand-purple outline-none transition-colors font-mono"
+                                        placeholder="dj_name"
+                                    />
+                                </div>
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Artist Bio</label>
+                                    <textarea 
+                                        rows={3}
+                                        value={editForm.bio}
+                                        onChange={e => setEditForm({...editForm, bio: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 focus:border-brand-purple outline-none transition-colors resize-none mb-2"
+                                        placeholder="About your style, gear, and experience..."
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Base Location</label>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                                        <input 
+                                            type="text"
+                                            value={editForm.location}
+                                            onChange={e => setEditForm({...editForm, location: e.target.value})}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 focus:border-brand-purple outline-none transition-colors"
+                                            placeholder="Nairobi, KE"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Avatar URL</label>
+                                    <input 
+                                        type="text"
+                                        value={editForm.avatar_url}
+                                        onChange={e => setEditForm({...editForm, avatar_url: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 focus:border-brand-purple outline-none transition-colors"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleUpdateProfile}
+                                disabled={saving}
+                                className="w-full bg-brand-purple py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-2xl shadow-brand-purple/30 flex items-center justify-center gap-3 disabled:opacity-50"
+                            >
+                                {saving ? <CircleDashed className="animate-spin" size={18} /> : <Save size={18} />}
+                                {saving ? 'Synchronizing...' : 'Save Changes'}
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             </motion.div>
         </div>
     );

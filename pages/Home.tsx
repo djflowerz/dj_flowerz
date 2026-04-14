@@ -58,8 +58,8 @@ const Home: React.FC = () => {
                </>
             }
             subtitle={hero.subtitle}
-            cta1Text="Access Music Pool"
-            cta1Link="/music-pool"
+            cta1Text="Join The Community"
+            cta1Link="/community"
             cta2Text="Visit Store"
             cta2Link="/store"
             bgImage={hero.bgImage}
@@ -144,8 +144,7 @@ const Home: React.FC = () => {
             </div>
          </section>
 
-         {/* 5. Music Pool Preview & Grid */}
-         <MusicPoolPreview />
+         {/* 5. Music Pool Preview & Grid - Removed per request to hide from public UI */}
 
          {/* 5. YouTube Section (Dynamic) */}
          <section className="py-20 bg-[#15151A] border-y border-white/5">

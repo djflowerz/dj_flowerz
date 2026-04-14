@@ -433,6 +433,15 @@ export default function ProductDetails() {
                 >
                     <Package size={20} /> ADD TO CATALOGUE
                 </button>
+                <button
+                    onClick={() => {
+                        const text = `Hello DJ Flowerz, I'm interested in ${product.name} (SKU: ${product.sku || 'N/A'}). I'd like to negotiate the price. My best offer is KES ...`;
+                        window.open(`https://wa.me/254700000000?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                >
+                    <MessageSquare size={16} className="text-brand-cyan" /> NEGOTIATE PRICE
+                </button>
                 <button 
                     onClick={() => product && toggleWishlist(product.id, 'product')}
                     className={`p-4 rounded-2xl border transition group ${isInWishlist(product.id) ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[#15151A] border-white/10 text-gray-400 hover:text-red-500'}`}

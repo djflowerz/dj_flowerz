@@ -364,7 +364,7 @@ const MixtapeDetails: React.FC = () => {
                      </div>
 
                      <div>
-                        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 pl-1 italic">Channel Subscription</h3>
+                        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 pl-1 italic">Channel Access</h3>
                         <div className="grid grid-cols-1 gap-3">
                            {socials.instagram && (
                               <a href={socials.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-purple/30 group transition-all duration-300">

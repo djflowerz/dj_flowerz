@@ -1,4 +1,7 @@
 // worker/api/support.js
+import { sendEmail } from '../utils/email.js';
+import { templates } from '../utils/templates.js';
+
 import { getAuthorizedUser } from '../utils/auth.js';
 
 export async function handleSupport(request, env, ctx, params) {
@@ -19,6 +22,27 @@ export async function handleSupport(request, env, ctx, params) {
                 INSERT INTO support_tickets (id, customer_name, customer_email, customer_phone, subject, message_content, source, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(id, name, email, phone, subject, message, source || 'web', 'pending').run();
+
+            // 1. Send Confirmation to User
+            ctx.waitUntil(sendEmail({
+                to: email,
+                subject: 'Message Received: ' + (subject || 'Support Request'),
+                html: templates.supportConfirmation(name || 'Legend', subject || 'Support Inquiry'),
+                text: `Hello, thanks for reaching out. We've received your message: "${subject || 'Support Inquiry'}". We'll get back to you soon.`
+            }, env));
+
+            // 2. Send Alert to Admin
+            ctx.waitUntil(sendEmail({
+                to: env.GMAIL_USER || 'admin@djflowerz.co.ke',
+                subject: '🚨 New Support Message!',
+                html: templates.adminAlert('New Support Ticket', [
+                    ['From', name || 'Unknown'],
+                    ['Email', email],
+                    ['Subject', subject || 'None'],
+                    ['Source', source || 'Web']
+                ]),
+                text: `New Support Message from ${name} (${email}): ${subject}`
+            }, env));
 
             return Response.json({ success: true, id });
         } catch (err) {

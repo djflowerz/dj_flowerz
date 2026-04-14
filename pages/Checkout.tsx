@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Truck, CreditCard, ShieldCheck, MapPin, ChevronDown,
   Check, MessageSquare, Download, Zap, FileText, Package
@@ -75,6 +75,10 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 /* ─── Main Checkout Page ─────────────────────────────────────────────────── */
 export default function Checkout() {
   const { user, loading } = useAuth() as any;
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const paymentRef = queryParams.get('reference') || queryParams.get('trxref');
+
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const { items, cartTotal, clearCart } = useCart();
   const { storeSettings } = useData();
@@ -214,13 +218,14 @@ export default function Checkout() {
 
 
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated (Store/Subscription strictly require auth)
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && !paymentRef) {
       toast.error('Please sign in to continue checkout');
       navigate('/login', { state: { from: '/checkout' } });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, paymentRef]);
+
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -231,6 +236,18 @@ export default function Checkout() {
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
+
+    // Block coupons for 7-Day Access plan to protect pricing integrity
+    const hasWeeklyPlan = items.some((i: any) => 
+        i.type === 'subscription' && (i.price === 200 || i.id === 'weekly' || (i.name && i.name.toLowerCase().includes('7-day')))
+    );
+
+    if (hasWeeklyPlan) {
+      toast.error("Coupons cannot be applied to the 7-Day Access plan.");
+      setCouponCode('');
+      return;
+    }
+
     setIsValidatingCoupon(true);
     try {
       const resp = await fetch(`${STORAGE_WORKER_URL}/api/coupons/validate?code=${couponCode.trim().toUpperCase()}`);
@@ -387,10 +404,44 @@ export default function Checkout() {
     else setCurrentStep(prev => prev - 1);
   };
 
-  // Show digital delivery confirmation screen
-  if (completedDownloads) {
-    return <DigitalDelivery downloads={completedDownloads} email={completedEmail} />;
+  // Show digital delivery confirmation screen OR payment success screen
+  if (completedDownloads || paymentRef) {
+    return (
+      <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center p-8 mt-16">
+        <div className="max-w-md w-full text-center space-y-8 bg-[#15151A] p-12 rounded-[32px] border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-purple to-brand-cyan" />
+          
+          <div className="w-24 h-24 mx-auto bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/30">
+            <Check size={48} className="text-green-500 animate-bounce" />
+          </div>
+          
+          <div>
+            <h1 className="text-3xl font-black tracking-tighter uppercase text-white mb-2">Order Confirmed</h1>
+            <p className="text-gray-400 text-sm">
+              Your payment has been successfully processed. 
+              {paymentRef && <span className="block mt-2 font-mono text-[10px] opacity-50">REF: {paymentRef}</span>}
+            </p>
+          </div>
+
+          <div className="space-y-4 pt-6">
+            <button 
+              onClick={() => navigate('/account')}
+              className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2"
+            >
+              <Download size={18} /> View My Content
+            </button>
+            <button 
+              onClick={() => navigate('/')}
+              className="w-full py-4 bg-white/5 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
+
 
   if (loading || !user) {
     return (

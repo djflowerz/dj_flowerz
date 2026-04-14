@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Maximize, Minimize, ChevronLeft, ChevronRight, Music, Star } from 'lucide-react';
+import { maskMediaUrl } from '../../utils/branding';
 
 interface MediaOverlayProps {
   url: string;
@@ -81,7 +82,7 @@ export const MediaOverlay: React.FC<MediaOverlayProps> = ({ url, isOpen, onClose
               </div>
 
               <video
-                src={url}
+                src={maskMediaUrl(url)}
                 key={url}
                 className={`w-full h-full ${type === 'audio' ? 'opacity-0' : 'object-contain'}`}
                 autoPlay

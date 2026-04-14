@@ -123,7 +123,7 @@ export async function handleStorefrontOrders(request, env, ctx, params) {
                 email,
                 amount: amountInKobo,
                 reference: orderId,
-                callback_url: body.callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/success${isInstallment ? '?type=installment_deposit' : ''}`,
+                callback_url: body.callback_url || `${env.VITE_APP_URL || 'https://www.djflowerz.co.ke'}/checkout${isInstallment ? '?type=installment_deposit' : ''}`,
                 metadata: {
                     order_id: orderId,
                     type: isInstallment ? 'installment_deposit' : 'store_order',

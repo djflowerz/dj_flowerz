@@ -54,7 +54,7 @@ const Subscriptions: React.FC = () => {
             const planList = Array.isArray(data) ? data : [];
             setPlans(planList);
             if (planList.length > 0 && !grantPlan) {
-                setGrantPlan(planList[0].slug);
+                setGrantPlan(planList[0].id);
             }
         } catch {
             // non-critical
@@ -181,7 +181,7 @@ const Subscriptions: React.FC = () => {
                         className="bg-white/5 border border-white/10 rounded-full py-4 px-8 text-[11px] font-black tracking-widest text-white outline-none focus:border-brand-purple/50 transition-all appearance-none cursor-pointer min-w-[150px]"
                     >
                         {plans.map(p => (
-                            <option key={p.id} value={p.slug} className="bg-[#0B0B0F]">
+                            <option key={p.id} value={p.id} className="bg-[#0B0B0F]">
                                 {p.name}
                             </option>
                         ))}

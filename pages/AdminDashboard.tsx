@@ -10,7 +10,7 @@ import {
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
    History,
-   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload
+   Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload, ScanSearch
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, Navigate, useLocation } from 'react-router-dom';
@@ -23,7 +23,7 @@ import { supabase } from '../utils/supabase';
 import { seedR2Tracks } from '../utils/seedR2';
 import { manualSync } from '../utils/autoSyncTracks';
 
-import { uploadFileToR2, saveToR2, updateR2Item, STORAGE_WORKER_URL } from '../utils/r2';
+import { uploadFileToR2, saveToR2, updateR2Item, STORAGE_WORKER_URL, getAuthHeader } from '../utils/r2';
 import { TableVirtuoso } from 'react-virtuoso';
 
 
@@ -759,6 +759,38 @@ const AdminDashboard: React.FC = () => {
             setSyncMessage('');
          }, 5000);
       }
+   };
+
+   const handleConsolidatePool = async () => {
+       if (!window.confirm("This will merge duplicate tracks and versions in the database. Redundant version records will be deleted. Proceed?")) return;
+       
+       setIsSyncing(true);
+       setSyncMessage('Consolidating database...');
+       try {
+           const { data: { session } } = await supabase.auth.getSession();
+           const token = session?.access_token;
+           
+           const resp = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/consolidate`, {
+               method: 'POST',
+               headers: {
+                   'Authorization': `Bearer ${token}`,
+                   'Content-Type': 'application/json'
+               }
+           });
+           
+           const data = await resp.json();
+           if (resp.ok) {
+               toast.success(data.message || 'Consolidation complete!');
+               await refreshPoolTracks();
+           } else {
+               toast.error(data.error || 'Consolidation failed');
+           }
+       } catch (err: any) {
+           toast.error('Error: ' + err.message);
+       } finally {
+           setIsSyncing(false);
+           setSyncMessage('');
+       }
    };
 
    const handleDeployToStorefront = async () => {
@@ -2247,6 +2279,14 @@ const AdminDashboard: React.FC = () => {
                                     {isSeeding ? 'Indexing...' : 'Load Full Database'}
                                  </button>
                                  <button
+                                    onClick={handleConsolidatePool}
+                                    disabled={isSyncing}
+                                    className="px-6 py-3 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all flex items-center gap-2 group disabled:opacity-50"
+                                 >
+                                    <Database size={16} className={isSyncing ? "animate-spin" : ""} />
+                                    {isSyncing ? 'Consolidating...' : 'Consolidate Pool'}
+                                 </button>
+                                 <button
                                     onClick={handleSyncTracks}
                                     disabled={isSyncing}
                                     className="px-6 py-3 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-cyan hover:text-[#0B0B0F] transition-all flex items-center gap-2 disabled:opacity-50"
@@ -2487,136 +2527,35 @@ const AdminDashboard: React.FC = () => {
                               };
 
                               const handleManualScan = async () => {
+                                 if (!scanSince) {
+                                     alert('Please select a reference date first.');
+                                     return;
+                                 }
                                  setIsManualScanning(true);
-                                 setManualScanMsg('Fetching tracks from sources...');
+                                 setManualScanMsg('Initiating server-side scan...');
                                  try {
-                                    const REMIX_HUB_URL = 'https://remix-and-mashups-worker.dennismacharia20.workers.dev/api/tracks';
-                                    const VID_POOL_URL = 'https://r2.vicknickvideopool.com/';
-
-                                    let allIncoming: any[] = [];
-
-                                    // 1. Fetch from Remix Hub (JSON)
-                                    try {
-                                       const resp = await fetch(REMIX_HUB_URL);
-                                       if (resp.ok) {
-                                          const tracks = await resp.json();
-                                          allIncoming = [...allIncoming, ...tracks.map((t: any) => ({ ...t, _origin: 'remixHub' }))];
-                                       }
-                                    } catch (e) {
-                                       console.error('Remix Hub fetch failed:', e);
-                                    }
-
-                                    // 2. Fetch from Video Pool (HTML + Regex)
-                                    try {
-                                       const resp = await fetch(VID_POOL_URL);
-                                       if (resp.ok) {
-                                          const html = await resp.text();
-                                          const match = html.match(/ALL_TRACKS\s*=\s*(\[[\s\S]*?\]);/);
-                                          if (match && match[1]) {
-                                             const tracks = JSON.parse(match[1]);
-                                             allIncoming = [...allIncoming, ...tracks.map((t: any) => ({ ...t, _origin: 'vidPool' }))];
-                                          }
-                                       }
-                                    } catch (e) {
-                                       console.error('Video Pool fetch failed:', e);
-                                    }
-
-                                    const sinceTime = new Date(scanSince).getTime();
-
-                                    // Build de-duplication sets
-                                    const norm = (u: string) => (u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
-                                    const poolUrls = new Set();
-                                    (poolTracks || []).forEach((t: any) => {
-                                       if (t.audioUrl) poolUrls.add(norm(t.audioUrl));
-                                       if (t.downloadUrl) poolUrls.add(norm(t.downloadUrl));
-                                       if (t.previewUrl) poolUrls.add(norm(t.previewUrl));
-                                       (t.versions || []).forEach((v: any) => {
-                                          if (v.downloadUrl) poolUrls.add(norm(v.downloadUrl));
-                                          if (v.url) poolUrls.add(norm(v.url));
-                                       });
+                                    const authHeader = await getAuthHeader();
+                                    const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/scan`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', ...authHeader },
+                                        body: JSON.stringify({ scanSince })
                                     });
-                                    const stagedIds = new Set((scannedTracks || []).map((t: any) => t.id));
-                                    const stagedUrls = new Set((scannedTracks || []).map((t: any) => norm(t.downloadUrl)));
 
-                                    const toSave: any[] = [];
-                                    let skippedOld = 0;
-                                    let skippedDupe = 0;
-
-                                    for (const t of allIncoming) {
-                                       const uploadTime = new Date(t.uploaded || t.date || Date.now()).getTime();
-                                       if (uploadTime < sinceTime) { skippedOld++; continue; }
-
-                                       const key = t.key || t.storagePath || t.id;
-                                       if (!key) continue;
-
-                                       const scannedId = `scanned_${key.replace(/\//g, '_')}`;
-
-                                       // Construct absolute URL
-                                       let downloadUrl = t.url || t.downloadUrl || '';
-                                       if (!downloadUrl && t._origin === 'remixHub' && t.key) {
-                                          const encodedPath = t.key.split('/').map(encodeURIComponent).join('/');
-                                          downloadUrl = `https://cdn.vicknickvideopool.com/${encodedPath}`;
-                                       } else if (downloadUrl && !downloadUrl.startsWith('http')) {
-                                          const base = t._origin === 'vidPool' ? 'https://r2.vicknickvideopool.com' : 'https://cdn.vicknickvideopool.com';
-                                          downloadUrl = `${base}/${downloadUrl.replace(/^\//, '')}`;
-                                       } else if (!downloadUrl) {
-                                          downloadUrl = `/mashups/${key}`;
-                                       }
-                                       const normalizedDl = norm(downloadUrl);
-
-                                       // Skip if already in pool (by URL) or already staged
-                                       if (poolUrls.has(normalizedDl) || stagedIds.has(scannedId) || (downloadUrl && stagedUrls.has(normalizedDl))) {
-                                          skippedDupe++;
-                                          continue;
-                                       }
-
-                                       // Prevent duplicates WITHIN the same scan
-                                       stagedIds.add(scannedId);
-                                       if (downloadUrl) stagedUrls.add(downloadUrl);
-
-                                       let title = t.baseTitle || t.normalizedTitle || t.title || 'Untitled';
-                                       title = title.replace(/DJ VICKNICK/gi, 'DJ FLOWERZ');
-                                       const parts = title.split(' - ');
-                                       const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
-                                       const displayTitle = parts.length > 1 ? parts.slice(1).join(' - ').trim() : title;
-
-                                       // Improved Metadata Extraction
-                                       let collectionHub = t.collectionHub || t.collection_hub || '';
-                                       if (!collectionHub) {
-                                          if (t._origin === 'remixHub') collectionHub = 'Edits';
-                                          else if (t._origin === 'vidPool') collectionHub = 'Video Pool';
-                                       }
-
-                                       // Extract month/genre from key if missing
-                                       let genre = t.genre || t.month || 'Other';
-                                       if (key.toLowerCase().includes('march 2026')) {
-                                          genre = 'March 2026 Edits';
-                                       }
-
-                                       toSave.push({
-                                          id: scannedId,
-                                          source: t.source || 'CloudFlare R2 (Auto)',
-                                          title: displayTitle,
-                                          artist,
-                                          genre,
-                                          collection_hub: collectionHub,
-                                          bpm: t.bpm || null,
-                                          downloadUrl,
-                                          previewUrl: t.previewUrl || downloadUrl,
-                                          dateAdded: t.uploaded || t.date || new Date().toISOString(),
-                                          status: 'scanned',
-                                          created_at: new Date().toISOString(),
-                                       });
+                                    const result = await response.json();
+                                    if (!response.ok) {
+                                        throw new Error(result.error || 'Server error during scan');
                                     }
 
-                                    setManualScanMsg(`Found ${allIncoming.length} total — ${skippedOld} before date, ${skippedDupe} already in pool/queue. Saving ${toSave.length} new...`);
-
-                                    if (toSave.length > 0) {
-                                       await addScannedTracks(toSave);
-                                       setManualScanMsg(`✅ Done! ${toSave.length} new tracks added to staging queue. (${skippedDupe} duplicates skipped)`);
-                                    } else {
-                                       setManualScanMsg(`✅ Scan complete — no new tracks found since ${scanSince}. (${skippedDupe} already in pool/queue)`);
-                                    }
+                                    setManualScanMsg(result.message || `✅ Server scan successful.`);
+                                    
+                                    // Refresh staging tracks after success 
+                                    // Let's assume there is a refresh mechanism or we just tell the user to refresh
+                                    setTimeout(() => {
+                                        if (result.saved && result.saved > 0) {
+                                            window.location.reload(); // Simple reload to get new staging tracks if any were saved
+                                        }
+                                    }, 2000);
+                                    
                                  } catch (e: any) {
                                     setManualScanMsg(`❌ Scan error: ${e.message}`);
                                  } finally {
@@ -2719,6 +2658,38 @@ const AdminDashboard: React.FC = () => {
 
                               return (
                                  <>
+                                    {/* ── Feature & Rules Context ── */}
+                                    <div className="bg-brand-purple/5 border border-brand-purple/20 rounded-[2.5rem] p-8 mt-6 mb-8 relative overflow-hidden group">
+                                       <div className="absolute top-0 right-0 w-64 h-64 bg-brand-purple/10 blur-[100px] rounded-full -mr-32 -mt-32 group-hover:bg-brand-purple/20 transition-all duration-700 pointer-events-none" />
+                                       <div className="flex items-center gap-4 mb-6 relative z-10">
+                                          <div className="w-12 h-12 bg-wrap flex items-center justify-center bg-brand-purple/20 text-brand-purple rounded-2xl border border-brand-purple/30">
+                                             <ScanSearch size={24} />
+                                          </div>
+                                          <div>
+                                             <h3 className="text-xl font-black text-white tracking-tight">Scanner Engine Status</h3>
+                                             <p className="text-[10px] text-brand-purple font-bold uppercase tracking-widest mt-1">Live Sync Capabilities</p>
+                                          </div>
+                                       </div>
+                                       
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                                          <div className="space-y-3">
+                                             <p className="text-[11px] font-black uppercase text-gray-500 tracking-widest">Data Sources</p>
+                                             <ul className="space-y-2 text-sm font-medium text-gray-300">
+                                                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-brand-cyan" /> <span>DJ FLOWERZ VIDEOPOOL (CloudFlare R2)</span></li>
+                                                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-brand-cyan" /> <span>REMIX HUB (Workers API JSON)</span></li>
+                                             </ul>
+                                          </div>
+                                          <div className="space-y-3">
+                                             <p className="text-[11px] font-black uppercase text-gray-500 tracking-widest">Processing Rules</p>
+                                             <ul className="space-y-2 text-sm font-medium text-gray-300">
+                                                <li className="flex items-start gap-2"><Settings size={14} className="text-brand-purple shrink-0 mt-0.5" /> <span><strong className="text-white">Auto-Brand:</strong> Converts "DJ VICKNICK" tags to "DJ FLOWERZ" globally.</span></li>
+                                                <li className="flex items-start gap-2"><Shield size={14} className="text-brand-purple shrink-0 mt-0.5" /> <span><strong className="text-white">Strict Dedupe:</strong> Checks existing D1 db tracks and current staging queue using Absolute URls.</span></li>
+                                                <li className="flex items-start gap-2"><Clock size={14} className="text-brand-purple shrink-0 mt-0.5" /> <span><strong className="text-white">Date Gate:</strong> Rejects imports uploaded before the configured Scan Reference Date.</span></li>
+                                             </ul>
+                                          </div>
+                                       </div>
+                                    </div>
+
                                     {/* ── Toolbar ── */}
                                     <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 p-6 shadow-2xl">
                                        <div className="flex flex-wrap items-center justify-between gap-4">
@@ -2736,14 +2707,16 @@ const AdminDashboard: React.FC = () => {
                                              )}
                                              <div className="flex flex-col gap-1">
                                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Scan Reference Date</label>
-                                                <div className="flex gap-2">
+                                                <div className="flex gap-2 relative group w-48">
+                                                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-brand-purple group-focus-within:text-brand-cyan transition-colors">
+                                                      <Calendar size={16} />
+                                                   </div>
                                                    <input
                                                       type="date"
                                                       value={scanSince}
                                                       onChange={e => setScanSince(e.target.value)}
-                                                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] font-bold text-white outline-none focus:border-brand-purple transition-all"
+                                                      className="w-full bg-[#0B0B0F] border border-white/5 shadow-inner hover:bg-white/5 focus:bg-[#0B0B0F] rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-gray-300 focus:text-white outline-none focus:border-brand-purple/50 focus:ring-2 focus:ring-brand-purple/20 transition-all cursor-pointer"
                                                    />
-
                                                 </div>
                                              </div>
 
