@@ -59,9 +59,7 @@ export async function handleCommunityProfile(request, env) {
             // 1. Try D1 profiles table
             let userProfile = null;
             try {
-                // We try: 1. Exact username, 2. Exact ID, 3. Partial ID from slug
                 const isPartial = identifier.length === 8 && /^[0-9a-f]+$/i.test(identifier);
-                
                 userProfile = await env.DB.prepare(`
                     SELECT 
                         id,

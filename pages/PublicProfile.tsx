@@ -227,7 +227,7 @@ const PublicProfile: React.FC = () => {
                                     <div className="flex items-center gap-1.5"><MapPin size={14} /> {profile.location}</div>
                                 )}
                                 <div className="flex items-center gap-1.5"><Calendar size={14} /> Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div>
-                                <div className="flex items-center gap-1.5"><ExternalLink size={14} /> djflowerz.com/{profile.username}</div>
+                                <div className="flex items-center gap-1.5"><ExternalLink size={14} /> djflowerz.co.ke/@{profile.username || profile.id.substring(0, 8)}</div>
                             </div>
                         </div>
 

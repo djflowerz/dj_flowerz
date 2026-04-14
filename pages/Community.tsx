@@ -29,6 +29,7 @@ interface Post {
     user_id: string;
     author_name: string;
     author_avatar: string;
+    author_username: string;
     author_role: string;
     content: string;
     image_url: string | null;
@@ -43,6 +44,7 @@ interface Post {
     parent_id: string | null;
     parent_author_name?: string;
     parent_author_avatar?: string;
+    parent_author_username?: string;
     parent_content?: string;
     parent_image_url?: string;
     parent_created_at?: string;
@@ -55,6 +57,7 @@ interface Comment {
     user_id: string;
     author_name: string;
     author_avatar: string;
+    author_username: string;
     content: string;
     created_at: string;
 }
@@ -217,6 +220,7 @@ const PostCard: React.FC<{
                     user_id: currentUserId,
                     author_name: currentUser?.name,
                     author_avatar: currentUser?.avatarUrl,
+                    author_username: currentUser?.username,
                     content: commentText.trim()
                 })
             });
@@ -657,6 +661,7 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                     user_id: user.id,
                     author_name: user.name,
                     author_avatar: user.avatarUrl,
+                    author_username: user.username,
                     author_role: user.role,
                     content: content.trim(),
                     image_url: finalImageUrl,

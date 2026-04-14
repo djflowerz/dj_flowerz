@@ -26,6 +26,7 @@ export async function handleCommunityFeed(request, env) {
                 ${viewerId ? `(SELECT EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = '${viewerId}'))` : '0'} as is_liked,
                 parent.author_name as parent_author_name,
                 parent.author_avatar as parent_author_avatar,
+                parent.author_username as parent_author_username,
                 parent.content as parent_content,
                 parent.image_url as parent_image_url,
                 parent.created_at as parent_created_at
@@ -77,7 +78,7 @@ export async function handleCommunityFeed(request, env) {
 
         if (request.method === 'POST') {
             const body = await request.json();
-            const { user_id, author_name, author_avatar, author_role, content, image_url, is_marketplace, price, parent_id } = body;
+            const { user_id, author_name, author_avatar, author_username, author_role, content, image_url, is_marketplace, price, parent_id } = body;
 
             if (!user_id || (!content && !image_url && !parent_id)) {
                 return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -87,11 +88,11 @@ export async function handleCommunityFeed(request, env) {
 
             const postId = crypto.randomUUID();
             await env.DB.prepare(
-                `INSERT INTO community_posts (id, user_id, author_name, author_avatar, author_role, content, image_url, is_marketplace, price, parent_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                `INSERT INTO community_posts (id, user_id, author_name, author_avatar, author_username, author_role, content, image_url, is_marketplace, price, parent_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
                 postId, user_id,
-                author_name || 'Anonymous', author_avatar || '', author_role || 'user',
+                author_name || 'Anonymous', author_avatar || '', author_username || '', author_role || 'user',
                 content || '', image_url || null,
                 is_marketplace ? 1 : 0, price || 0, parent_id || null
             ).run();
@@ -198,14 +199,14 @@ export async function handleCommunityInteraction(request, env) {
                 return new Response(JSON.stringify(results), { headers: { 'Content-Type': 'application/json' } });
             }
             if (request.method === 'POST') {
-                const { post_id, user_id, author_name, author_avatar, content } = await request.json();
+                const { post_id, user_id, author_name, author_avatar, author_username, content } = await request.json();
                 if (!post_id || !user_id || !content?.trim()) {
                     return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400 });
                 }
                 const id = crypto.randomUUID();
                 await env.DB.prepare(
-                    `INSERT INTO community_comments (id, post_id, user_id, author_name, author_avatar, content) VALUES (?, ?, ?, ?, ?, ?)`
-                ).bind(id, post_id, user_id, author_name || 'Anonymous', author_avatar || '', content).run();
+                    `INSERT INTO community_comments (id, post_id, user_id, author_name, author_avatar, author_username, content) VALUES (?, ?, ?, ?, ?, ?, ?)`
+                ).bind(id, post_id, user_id, author_name || 'Anonymous', author_avatar || '', author_username || '', content).run();
 
                 const comment = await env.DB.prepare(`SELECT * FROM community_comments WHERE id = ?`).bind(id).first();
                 
