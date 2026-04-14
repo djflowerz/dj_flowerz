@@ -27,12 +27,14 @@ import { TrackRow } from '../components/music-pool/TrackRow';
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://api.djflowerz.co.ke';
 
 const UserProfile: React.FC = () => {
-    const { user, loading: authLoading } = useAuth();
+    const { user, loading: authLoading, refreshProfile } = useAuth();
     const { wishlist, products, poolTracks, mixtapes, toggleWishlist, isInWishlist } = useData();
     const [showMpesa, setShowMpesa] = useState(false);
     const [showTOS, setShowTOS] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'wishlist'>('dashboard');
+
+    const restrictedHandles = ['admin', 'official', 'support', 'settings', 'account', 'profile', 'community', 'mixtapes', 'store', 'marketplace', 'bookings', 'music-pool'];
 
     // Form State
     const [editForm, setEditForm] = useState({
@@ -58,6 +60,18 @@ const UserProfile: React.FC = () => {
 
     const handleUpdateProfile = async () => {
         if (!user) return;
+        
+        // Basic Validation
+        if (editForm.username && editForm.username.length < 3) {
+            toast.error("Handle too short", { description: "User handles must be at least 3 characters." });
+            return;
+        }
+
+        if (restrictedHandles.includes(editForm.username.toLowerCase())) {
+            toast.error("Handle Reserved", { description: "This handle is reserved for system use." });
+            return;
+        }
+
         setSaving(true);
         try {
             const token = localStorage.getItem('sb-access-token');
@@ -76,8 +90,9 @@ const UserProfile: React.FC = () => {
                 description: "Your digital identity has been updated across the network."
             });
             
-            // Note: In a real app we'd refresh the whole user context here
-            // For now, we assume the D1 update was successful and the next reload will pick it up.
+            // Refresh user context to reflect changes immediately
+            if (refreshProfile) await refreshProfile();
+            
             setShowEditProfile(false);
         } catch (err: any) {
             toast.error("Protocol Error", {

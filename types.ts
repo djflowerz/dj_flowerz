@@ -154,7 +154,7 @@ export interface Product {
 export interface Review {
   id: string;
   productId: string;
-  userId: string;
+  username?: string;  userId: string;
   userName: string;
   rating: number; // 1-5
   comment: string;
@@ -177,6 +177,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  username?: string;
   role: 'guest' | 'user' | 'admin';
   isSubscriber: boolean;
   subscriptionPlan?: 'weekly' | 'monthly' | '3months' | '6months' | 'yearly';

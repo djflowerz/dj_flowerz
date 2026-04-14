@@ -8,7 +8,7 @@ export class Router {
     add(method, path, handler) {
         this.routes.push({
             method,
-            path: new RegExp(`^${path.replace(/:[^\/]+/g, '([^/]+)')}$`),
+            path: new RegExp(`^${path.replace(/:[^\/]+/g, '([^/]+)')}/?$`),
             paramNames: (path.match(/:[^\/]+/g) || []).map(s => s.substring(1)),
             handler
         });

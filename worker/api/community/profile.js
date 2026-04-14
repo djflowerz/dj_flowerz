@@ -25,12 +25,12 @@ export async function handleCommunityProfile(request, env) {
             const currentUserId = url.searchParams.get('userId');
             const limit = parseInt(url.searchParams.get('limit') || '6');
             let query = `
-                SELECT DISTINCT user_id as id, author_name as name, author_avatar as avatar_url,
+                SELECT DISTINCT user_id as id, COALESCE(full_name, 'User') as name, author_avatar as avatar_url,
                     author_role as role, MAX(created_at) as last_active,
                     (SELECT COUNT(*) FROM community_posts WHERE user_id = p.user_id) as post_count,
                     (SELECT COUNT(*) FROM community_follows WHERE following_id = p.user_id) as followers
                 FROM community_posts p
-                WHERE author_name != '' AND author_name IS NOT NULL
+                WHERE (full_name != '' AND full_name IS NOT NULL)
             `;
             const params = [];
             if (currentUserId) {
@@ -63,7 +63,7 @@ export async function handleCommunityProfile(request, env) {
                 userProfile = await env.DB.prepare(`
                     SELECT 
                         id,
-                        COALESCE(full_name, name, 'User') as name,
+                        COALESCE(full_name, 'User') as name,
                         COALESCE(username, '') as username,
                         COALESCE(bio, '') as bio,
                         COALESCE(avatar_url, '') as avatar_url,

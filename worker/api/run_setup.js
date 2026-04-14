@@ -118,7 +118,8 @@ export async function handleSetupDB(request, env) {
             is_read INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        `CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)`
+        `CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)`,
+        `UPDATE profiles SET username = 'djflowerz' WHERE email = 'ianmuriithiflowerz@gmail.com' AND (username IS NULL OR username = '')`
     ];
 
     let errs = [];

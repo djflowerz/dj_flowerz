@@ -57,6 +57,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
     const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim();
     const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv;
+    let userData: User | null = null;
 
     try {
       // 1. Fetch Real-time Profile from D1 (Source of Truth)

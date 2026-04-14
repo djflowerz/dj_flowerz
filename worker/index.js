@@ -403,7 +403,9 @@ export default {
             }
 
             // Standardize request for router with potential shadow pathname
-            const shadowRequest = new Request(url.origin + pathname, {
+            // Ensure no double slashes and normalize the URL
+            const finalPathname = pathname.startsWith('/') ? pathname : `/${pathname}`;
+            const shadowRequest = new Request(`${url.origin}${finalPathname}`, {
                 method: request.method,
                 headers: request.headers,
                 body: request.body
