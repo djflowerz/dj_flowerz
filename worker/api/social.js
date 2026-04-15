@@ -157,14 +157,14 @@ async function createPost(request, actor, env) {
     thread_root_id = parent.thread_root_id ?? parent.id;
   }
 
-  const id = \`post_\${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}\`;
+  const id = `post_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
   const ts = now();
 
-  await dbRun(env, \`
+  await dbRun(env, `
     INSERT INTO posts
       (id, author_id, content, media_urls, post_type, quote_of_id, reply_to_id, thread_root_id, created_at, updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?)
-  \`, [id, actor.id, content?.trim() ?? null, JSON.stringify(media_urls), post_type, quote_of_id, reply_to_id, thread_root_id, ts, ts]);
+  `, [id, actor.id, content?.trim() ?? null, JSON.stringify(media_urls), post_type, quote_of_id, reply_to_id, thread_root_id, ts, ts]);
 
   // Update counters on parent / original post
   if (reply_to_id) {
@@ -188,20 +188,20 @@ async function createPost(request, actor, env) {
 }
 
 async function getPost(id, actor, env) {
-  const post = await dbGet(env, \`
+  const post = await dbGet(env, `
     SELECT p.*, u.username, u.display_name, u.avatar_url
     FROM posts p JOIN user_profiles u ON u.id = p.author_id
     WHERE p.id = ? AND p.is_deleted = 0
-  \`, [id]);
+  `, [id]);
   if (!post) return json({ error: 'Post not found' }, 404);
 
   let quoted = null;
   if (post.quote_of_id) {
-    quoted = await dbGet(env, \`
+    quoted = await dbGet(env, `
       SELECT p.*, u.username, u.display_name, u.avatar_url
       FROM posts p JOIN user_profiles u ON u.id = p.author_id
       WHERE p.id = ?
-    \`, [post.quote_of_id]);
+    `, [post.quote_of_id]);
   }
 
   const liked = actor ? await dbGet(env, 'SELECT 1 FROM post_likes WHERE post_id=? AND user_id=?', [id, actor.id]) : null;
@@ -213,22 +213,22 @@ async function getComments(postId, url, env) {
   const after  = url.searchParams.get('after') ?? null;
 
   // Top-level comments on this post
-  const comments = await dbAll(env, \`
+  const comments = await dbAll(env, `
     SELECT p.*, u.username, u.display_name, u.avatar_url
     FROM posts p JOIN user_profiles u ON u.id = p.author_id
     WHERE p.reply_to_id = ? AND p.is_deleted = 0
-      \${after ? "AND p.created_at > ?" : ""}
+      ${after ? "AND p.created_at > ?" : ""}
     ORDER BY p.created_at ASC LIMIT ?
-  \`, after ? [postId, after, limit] : [postId, limit]);
+  `, after ? [postId, after, limit] : [postId, limit]);
 
   // For each top-level comment, fetch up to 3 nested replies
   const threaded = await Promise.all(comments.map(async (c) => {
-    const replies = await dbAll(env, \`
+    const replies = await dbAll(env, `
       SELECT p.*, u.username, u.display_name, u.avatar_url
       FROM posts p JOIN user_profiles u ON u.id = p.author_id
       WHERE p.reply_to_id = ? AND p.is_deleted = 0
       ORDER BY p.created_at ASC LIMIT 3
-    \`, [c.id]);
+    `, [c.id]);
     return { ...c, replies };
   }));
 
@@ -274,9 +274,9 @@ async function toggleLike(postId, actor, env) {
 
 async function reshare(postId, actor, env) {
   // Check if already reshared (prevent duplicates)
-  const existing = await dbGet(env, \`
+  const existing = await dbGet(env, `
     SELECT id FROM posts WHERE author_id=? AND quote_of_id=? AND post_type='reshare' AND is_deleted=0
-  \`, [actor.id, postId]);
+  `, [actor.id, postId]);
 
   if (existing) {
     // Un-reshare
@@ -285,12 +285,12 @@ async function reshare(postId, actor, env) {
     return json({ reshared: false });
   }
 
-  const id = \`post_\${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}\`;
+  const id = `post_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
   const ts = now();
-  await dbRun(env, \`
+  await dbRun(env, `
     INSERT INTO posts (id, author_id, content, media_urls, post_type, quote_of_id, created_at, updated_at)
     VALUES (?,?,null,'[]','reshare',?,?,?)
-  \`, [id, actor.id, postId, ts, ts]);
+  `, [id, actor.id, postId, ts, ts]);
   await dbRun(env, 'UPDATE posts SET reshare_count = reshare_count + 1 WHERE id=?', [postId]);
 
   const post = await dbGet(env, 'SELECT author_id FROM posts WHERE id=?', [postId]);
@@ -333,11 +333,11 @@ async function hydrateQuotes(posts, env) {
   if (!quoteIds.length) return posts;
 
   const placeholders = quoteIds.map(() => '?').join(',');
-  const quotes = await dbAll(env, \`
+  const quotes = await dbAll(env, `
     SELECT p.*, u.username, u.display_name, u.avatar_url
     FROM posts p JOIN user_profiles u ON u.id = p.author_id
-    WHERE p.id IN (\${placeholders})
-  \`, quoteIds);
+    WHERE p.id IN (${placeholders})
+  `, quoteIds);
 
   const quoteMap = Object.fromEntries(quotes.map(q => [q.id, q]));
   return posts.map(p => ({ ...p, quoted_post: p.quote_of_id ? quoteMap[p.quote_of_id] : null }));
@@ -347,7 +347,7 @@ async function stampLikes(posts, userId, env) {
   if (!posts.length) return posts;
   const ids = posts.map(p => p.id);
   const placeholders = ids.map(() => '?').join(',');
-  const liked = await dbAll(env, \`SELECT post_id FROM post_likes WHERE user_id=? AND post_id IN (\${placeholders})\`, [userId, ...ids]);
+  const liked = await dbAll(env, `SELECT post_id FROM post_likes WHERE user_id=? AND post_id IN (${placeholders})`, [userId, ...ids]);
   const likedSet = new Set(liked.map(l => l.post_id));
   return posts.map(p => ({ ...p, viewer_liked: likedSet.has(p.id) }));
 }
@@ -355,11 +355,11 @@ async function stampLikes(posts, userId, env) {
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 async function logActivity(env, actorId, eventType, targetId, subjectId) {
-  const id = \`evt_\${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}\`;
-  await dbRun(env, \`
+  const id = `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  await dbRun(env, `
     INSERT INTO activity_events (id, actor_id, event_type, target_id, subject_id, created_at)
     VALUES (?,?,?,?,?,?)
-  \`, [id, actorId, eventType, targetId, subjectId, now()]);
+  `, [id, actorId, eventType, targetId, subjectId, now()]);
 }
 
 // ─── D1 helpers ───────────────────────────────────────────────────────────────

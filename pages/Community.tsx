@@ -163,7 +163,7 @@ function PostCard({ post, index, onPatch, isComment = false }: any) {
     catch { setReshared(!next); setLocalReshareCount(c => !next ? c + 1 : Math.max(0, c - 1)); }
   };
 
-  const animDelay = \`\${Math.min(index * 40, 300)}ms\`;
+  const animDelay = `${Math.min(index * 40, 300)}ms`;
 
   return (
     <article
@@ -298,7 +298,7 @@ function usePostComments(postId: string) {
     if (!postId || !user) return;
     setLoading(true);
     const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-    fetch(\`\${API}/api/social/posts/\${postId}/comments?limit=30\`, {
+    fetch(`${API}/api/social/posts/${postId}/comments?limit=30`, {
       headers: user?.id ? { 'X-Actor-Id': user.id } : {},
     })
       .then(r => r.json())
@@ -340,11 +340,11 @@ function formatTime(iso: string) {
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1)  return 'now';
-  if (diffMin < 60) return \`\${diffMin}m\`;
+  if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24)   return \`\${diffH}h\`;
+  if (diffH < 24)   return `${diffH}h`;
   const diffD = Math.floor(diffH / 24);
-  if (diffD < 7)    return \`\${diffD}d\`;
+  if (diffD < 7)    return `${diffD}d`;
   return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-const SOCIAL_API = \`\${API}/api/social\`;
+const SOCIAL_API = `${API}/api/social`;
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
@@ -23,9 +23,9 @@ export function useFeed(tab: string | { profile: string } = 'following') {
     try {
       let url;
       if (tab === 'following' || tab === 'foryou') {
-        url = \`\${SOCIAL_API}/feed?tab=\${tab}&limit=20\${cursor ? \`&before=\${encodeURIComponent(cursor)}\` : ''}\`;
+        url = `${SOCIAL_API}/feed?tab=${tab}&limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
       } else if (typeof tab === 'object' && tab.profile) {
-        url = \`\${SOCIAL_API}/feed/profile/\${tab.profile}?limit=20\${cursor ? \`&before=\${encodeURIComponent(cursor)}\` : ''}\`;
+        url = `${SOCIAL_API}/feed/profile/${tab.profile}?limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
       }
 
       if (!url) return;
@@ -81,8 +81,8 @@ export function usePost(postId?: string) {
     setLoading(true);
     try {
       const [postData, commentData] = await Promise.all([
-        apiGet(\`\${SOCIAL_API}/posts/\${postId}\`, user.id),
-        apiGet(\`\${SOCIAL_API}/posts/\${postId}/comments?limit=30\`, user.id),
+        apiGet(`${SOCIAL_API}/posts/${postId}`, user.id),
+        apiGet(`${SOCIAL_API}/posts/${postId}/comments?limit=30`, user.id),
       ]);
       setPost(postData.post);
       setQuoted(postData.quoted_post ?? null);
@@ -116,7 +116,7 @@ export function useComposer() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiPost(\`\${SOCIAL_API}/posts\`, body, user.id);
+      const data = await apiPost(`${SOCIAL_API}/posts`, body, user.id);
       return data.post;
     } catch (err: any) {
       setError(err.message);
@@ -142,7 +142,7 @@ export function useComposer() {
     if (!user) throw new Error('Not authenticated');
     setLoading(true);
     try {
-      return await apiPost(\`\${SOCIAL_API}/posts/\${postId}/reshare\`, {}, user.id);
+      return await apiPost(`${SOCIAL_API}/posts/${postId}/reshare`, {}, user.id);
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -173,7 +173,7 @@ export function useLike(initialLiked: boolean, initialCount: number) {
     debounce.current = setTimeout(async () => {
       setLoading(true);
       try {
-        await apiPost(\`\${SOCIAL_API}/posts/\${postId}/like\`, {}, user.id);
+        await apiPost(`${SOCIAL_API}/posts/${postId}/like`, {}, user.id);
       } catch {
         setLiked(!next);
         setCount(c => !next ? c + 1 : Math.max(0, c - 1));
@@ -199,7 +199,7 @@ export function useFollow(targetUserId?: string) {
 
   useEffect(() => {
     if (!targetUserId || !user) return;
-    apiGet(\`\${SOCIAL_API}/follows/\${targetUserId}/stats\`, user.id)
+    apiGet(`${SOCIAL_API}/follows/${targetUserId}/stats`, user.id)
       .then((d: any) => setStats({ followers: d.followers, following: d.following }))
       .catch(() => {});
   }, [targetUserId, user]);
@@ -211,7 +211,7 @@ export function useFollow(targetUserId?: string) {
     setFollowing(next);
     setStats(s => ({ ...s, followers: next ? s.followers + 1 : Math.max(0, s.followers - 1) }));
     try {
-      await apiPost(\`\${SOCIAL_API}/follows/\${targetUserId}\`, {}, user.id);
+      await apiPost(`${SOCIAL_API}/follows/${targetUserId}`, {}, user.id);
     } catch {
       setFollowing(!next);
       setStats(s => ({ ...s, followers: !next ? s.followers + 1 : Math.max(0, s.followers - 1) }));
@@ -230,7 +230,7 @@ async function apiGet(url: string, actorId?: string) {
     headers: { 'Content-Type': 'application/json', ...(actorId ? { 'X-Actor-Id': actorId } : {}) },
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? \`HTTP \${res.status}\`);
+  if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
   return data;
 }
 
@@ -241,6 +241,6 @@ async function apiPost(url: string, body: any, actorId?: string) {
     body: JSON.stringify(body)
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? \`HTTP \${res.status}\`);
+  if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
   return data;
 }
