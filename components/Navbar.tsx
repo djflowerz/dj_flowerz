@@ -32,8 +32,6 @@ const Navbar: React.FC = () => {
     { name: 'Community', path: '/community' },
     { name: 'Aura Vision', path: '/aura-vision' },
     { name: 'Bookings', path: '/bookings' },
-    // Only show Music Pool to active subscribers (Stealth Mode)
-    ...(user?.isSubscriber ? [{ name: 'Music Pool', path: '/music-pool' }] : [])
   ];
 
   // Close mobile menu and dropdowns when route changes

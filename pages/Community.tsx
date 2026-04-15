@@ -1,583 +1,1080 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useFeed, useComposer, useLike } from '../hooks/useSocial';
 import { useAuth } from '../context/AuthContext';
-import { Heart, MessageSquare, Repeat, Quote, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+    Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
+    ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
+    Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { uploadFileToR2 } from '../utils/r2';
 
-const FONT_DISPLAY = "'Bebas Neue', 'Impact', sans-serif";
-const FONT_BODY    = "'Inter', 'Syne', sans-serif";
-const FONT_MONO    = "'DM Mono', monospace";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
-export default function CommunityFeed() {
-  const [tab, setTab] = useState<'following' | 'foryou'>('following');
-  const { posts, loading, loadingMore, hasMore, loadMore, patchPost, prependPost } = useFeed(tab);
-  const { user } = useAuth();
-
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) loadMore();
-    }, { rootMargin: '400px' });
-    obs.observe(sentinelRef.current);
-    return () => obs.disconnect();
-  }, [loadMore]);
-
-  const handleNewPost = (post: any) => prependPost({ ...post, username: user?.user_metadata?.username || user?.email?.split('@')[0], display_name: user?.user_metadata?.full_name || 'DJ Flowerz User', avatar_url: user?.user_metadata?.avatar_url || '' });
-
-  return (
-    <div style={css.page}>
-      <div style={css.masthead}>
-        <span style={css.mastheadTag}>// community</span>
-        <h1 style={css.mastheadTitle}>THE FEED</h1>
-      </div>
-
-      {user && <Composer onPost={handleNewPost} />}
-
-      <div style={css.tabRow}>
-        {['following', 'foryou'].map(t => (
-          <button key={t} style={{ ...css.tab, ...(tab === t ? css.tabActive : {}) }} onClick={() => setTab(t as any)}>
-            {t === 'following' ? 'Following' : 'For You'}
-          </button>
-        ))}
-        <div style={css.tabDivider} />
-      </div>
-
-      {loading && !posts.length ? (
-        <div style={css.loadingPulse}>
-          {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div style={css.feed}>
-          {posts.map((post: any, i: number) => (
-            <PostCard key={post.id} post={post} index={i} onPatch={(patch: any) => patchPost(post.id, patch)} />
-          ))}
-          {loadingMore && <SkeletonCard />}
-          {!hasMore && posts.length > 0 && (
-            <p style={css.endNote}>— you've reached the end of the feed —</p>
-          )}
-          {posts.length === 0 && !loading && (
-            <div style={css.emptyState}>
-              <span style={css.emptyIcon}>◎</span>
-              <p style={{ color: '#555', fontSize: 14 }}>
-                {tab === 'following' ? 'Follow some DJs to fill your feed.' : 'No trending posts right now.'}
-              </p>
-            </div>
-          )}
-          <div ref={sentinelRef} style={{ height: 1 }} />
-        </div>
-      )}
-    </div>
-  );
+// Hook: close dropdown when clicking outside
+function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () => void) {
+    useEffect(() => {
+        const listener = (e: MouseEvent) => {
+            if (!ref.current || ref.current.contains(e.target as Node)) return;
+            handler();
+        };
+        document.addEventListener('mousedown', listener);
+        return () => document.removeEventListener('mousedown', listener);
+    }, [ref, handler]);
 }
 
-function Composer({ onPost, replyTo = null, quoteOf = null, onDone = null, compact = false }: any) {
-  const { post: postFn, comment, quotedReshare, loading, error } = useComposer();
-  const { user }  = useAuth();
-  const [content, setContent] = useState('');
-  const [focused, setFocused] = useState(false);
-  const MAX = 500;
-  const remaining = MAX - content.length;
-
-  const submit = async () => {
-    if (!content.trim() || loading) return;
-    try {
-      let newPost;
-      if (replyTo)  newPost = await comment({ content, reply_to_id: replyTo });
-      else if (quoteOf) newPost = await quotedReshare({ content, quote_of_id: quoteOf.id });
-      else newPost = await postFn({ content });
-      setContent('');
-      if(onPost) onPost(newPost);
-      if(onDone) onDone();
-    } catch {}
-  };
-
-  const handleKey = (e: any) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
-  };
-
-  const displayName = user?.user_metadata?.full_name || user?.name || user?.email || "?";
-  
-  return (
-    <div style={{ ...css.composer, ...(compact ? css.composerCompact : {}), ...(focused ? css.composerFocused : {}) }}>
-      {quoteOf && (
-        <div style={css.quotePreview}>
-          <span style={css.quotePreviewLabel}>Quoting</span>
-          <p style={css.quotePreviewContent}>"{quoteOf.content?.slice(0, 80)}{quoteOf.content?.length > 80 ? '…' : ''}"</p>
-          <span style={css.quotePreviewAuthor}>@{quoteOf.username}</span>
-        </div>
-      )}
-      {replyTo && (
-        <p style={css.replyingTo}>↩ replying to thread</p>
-      )}
-      <div style={css.composerInner}>
-        <div style={css.avatar}>{displayName?.[0]?.toUpperCase() ?? '?'}</div>
-        <textarea
-          style={css.textarea}
-          placeholder={replyTo ? 'Drop a reply…' : quoteOf ? 'Add your take…' : "What's on the decks?"}
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onKeyDown={handleKey}
-          maxLength={MAX}
-          rows={compact ? 2 : 3}
-        />
-      </div>
-      <div style={css.composerFooter}>
-        <span style={{ ...css.charCount, color: remaining < 50 ? (remaining < 10 ? '#EF4444' : '#F59E0B') : '#444' }}>
-          {remaining}
-        </span>
-        {error && <span style={{ color: '#EF4444', fontSize: 12 }}>{error}</span>}
-        <button
-          style={{ ...css.postBtn, opacity: (!content.trim() || loading) ? 0.4 : 1 }}
-          onClick={submit}
-          disabled={!content.trim() || loading}
-        >
-          {loading ? '…' : replyTo ? 'REPLY' : quoteOf ? 'QUOTE' : 'POST'}
-        </button>
-      </div>
-    </div>
-  );
+// ─── Types ────────────────────────────────────────────────────────
+interface Post {
+    id: string;
+    user_id: string;
+    author_name: string;
+    author_avatar: string;
+    author_username: string;
+    author_role: string;
+    content: string;
+    image_url: string | null;
+    is_marketplace: number;
+    price: number;
+    escrow_status: string;
+    likes_count: number;
+    comments_count: number;
+    reshare_count: number;
+    is_liked: number;
+    created_at: string;
+    parent_id: string | null;
+    parent_author_name?: string;
+    parent_author_avatar?: string;
+    parent_author_username?: string;
+    parent_content?: string;
+    parent_image_url?: string;
+    parent_created_at?: string;
 }
 
-function PostCard({ post, index, onPatch, isComment = false }: any) {
-  const { reshare, loading: reshareLoading } = useComposer();
-  const { liked, count: likeCount, toggle: toggleLike } = useLike(post.viewer_liked, post.like_count);
-  const [showComments, setShowComments] = useState(false);
-  const [showQuoteComposer, setShowQuoteComposer] = useState(false);
-  const [reshared, setReshared] = useState(false);
-  const [localReshareCount, setLocalReshareCount] = useState(post.reshare_count);
 
-  const isReshare = post.post_type === 'reshare';
-  const isQuoted  = post.post_type === 'quoted_reshare';
-  const hasMedia  = post.media_urls && JSON.parse(post.media_urls || '[]').length > 0;
-  const mediaUrls = hasMedia ? JSON.parse(post.media_urls) : [];
-
-  const handleReshare = async () => {
-    if (reshareLoading) return;
-    const next = !reshared;
-    setReshared(next);
-    setLocalReshareCount(c => next ? c + 1 : Math.max(0, c - 1));
-    try { await reshare(post.id); }
-    catch { setReshared(!next); setLocalReshareCount(c => !next ? c + 1 : Math.max(0, c - 1)); }
-  };
-
-  const animDelay = `${Math.min(index * 40, 300)}ms`;
-
-  return (
-    <article
-      style={{
-        ...css.card,
-        ...(isComment ? css.cardComment : {}),
-        animationDelay: animDelay,
-      }}
-      className="post-card"
-    >
-      {isReshare && (
-        <div style={css.reshareTag}>
-          <Repeat style={css.reshareIcon} />
-          <span style={css.reshareAuthor}>@{post.username} reshared</span>
-        </div>
-      )}
-
-      <div style={css.cardHeader}>
-        <div style={css.avatar}>{post.display_name?.[0]?.toUpperCase() ?? '?'}</div>
-        <div style={css.authorBlock}>
-          <span style={css.displayName}>{post.display_name ?? post.username}</span>
-          <span style={css.username}>@{post.username}</span>
-        </div>
-        <time style={css.timestamp}>{formatTime(post.created_at)}</time>
-      </div>
-
-      {post.content && (
-        <p style={css.content}>{post.content}</p>
-      )}
-
-      {mediaUrls.length > 0 && (
-        <div style={{ ...css.mediaGrid, gridTemplateColumns: mediaUrls.length === 1 ? '1fr' : '1fr 1fr' }}>
-          {mediaUrls.slice(0, 4).map((url: string, i: number) => (
-            <img key={i} src={url} alt="" style={css.mediaImg} loading="lazy" />
-          ))}
-        </div>
-      )}
-
-      {(isQuoted || post.quoted_post) && post.quoted_post && (
-        <div style={css.quotedPost}>
-          <div style={css.quotedHeader}>
-            <div style={{ ...css.avatar, ...css.avatarSm }}>{post.quoted_post.display_name?.[0]?.toUpperCase() ?? '?'}</div>
-            <span style={css.quotedAuthor}>{post.quoted_post.display_name ?? post.quoted_post.username}</span>
-            <span style={{ ...css.username, fontSize: 11 }}>@{post.quoted_post.username}</span>
-          </div>
-          <p style={css.quotedContent}>{post.quoted_post.content}</p>
-        </div>
-      )}
-
-      {!isComment && (
-        <div style={css.actions}>
-          <button
-            style={{ ...css.actionBtn, color: liked ? '#F43F5E' : '#555' }}
-            onClick={() => toggleLike(post.id)}
-          >
-            <Heart size={16} fill={liked ? '#F43F5E' : 'none'} color={liked ? '#F43F5E' : '#555'} />
-            <span style={css.actionCount}>{likeCount}</span>
-          </button>
-
-          <button
-            style={{ ...css.actionBtn, color: showComments ? '#A78BFA' : '#555' }}
-            onClick={() => setShowComments(s => !s)}
-          >
-            <MessageSquare size={16} />
-            <span style={css.actionCount}>{post.comment_count}</span>
-          </button>
-
-          <button
-            style={{ ...css.actionBtn, color: reshared ? '#34D399' : '#555' }}
-            onClick={handleReshare}
-          >
-            <Repeat size={16} />
-            <span style={css.actionCount}>{localReshareCount}</span>
-          </button>
-
-          <button
-            style={{ ...css.actionBtn, color: showQuoteComposer ? '#60A5FA' : '#555' }}
-            onClick={() => setShowQuoteComposer(s => !s)}
-          >
-            <Quote size={16} />
-          </button>
-        </div>
-      )}
-
-      {showQuoteComposer && (
-        <Composer
-          quoteOf={post}
-          compact
-          onDone={() => setShowQuoteComposer(false)}
-          onPost={() => setShowQuoteComposer(false)}
-        />
-      )}
-
-      {showComments && <CommentsDrawer postId={post.id} />}
-    </article>
-  );
+interface Comment {
+    id: string;
+    post_id: string;
+    user_id: string;
+    author_name: string;
+    author_avatar: string;
+    author_username: string;
+    content: string;
+    created_at: string;
 }
 
-function CommentsDrawer({ postId }: { postId: string }) {
-  const { comments, loading, appendComment } = usePostComments(postId);
-  const { user } = useAuth();
+type FeedTab = 'latest' | 'trending' | 'following' | 'marketplace';
 
-  return (
-    <div style={css.commentsDrawer}>
-      <div style={css.drawerLine} />
-      {loading && <p style={css.drawerLoading}>loading…</p>}
-      {comments.map((comment: any) => (
-        <div key={comment.id}>
-          <PostCard post={comment} isComment />
-          {comment.replies?.map((reply: any) => (
-            <div key={reply.id} style={css.nestedReply}>
-              <PostCard post={reply} isComment />
-            </div>
-          ))}
-        </div>
-      ))}
-      {user && (
-        <div style={{ marginTop: 12 }}>
-            <Composer replyTo={postId} compact onPost={appendComment} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function usePostComments(postId: string) {
-  const { user } = useAuth();
-  const [comments, setComments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!postId || !user) return;
-    setLoading(true);
-    const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-    fetch(`${API}/api/social/posts/${postId}/comments?limit=30`, {
-      headers: user?.id ? { 'X-Actor-Id': user.id } : {},
-    })
-      .then(r => r.json())
-      .then((d: any) => setComments(d.comments ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [postId, user]);
-
-  const appendComment = useCallback((comment: any) => {
-    setComments(prev => [...prev, { ...comment, replies: [] }]);
-  }, []);
-
-  return { comments, loading, appendComment };
-}
-
-function SkeletonCard() {
-  return (
-    <div style={{ ...css.card, animation: 'none' }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ ...css.avatar, background: '#1A1A1A', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <div style={skeletonBar(120, 13)} />
-          <div style={{ ...skeletonBar(80, 11), marginTop: 4 }} />
-        </div>
-      </div>
-      <div style={skeletonBar('80%', 14)} />
-      <div style={{ ...skeletonBar('60%', 14), marginTop: 6 }} />
-    </div>
-  );
-}
-
-function skeletonBar(w: any, h: any): any {
-  return { height: h, width: w, background: '#1A1A1A', borderRadius: 4, animation: 'shimmer 1.5s infinite' };
-}
-
-function formatTime(iso: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const diffMs = Date.now() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1)  return 'now';
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24)   return `${diffH}h`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7)    return `${diffD}d`;
-  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
-}
-
-const css: any = {
-  page: {
-    maxWidth: 640,
-    margin: '0 auto',
-    padding: '0 0 80px',
-    fontFamily: FONT_BODY,
-    background: '#09090b',
-    minHeight: '100vh',
-    color: '#E5E5E5',
-    paddingTop: '32px'
-  },
-  masthead: {
-    padding: '0 20px 20px',
-    borderBottom: '3px solid #E5E5E5',
-    marginBottom: 20,
-  },
-  mastheadTag: {
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    color: '#555',
-    letterSpacing: '.1em',
-    display: 'block',
-    marginBottom: 4,
-  },
-  mastheadTitle: {
-    fontFamily: FONT_DISPLAY,
-    fontSize: 64,
-    letterSpacing: '-.02em',
-    lineHeight: 1,
-    color: '#FFFFFF',
-    margin: 0,
-  },
-  tabRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 0,
-    padding: '0 20px',
-    borderBottom: '1px solid #1F1F1F',
-    marginBottom: 8,
-    position: 'relative',
-  },
-  tab: {
-    background: 'transparent',
-    border: 'none',
-    borderBottom: '2px solid transparent',
-    padding: '10px 16px 10px 0',
-    fontFamily: FONT_MONO,
-    fontSize: 12,
-    letterSpacing: '.08em',
-    color: '#555',
-    cursor: 'pointer',
-    marginRight: 16,
-    transition: 'color .15s, border-color .15s',
-  },
-  tabActive: {
-    color: '#E5E5E5',
-    borderBottomColor: '#E5E5E5',
-  },
-  tabDivider: { flex: 1 },
-
-  composer: {
-    margin: '0 20px 16px',
-    background: '#111',
-    border: '1px solid #1F1F1F',
-    borderRadius: 12,
-    padding: 14,
-    transition: 'border-color .15s',
-  },
-  composerCompact: {
-    margin: '12px 0 0',
-    borderRadius: 8,
-  },
-  composerFocused: {
-    borderColor: '#eab308',
-  },
-  composerInner: {
-    display: 'flex',
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  textarea: {
-    flex: 1,
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    color: '#E5E5E5',
-    fontFamily: FONT_BODY,
-    fontSize: 14,
-    lineHeight: 1.6,
-    resize: 'none',
-    width: '100%',
-  },
-  composerFooter: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTop: '1px solid #1A1A1A',
-  },
-  charCount: {
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    marginRight: 'auto',
-  },
-  postBtn: {
-    background: '#E5E5E5',
-    color: '#0A0A0A',
-    border: 'none',
-    borderRadius: '4px',
-    padding: '6px 18px',
-    fontFamily: 'Inter',
-    fontWeight: 700,
-    fontSize: 14,
-    cursor: 'pointer',
-    transition: 'opacity .15s, transform .2s ease',
-  },
-  quotePreview: {
-    background: '#0F0F0F',
-    border: '1px solid #222',
-    borderRadius: 8,
-    padding: '8px 12px',
-    marginBottom: 10,
-  },
-  quotePreviewLabel: { fontSize: 10, color: '#555', fontFamily: FONT_MONO, letterSpacing: '.08em', display: 'block', marginBottom: 4 },
-  quotePreviewContent: { fontSize: 12, color: '#999', margin: '0 0 4px', lineHeight: 1.4 },
-  quotePreviewAuthor: { fontSize: 11, color: '#555', fontFamily: FONT_MONO },
-  replyingTo: { fontSize: 11, color: '#555', fontFamily: FONT_MONO, margin: '0 0 10px' },
-
-  feed: { display: 'flex', flexDirection: 'column' },
-  loadingPulse: { display: 'flex', flexDirection: 'column', gap: 1 },
-  endNote: { textAlign: 'center', color: '#333', fontFamily: FONT_MONO, fontSize: 11, letterSpacing: '.1em', padding: '24px 0 8px' },
-  emptyState: { textAlign: 'center', padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
-  emptyIcon: { fontSize: 32, color: '#2A2A2A' },
-
-  card: {
-    padding: '16px 20px',
-    borderBottom: '1px solid #141414',
-    background: '#0a0a0a',
-    animation: 'fadeUp .3s ease both',
-    transition: 'background .1s',
-  },
-  cardComment: {
-    padding: '12px 16px',
-    borderBottom: 'none',
-    borderLeft: '2px solid #1A1A1A',
-    marginLeft: 28,
-    background: '#0D0D0D',
-    animation: 'none',
-    marginTop: '6px',
-    borderRadius: '8px'
-  },
-  cardHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  reshareTag: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-    marginLeft: 38,
-  },
-  reshareIcon: { color: '#34D399', width: 14, height: 14 },
-  reshareAuthor: { fontSize: 11, color: '#555', fontFamily: FONT_MONO },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: '50%',
-    background: '#1A1A1A',
-    border: '1px solid #222',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#E5E5E5',
-    flexShrink: 0,
-    fontFamily: FONT_DISPLAY,
-    letterSpacing: '.05em',
-  },
-  avatarSm: { width: 22, height: 22, fontSize: 10 },
-  authorBlock: { flex: 1, display: 'flex', alignItems: 'baseline', gap: 8 },
-  displayName: { fontWeight: 700, fontSize: 14, color: '#E5E5E5', fontFamily: FONT_BODY },
-  username: { fontSize: 12, color: '#444', fontFamily: FONT_MONO },
-  timestamp: { fontSize: 11, color: '#333', fontFamily: FONT_MONO, flexShrink: 0 },
-  content: { fontSize: 15, lineHeight: 1.65, color: '#D1D5DB', margin: '0 0 12px', wordBreak: 'break-word', fontFamily: 'Inter' },
-  mediaGrid: { display: 'grid', gap: 2, marginBottom: 12, borderRadius: 8, overflow: 'hidden' },
-  mediaImg: { width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' },
-
-  quotedPost: {
-    border: '1px solid #222',
-    borderRadius: 6,
-    padding: '10px 14px',
-    marginBottom: 12,
-    background: '#0F0F0F',
-  },
-  quotedHeader: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 },
-  quotedAuthor: { fontSize: 13, fontWeight: 600, color: '#C4C4C4' },
-  quotedContent: { fontSize: 13, color: '#777', lineHeight: 1.5, margin: 0, fontFamily: 'Inter' },
-
-  actions: {
-    display: 'flex',
-    gap: 16,
-    marginTop: 8,
-    marginLeft: -4,
-  },
-  actionBtn: {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '6px 12px 6px 4px',
-    borderRadius: 20,
-    fontFamily: FONT_MONO,
-    fontSize: 12,
-    transition: 'color .15s, transform .1s ease-in',
-  },
-  actionCount: { fontSize: 12, fontFamily: FONT_MONO, fontWeight: 600 },
-
-  commentsDrawer: {
-    marginTop: 12,
-    paddingTop: 12,
-  },
-  drawerLine: { height: 1, background: '#1A1A1A', marginBottom: 12 },
-  drawerLoading: { color: '#333', fontSize: 12, fontFamily: FONT_MONO, padding: '8px 0' },
-  nestedReply: { marginLeft: 20, borderLeft: '1px solid #1A1A1A', paddingLeft: '8px' },
+// ─── Helpers ──────────────────────────────────────────────────────
+// D1 returns UTC timestamps without 'Z' — force UTC parsing to avoid +3hr offset
+const parseUTC = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    // If already has timezone info, use as-is
+    if (dateStr.includes('Z') || dateStr.includes('+')) return new Date(dateStr);
+    // SQLite format: '2026-04-13 19:22:07' → treat as UTC
+    return new Date(dateStr.replace(' ', 'T') + 'Z');
 };
+
+const timeAgo = (dateStr: string) => {
+    const seconds = Math.floor((Date.now() - parseUTC(dateStr).getTime()) / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+    return `${Math.floor(seconds / 86400)}d`;
+};
+
+// Build a clean profile slug: prefer username, fallback to name-slug-id
+const profileSlug = (user: { id: string, name?: string, username?: string }) => {
+    if (user.username && user.username.trim()) return user.username.trim();
+    const name = user.name || 'user';
+    const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    return `${slug}-${user.id.substring(0, 8)}`;
+};
+
+
+const Avatar = ({ src, name, size = 10 }: { src?: string; name?: string; size?: number }) => {
+    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
+    return (
+        <img
+            src={src || fallback}
+            onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
+            className={`w-${size} h-${size} rounded-full object-cover border border-white/10 flex-shrink-0`}
+            alt={name}
+        />
+    );
+};
+
+// ─── PostCard ─────────────────────────────────────────────────────
+const PostCard: React.FC<{
+    post: Post;
+    currentUserId?: string;
+    currentUser?: any;
+    onDelete: (id: string) => void;
+}> = ({ post, currentUserId, currentUser, onDelete }) => {
+    const [showMenu, setShowMenu] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useClickOutside(menuRef, () => setShowMenu(false));
+
+    const isOwnPost = currentUserId === post.user_id;
+
+    // Check if we already follow this user
+    useEffect(() => {
+        if (!currentUserId || isOwnPost) return;
+        fetch(`${API_URL}/api/community/follows?followerId=${currentUserId}&followingId=${post.user_id}`)
+            .then(r => r.json())
+            .then(d => setIsFollowing(d.isFollowing))
+            .catch(() => {});
+    }, [currentUserId, post.user_id]);
+
+    const [liked, setLiked] = useState(post.is_liked === 1);
+    const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState<Comment[]>([]);
+    const [commentsLoaded, setCommentsLoaded] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
+    const [showEscrowModal, setShowEscrowModal] = useState(false);
+    const [shippingAddress, setShippingAddress] = useState('');
+    const [isBuying, setIsBuying] = useState(false);
+    const [showOfferModal, setShowOfferModal] = useState(false);
+    const [offerAmount, setOfferAmount] = useState('');
+    const [isOffering, setIsOffering] = useState(false);
+
+    const handleLike = async () => {
+        if (!currentUserId) return toast.error('Log in to like posts');
+        const next = !liked;
+        setLiked(next);
+        setLikesCount(c => c + (next ? 1 : -1));
+        try {
+            const res = await fetch(`${API_URL}/api/community/likes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: post.id, user_id: currentUserId })
+            });
+            const data = await res.json();
+            if (data.count !== undefined) {
+                setLiked(data.liked);
+                setLikesCount(data.count);
+            }
+        } catch {
+            setLiked(!next);
+            setLikesCount(c => c + (next ? -1 : 1));
+        }
+    };
+
+    const handleReshare = async () => {
+        if (!currentUserId) return toast.error('Log in to reshare');
+        if (window.confirm('Reshare this post to your feed?')) {
+            try {
+                const res = await fetch(`${API_URL}/api/community/posts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        author_name: currentUser?.name || 'DJ User',
+                        author_avatar: currentUser?.avatarUrl || '',
+                        author_role: currentUser?.role || 'user',
+                        content: '', // Empty content for pure reshare
+                        parent_id: post.id
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    toast.success('Reshared!');
+                    window.location.reload(); // Quick refresh to show new post
+                }
+            } catch {
+                toast.error('Failed to reshare');
+            }
+        }
+    };
+
+
+    const loadComments = async () => {
+        if (commentsLoaded) return;
+        try {
+            const res = await fetch(`${API_URL}/api/community/comments?postId=${post.id}`);
+            const data = await res.json();
+            setComments(data);
+            setCommentsLoaded(true);
+        } catch {}
+    };
+
+    const toggleComments = () => {
+        const next = !showComments;
+        setShowComments(next);
+        if (next) loadComments();
+    };
+
+    const submitComment = async () => {
+        if (!currentUserId) return toast.error('Log in to comment');
+        if (!commentText.trim()) return;
+        try {
+            const res = await fetch(`${API_URL}/api/community/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    post_id: post.id,
+                    user_id: currentUserId,
+                    author_name: currentUser?.name,
+                    author_avatar: currentUser?.avatarUrl,
+                    author_username: currentUser?.username,
+                    content: commentText.trim()
+                })
+            });
+            const data = await res.json();
+            if (data.comment) {
+                setComments(prev => [...prev, data.comment]);
+                setCommentText('');
+            }
+        } catch {
+            toast.error('Failed to post comment');
+        }
+    };
+
+    const handleFollow = async () => {
+        if (!currentUserId) return toast.error('Log in to follow users');
+        setFollowLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/api/community/follows`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    follower_id: currentUserId,
+                    following_id: post.user_id,
+                    following_name: post.author_name,
+                    following_avatar: post.author_avatar
+                })
+            });
+            const data = await res.json();
+            setIsFollowing(data.followed);
+            toast.success(data.followed ? `Following ${post.author_name}` : `Unfollowed ${post.author_name}`);
+        } catch {
+            toast.error('Failed to update follow');
+        } finally {
+            setFollowLoading(false);
+        }
+    };
+
+    const handleShare = () => {
+        const url = `${window.location.origin}/community`;
+        navigator.clipboard.writeText(url).then(() => toast.success('Link copied!'));
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Delete this post?')) return;
+        try {
+            await fetch(`${API_URL}/api/community/posts?id=${post.id}&userId=${currentUserId}`, { method: 'DELETE' });
+            onDelete(post.id);
+            toast.success('Post deleted');
+        } catch {
+            toast.error('Failed to delete post');
+        }
+    };
+
+    return (
+        <div className="glass-card rounded-2xl border border-white/5 hover:border-brand-purple/20 transition-colors overflow-hidden">
+            {/* Post Header */}
+            <div className="flex items-start justify-between p-5 pb-3">
+                <div className="flex items-center gap-3">
+                    <Link to={`/@${profileSlug({ id: post.user_id, name: post.author_name, username: post.author_username })}`}>
+                        <Avatar src={post.author_avatar} name={post.author_name} size={11} />
+                    </Link>
+                    <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Link to={`/@${profileSlug({ id: post.user_id, name: post.author_name, username: post.author_username })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
+                                {post.author_name || 'DJ User'}
+                            </Link>
+                            {post.author_role === 'admin' && (
+                                <span className="bg-brand-purple/20 text-brand-purple text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase">Admin</span>
+                            )}
+                            {post.is_marketplace === 1 && (
+                                <span className="bg-brand-cyan/10 text-brand-cyan text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase flex items-center gap-1">
+                                    <ShieldCheck size={9} /> Selling
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-[11px] text-gray-500">{timeAgo(post.created_at)} ago</span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {!isOwnPost && (
+                        <button
+                            onClick={handleFollow}
+                            disabled={followLoading}
+                            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition ${
+                                isFollowing
+                                    ? 'bg-white/5 text-gray-400 hover:bg-red-500/10 hover:text-red-400 border border-white/10'
+                                    : 'bg-brand-purple/20 text-brand-purple hover:bg-brand-purple/30 border border-brand-purple/30'
+                            }`}
+                        >
+                            {isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
+                            {isFollowing ? 'Following' : 'Follow'}
+                        </button>
+                    )}
+                    <div className="relative" ref={menuRef}>
+                        <button onClick={() => setShowMenu(!showMenu)} className="text-gray-500 hover:text-white p-1 rounded-lg transition">
+                            <MoreHorizontal size={18} />
+                        </button>
+                        {showMenu && (
+                            <div className="absolute right-0 top-8 w-40 glass-card rounded-xl border border-white/5 py-1 z-50 shadow-xl">
+                                <button onClick={() => { handleShare(); setShowMenu(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
+                                    <Share2 size={14} /> Copy Link
+                                </button>
+                                {isOwnPost && (
+                                    <button onClick={() => { handleDelete(); setShowMenu(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">
+                                        <Trash2 size={14} /> Delete Post
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Post Content */}
+            {post.content && (
+                <p className="px-5 pb-3 text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+            )}
+
+            {/* Reshared Content Card */}
+            {post.parent_id && (
+                <div className="mx-5 mb-4 border border-white/5 bg-black/40 rounded-2xl p-4 hover:border-white/10 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Avatar src={post.parent_author_avatar} name={post.parent_author_name} size={6} />
+                        <Link to={`/@${profileSlug({ id: post.parent_id || '', name: post.parent_author_name, username: post.parent_author_username })}`} className="font-bold text-xs text-brand-purple hover:underline">
+                            {post.parent_author_name}
+                        </Link>
+                        <span className="text-[10px] text-gray-500">• {timeAgo(post.parent_created_at || post.created_at)}</span>
+                    </div>
+                    {post.parent_content && (
+                        <p className="text-gray-300 text-xs line-clamp-3 mb-2">{post.parent_content}</p>
+                    )}
+                    {post.parent_image_url && (
+                        <img src={post.parent_image_url} className="rounded-xl max-h-48 w-full object-cover border border-white/5" alt="Reshared" />
+                    )}
+                </div>
+            )}
+
+            {/* Post Image */}
+            {post.image_url && !post.parent_id && (
+                <img src={post.image_url} className="w-full max-h-96 object-cover" alt="post" />
+            )}
+
+
+            {/* Marketplace Card */}
+            {post.is_marketplace === 1 && (
+                <div className="mx-5 mb-3 mt-1 bg-gradient-to-br from-brand-cyan/10 to-brand-purple/10 border border-brand-cyan/25 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] text-brand-cyan font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <ShieldCheck size={11} /> Escrow Protected
+                        </div>
+                        <div className="text-2xl font-black text-white">KES {(post.price || 0).toLocaleString()}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">Funds held safely until delivery confirmed</div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                if (!currentUserId) return toast.error('Log in to make an offer');
+                                setShowOfferModal(true);
+                            }}
+                            className="bg-white/10 text-brand-cyan px-4 py-2.5 rounded-xl font-bold text-sm border border-brand-cyan/20 hover:bg-brand-cyan/20 transition-all"
+                        >
+                            Make Offer
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (!currentUserId) return toast.error('Log in to buy');
+                                setShowEscrowModal(true);
+                            }}
+                            className="bg-gradient-to-r from-brand-cyan to-brand-purple text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-lg hover:scale-105 transition-transform"
+                        >
+                            Buy Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+            )}
+
+            {showEscrowModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="glass-card w-full max-w-md rounded-3xl border border-white/10 p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <ShoppingBag className="text-brand-cyan" size={24} /> Complete Purchase
+                            </h3>
+                            <button onClick={() => setShowEscrowModal(false)} className="text-gray-500 hover:text-white p-2">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="bg-white/5 rounded-2xl p-4 mb-6 border border-white/5">
+                            <div className="flex justify-between mb-2">
+                                <span className="text-gray-400 text-sm">Item</span>
+                                <span className="text-white text-sm font-medium line-clamp-1">{post.content?.substring(0, 30)}...</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400 text-sm">Price</span>
+                                <span className="text-brand-cyan font-bold">KES {post.price.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Delivery Address / Notes</label>
+                                <textarea
+                                    value={shippingAddress}
+                                    onChange={(e) => setShippingAddress(e.target.value)}
+                                    placeholder="Enter your location or delivery instructions..."
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-brand-purple placeholder-gray-600 min-h-[100px]"
+                                />
+                            </div>
+
+                            <div className="flex items-start gap-3 p-3 bg-brand-cyan/10 border border-brand-cyan/20 rounded-xl mb-6">
+                                <ShieldCheck className="text-brand-cyan shrink-0" size={18} />
+                                <p className="text-[10px] text-gray-300">
+                                    Funds will be held by DJ Flowerz. Only release when you have received and verified the item.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    if (!shippingAddress.trim()) return toast.error('Please enter delivery details');
+                                    setIsBuying(true);
+                                    try {
+                                        const res = await fetch(`${API_URL}/api/escrow/order`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ 
+                                                post_id: post.id,
+                                                shipping_address: shippingAddress.trim()
+                                            })
+                                        });
+                                        if (res.ok) {
+                                            toast.success('Order placed! Funds held in escrow.');
+                                            setShowEscrowModal(false);
+                                        } else {
+                                            const err = await res.json();
+                                            toast.error(err.error || 'Failed to place order');
+                                        }
+                                    } catch {
+                                        toast.error('Network error');
+                                    } finally {
+                                        setIsBuying(false);
+                                    }
+                                }}
+                                disabled={isBuying}
+                                className="w-full bg-gradient-to-r from-brand-cyan to-brand-purple text-white py-4 rounded-2xl font-black shadow-lg hover:shadow-brand-purple/20 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isBuying ? <Loader size={20} className="animate-spin" /> : 'Confirm & Hold Funds'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showOfferModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="glass-card w-full max-w-sm rounded-3xl border border-white/10 p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Flame className="text-brand-purple" size={24} /> Make an Offer
+                            </h3>
+                            <button onClick={() => setShowOfferModal(false)} className="text-gray-500 hover:text-white p-2">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-400">
+                                Enter the amount you're willing to pay. The seller will be notified to accept or reject.
+                            </p>
+                            
+                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 mb-2">
+                                <div className="flex justify-between mb-1">
+                                    <span className="text-gray-400 text-xs uppercase font-bold tracking-widest">Listing Price</span>
+                                    <span className="text-white text-sm font-bold">KES {post.price.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Your Offer (KES)</label>
+                                <input
+                                    type="number"
+                                    value={offerAmount}
+                                    onChange={(e) => setOfferAmount(e.target.value)}
+                                    placeholder="Enter amount..."
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-brand-purple"
+                                />
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    if (!offerAmount || Number(offerAmount) <= 0) return toast.error('Enter a valid amount');
+                                    setIsOffering(true);
+                                    try {
+                                        const res = await fetch(`${API_URL}/api/community/offers`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ 
+                                                postId: post.id,
+                                                amount: Number(offerAmount)
+                                            })
+                                        });
+                                        if (res.ok) {
+                                            toast.success('Offer submitted! Seller notified.');
+                                            setShowOfferModal(false);
+                                        } else {
+                                            const err = await res.json();
+                                            toast.error(err.error || 'Failed to submit offer');
+                                        }
+                                    } catch {
+                                        toast.error('Network error');
+                                    } finally {
+                                        setIsOffering(false);
+                                    }
+                                }}
+                                disabled={isOffering}
+                                className="w-full bg-brand-purple text-white py-4 rounded-2xl font-black shadow-lg hover:shadow-brand-purple/20 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isOffering ? <Loader size={20} className="animate-spin" /> : 'Send Offer'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 px-4 py-3 border-t border-white/5">
+                <button
+                    onClick={handleLike}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                        liked ? 'text-red-400 bg-red-400/10' : 'text-gray-400 hover:text-red-400 hover:bg-red-400/5'
+                    }`}
+                >
+                    <Heart size={17} className={liked ? 'fill-red-400' : ''} />
+                    <span>{likesCount}</span>
+                </button>
+
+                <button
+                    onClick={toggleComments}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                >
+                    <MessageSquare size={17} />
+                    <span>{post.comments_count || 0}</span>
+                </button>
+
+                <button
+                    onClick={handleReshare}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-green-400 hover:bg-green-400/5 transition-all"
+                >
+                    <RefreshCw size={17} />
+                    <span>{post.reshare_count || 0}</span>
+                </button>
+
+                <button
+                    onClick={handleShare}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all ml-auto"
+                >
+                    <Share2 size={17} />
+                </button>
+            </div>
+
+
+            {/* Comments section */}
+            {showComments && (
+                <div className="border-t border-white/5 bg-black/10 px-5 py-4 space-y-4">
+                    {comments.map(c => (
+                        <div key={c.id} className="flex gap-3">
+                            <Avatar src={c.author_avatar} name={c.author_name} size={8} />
+                            <div className="flex-1">
+                                <div className="bg-white/5 rounded-2xl rounded-tl-none px-4 py-2.5">
+                                    <span className="font-bold text-xs text-white mr-2">{c.author_name}</span>
+                                    <span className="text-sm text-gray-300">{c.content}</span>
+                                </div>
+                                <span className="text-[10px] text-gray-500 ml-2">{timeAgo(c.created_at)} ago</span>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Comment input */}
+                    <div className="flex gap-3 pt-1">
+                        {currentUser && <Avatar src={currentUser.avatarUrl} name={currentUser.name} size={8} />}
+                        <div className="flex-1 flex gap-2">
+                            <input
+                                value={commentText}
+                                onChange={e => setCommentText(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && submitComment()}
+                                placeholder="Write a comment..."
+                                className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-brand-purple placeholder-gray-500"
+                            />
+                            <button
+                                onClick={submitComment}
+                                className="w-9 h-9 bg-brand-purple text-white rounded-full flex items-center justify-center hover:bg-brand-purple/80 transition flex-shrink-0"
+                            >
+                                <Send size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Post Composer ────────────────────────────────────────────────
+const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ user, onPost }) => {
+    const [content, setContent] = useState('');
+    const [isMarketplace, setIsMarketplace] = useState(false);
+    const [price, setPrice] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 5 * 1024 * 1024) return toast.error("Image too large (Max 5MB)");
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
+    };
+
+    const submit = async () => {
+        if (!content.trim() && !imageFile) return;
+        setLoading(true);
+        try {
+            let finalImageUrl = null;
+            if (imageFile) {
+                const upload = await uploadFileToR2(imageFile, 'community-posts');
+                if (upload) finalImageUrl = upload.url;
+            }
+
+            const res = await fetch(`${API_URL}/api/community/posts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user.id,
+                    author_name: user.name,
+                    author_avatar: user.avatarUrl,
+                    author_username: user.username,
+                    author_role: user.role,
+                    content: content.trim(),
+                    image_url: finalImageUrl,
+                    is_marketplace: isMarketplace,
+                    price: isMarketplace ? Number(price) : 0
+                })
+            });
+            const data = await res.json();
+            if (data.post) {
+                onPost(data.post);
+                setContent('');
+                setIsMarketplace(false);
+                setPrice('');
+                setImageFile(null);
+                setImagePreview(null);
+                toast.success('Broadcast transmitted!');
+            } else {
+                toast.error('Transmission failed');
+            }
+        } catch {
+            toast.error('Frequency unstable. Try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="glass-card rounded-2xl border border-white/5 p-5 mb-6">
+            <div className="flex gap-3">
+                <Avatar src={user.avatarUrl} name={user.name} size={11} />
+                <div className="flex-1">
+                    <textarea
+                        value={content}
+                        onChange={e => setContent(e.target.value)}
+                        placeholder="What's happening in the scene? Share a mix, gear, or news..."
+                        className="w-full bg-transparent text-white text-sm placeholder-gray-500 outline-none resize-none min-h-[80px]"
+                        rows={3}
+                    />
+
+                    {imagePreview && (
+                        <div className="relative mt-2 mb-2 rounded-xl overflow-hidden border border-white/10 group">
+                            <img src={imagePreview} className="w-full max-h-64 object-cover" alt="Preview" />
+                            <button 
+                                onClick={() => { setImageFile(null); setImagePreview(null); }}
+                                className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-red-500 transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    )}
+
+                    {isMarketplace && (
+                        <div className="flex items-center gap-3 py-3 border-t border-white/5 mt-2">
+                            <ShieldCheck size={16} className="text-brand-cyan" />
+                            <span className="text-sm text-brand-cyan font-bold">Listing Price (KES):</span>
+                            <input
+                                type="number"
+                                value={price}
+                                onChange={e => setPrice(e.target.value)}
+                                placeholder="0"
+                                className="bg-white/10 border border-brand-cyan/50 rounded-lg px-3 py-1.5 text-white text-sm w-32 focus:outline-none focus:border-brand-cyan"
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
+                        <div className="flex gap-2">
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleImageSelect} 
+                                accept="image/*"
+                                className="hidden" 
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`p-2 rounded-lg transition ${imageFile ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-500 hover:text-brand-purple hover:bg-brand-purple/10'}`} 
+                                title="Add Image"
+                            >
+                                <ImageIcon size={18} />
+                            </button>
+                            <button
+                                onClick={() => setIsMarketplace(!isMarketplace)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                                    isMarketplace ? 'bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                <ShoppingBag size={15} />
+                                {isMarketplace ? 'Selling Gear' : 'Sell Gear'}
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={submit}
+                            disabled={!content.trim() || loading}
+                            className="bg-brand-purple text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-brand-purple/80 disabled:opacity-50 transition"
+                        >
+                            {loading ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
+                            Post
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── People You May Know Sidebar ─────────────────────────────────
+interface SuggestedUser {
+    id: string;
+    name: string;
+    avatar_url: string;
+    role: string;
+    post_count: number;
+    followers: number;
+}
+
+const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
+    const [suggested, setSuggested] = useState<SuggestedUser[]>([]);
+    const [following, setFollowing] = useState<Record<string, boolean>>({});
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSuggested = async () => {
+            try {
+                const url = currentUser?.id
+                    ? `/api/community/suggested?userId=${currentUser.id}&limit=6`
+                    : `/api/community/suggested?limit=6`;
+                const res = await fetch(url);
+                const data = await res.json();
+                setSuggested(data.suggested || []);
+            } catch {
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSuggested();
+    }, [currentUser?.id]);
+
+    const handleFollow = async (s: SuggestedUser) => {
+        if (!currentUser) return toast.error('Log in to follow users');
+        const alreadyFollowing = following[s.id];
+        setFollowing(prev => ({ ...prev, [s.id]: !alreadyFollowing }));
+        try {
+            const res = await fetch(`/api/community/follows`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    follower_id: currentUser.id,
+                    following_id: s.id,
+                    following_name: s.name,
+                    following_avatar: s.avatar_url
+                })
+            });
+            const data = await res.json();
+            setFollowing(prev => ({ ...prev, [s.id]: data.followed }));
+        } catch {
+            setFollowing(prev => ({ ...prev, [s.id]: alreadyFollowing }));
+        }
+    };
+
+    if (loading) return (
+        <div className="glass-card rounded-2xl border border-white/5 p-5 animate-pulse space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/10" />
+                    <div className="flex-1 space-y-1.5">
+                        <div className="h-3 bg-white/10 rounded w-2/3" />
+                        <div className="h-2 bg-white/5 rounded w-1/3" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+
+    if (suggested.length === 0) return null;
+
+    return (
+        <div className="glass-card rounded-2xl border border-white/5 p-5">
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                <Users size={13} /> People You May Know
+            </h3>
+            <div className="space-y-4">
+                {suggested.map(s => (
+                    <div key={s.id} className="flex items-center gap-3">
+                        <Link to={`/@${profileSlug(s)}`} className="flex-shrink-0">
+                            <img
+                                src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`}
+                                onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`; }}
+                                className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                alt={s.name}
+                            />
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                            <Link to={`/@${profileSlug(s)}`} className="font-bold text-white text-sm hover:text-brand-purple transition truncate block">
+                                {s.name}
+                                {s.role === 'admin' && <span className="ml-1 text-[9px] bg-brand-purple/20 text-brand-purple px-1.5 py-0.5 rounded-full font-black">Admin</span>}
+                            </Link>
+                            <span className="text-[11px] text-gray-500">{s.followers} followers · {s.post_count} posts</span>
+                        </div>
+                        <button
+                            onClick={() => handleFollow(s)}
+                            className={`flex-shrink-0 text-[11px] font-black px-3 py-1.5 rounded-full transition ${
+                                following[s.id]
+                                    ? 'bg-white/5 text-gray-400 border border-white/10'
+                                    : 'bg-brand-purple/20 text-brand-purple border border-brand-purple/30 hover:bg-brand-purple/30'
+                            }`}
+                        >
+                            {following[s.id] ? 'Following' : 'Follow'}
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            {/* Community Stats */}
+            <div className="mt-6 pt-4 border-t border-white/5">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                    <Flame size={13} /> Scene Activity
+                </h3>
+                <div className="space-y-2 text-sm text-gray-400">
+                    <div className="flex justify-between">
+                        <span>Active DJs</span>
+                        <span className="text-white font-bold">{suggested.length}+</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>Community</span>
+                        <span className="text-brand-cyan font-bold">EA's Finest</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── Main Community Page ──────────────────────────────────────────
+const Community: React.FC = () => {
+    const { user, isAuthenticated } = useAuth();
+    const [activeTab, setActiveTab] = useState<FeedTab>('latest');
+    const [posts, setPosts] = useState<Post[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const loaderRef = useRef<HTMLDivElement>(null);
+
+    const fetchPosts = useCallback(async (tab: FeedTab, cursor?: string | null) => {
+        try {
+            if (!cursor) setIsLoading(true);
+            else setLoadingMore(true);
+
+            let url = `${API_URL}/api/community/posts?feed=${tab}`;
+            if (user?.id) url += `&viewerId=${user.id}`;
+            if (tab === 'following' && user?.id) url += `&followerId=${user.id}`;
+            if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (cursor) {
+                setPosts(prev => [...prev, ...(data.posts || [])]);
+            } else {
+                setPosts(data.posts || []);
+            }
+            setNextCursor(data.nextCursor || null);
+        } catch {
+            toast.error('Failed to load feed');
+        } finally {
+            setIsLoading(false);
+            setLoadingMore(false);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        fetchPosts(activeTab);
+    }, [activeTab, fetchPosts]);
+
+    // Infinite scroll
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && nextCursor && !loadingMore) {
+                    fetchPosts(activeTab, nextCursor);
+                }
+            },
+            { threshold: 0.1 }
+        );
+        if (loaderRef.current) observer.observe(loaderRef.current);
+        return () => observer.disconnect();
+    }, [nextCursor, loadingMore, activeTab, fetchPosts]);
+
+    const handleNewPost = (post: Post) => {
+        setPosts(prev => [post, ...prev]);
+    };
+
+    const handleDeletePost = (id: string) => {
+        setPosts(prev => prev.filter(p => p.id !== id));
+    };
+
+    const tabs = [
+        { id: 'latest' as FeedTab, label: 'Latest', icon: <Clock size={15} /> },
+        { id: 'trending' as FeedTab, label: 'Trending', icon: <Flame size={15} /> },
+        { id: 'following' as FeedTab, label: 'Following', icon: <Users size={15} /> },
+        { id: 'marketplace' as FeedTab, label: 'Marketplace', icon: <ShoppingBag size={15} /> },
+    ];
+
+    return (
+        <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
+            {/* Header */}
+            <div className="text-center mb-8">
+                <h1 className="text-3xl md:text-5xl font-black font-display uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">
+                    DJ Community
+                </h1>
+                <p className="text-gray-400 text-sm mt-2">East Africa's DJ scene — share, trade, and connect.</p>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* ── Main Feed Column ── */}
+                <div className="flex-1 min-w-0">
+
+            {/* Tabs */}
+            <div className="flex gap-1 bg-white/5 p-1 rounded-2xl mb-6 sticky top-20 z-30 backdrop-blur-xl border border-white/5">
+                {tabs.map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => { if (activeTab !== tab.id) { setActiveTab(tab.id); setPosts([]); } }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                            activeTab === tab.id
+                                ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                                : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                        {tab.icon}
+                        <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Composer (logged in users only) */}
+            {isAuthenticated && user && (
+                <PostComposer user={user} onPost={handleNewPost} />
+            )}
+
+            {!isAuthenticated && (
+                <div className="glass-card rounded-2xl border border-brand-purple/20 p-6 mb-6 text-center">
+                    <p className="text-gray-300 text-sm mb-4">Join the conversation — log in to post, follow DJs, and trade gear.</p>
+                    <Link to="/login" className="bg-brand-purple text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-brand-purple/80 transition inline-block">
+                        Log In / Sign Up
+                    </Link>
+                </div>
+            )}
+
+            {/* Feed */}
+            <div className="space-y-4">
+                {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="glass-card rounded-2xl border border-white/5 p-5 animate-pulse">
+                            <div className="flex gap-3 mb-4">
+                                <div className="w-11 h-11 rounded-full bg-white/10" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="h-3 bg-white/10 rounded w-1/3" />
+                                    <div className="h-2 bg-white/5 rounded w-1/4" />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="h-3 bg-white/10 rounded" />
+                                <div className="h-3 bg-white/10 rounded w-5/6" />
+                            </div>
+                        </div>
+                    ))
+                ) : posts.length === 0 ? (
+                    <div className="text-center py-16">
+                        {activeTab === 'following' ? (
+                            <>
+                                <Users size={40} className="mx-auto mb-4 text-gray-600" />
+                                <p className="text-gray-500">Follow some DJs to see their posts here.</p>
+                            </>
+                        ) : (
+                            <>
+                                <MessageSquare size={40} className="mx-auto mb-4 text-gray-600" />
+                                <p className="text-gray-500">No posts yet. Be the first!</p>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    posts.map(post => (
+                        <PostCard
+                            key={post.id}
+                            post={post}
+                            currentUserId={user?.id}
+                            currentUser={user}
+                            onDelete={handleDeletePost}
+                        />
+                    ))
+                )}
+
+                {/* Infinite scroll trigger */}
+                <div ref={loaderRef} className="py-4 text-center">
+                    {loadingMore && (
+                        <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
+                            <Loader size={16} className="animate-spin" /> Loading more...
+                        </div>
+                    )}
+                </div>
+            </div>{/* end feed space-y-4 */}
+        </div>{/* end main feed column */}
+
+        {/* ── Sidebar Column ── */}
+        <div className="lg:w-72 flex-shrink-0 space-y-5 lg:sticky lg:top-24">
+            <SuggestedSidebar currentUser={user} />
+        </div>
+    </div>{/* end flex row */}
+        </div>
+    );
+};
+
+export default Community;
