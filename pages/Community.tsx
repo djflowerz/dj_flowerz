@@ -114,7 +114,7 @@ function Composer({ onPost, replyTo = null, quoteOf = null, onDone = null, compa
         <div style={css.avatar}>{displayName?.[0]?.toUpperCase() ?? '?'}</div>
         <textarea
           style={css.textarea}
-          placeholder={replyTo ? 'Drop a reply…' : quoteOf ? 'Add your take…' : 'What\\'s on the decks?'}
+          placeholder={replyTo ? 'Drop a reply…' : quoteOf ? 'Add your take…' : "What's on the decks?"}
           value={content}
           onChange={e => setContent(e.target.value)}
           onFocus={() => setFocused(true)}
