@@ -24,12 +24,11 @@ const EscrowManager = lazy(() => import('./pages/EscrowManager'));
 const Mixtapes = lazy(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazy(() => import('./pages/MixtapeDetails'));
 const MusicPool = lazy(() => import('./pages/MusicPool'));
-const BpmTapper = lazy(() => import('./pages/BpmTapper'));
+const DJLab = lazy(() => import('./pages/DJLab'));
 const Community = lazy(() => import('./pages/Community'));
 const Store = lazy(() => import('./pages/Store'));
 const Marketplace = lazy(() => import('./pages/Marketplace'));
 const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
-const AuraVision = lazy(() => import('./pages/AuraVision'));
 const ProductDetails = lazy(() => import('./pages/ProductDetails'));
 const Cart = lazy(() => import('./pages/Cart'));
 const Checkout = lazy(() => import('./pages/Checkout'));
@@ -178,14 +177,15 @@ const App: React.FC = () => {
             <Route path="/escrow-mngt" element={<EscrowManager />} />
                     <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
                     <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
-                    <Route path="/dj-tools/bpm-tapper" element={<BpmTapper />} />
+                    <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
+                    <Route path="/aura-vision" element={<Navigate to="/dj-lab" replace />} />
+                    <Route path="/dj-tools/bpm-tapper" element={<Navigate to="/dj-lab" replace />} />
                     <Route path="/@:username" element={<PublicProfile />} />
                     <Route path="/community" element={<Community />} />
 
                     <Route path="/store" element={<Store />} />
                     <Route path="/marketplace" element={<Marketplace />} />
                     <Route path="/vendor-dashboard" element={<VendorDashboard />} />
-                    <Route path="/aura-vision" element={<AuraVision />} />
                     <Route path="/product/:id" element={<ProductDetails />} />
                     <Route path="/cart" element={<Cart />} />
                     <Route path="/checkout" element={<Checkout />} />

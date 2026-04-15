@@ -30,10 +30,9 @@ const Navbar: React.FC = () => {
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
     { name: 'Community', path: '/community' },
-    { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },
+    { name: 'DJ Vision Lab', path: '/dj-lab' },
     { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
-    { name: 'Aura Vision', path: '/aura-vision' },
     { name: 'Tip Jar', path: '/tip-jar' },
     { name: 'Contact', path: '/contact' },
   ];
