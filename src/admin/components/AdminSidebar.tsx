@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     LayoutDashboard, ShoppingBag, Package, Music, Users,
-    Settings, LogOut, Bell, MessageSquare, CreditCard, Crown,
+    Settings, LogOut, MessageSquare, CreditCard, Crown,
     Mail, Share2, Wallet, Megaphone, ShieldAlert
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';

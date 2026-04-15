@@ -365,6 +365,10 @@ const Navbar: React.FC = () => {
 
           <div className="pt-8 space-y-4 pb-8">
             {isAuthenticated ? (
+              <Link
+                to="/account"
+                className="flex items-center gap-3 w-full bg-white/5 text-white py-4 px-4 rounded-xl font-bold border border-white/5"
+              >
                 <img
                   src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
                   alt="User"
