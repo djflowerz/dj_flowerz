@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle, ShieldCheck, Loader } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle, ShieldCheck, Loader, Package } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -30,7 +30,6 @@ const Navbar: React.FC = () => {
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
     { name: 'Community', path: '/community' },
-    { name: 'Track Order', path: '/order-tracking' },
     { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },
     { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
@@ -281,6 +280,9 @@ const Navbar: React.FC = () => {
                       <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <User size={16} /> My Profile
                       </Link>
+                      <Link to="/order-tracking" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
+                        <Package size={16} /> Track Order
+                      </Link>
                       <Link to="/escrow-mngt" className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-500 hover:bg-white/5 transition">
                         <ShieldCheck size={16} /> Escrow Dashboard
                       </Link>
@@ -364,16 +366,18 @@ const Navbar: React.FC = () => {
 
           <div className="pt-8 space-y-4 pb-8">
             {isAuthenticated ? (
-              <Link
-                to="/account"
-                className="flex items-center justify-center gap-3 w-full bg-white/10 text-white py-4 rounded-xl font-bold"
-              >
                 <img
                   src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
                   alt="User"
                   className="w-6 h-6 rounded-full"
                   onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
                 /> My Account
+              </Link>
+              <Link
+                to="/order-tracking"
+                className="flex items-center justify-center gap-3 w-full bg-white/5 text-gray-300 py-4 rounded-xl font-bold border border-white/5"
+              >
+                <Package size={20} /> Track Order
               </Link>
             ) : (
               <div className="grid grid-cols-2 gap-4">
