@@ -5,11 +5,17 @@ import { sql } from 'drizzle-orm';
 export const profiles = sqliteTable('profiles', {
     id: text('id').primaryKey(),
     email: text('email').unique().notNull(),
+    username: text('username').unique(),
     fullName: text('full_name'),
     role: text('role').default('user'),
     avatarUrl: text('avatar_url'),
     phoneNumber: text('phone_number'),
+    phoneVerified: integer('phone_verified', { mode: 'boolean' }).default(false),
     supabaseId: text('supabase_id'),
+    passwordHash: text('password_hash'),
+    shadowSalt: text('shadow_salt'),
+    mPesaNumber: text('m_pesa_number'),
+    isShadowFlagged: integer('is_shadow_flagged', { mode: 'boolean' }).default(false),
     isSubscriber: integer('is_subscriber', { mode: 'boolean' }).default(false),
     subscriptionPlan: text('subscription_plan'),
     subscriptionExpiry: text('subscription_expiry'),
@@ -18,6 +24,7 @@ export const profiles = sqliteTable('profiles', {
     referralBalance: real('referral_balance').default(0),
     referralEarnedDays: integer('referral_earned_days').default(0),
     balance: real('balance').default(0),
+    walletBalanceKes: real('wallet_balance_kes').default(0),
     dailyDownloadCount: integer('daily_download_count').default(0),
     lastDownloadReset: text('last_download_reset'),
     lastIp: text('last_ip'),
@@ -26,6 +33,17 @@ export const profiles = sqliteTable('profiles', {
     presenceStatus: text('presence_status').default('offline'),
     loyaltyPoints: integer('loyalty_points').default(0),
     totalSpent: real('total_spent').default(0),
+    
+    // Reputation & Seller Stats
+    totalDeals: integer('total_deals').default(0),
+    successDeals: integer('success_deals').default(0),
+    avgReleaseHours: real('avg_release_hours').default(0),
+    sellerTier: text('seller_tier').default('bronze'),
+    avgRating: real('avg_rating').default(0),
+    totalReviews: integer('total_reviews').default(0),
+    reportCount: integer('report_count').default(0),
+    isProfilePrivate: integer('is_profile_private', { mode: 'boolean' }).default(false),
+
     isVendor: integer('is_vendor', { mode: 'boolean' }).default(false),
     vendorSlug: text('vendor_slug').unique(),
     commissionRate: real('commission_rate').default(0.15), // Default 15%

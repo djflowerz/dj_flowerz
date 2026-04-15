@@ -1,9 +1,20 @@
 // worker/api/run_setup.js
+import { getAuthorizedUser, isAdminEmail } from '../utils/auth.js';
+
 export async function handleSetupDB(request, env) {
+    const user = await getAuthorizedUser(request, env);
+    if (!user || !isAdminEmail(user.email)) {
+        return new Response(JSON.stringify({ error: "Unauthorized Access: Admin Protocol Required" }), { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     const stmts = [
         // 1. PROFILES EXPANSION (Auth, Reputation, Wallet)
         `ALTER TABLE profiles ADD COLUMN password_hash TEXT`,
         `ALTER TABLE profiles ADD COLUMN shadow_salt TEXT`,
+        `ALTER TABLE profiles ADD COLUMN username TEXT`,
         `ALTER TABLE profiles ADD COLUMN m_pesa_number TEXT`,
         `ALTER TABLE profiles ADD COLUMN is_shadow_flagged INTEGER DEFAULT 0`,
         `ALTER TABLE profiles ADD COLUMN wallet_balance_kes REAL DEFAULT 0`,

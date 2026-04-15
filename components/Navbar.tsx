@@ -267,11 +267,12 @@ const Navbar: React.FC = () => {
                     className="flex items-center gap-2 text-gray-300 hover:text-white transition"
                   >
                     <img
-                      src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                      src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=random&color=fff`}
                       alt="User"
                       className="w-8 h-8 rounded-full border border-brand-purple object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=7C3AED&color=fff`; }}
                     />
+                    {user?.username && <span className="hidden lg:block text-xs font-bold text-gray-300">@{user.username}</span>}
                   </button>
 
                   {showUserMenu && (
@@ -365,23 +366,33 @@ const Navbar: React.FC = () => {
 
           <div className="pt-8 space-y-4 pb-8">
             {isAuthenticated ? (
-              <Link
-                to="/account"
-                className="flex items-center gap-3 w-full bg-white/5 text-white py-4 px-4 rounded-xl font-bold border border-white/5"
-              >
-                <img
-                  src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
-                  alt="User"
-                  className="w-6 h-6 rounded-full"
-                  onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
-                /> My Account
-              </Link>
-              <Link
-                to="/order-tracking"
-                className="flex items-center justify-center gap-3 w-full bg-white/5 text-gray-300 py-4 rounded-xl font-bold border border-white/5"
-              >
-                <Package size={20} /> Track Order
-              </Link>
+              <>
+                <Link
+                  to="/account"
+                  className="flex items-center gap-3 w-full bg-white/5 text-white py-4 px-4 rounded-xl font-bold border border-white/5"
+                >
+                  <img
+                    src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                    alt="User"
+                    className="w-6 h-6 rounded-full"
+                    onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}
+                  /> My Account
+                </Link>
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center justify-center gap-3 w-full bg-brand-purple/10 text-brand-purple py-4 rounded-xl font-bold border border-brand-purple/20"
+                  >
+                    <LogIn size={20} /> Admin Dashboard
+                  </Link>
+                )}
+                <Link
+                  to="/order-tracking"
+                  className="flex items-center justify-center gap-3 w-full bg-white/5 text-gray-300 py-4 rounded-xl font-bold border border-white/5"
+                >
+                  <Package size={20} /> Track Order
+                </Link>
+              </>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <Link

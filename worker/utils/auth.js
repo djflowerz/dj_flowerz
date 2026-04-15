@@ -116,7 +116,7 @@ export async function getAuthorizedUser(request, env) {
     if (!user) {
         const initialName = metadata.full_name || (email ? email.split('@')[0] : 'User');
         const initialAvatar = metadata.avatar_url || '';
-        const initialUsername = (metadata.name || (email ? email.split('@')[0] : 'user')).toLowerCase().replace(/\s+/g, '');
+        const initialUsername = (email ? email.split('@')[0] : (metadata.name || 'user')).toLowerCase().replace(/[^a-z0-9]/g, '');
         
         user = { id: sub, email: email, full_name: initialName, avatar_url: initialAvatar, username: initialUsername };
 
@@ -150,7 +150,7 @@ export async function getAuthorizedUser(request, env) {
             user.full_name = metadata.full_name;
         }
         if (!user.username && email) {
-            const defaultUsername = (metadata.name || email.split('@')[0]).toLowerCase().replace(/\s+/g, '');
+            const defaultUsername = (email.split('@')[0] || metadata.name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
             updates.push('username = ?');
             params.push(defaultUsername);
             user.username = defaultUsername;

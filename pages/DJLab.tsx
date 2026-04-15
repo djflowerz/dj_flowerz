@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
-    Camera, Zap, Music, Waves, Sparkles, ArrowRight, Loader, 
-    Activity, RotateCcw, Play, Pause, LayoutGrid, Eye
+    Camera, Zap, Music, Sparkles, ArrowRight, Loader, 
+    Activity, RotateCcw, Play, Pause, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
