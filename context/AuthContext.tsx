@@ -146,25 +146,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let mounted = true;
     let isFetching = false;
 
+    // Failsafe: Force loading to false after 3 seconds if it's still stuck
+    const loadingFailsafe = setTimeout(() => {
+      if (mounted) {
+        setLoading(prev => {
+          if (prev) console.warn("[AuthContext] Loading state timed out! Forcing to false.");
+          return false;
+        });
+      }
+    }, 3000);
+
     const safeFetch = async (sess: any) => {
       if (isFetching || !mounted) return;
       isFetching = true;
       try {
         await fetchProfileAndSetUser(sess);
+      } catch (e) {
+        console.error("[AuthContext] safeFetch error:", e);
       } finally {
-        if (mounted) isFetching = false;
+        if (mounted) {
+          isFetching = false;
+          setLoading(false);
+        }
       }
     };
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) safeFetch(session);
-    });
+    // Get initial session with a safe catch
+    try {
+      supabase.auth.getSession()
+        .then((res) => {
+          if (mounted) safeFetch(res?.data?.session || null);
+        })
+        .catch(err => {
+          console.error("[AuthContext] getSession error:", err);
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
+        });
+    } catch (err) {
+      if (mounted) {
+        setLoading(false);
+      }
+    }
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) safeFetch(session);
-    });
+    let subscription: any = null;
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (mounted) safeFetch(session);
+      });
+      subscription = data.subscription;
+    } catch (err) {
+      console.warn("[AuthContext] onAuthStateChange error", err);
+    }
 
     // Capture referral code from URL
     const urlParams = new URLSearchParams(window.location.search);
