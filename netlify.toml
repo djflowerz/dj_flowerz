@@ -1,0 +1,71 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Headers for cache control
+[[headers]]
+  for = "/api/v1/products"
+  [headers.values]
+    Cache-Control = "public, s-maxage=60, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Domain Redirects
+[[redirects]]
+  from = "https://dj-flowerz.netlify.app/*"
+  to = "https://djflowerz.co.ke/:splat"
+  status = 301
+  force = true
+
+# Proxies
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/sitemap.xml"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/r2/*"
+  to = "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mashups/*"
+  to = "https://remix-and-mashups-worker.dennismacharia20.workers.dev/:splat"
+  status = 200
+  force = true
+
+# Vercel Crons endpoints are not directly proxied by wildcards since they were specific
+[[redirects]]
+  from = "/api/check-subscriptions"
+  to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/check-subscriptions"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sync-tracks"
+  to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/sync-tracks"
+  status = 200
+  force = true
+
+# Fallback for all other /api/ requests to the Cloudflare Worker
+[[redirects]]
+  from = "/api/*"
+  to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/:splat"
+  status = 200
+  force = true
+
+# SPA catch-all (Must be last)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
