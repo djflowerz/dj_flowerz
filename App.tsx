@@ -180,7 +180,8 @@ const App: React.FC = () => {
                     <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
                     <Route path="/aura-vision" element={<Navigate to="/dj-lab" replace />} />
                     <Route path="/dj-tools/bpm-tapper" element={<Navigate to="/dj-lab" replace />} />
-                    <Route path="/@:username" element={<PublicProfile />} />
+                    <Route path="/community/@:username" element={<PublicProfile />} />
+                    <Route path="/@:username" element={<Navigate to="/community/@:username" replace />} />
                     <Route path="/community" element={<Community />} />
 
                     <Route path="/store" element={<Store />} />

@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabase';
 import { STORAGE_WORKER_URL } from '../utils/r2';
+import axios from 'axios';
+import { isUserSubscriber } from '../utils/authHelpers';
 
 interface TrackVersion {
   id: string;

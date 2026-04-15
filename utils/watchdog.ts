@@ -3,18 +3,18 @@
  * Aura Titan: Security Watchdog (Singleton)
  * Detects DevTools and Inspect usage to protect sensitive platform code.
  */
-class SecurityWatchdogClass {
-    private static instance: SecurityWatchdogClass;
+export class SecurityWatchdog {
+    private static instance: SecurityWatchdog;
     private interval: any = null;
     private threshold = 160;
 
     private constructor() {}
 
-    public static getInstance(): SecurityWatchdogClass {
-        if (!SecurityWatchdogClass.instance) {
-            SecurityWatchdogClass.instance = new SecurityWatchdogClass();
+    public static getInstance(): SecurityWatchdog {
+        if (!SecurityWatchdog.instance) {
+            SecurityWatchdog.instance = new SecurityWatchdog();
         }
-        return SecurityWatchdogClass.instance;
+        return SecurityWatchdog.instance;
     }
 
     public start(onViolation?: () => void) {
@@ -66,5 +66,3 @@ class SecurityWatchdogClass {
         }
     }
 }
-
-export const SecurityWatchdog = SecurityWatchdogClass;

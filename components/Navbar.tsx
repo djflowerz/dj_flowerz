@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle, ShieldCheck, Loader, Package } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, LogIn, LogOut, ChevronRight, Bell, MessageCircle, ShieldCheck, Loader, Package, Settings, Calendar, ExternalLink } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -10,7 +10,7 @@ import GlobalClock from './GlobalClock';
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { itemCount } = useCart();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, session } = useAuth();
   const { siteConfig, notifications, markNotificationAsRead } = useData();
   const location = useLocation();
 
@@ -188,7 +188,7 @@ const Navbar: React.FC = () => {
                                         body: JSON.stringify({ id: n.id })
                                     });
                                 }
-                                if (n.type === 'follow') window.location.href = `/@${n.actor_id}`;
+                                if (n.type === 'follow') window.location.href = `/community/@${n.actor_id}`;
                                 else if (n.target_id) window.location.href = `/community?post=${n.target_id}`;
                             }}
                             className={`p-4 border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition ${!n.is_read ? 'bg-brand-purple/5 border-l-2 border-l-brand-purple' : ''}`}
@@ -264,21 +264,24 @@ const Navbar: React.FC = () => {
                 <div className="relative">
                   <button
                     onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); setShowMessages(false); }}
-                    className="flex items-center gap-2 text-gray-300 hover:text-white transition"
+                    className="flex items-center hover:scale-105 active:scale-95 transition-all duration-300"
                   >
                     <img
                       src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=random&color=fff`}
                       alt="User"
-                      className="w-8 h-8 rounded-full border border-brand-purple object-cover"
+                      className="w-10 h-10 rounded-full border border-brand-purple object-cover shadow-lg"
                       onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=7C3AED&color=fff`; }}
                     />
-                    {user?.username && <span className="hidden lg:block text-xs font-bold text-gray-300">@{user.username}</span>}
                   </button>
-
                   {showUserMenu && (
                     <div className="absolute right-0 mt-6 w-56 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 py-3">
+                      {user?.username && (
+                        <Link to={`/community/@${user.username}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-white/5 transition">
+                          <User size={16} /> My Social Profile
+                        </Link>
+                      )}
                       <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
-                        <User size={16} /> My Profile
+                        <Settings size={16} /> Account Settings
                       </Link>
                       <Link to="/order-tracking" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <Package size={16} /> Track Order

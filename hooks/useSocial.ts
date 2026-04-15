@@ -7,7 +7,7 @@ const SOCIAL_API = `${API}/api/social`;
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
 export function useFeed(tab: string | { profile: string } = 'following') {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [posts,      setPosts]      = useState<any[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [loadingMore,setLoadingMore] = useState(false);
@@ -30,7 +30,7 @@ export function useFeed(tab: string | { profile: string } = 'following') {
 
       if (!url) return;
 
-      const data = await apiGet(url, user.id);
+      const data = await apiGet(url, user.id, session?.access_token);
       const incoming = data.posts ?? [];
 
       setPosts(prev => replace ? incoming : [...prev, ...incoming]);
@@ -69,7 +69,7 @@ export function useFeed(tab: string | { profile: string } = 'following') {
 // ─── Single post + comments ───────────────────────────────────────────────────
 
 export function usePost(postId?: string) {
-  const { user }   = useAuth();
+  const { user, session }   = useAuth();
   const [post,     setPost]     = useState<any>(null);
   const [quoted,   setQuoted]   = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -81,8 +81,8 @@ export function usePost(postId?: string) {
     setLoading(true);
     try {
       const [postData, commentData] = await Promise.all([
-        apiGet(`${SOCIAL_API}/posts/${postId}`, user.id),
-        apiGet(`${SOCIAL_API}/posts/${postId}/comments?limit=30`, user.id),
+        apiGet(`${SOCIAL_API}/posts/${postId}`, user.id, session?.access_token),
+        apiGet(`${SOCIAL_API}/posts/${postId}/comments?limit=30`, user.id, session?.access_token),
       ]);
       setPost(postData.post);
       setQuoted(postData.quoted_post ?? null);
@@ -107,7 +107,7 @@ export function usePost(postId?: string) {
 // ─── Composer ─────────────────────────────────────────────────────────────────
 
 export function useComposer() {
-  const { user }  = useAuth();
+  const { user, session }  = useAuth();
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -116,7 +116,7 @@ export function useComposer() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiPost(`${SOCIAL_API}/posts`, body, user.id);
+      const data = await apiPost(`${SOCIAL_API}/posts`, body, user.id, session?.access_token);
       return data.post;
     } catch (err: any) {
       setError(err.message);
@@ -142,7 +142,7 @@ export function useComposer() {
     if (!user) throw new Error('Not authenticated');
     setLoading(true);
     try {
-      return await apiPost(`${SOCIAL_API}/posts/${postId}/reshare`, {}, user.id);
+      return await apiPost(`${SOCIAL_API}/posts/${postId}/reshare`, {}, user.id, session?.access_token);
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -157,7 +157,7 @@ export function useComposer() {
 // ─── Like ─────────────────────────────────────────────────────────────────────
 
 export function useLike(initialLiked: boolean, initialCount: number) {
-  const { user }   = useAuth();
+  const { user, session }   = useAuth();
   const [liked,    setLiked]  = useState(initialLiked);
   const [count,    setCount]  = useState(initialCount);
   const [loading,  setLoading] = useState(false);
@@ -173,7 +173,7 @@ export function useLike(initialLiked: boolean, initialCount: number) {
     debounce.current = setTimeout(async () => {
       setLoading(true);
       try {
-        await apiPost(`${SOCIAL_API}/posts/${postId}/like`, {}, user.id);
+        await apiPost(`${SOCIAL_API}/posts/${postId}/like`, {}, user.id, session?.access_token);
       } catch {
         setLiked(!next);
         setCount(c => !next ? c + 1 : Math.max(0, c - 1));
@@ -192,14 +192,14 @@ export function useLike(initialLiked: boolean, initialCount: number) {
 // ─── Follow ───────────────────────────────────────────────────────────────────
 
 export function useFollow(targetUserId?: string) {
-  const { user }    = useAuth();
+  const { user, session }    = useAuth();
   const [following, setFollowing] = useState(false);
   const [stats,     setStats]     = useState({ followers: 0, following: 0 });
   const [loading,   setLoading]   = useState(false);
 
   useEffect(() => {
     if (!targetUserId || !user) return;
-    apiGet(`${SOCIAL_API}/follows/${targetUserId}/stats`, user.id)
+    apiGet(`${SOCIAL_API}/follows/${targetUserId}/stats`, user.id, session?.access_token)
       .then((d: any) => setStats({ followers: d.followers, following: d.following }))
       .catch(() => {});
   }, [targetUserId, user]);
@@ -211,7 +211,7 @@ export function useFollow(targetUserId?: string) {
     setFollowing(next);
     setStats(s => ({ ...s, followers: next ? s.followers + 1 : Math.max(0, s.followers - 1) }));
     try {
-      await apiPost(`${SOCIAL_API}/follows/${targetUserId}`, {}, user.id);
+      await apiPost(`${SOCIAL_API}/follows/${targetUserId}`, {}, user.id, session?.access_token);
     } catch {
       setFollowing(!next);
       setStats(s => ({ ...s, followers: !next ? s.followers + 1 : Math.max(0, s.followers - 1) }));
@@ -225,19 +225,27 @@ export function useFollow(targetUserId?: string) {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-async function apiGet(url: string, actorId?: string) {
+async function apiGet(url: string, actorId?: string, token?: string) {
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(actorId ? { 'X-Actor-Id': actorId } : {}) },
+    headers: { 
+        'Content-Type': 'application/json', 
+        ...(actorId ? { 'X-Actor-Id': actorId } : {}),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
   return data;
 }
 
-async function apiPost(url: string, body: any, actorId?: string) {
+async function apiPost(url: string, body: any, actorId?: string, token?: string) {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(actorId ? { 'X-Actor-Id': actorId } : {}) },
+    headers: { 
+        'Content-Type': 'application/json', 
+        ...(actorId ? { 'X-Actor-Id': actorId } : {}),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
     body: JSON.stringify(body)
   });
   const data = await res.json();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
@@ -94,7 +95,7 @@ const timeAgo = (dateStr: string) => {
 
 // Build a clean profile slug: prefer username, fallback to name-slug-id
 const profileSlug = (user: { id: string; name?: string; username?: string; display_name?: string }) => {
-    if (user.username && user.username.trim()) return `@${user.username.trim()}`;
+    if (user.username && user.username.trim()) return user.username.trim();
     const name = user.display_name || user.name || 'user';
     const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     return `${slug}-${user.id.substring(0, 8)}`;
@@ -134,6 +135,7 @@ const PostCard: React.FC<{
     const menuRef = useRef<HTMLDivElement>(null);
     useClickOutside(menuRef, () => setShowMenu(false));
 
+    const { session } = useAuth();
     const isOwnPost = currentUserId === post.author_id;
     const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
@@ -201,13 +203,13 @@ const PostCard: React.FC<{
             {/* Post Header */}
             <div className="flex items-start justify-between p-5 pb-3">
                 <div className="flex items-center gap-3">
-                    <Link to={`/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="relative group/avatar">
+                    <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="relative group/avatar">
                         <Avatar src={post.author_avatar} name={post.author_name} size={11} />
                         <div className="absolute inset-0 rounded-full border-2 border-brand-purple opacity-0 group-hover/avatar:opacity-100 transition-opacity" />
                     </Link>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <Link to={`/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
+                            <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
                                 {post.author_name}
                             </Link>
                             {post.author_role === 'admin' && (
@@ -475,7 +477,11 @@ const PostCard: React.FC<{
                                     try {
                                         const res = await fetch(`${API_URL}/api/community/offers`, {
                                             method: 'POST',
-                                            headers: { 'Content-Type': 'application/json', 'X-Actor-Id': currentUserId || '' },
+                                            headers: { 
+                                                'Content-Type': 'application/json', 
+                                                'X-Actor-Id': currentUserId || '',
+                                                'Authorization': `Bearer ${session?.access_token}`
+                                            },
                                             body: JSON.stringify({ post_id: post.id, amount: Number(offerAmount) })
                                         });
                                         if(res.ok) { 
@@ -500,6 +506,7 @@ const PostCard: React.FC<{
 
 // ─── Post Composer ────────────────────────────────────────────────
 const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ user, onPost }) => {
+    const { session } = useAuth();
     const [content, setContent] = useState('');
     const [isMarketplace, setIsMarketplace] = useState(false);
     const [price, setPrice] = useState('');
@@ -529,7 +536,11 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
 
             const res = await fetch(`${API_URL}/api/social/posts`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Actor-Id': user.id },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'X-Actor-Id': user.id,
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
                 body: JSON.stringify({
                     content: content.trim(),
                     media_urls: finalImageUrl ? [finalImageUrl] : [],
@@ -733,7 +744,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
             <div className="space-y-6">
                 {suggested.map(s => (
                     <div key={s.id} className="flex items-center gap-4 group/item">
-                        <Link to={`/@${profileSlug(s)}`} className="relative flex-shrink-0">
+                        <Link to={`/community/@${profileSlug(s)}`} className="relative flex-shrink-0">
                             <img
                                 src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`}
                                 onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`; }}

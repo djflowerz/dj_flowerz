@@ -63,9 +63,9 @@ async function getFeed(url, actor, env) {
   if (tab === 'following') {
     // Posts from people the actor follows + their own posts
     posts = await dbAll(env, `
-      SELECT p.*, u.username, u.display_name, u.avatar_url
+      SELECT p.*, u.username, u.full_name, u.avatar_url
       FROM posts p
-      JOIN user_profiles u ON u.id = p.author_id
+      JOIN profiles u ON u.id = p.author_id
       WHERE p.is_deleted = 0
         AND p.reply_to_id IS NULL
         AND (
@@ -79,9 +79,9 @@ async function getFeed(url, actor, env) {
     `, before ? [actor.id, actor.id, before, limit] : [actor.id, actor.id, limit]);
   } else if (tab === 'marketplace') {
     posts = await dbAll(env, `
-      SELECT p.*, u.username, u.display_name, u.avatar_url
+      SELECT p.*, u.username, u.full_name, u.avatar_url
       FROM posts p
-      JOIN user_profiles u ON u.id = p.author_id
+      JOIN profiles u ON u.id = p.author_id
       WHERE p.is_deleted = 0
         AND p.reply_to_id IS NULL
         AND p.is_marketplace = 1
@@ -92,13 +92,13 @@ async function getFeed(url, actor, env) {
   } else {
     // "For You" — trending posts weighted by recency + engagement
     posts = await dbAll(env, `
-      SELECT p.*, u.username, u.display_name, u.avatar_url,
+      SELECT p.*, u.username, u.full_name, u.avatar_url,
         -- simple score: likes×2 + reshares×3 + comments, decayed by age
         (p.like_count * 2 + p.reshare_count * 3 + p.comment_count
           - CAST((julianday('now') - julianday(p.created_at)) * 8 AS INTEGER)
         ) AS score
       FROM posts p
-      JOIN user_profiles u ON u.id = p.author_id
+      JOIN profiles u ON u.id = p.author_id
       WHERE p.is_deleted = 0
         AND p.reply_to_id IS NULL
         AND p.created_at > datetime('now', '-7 days')
@@ -120,9 +120,9 @@ async function getFeed(url, actor, env) {
 async function getTrending(url, env) {
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 50);
   const posts = await dbAll(env, `
-    SELECT p.*, u.username, u.display_name, u.avatar_url
+    SELECT p.*, u.username, u.full_name, u.avatar_url
     FROM posts p
-    JOIN user_profiles u ON u.id = p.author_id
+    JOIN profiles u ON u.id = p.author_id
     WHERE p.is_deleted = 0
       AND p.reply_to_id IS NULL
       AND p.created_at > datetime('now', '-48 hours')
@@ -136,9 +136,9 @@ async function getProfile(userId, url, env) {
   const limit  = Math.min(Number(url.searchParams.get('limit') ?? 20), 50);
   const before = url.searchParams.get('before') ?? null;
   const posts  = await dbAll(env, `
-    SELECT p.*, u.username, u.display_name, u.avatar_url
+    SELECT p.*, u.username, u.full_name, u.avatar_url
     FROM posts p
-    JOIN user_profiles u ON u.id = p.author_id
+    JOIN profiles u ON u.id = p.author_id
     WHERE p.author_id = ? AND p.is_deleted = 0 AND p.reply_to_id IS NULL
       ${before ? "AND p.created_at < ?" : ""}
     ORDER BY p.created_at DESC LIMIT ?
@@ -202,8 +202,8 @@ async function createPost(request, actor, env) {
 
 async function getPost(id, actor, env) {
   const post = await dbGet(env, `
-    SELECT p.*, u.username, u.display_name, u.avatar_url
-    FROM posts p JOIN user_profiles u ON u.id = p.author_id
+    SELECT p.*, u.username, u.full_name, u.avatar_url
+    FROM posts p JOIN profiles u ON u.id = p.author_id
     WHERE p.id = ? AND p.is_deleted = 0
   `, [id]);
   if (!post) return json({ error: 'Post not found' }, 404);
@@ -211,8 +211,8 @@ async function getPost(id, actor, env) {
   let quoted = null;
   if (post.quote_of_id) {
     quoted = await dbGet(env, `
-      SELECT p.*, u.username, u.display_name, u.avatar_url
-      FROM posts p JOIN user_profiles u ON u.id = p.author_id
+      SELECT p.*, u.username, u.full_name, u.avatar_url
+      FROM posts p JOIN profiles u ON u.id = p.author_id
       WHERE p.id = ?
     `, [post.quote_of_id]);
   }
@@ -227,8 +227,8 @@ async function getComments(postId, url, env) {
 
   // Top-level comments on this post
   const comments = await dbAll(env, `
-    SELECT p.*, u.username, u.display_name, u.avatar_url
-    FROM posts p JOIN user_profiles u ON u.id = p.author_id
+    SELECT p.*, u.username, u.full_name, u.avatar_url
+    FROM posts p JOIN profiles u ON u.id = p.author_id
     WHERE p.reply_to_id = ? AND p.is_deleted = 0
       ${after ? "AND p.created_at > ?" : ""}
     ORDER BY p.created_at ASC LIMIT ?
@@ -237,8 +237,8 @@ async function getComments(postId, url, env) {
   // For each top-level comment, fetch up to 3 nested replies
   const threaded = await Promise.all(comments.map(async (c) => {
     const replies = await dbAll(env, `
-      SELECT p.*, u.username, u.display_name, u.avatar_url
-      FROM posts p JOIN user_profiles u ON u.id = p.author_id
+      SELECT p.*, u.username, u.full_name, u.avatar_url
+      FROM posts p JOIN profiles u ON u.id = p.author_id
       WHERE p.reply_to_id = ? AND p.is_deleted = 0
       ORDER BY p.created_at ASC LIMIT 3
     `, [c.id]);
@@ -347,8 +347,8 @@ async function hydrateQuotes(posts, env) {
 
   const placeholders = quoteIds.map(() => '?').join(',');
   const quotes = await dbAll(env, `
-    SELECT p.*, u.username, u.display_name, u.avatar_url
-    FROM posts p JOIN user_profiles u ON u.id = p.author_id
+    SELECT p.*, u.username, u.full_name, u.avatar_url
+    FROM posts p JOIN profiles u ON u.id = p.author_id
     WHERE p.id IN (${placeholders})
   `, quoteIds);
 

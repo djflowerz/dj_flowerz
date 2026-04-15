@@ -26,6 +26,16 @@ dist-ssr
 *.bak
 .wrangler
 .vercel
+.netlify
+
+# Env files (keep examples, block secrets)
+.env.netlify
+.env.vercel.prod
+.env.vercel.debug
+.env.vercel.final
+.env.dj-flowerz
+.env.prod
+.env.production
 
 # Data & Large Files
 *.sql

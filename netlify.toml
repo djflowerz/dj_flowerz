@@ -1,8 +1,30 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Netlify doesn't need VERCEL=1; NPM_CONFIG_LEGACY_PEER_DEPS handles peer deps
+  environment = { NPM_CONFIG_LEGACY_PEER_DEPS = "true" }
 
-# Headers for cache control
+# ─── Scheduled Functions (replaces Vercel crons) ──────────────────────────────
+[functions]
+  directory = "netlify/functions"
+
+[functions."check-subscriptions"]
+  schedule = "0 1 * * *"   # Daily at 01:00 UTC
+
+[functions."sync-tracks"]
+  schedule = "0 0 * * *"   # Daily at 00:00 UTC
+
+# ─── Edge Functions ────────────────────────────────────────────────────────────
+# Handles bot / social-crawler requests for OG meta (replaces Vercel `has` rewrites)
+[[edge_functions]]
+  function = "og-proxy"
+  path = "/store/*"
+
+[[edge_functions]]
+  function = "og-proxy"
+  path = "/track/*"
+
+# ─── Cache Headers ─────────────────────────────────────────────────────────────
 [[headers]]
   for = "/api/v1/products"
   [headers.values]
@@ -14,37 +36,77 @@
     Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
+  for = "/*.ico"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.webp"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.svg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
   for = "/*"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
-# Domain Redirects
+# ─── Domain Redirect (old Netlify subdomain → custom domain) ───────────────────
 [[redirects]]
   from = "https://dj-flowerz.netlify.app/*"
   to = "https://djflowerz.co.ke/:splat"
   status = 301
   force = true
 
-# Proxies
+# ─── Sitemap proxy → Cloudflare Worker ────────────────────────────────────────
 [[redirects]]
   from = "/sitemap.xml"
   to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/sitemap.xml"
   status = 200
   force = true
 
+# ─── R2 media proxy ───────────────────────────────────────────────────────────
 [[redirects]]
   from = "/r2/*"
   to = "https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/:splat"
   status = 200
   force = true
 
+# ─── Remix & Mashups proxy ────────────────────────────────────────────────────
 [[redirects]]
   from = "/mashups/*"
   to = "https://remix-and-mashups-worker.dennismacharia20.workers.dev/:splat"
   status = 200
   force = true
 
-# Vercel Crons endpoints are not directly proxied by wildcards since they were specific
+# ─── Scheduled API triggers (proxied to Worker; cron via Netlify functions) ───
 [[redirects]]
   from = "/api/check-subscriptions"
   to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/check-subscriptions"
@@ -57,14 +119,20 @@
   status = 200
   force = true
 
-# Fallback for all other /api/ requests to the Cloudflare Worker
+[[redirects]]
+  from = "/api/debug-env"
+  to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/debug-env"
+  status = 200
+  force = true
+
+# ─── All other /api/* → Cloudflare Worker ─────────────────────────────────────
 [[redirects]]
   from = "/api/*"
   to = "https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/:splat"
   status = 200
   force = true
 
-# SPA catch-all (Must be last)
+# ─── SPA catch-all (MUST be last) ─────────────────────────────────────────────
 [[redirects]]
   from = "/*"
   to = "/index.html"
