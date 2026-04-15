@@ -2,7 +2,7 @@ import React from 'react';
 import {
     LayoutDashboard, ShoppingBag, Package, Music, Users,
     Settings, LogOut, Bell, MessageSquare, CreditCard, Crown,
-    Mail, Share2, Wallet, Megaphone
+    Mail, Share2, Wallet, Megaphone, ShieldAlert
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
