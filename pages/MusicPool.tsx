@@ -188,8 +188,15 @@ export default function MusicPool() {
     window.addEventListener('resize', handleResize);
     
     // Hard Redirect for non-subscribers/non-admins (Stealth Mode)
+    // We allow poolLoading to be true for a brief period, but if isSubscriber is clearly false and we have a user, boot them.
     if (!poolLoading && !isSubscriber && !user?.isAdmin) {
+      console.log("[MusicPool] Unauthorized access detected. Redirecting to home.");
       navigate('/', { replace: true });
+    }
+    
+    // Explicit guest check
+    if (!poolLoading && !user && !isSubscriber) {
+       navigate('/', { replace: true });
     }
     
     return () => window.removeEventListener('resize', handleResize);

@@ -396,7 +396,7 @@ export default {
         const corsHeaders = {
             "Access-Control-Allow-Origin": corsOrigin,
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name, x-upsert",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, x-folder, x-file-name, x-upsert, X-Actor-Id, X-Cron-Secret",
             "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
             "Access-Control-Allow-Credentials": "true",
             "Max-Age": "86400",

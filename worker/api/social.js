@@ -76,7 +76,6 @@ async function getFeed(url, actor, env) {
       ORDER BY p.created_at DESC
       LIMIT ?
     `, before ? [actor.id, actor.id, before, limit] : [actor.id, actor.id, limit]);
-    `, before ? [actor.id, actor.id, before, limit] : [actor.id, actor.id, limit]);
   } else if (tab === 'marketplace') {
     posts = await dbAll(env, `
       SELECT p.*, u.username, u.full_name, u.avatar_url
