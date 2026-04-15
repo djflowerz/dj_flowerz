@@ -1,103 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldCheck, Package, Truck, CheckCircle, Clock, 
-  AlertCircle, ChevronRight, ArrowRight, DollarSign,
-  TrendingUp, ShoppingBag, User, MapPin, Search,
-  Filter, MoreVertical, Zap, RefreshCw
+import {
+    ShieldCheck, AlertCircle, RefreshCw, Loader2, Wallet, 
+    ArrowUpRight, ArrowDownLeft, History, DollarSign
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { useMyEscrows, EscrowTransaction } from '../hooks/useEscrow';
+import { useWallet, WalletTransaction } from '../hooks/useWallet';
+import EscrowWidget from '../components/EscrowWidget';
 import OffersManager from '../src/components/community/OffersManager';
-
-const API_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke';
-
-interface EscrowOrder {
-    id: string;
-    post_id: string;
-    buyer_id: string;
-    seller_id: string;
-    amount: number;
-    status: 'HELD' | 'SHIPPED' | 'DELIVERED' | 'RELEASED' | 'DISPUTED';
-    shipping_address: string;
-    tracking_number: string | null;
-    created_at: string;
-    updated_at: string;
-    // Joined data
-    product_name?: string;
-    seller_name?: string;
-    buyer_name?: string;
-}
+import { toast } from 'sonner';
 
 const EscrowManager: React.FC = () => {
     const { user } = useAuth();
-    const [buyingOrders, setBuyingOrders] = useState<EscrowOrder[]>([]);
-    const [sellingOrders, setSellingOrders] = useState<EscrowOrder[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'buying' | 'selling' | 'offers'>('buying');
-    const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const isAdmin = user?.role === 'admin';
+    const [activeTab, setActiveTab] = useState<'buying' | 'selling' | 'offers' | 'courtroom' | 'wallet'>(isAdmin ? 'courtroom' : 'buying');
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const fetchOrders = async () => {
-        if (!user) return;
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/api/escrow/orders?userId=${user.id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setBuyingOrders(data.buying || []);
-                setSellingOrders(data.selling || []);
-            }
-        } catch (err) {
-            toast.error("Cloud synchronization failed");
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { balance, transactions: walletTxns, loading: walletLoading, refresh: refreshWallet, withdraw } = useWallet();
 
-    useEffect(() => {
-        fetchOrders();
-    }, [user]);
-
-    const updateStatus = async (orderId: string, status: string, tracking?: string) => {
-        setUpdatingId(orderId);
-        try {
-            const res = await fetch(`${API_URL}/api/escrow/update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    orderId, 
-                    status, 
-                    tracking,
-                    userId: user?.id 
-                })
-            });
-            if (res.ok) {
-                toast.success(`Order protocol updated: ${status}`);
-                fetchOrders();
-            } else {
-                const error = await res.text();
-                toast.error(error || "Authorization required for this state change");
-            }
-        } catch (err) {
-            toast.error("Network protocol error");
-        } finally {
-            setUpdatingId(null);
-        }
-    };
-
-    const getStatusUI = (status: string) => {
-        switch (status) {
-            case 'HELD': return { color: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Funds Held' };
-            case 'SHIPPED': return { color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Dispatched' };
-            case 'DELIVERED': return { color: 'text-brand-purple', bg: 'bg-brand-purple/10', label: 'Delivered' };
-            case 'RELEASED': return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Completed' };
-            case 'DISPUTED': return { color: 'text-red-500', bg: 'bg-red-500/10', label: 'In Dispute' };
-            default: return { color: 'text-gray-500', bg: 'bg-gray-500/10', label: status };
-        }
-    };
+    const { escrows: buyingEscrows, loading: buyLoading, refresh: refreshBuying } = useMyEscrows('buyer');
+    const { escrows: sellingEscrows, loading: sellLoading, refresh: refreshSelling } = useMyEscrows('seller');
+    const { escrows: courtroomEscrows, loading: courtLoading, refresh: refreshCourt } = useMyEscrows('admin');
 
     if (!user) return <Navigate to="/login" replace />;
+
+    const loading = buyLoading || sellLoading || courtLoading || walletLoading;
+    const activeEscrows = 
+        activeTab === 'buying' ? buyingEscrows : 
+        activeTab === 'selling' ? sellingEscrows : 
+        activeTab === 'courtroom' ? courtroomEscrows : [];
+
+    const refresh = () => { refreshBuying(); refreshSelling(); refreshWallet(); if (isAdmin) refreshCourt(); };
+
+    const STATE_COLOR: Record<string, string> = {
+        PENDING:   'text-amber-400 bg-amber-500/10',
+        FUNDED:    'text-emerald-400 bg-emerald-500/10',
+        SHIPPED:   'text-blue-400 bg-blue-500/10',
+        DELIVERED: 'text-emerald-400 bg-emerald-500/10',
+        RELEASED:  'text-emerald-400 bg-emerald-500/10',
+        DISPUTED:  'text-red-400 bg-red-500/10',
+        RESOLVED:  'text-emerald-400 bg-emerald-500/10',
+        REFUNDED:  'text-emerald-400 bg-emerald-500/10',
+        CANCELLED: 'text-gray-500 bg-white/5',
+    };
 
     return (
         <div className="pt-32 pb-24 min-h-screen bg-[#050507] relative overflow-hidden">
@@ -119,22 +66,31 @@ const EscrowManager: React.FC = () => {
                         <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">P2P Marketplace Lifecycle Management</p>
                     </div>
 
-                    <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 backdrop-blur-xl">
-                        {(['buying', 'selling', 'offers'] as const).map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setActiveTab(t)}
-                                className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                                    activeTab === t ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
-                                }`}
-                            >
-                                {t === 'offers' ? 'Negotiations' : t.toUpperCase()}
-                            </button>
-                        ))}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={refresh}
+                            disabled={loading}
+                            className="p-3 glass-card border border-white/10 rounded-xl text-gray-400 hover:text-white transition disabled:opacity-50"
+                        >
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                        </button>
+                        <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 backdrop-blur-xl">
+                            {(['buying', 'selling', 'offers', 'wallet', ...(isAdmin ? ['courtroom'] : [])] as const).map(t => (
+                                <button
+                                    key={t}
+                                    onClick={() => { setActiveTab(t); setSelectedId(null); }}
+                                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+                                        activeTab === t ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
+                                    }`}
+                                >
+                                    {t === 'offers' ? 'Negotiations' : t === 'courtroom' ? 'Courtroom ⚖️' : t.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                {/* Dashboard Grid */}
+                {/* Content */}
                 {loading ? (
                     <div className="py-20 flex flex-col items-center gap-4">
                         <RefreshCw className="text-brand-purple animate-spin" size={32} />
@@ -142,159 +98,231 @@ const EscrowManager: React.FC = () => {
                     </div>
                 ) : activeTab === 'offers' ? (
                     <OffersManager userId={user.id} />
+                ) : activeTab === 'wallet' ? (
+                    <WalletOverview 
+                        balance={balance} 
+                        transactions={walletTxns} 
+                        onWithdraw={withdraw} 
+                        loading={walletLoading}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 gap-6">
-                        {(activeTab === 'buying' ? buyingOrders : sellingOrders).length > 0 ? (
-                            (activeTab === 'buying' ? buyingOrders : sellingOrders).map(order => {
-                                const statusUI = getStatusUI(order.status);
-                                return (
-                                    <motion.div
-                                        key={order.id}
-                                        initial={{ opacity: 0, y: 20 }}
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        {/* Left: Escrow list */}
+                        <div className="lg:col-span-2 space-y-3">
+                            {activeEscrows.length === 0 ? (
+                                <div className="py-16 text-center glass-card rounded-3xl border border-white/5 space-y-4">
+                                    <AlertCircle className="mx-auto text-gray-700" size={40} />
+                                    <h3 className="text-gray-400 font-black uppercase tracking-[0.3em] text-sm">No Active Escrows</h3>
+                                    <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">
+                                        Buy or sell items in the community to activate escrow.
+                                    </p>
+                                    <div className="pt-4">
+                                        <Link to="/community" className="px-8 py-3 bg-brand-purple text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-purple/80 transition">
+                                            Visit Community
+                                        </Link>
+                                    </div>
+                                </div>
+                            ) : (
+                                activeEscrows.map(escrow => (
+                                    <motion.button
+                                        key={escrow.id}
+                                        onClick={() => setSelectedId(escrow.id === selectedId ? null : escrow.id)}
+                                        initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="group glass-card rounded-3xl border border-white/5 hover:border-brand-purple/20 transition-all overflow-hidden"
+                                        className={`w-full text-left glass-card rounded-2xl border transition-all overflow-hidden ${
+                                            selectedId === escrow.id
+                                                ? 'border-brand-purple/40 shadow-[0_0_20px_rgba(124,58,237,0.1)]'
+                                                : 'border-white/5 hover:border-white/15'
+                                        }`}
                                     >
-                                        <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                                            {/* Info Column */}
-                                            <div className="flex-1 space-y-6">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-brand-purple" />
-                                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Transaction ID: {order.id.slice(-8)}</span>
-                                                    </div>
-                                                    <div className={`px-4 py-1.5 rounded-full ${statusUI.bg} ${statusUI.color} text-[10px] font-black uppercase tracking-widest border border-current/20`}>
-                                                        {statusUI.label}
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <h3 className="text-2xl font-black text-white italic uppercase tracking-tight group-hover:text-brand-cyan transition-colors">
-                                                        {order.product_name || "Community Listing"}
-                                                    </h3>
-                                                    <div className="flex items-center gap-2 text-brand-purple mt-1">
-                                                        <DollarSign size={16} />
-                                                        <span className="text-xl font-black tracking-tighter">{order.amount.toLocaleString()} KES</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest block mb-2">{activeTab === 'buying' ? 'Counterparty (Seller)' : 'Counterparty (Buyer)'}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-brand-purple/10 flex items-center justify-center text-brand-purple">
-                                                                <User size={16} />
-                                                            </div>
-                                                            <span className="text-sm font-bold text-gray-300">@{activeTab === 'buying' ? order.seller_name : order.buyer_name}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest block mb-2">Transit Destination</span>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-brand-cyan/10 flex items-center justify-center text-brand-cyan">
-                                                                <MapPin size={16} />
-                                                            </div>
-                                                            <span className="text-sm font-bold text-gray-300 truncate">{order.shipping_address}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        <div className="p-4">
+                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                <p className="text-xs font-semibold text-white truncate flex-1">{escrow.item_description}</p>
+                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full shrink-0 ${STATE_COLOR[escrow.state] ?? 'text-gray-500 bg-white/5'}`}>
+                                                    {escrow.state}
+                                                </span>
                                             </div>
-
-                                            {/* Action Column */}
-                                            <div className="md:w-72 flex flex-col justify-between border-t md:border-t-0 md:border-l border-white/5 pt-6 md:pt-0 md:pl-8 gap-6">
-                                                <div className="space-y-4">
-                                                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Protocol Actions</h4>
-                                                    
-                                                    {activeTab === 'buying' ? (
-                                                        <>
-                                                            {order.status === 'SHIPPED' && (
-                                                                <button 
-                                                                    disabled={updatingId === order.id}
-                                                                    onClick={() => updateStatus(order.id, 'DELIVERED')}
-                                                                    className="w-full py-4 bg-brand-cyan text-black rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-brand-cyan/20 hover:scale-[1.02] transition-all disabled:opacity-50"
-                                                                >
-                                                                    Mark as Delivered
-                                                                </button>
-                                                            )}
-                                                            {order.status === 'DELIVERED' && (
-                                                                <button 
-                                                                    disabled={updatingId === order.id}
-                                                                    onClick={() => {
-                                                                        if(window.confirm("Release payment to the seller? Ensure you have inspected the items.")) {
-                                                                            updateStatus(order.id, 'RELEASED');
-                                                                        }
-                                                                    }}
-                                                                    className="w-full py-4 bg-emerald-500 text-black rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all disabled:opacity-50"
-                                                                >
-                                                                    Release Funds
-                                                                </button>
-                                                            )}
-                                                            {order.status === 'HELD' && (
-                                                                <p className="text-[10px] text-gray-500 font-bold text-center italic">Waiting for Dispatch...</p>
-                                                            )}
-                                                            {order.status === 'RELEASED' && (
-                                                                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl text-center">
-                                                                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Safe & Secured</p>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            {order.status === 'HELD' && (
-                                                                <button 
-                                                                    disabled={updatingId === order.id}
-                                                                    onClick={() => {
-                                                                        const tracking = window.prompt("Enter shipping/tracking details (e.g. G4S Ref #123)");
-                                                                        if (tracking) updateStatus(order.id, 'SHIPPED', tracking);
-                                                                    }}
-                                                                    className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-brand-purple/20 hover:scale-[1.02] transition-all disabled:opacity-50"
-                                                                >
-                                                                    Initialize Shipping
-                                                                </button>
-                                                            )}
-                                                            {order.status === 'SHIPPED' && (
-                                                                <div className="space-y-2">
-                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase text-center">Tracking: {order.tracking_number}</p>
-                                                                    <p className="text-[10px] text-amber-500 font-bold text-center italic">Awaiting Buyer Confirmation</p>
-                                                                </div>
-                                                            )}
-                                                            {order.status === 'RELEASED' && (
-                                                                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl text-center">
-                                                                     <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Funds Disbursed</p>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold uppercase">
-                                                    <span>Updated</span>
-                                                    <span>{new Date(order.updated_at).toLocaleDateString()}</span>
-                                                </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-black text-brand-purple">KES {escrow.amount_kes.toLocaleString()}</span>
+                                                <span className="text-[9px] text-gray-600">{new Date(escrow.created_at).toLocaleDateString()}</span>
                                             </div>
                                         </div>
-                                    </motion.div>
-                                );
-                            })
-                        ) : (
-                            <div className="py-32 text-center glass-card rounded-[3rem] border border-white/5 space-y-4">
-                                <AlertCircle className="mx-auto text-gray-800" size={48} />
-                                <h3 className="text-gray-400 font-black uppercase tracking-[0.3em]">No Active Assets Found</h3>
-                                <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">Buy or Sell items in the community to activate escrow protocols.</p>
-                                <div className="pt-6">
-                                    <Link 
-                                        to="/community" 
-                                        className="px-8 py-3 bg-brand-purple text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(124,58,237,0.3)] transition-all"
+                                        {selectedId === escrow.id && <div className="h-0.5 bg-gradient-to-r from-brand-purple to-brand-cyan" />}
+                                    </motion.button>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Right: Detail widget */}
+                        <div className="lg:col-span-3">
+                            <AnimatePresence mode="wait">
+                                {selectedId ? (
+                                    <motion.div
+                                        key={selectedId}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        transition={{ duration: 0.2 }}
                                     >
-                                        Visit Community
-                                    </Link>
-                                </div>
-                            </div>
-                        )}
+                                        <EscrowWidget escrowId={selectedId} />
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="empty"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="h-64 glass-card rounded-2xl border border-white/5 flex flex-col items-center justify-center gap-3"
+                                    >
+                                        <ShieldCheck size={32} className="text-gray-700" />
+                                        <p className="text-xs text-gray-600 font-medium">Select a transaction to view details</p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </div>
                 )}
             </div>
+
+            {/* Scammer Reporting Floating Button (Only visible on certain screens if needed) */}
+            {activeTab !== 'courtroom' && (
+                <div className="fixed bottom-8 right-8 z-50">
+                     <button 
+                        onClick={() => toast.info('Anti-Scam Shield Active', { description: 'Select a transaction and use the "Report" button if you suspect fraud.' })}
+                        className="p-4 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-full text-red-400 shadow-2xl transition group"
+                     >
+                         <AlertCircle size={24} />
+                         <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-black border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                             Anti-Scam Center
+                         </span>
+                     </button>
+                </div>
+            )}
         </div>
     );
 };
 
 export default EscrowManager;
+
+function WalletOverview({ balance, transactions, onWithdraw, loading }: { balance: number; transactions: WalletTransaction[]; onWithdraw: (a: number) => Promise<any>; loading: boolean }) {
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Balance Card */}
+            <div className="lg:col-span-1 space-y-6">
+                <div className="glass-card rounded-3xl border border-white/10 p-8 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-brand-purple/30 transition-colors" />
+                    <div className="relative z-10 space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-brand-purple/10 rounded-2xl border border-brand-purple/20">
+                                <Wallet className="text-brand-purple" size={24} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Available Balance</p>
+                                <h2 className="text-4xl font-display font-black text-white italic">
+                                    KES <span className="text-brand-purple">{balance.toLocaleString()}</span>
+                                </h2>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 pt-4 border-t border-white/5">
+                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Request Payout</p>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">KES</span>
+                                    <input 
+                                        type="number"
+                                        placeholder="Min 500"
+                                        value={withdrawAmount}
+                                        onChange={e => setWithdrawAmount(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-12 py-3 text-white text-sm focus:outline-none focus:border-brand-purple transition"
+                                    />
+                                </div>
+                                <button 
+                                    onClick={() => onWithdraw(Number(withdrawAmount))}
+                                    disabled={loading || !withdrawAmount || Number(withdrawAmount) < 500 || Number(withdrawAmount) > balance}
+                                    className="px-6 py-3 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-cyan hover:text-black transition disabled:opacity-50"
+                                >
+                                    Withdraw
+                                </button>
+                            </div>
+                            <p className="text-[9px] text-gray-600 font-medium italic">
+                                * Payouts are processed via Paystack/M-Pesa within 24 hours.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass-card rounded-2xl border border-white/5 p-6 bg-gradient-to-br from-brand-purple/5 to-transparent">
+                     <div className="flex items-start gap-4">
+                         <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                             <ShieldCheck size={18} />
+                         </div>
+                         <div className="space-y-1">
+                             <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Escrow Trust Shield</h4>
+                             <p className="text-[10px] text-gray-500 leading-relaxed">
+                                 Funds are held securely by DJ Flowerz. Sellers are paid only after buyers confirm receipt or 7 days pass without dispute.
+                             </p>
+                         </div>
+                     </div>
+                </div>
+            </div>
+
+            {/* Transaction History */}
+            <div className="lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <History size={16} className="text-brand-cyan" />
+                        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic">Transaction Registry</h3>
+                    </div>
+                    <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">Showing last 50 entries</span>
+                </div>
+
+                <div className="space-y-2">
+                    {transactions.length === 0 ? (
+                        <div className="py-20 text-center glass-card border border-white/5 rounded-3xl opacity-50">
+                            <p className="text-xs font-bold uppercase tracking-widest text-gray-600">No activity recorded yet</p>
+                        </div>
+                    ) : (
+                        transactions.map(txn => (
+                            <div key={txn.id} className="glass-card border border-white/5 rounded-2xl p-4 flex items-center justify-between group hover:border-white/10 transition">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-xl border ${
+                                        txn.type === 'CREDIT' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                        txn.type === 'WITHDRAWAL' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                        'bg-white/5 border-white/10 text-gray-400'
+                                    }`}>
+                                        {txn.type === 'CREDIT' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-xs font-black text-white uppercase tracking-wider">
+                                                {txn.type === 'CREDIT' ? 'Sales Revenue' : 'Withdrawal Request'}
+                                            </p>
+                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                txn.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' :
+                                                txn.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400' :
+                                                'bg-red-500/10 text-red-400'
+                                            }`}>
+                                                {txn.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-600 font-medium">
+                                            {txn.escrow_id ? `Order Ref: #${txn.escrow_id.slice(-6)}` : `ID: ${txn.id.slice(-8)}`} • {new Date(txn.created_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className={`text-sm font-black ${txn.amount_kes > 0 ? 'text-emerald-400' : 'text-white'}`}>
+                                        {txn.amount_kes > 0 ? '+' : ''}{txn.amount_kes.toLocaleString()} KES
+                                    </p>
+                                    <p className="text-[9px] text-gray-700 font-bold uppercase tracking-tighter">Cleared Balance</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

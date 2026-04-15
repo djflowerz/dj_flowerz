@@ -47,28 +47,31 @@ export async function handleCommunityProfile(request, env) {
 
         // ─── GET PROFILE ──────────────────────────────────────────────────
         if (request.method === 'GET' && !isUpdate) {
-            // Slug format: 'name-slug-uuid8chars' or just a UUID/username
+            const authUser = await getAuthorizedUser(request, env);
             let rawIdentifier = lastPart.replace('@', '');
-            // Extract UUID portion if slug has format 'something-xxxxxxxx' (8 hex chars at end)
             const slugMatch = rawIdentifier.match(/^(.+)-([0-9a-f]{8})$/i);
             const identifier = slugMatch ? slugMatch[2] : rawIdentifier;
-            // We try full identifier first (handles pure UUID and pure username)
-            // and also the slug suffix as a partial ID match
 
-
-            // 1. Try D1 profiles table
+            // 1. Fetch entire user profile with reputation metrics
             let userProfile = null;
             try {
                 const isPartial = identifier.length === 8 && /^[0-9a-f]+$/i.test(identifier);
                 userProfile = await env.DB.prepare(`
                     SELECT 
-                        id,
+                        id, email,
                         COALESCE(full_name, 'User') as name,
                         COALESCE(username, '') as username,
                         COALESCE(bio, '') as bio,
                         COALESCE(avatar_url, '') as avatar_url,
                         COALESCE(location, '') as location,
                         COALESCE(role, 'user') as role,
+                        COALESCE(seller_tier, 'bronze') as seller_tier,
+                        COALESCE(success_deals, 0) as success_deals,
+                        COALESCE(total_deals, 0) as total_deals,
+                        COALESCE(avg_rating, 0) as avg_rating,
+                        COALESCE(total_reviews, 0) as total_reviews,
+                        COALESCE(wallet_balance_kes, 0) as wallet_balance_kes,
+                        COALESCE(m_pesa_number, '') as m_pesa_number,
                         created_at
                     FROM profiles
                     WHERE (username != '' AND LOWER(username) = LOWER(?)) 
@@ -80,63 +83,75 @@ export async function handleCommunityProfile(request, env) {
                 console.error('[ProfileLookup]', e.message);
             }
 
-            // 2. Fallback: build a synthetic profile from community_posts author metadata
-            if (!userProfile) {
-                const isPartial = identifier.length === 8 && /^[0-9a-f]+$/i.test(identifier);
-                const latestPost = await env.DB.prepare(`
-                    SELECT user_id, author_name, author_avatar, author_role, created_at
-                    FROM community_posts
-                    WHERE user_id = ? OR (user_id LIKE ? AND ${isPartial ? 1 : 0} = 1)
-                    ORDER BY created_at ASC LIMIT 1
-                `).bind(identifier, `${identifier}%`).first();
-
-
-                if (latestPost) {
-                    userProfile = {
-                        id: latestPost.user_id,
-                        name: latestPost.author_name || 'Community Member',
-                        username: '',
-                        bio: '',
-                        avatar_url: latestPost.author_avatar || '',
-                        location: '',
-                        role: latestPost.author_role || 'user',
-                        created_at: latestPost.created_at
-                    };
-                }
-            }
-
             if (!userProfile) {
                 return new Response(JSON.stringify({ error: 'User not found' }), {
                     status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
                 });
             }
 
-            // 3. Stats
+            const isOwner = authUser && authUser.id === userProfile.id;
+            const isPrivate = userProfile.is_profile_private === 1;
+
+            // 2. Data Masking for non-owners
+            const publicProfile = { ...userProfile };
+            if (!isOwner) {
+                delete publicProfile.email;
+                delete publicProfile.wallet_balance_kes;
+                delete publicProfile.m_pesa_number;
+                delete publicProfile.is_shadow_flagged;
+                if (isPrivate) {
+                    delete publicProfile.location;
+                    delete publicProfile.success_deals;
+                    delete publicProfile.total_deals;
+                    publicProfile.bio = "[This profile is private]";
+                }
+            }
+
+            // 3. Stats & Social Graph
             const [followerCount, followingCount, postCount] = await Promise.all([
                 env.DB.prepare(`SELECT COUNT(*) as count FROM community_follows WHERE following_id = ?`).bind(userProfile.id).first(),
                 env.DB.prepare(`SELECT COUNT(*) as count FROM community_follows WHERE follower_id = ?`).bind(userProfile.id).first(),
                 env.DB.prepare(`SELECT COUNT(*) as count FROM community_posts WHERE user_id = ?`).bind(userProfile.id).first(),
             ]);
 
-            // 4. Posts
-            const { results: posts } = await env.DB.prepare(`
-                SELECT p.*,
-                    (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) as likes_count,
-                    (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id) as comments_count
-                FROM community_posts p
-                WHERE p.user_id = ?
-                ORDER BY p.created_at DESC
-                LIMIT 50
-            `).bind(userProfile.id).all();
+            // 4. Content (Social Posts + Marketplace Listings)
+            let posts = [];
+            let listings = [];
+
+            if (!isPrivate || isOwner) {
+                const results = await Promise.all([
+                    env.DB.prepare(`
+                        SELECT p.*,
+                            (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) as likes_count,
+                            (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id) as comments_count
+                        FROM community_posts p
+                        WHERE p.user_id = ?
+                        ORDER BY p.created_at DESC LIMIT 30
+                    `).bind(userProfile.id).all(),
+                    env.DB.prepare(`
+                        SELECT * FROM marketplace_listings 
+                        WHERE seller_id = ? AND status = 'active'
+                        ORDER BY created_at DESC LIMIT 20
+                    `).bind(userProfile.id).all()
+                ]);
+                posts = results[0].results;
+                listings = results[1].results;
+            }
 
             return Response.json({
-                profile: userProfile,
+                profile: publicProfile,
+                is_owner: isOwner,
+                is_private: isPrivate,
                 stats: {
                     followers: followerCount?.count || 0,
                     following: followingCount?.count || 0,
-                    posts: postCount?.count || 0,
+                    posts: (isPrivate && !isOwner) ? 0 : (postCount?.count || 0),
+                    success_rate: (isPrivate && !isOwner) ? null : (userProfile.total_deals > 0 
+                        ? Math.round((userProfile.success_deals / userProfile.total_deals) * 100) 
+                        : 100)
                 },
-                posts
+                posts: posts || [],
+                listings: listings || []
             }, { headers: corsHeaders });
         }
 

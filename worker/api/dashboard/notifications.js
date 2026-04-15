@@ -117,14 +117,27 @@ export async function handleUserNotifications(request, env) {
         const user = await getAuthorizedUser(request, env);
         if (!user) return new Response('Unauthorized', { status: 401 });
 
+        // REAL-TIME: JOIN profiles to ensure actor info (name/avatar) is ALWAYS current
         const { results } = await env.DB.prepare(`
-            SELECT * FROM notifications 
-            WHERE user_id = ? 
-            ORDER BY created_at DESC 
+            SELECT 
+                n.*,
+                COALESCE(p.full_name, n.actor_name, 'User') as actor_name,
+                COALESCE(p.avatar_url, n.actor_avatar, '') as actor_avatar,
+                COALESCE(p.username, n.actor_username, '') as actor_username
+            FROM notifications n
+            LEFT JOIN profiles p ON n.actor_id = p.id
+            WHERE n.user_id = ? 
+            ORDER BY n.created_at DESC 
             LIMIT 50
         `).bind(user.id).all();
 
-        return Response.json(results, { headers: { 'Access-Control-Allow-Origin': '*' } });
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        };
+
+        return Response.json(results, { headers: corsHeaders });
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
     }

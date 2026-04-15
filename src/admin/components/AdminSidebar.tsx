@@ -21,6 +21,7 @@ const navItems = [
     { icon: Crown, label: 'Subscriptions', path: '/admin/subscriptions' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
+    { icon: ShieldAlert, label: 'Command Centre', path: '/admin/command-centre' },
 ];
 
 export const AdminSidebar: React.FC = () => {

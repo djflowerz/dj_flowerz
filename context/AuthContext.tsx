@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       // 1. Fetch Real-time Profile from D1 (Source of Truth)
-      const apiBase = import.meta.env.VITE_API_URL || '';
+      const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
       const response = await fetch(`${apiBase}/api/user/me`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -278,16 +278,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Sync with Supabase Auth state
   useEffect(() => {
     let mounted = true;
+    let isFetching = false;
 
+    const safeFetch = async (sess: any) => {
+      if (isFetching || !mounted) return;
+      isFetching = true;
+      try {
+        await fetchProfileAndSetUser(sess);
+      } finally {
+        if (mounted) isFetching = false;
+      }
+    };
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) fetchProfileAndSetUser(session);
+      if (mounted) safeFetch(session);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) fetchProfileAndSetUser(session);
+      if (mounted) safeFetch(session);
     });
 
     // Capture referral code from URL
@@ -568,7 +578,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }).catch(() => {});
 
         // 2. Update D1 (For Admin Dashboard)
-        const apiBase = import.meta.env.VITE_API_URL || '';
+        const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
         fetch(`${apiBase}/api/presence`, {
           method: 'POST',
           headers: {

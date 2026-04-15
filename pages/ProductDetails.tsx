@@ -193,6 +193,36 @@ export default function ProductDetails() {
 
   return (
     <div className="bg-[#050507] text-white min-h-screen pt-24 pb-20">
+      {/* Rich Discovery: JSON-LD SEO */}
+      {product && (
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": product.name,
+            "image": [product.image || product.image_url, ...(product.images || [])],
+            "description": product.shortDescription || product.description?.replace(/<[^>]*>?/gm, '').slice(0, 160),
+            "sku": product.sku || product.id,
+            "brand": {
+              "@type": "Brand",
+              "name": product.brand || "DJ Flowerz"
+            },
+            "offers": {
+              "@type": "Offer",
+              "url": window.location.href,
+              "priceCurrency": "KES",
+              "price": displayPrice,
+              "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              "seller": {
+                "@type": "Organization",
+                "name": "DJ Flowerz Marketplace"
+              }
+            },
+            "category": product.category
+          })}
+        </script>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Breadcrumbs */}

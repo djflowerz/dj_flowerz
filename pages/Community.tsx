@@ -9,7 +9,7 @@ import {
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
 
-const API_URL = '';
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
 // Hook: close dropdown when clicking outside
 function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () => void) {

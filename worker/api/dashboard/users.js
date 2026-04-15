@@ -80,16 +80,12 @@ export async function handleDashboardUsers(request, env) {
             const fieldMap = {
                 full_name: 'full_name',
                 name: 'full_name',
-                phone_number: 'phone',
-                phone: 'phone',
+                phone_number: 'phone_number',
                 is_subscriber: 'is_subscriber',
-                referral_balance_kes: 'referral_balance_kes',
-                referral_code: 'referral_code',
                 role: 'role',
-                subscription_plan: 'subscription_plan',
-                subscription_expiry: 'subscription_expiry',
-                daily_download_count: 'daily_download_count',
-                last_download_reset: 'last_download_reset',
+                seller_tier: 'seller_tier',
+                is_shadow_flagged: 'is_shadow_flagged',
+                is_profile_private: 'is_profile_private',
                 loyalty_points: 'loyalty_points'
             };
 
@@ -103,10 +99,22 @@ export async function handleDashboardUsers(request, env) {
             if (fields.length > 0) {
                 fields.push('updated_at = CURRENT_TIMESTAMP');
                 values.push(userId);
-                const result = await env.DB.prepare(
+                
+                await env.DB.prepare(
                     `UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`
                 ).bind(...values).run();
-                console.log(`[Users] Update result for ${userId}:`, result);
+
+                // Log the moderation action
+                await env.DB.prepare(`
+                    INSERT INTO admin_logs (id, admin_id, action_type, reference_id, details)
+                    VALUES (?, ?, ?, ?, ?)
+                `).bind(
+                    crypto.randomUUID(), 
+                    user.id, 
+                    'USER_UPDATE', 
+                    userId, 
+                    `Updated fields: ${Object.keys(body).join(', ')}`
+                ).run();
             }
 
             return new Response(JSON.stringify({ success: true }), {

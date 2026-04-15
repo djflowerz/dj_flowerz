@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { toast } from 'sonner';
 import { Flame, ShoppingBag, UserPlus, Heart } from 'lucide-react';
 
-const API_URL = '';
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
 const LiveEventStreamer: React.FC = () => {
     useEffect(() => {

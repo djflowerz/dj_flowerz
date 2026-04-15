@@ -1,125 +1,166 @@
+// worker/api/run_setup.js
 export async function handleSetupDB(request, env) {
     const stmts = [
-        `CREATE TABLE IF NOT EXISTS coupons_new (
+        // 1. PROFILES EXPANSION (Auth, Reputation, Wallet)
+        `ALTER TABLE profiles ADD COLUMN password_hash TEXT`,
+        `ALTER TABLE profiles ADD COLUMN shadow_salt TEXT`,
+        `ALTER TABLE profiles ADD COLUMN m_pesa_number TEXT`,
+        `ALTER TABLE profiles ADD COLUMN is_shadow_flagged INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN wallet_balance_kes REAL DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN total_deals INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN success_deals INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN avg_release_hours REAL DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN seller_tier TEXT DEFAULT 'bronze'`,
+        `ALTER TABLE profiles ADD COLUMN avg_rating REAL DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN total_reviews INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN report_count INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN phone_verified INTEGER DEFAULT 0`,
+        `ALTER TABLE profiles ADD COLUMN is_profile_private INTEGER DEFAULT 0`,
+
+        // 2. MARKETPLACE LISTINGS
+        `CREATE TABLE IF NOT EXISTS marketplace_listings (
             id TEXT PRIMARY KEY,
-            code TEXT UNIQUE NOT NULL,
-            scope TEXT DEFAULT 'all',
-            discount_type TEXT DEFAULT 'percentage',
-            discount_value REAL NOT NULL,
-            min_spend REAL DEFAULT 0,
-            expiry_date DATETIME,
-            usage_limit INTEGER,
-            usage_count INTEGER DEFAULT 0,
-            is_one_time_per_user INTEGER DEFAULT 0,
-            applicable_plans TEXT,
-            is_active INTEGER DEFAULT 1,
+            seller_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            price_kes REAL NOT NULL,
+            category TEXT,
+            condition TEXT,
+            location TEXT,
+            image_urls TEXT,
+            status TEXT DEFAULT 'active',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        `INSERT OR IGNORE INTO coupons_new (id, code, discount_type, discount_value, min_spend, usage_limit, usage_count, expiry_date, is_active, created_at, updated_at)
-         SELECT id, code, discount_type, discount_value, min_purchase, usage_limit, usage_count, expiry_date, is_active, created_at, created_at
-         FROM coupons`,
-        `DROP TABLE coupons`,
-        `ALTER TABLE coupons_new RENAME TO coupons`,
-        
-        `CREATE TABLE IF NOT EXISTS installment_plans_new (
+
+        // 3. ESCROW MESSAGES (P2P Deal Chat)
+        `CREATE TABLE IF NOT EXISTS escrow_messages (
             id TEXT PRIMARY KEY,
-            order_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            product_id TEXT,
-            product_name TEXT,
-            total_amount REAL NOT NULL,
-            deposit_amount REAL NOT NULL,
-            paid_amount REAL NOT NULL DEFAULT 0,
-            balance REAL NOT NULL,
-            installments_count INTEGER NOT NULL DEFAULT 3,
-            payment_interval TEXT DEFAULT 'monthly',
-            status TEXT DEFAULT 'active',
-            next_payment_date DATETIME,
-            reminder_channel TEXT DEFAULT 'email',
-            is_reminder_enabled INTEGER DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
-        `INSERT OR IGNORE INTO installment_plans_new (id, order_id, user_id, total_amount, deposit_amount, balance, installments_count, payment_interval, status, next_payment_date, created_at)
-         SELECT id, order_id, user_id, total_amount, deposit_amount, remaining_balance, installment_count, frequency, status, next_payment_date, start_date
-         FROM installment_plans`,
-        `DROP TABLE installment_plans`,
-        `ALTER TABLE installment_plans_new RENAME TO installment_plans`,
-        
-        `DROP TABLE IF EXISTS affiliates`,
-        `CREATE TABLE affiliates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            full_name TEXT,
-            email TEXT,
-            phone_number TEXT,
-            referral_code TEXT UNIQUE,
-            commission_percent REAL DEFAULT 10.0,
-            notes TEXT,
-            status TEXT DEFAULT 'active',
+            escrow_id TEXT NOT NULL,
+            sender_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            is_system INTEGER DEFAULT 0,
+            attachment_url TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        
-        `CREATE TABLE IF NOT EXISTS referral_stats_new (
-            referrer_id TEXT PRIMARY KEY,
-            total_referrals INTEGER DEFAULT 0,
-            total_earned REAL DEFAULT 0,
-            pending_payout REAL DEFAULT 0,
-            last_payout_at DATETIME,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
-        `INSERT OR IGNORE INTO referral_stats_new (referrer_id, total_referrals, total_earned)
-         SELECT referrer_id, COALESCE(total_referrals, 0), COALESCE(total_earned_commission, 0)
-         FROM referral_stats`,
-        `INSERT OR IGNORE INTO referral_stats_new (referrer_id, total_referrals, total_earned)
-         SELECT affiliate_id, conversion_count, 0
-         FROM referral_stats`,
-        `DROP TABLE referral_stats`,
-        `ALTER TABLE referral_stats_new RENAME TO referral_stats`,
-        
-        `ALTER TABLE subscribers ADD COLUMN is_active INTEGER DEFAULT 1`,
-        `ALTER TABLE subscribers ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
-        `UPDATE subscribers SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END`,
-        
-        `ALTER TABLE newsletter_campaigns ADD COLUMN target_audience TEXT DEFAULT 'all'`,
-        `ALTER TABLE profiles ADD COLUMN referral_code TEXT`,
-        `ALTER TABLE profiles ADD COLUMN last_login DATETIME`,
-        `ALTER TABLE profiles ADD COLUMN presence_status TEXT DEFAULT 'offline'`,
-        `ALTER TABLE profiles ADD COLUMN last_seen DATETIME`,
-        `ALTER TABLE profiles ADD COLUMN loyalty_points INTEGER DEFAULT 0`,
-        `ALTER TABLE profiles ADD COLUMN daily_download_count INTEGER DEFAULT 0`,
-        `ALTER TABLE profiles ADD COLUMN last_download_reset DATETIME DEFAULT CURRENT_TIMESTAMP`,
-        `ALTER TABLE profiles ADD COLUMN username TEXT`,
-        `ALTER TABLE profiles ADD COLUMN bio TEXT`,
-        `ALTER TABLE profiles ADD COLUMN avatar_url TEXT`,
-        `ALTER TABLE profiles ADD COLUMN location TEXT`,
-        `CREATE TABLE IF NOT EXISTS escrow_orders (
+        `CREATE INDEX IF NOT EXISTS idx_escrow_messages_escrow_id ON escrow_messages(escrow_id)`,
+
+        // 4. WALLET TRANSACTIONS AUDIT
+        `CREATE TABLE IF NOT EXISTS wallet_transactions_new (
             id TEXT PRIMARY KEY,
-            post_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            amount_kes REAL NOT NULL,
+            type TEXT NOT NULL, 
+            escrow_id TEXT,
+            status TEXT DEFAULT 'PENDING',
+            payout_receipt_code TEXT,
+            payout_admin_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        // Migration logic for wallet
+        `INSERT OR IGNORE INTO wallet_transactions_new (id, user_id, amount_kes, type, escrow_id, status, created_at)
+         SELECT id, user_id, amount_kes, type, escrow_id, status, created_at
+         FROM wallet_transactions`,
+        `DROP TABLE IF EXISTS wallet_transactions`,
+        `ALTER TABLE wallet_transactions_new RENAME TO wallet_transactions`,
+
+        // 5. ESCROW CORE REFINEMENT
+        `CREATE TABLE IF NOT EXISTS escrow_transactions_new (
+            id TEXT PRIMARY KEY,
+            listing_id TEXT,
             buyer_id TEXT NOT NULL,
             seller_id TEXT NOT NULL,
-            amount REAL NOT NULL,
-            status TEXT DEFAULT 'HELD',
-            shipping_address TEXT,
+            amount_kes REAL NOT NULL,
+            fee_kes REAL NOT NULL,
+            seller_receives REAL NOT NULL,
+            item_description TEXT,
+            state TEXT DEFAULT 'PENDING',
+            paystack_ref TEXT,
             tracking_number TEXT,
+            shipping_carrier TEXT,
+            release_code TEXT,
+            release_attempts INTEGER DEFAULT 0,
+            is_blocked INTEGER DEFAULT 0,
             dispute_reason TEXT,
+            resolution_notes TEXT,
+            inspection_end_time DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            funded_at DATETIME,
+            shipped_at DATETIME,
+            delivered_at DATETIME,
+            released_at DATETIME,
+            auto_release_at DATETIME,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        `CREATE TABLE IF NOT EXISTS notifications (
+        `INSERT OR IGNORE INTO escrow_transactions_new (id, listing_id, buyer_id, seller_id, amount_kes, fee_kes, seller_receives, item_description, state, paystack_ref, tracking_number, shipping_carrier, dispute_reason, resolution_notes, created_at, updated_at)
+         SELECT id, listing_id, buyer_id, seller_id, amount_kes, fee_kes, seller_receives, item_description, state, paystack_ref, tracking_number, shipping_carrier, dispute_reason, resolution_notes, created_at, updated_at
+         FROM escrow_transactions`,
+        `DROP TABLE IF EXISTS escrow_transactions`,
+        `ALTER TABLE escrow_transactions_new RENAME TO escrow_transactions`,
+
+        // 6. REPUTATION & LOGS
+        `CREATE TABLE IF NOT EXISTS user_reports (
+            id TEXT PRIMARY KEY,
+            reporter_id TEXT NOT NULL,
+            reported_id TEXT NOT NULL,
+            escrow_id TEXT,
+            reason TEXT NOT NULL,
+            details TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // 7. NOTIFICATIONS SCHEMA FIX
+        `CREATE TABLE IF NOT EXISTS notifications_new (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             actor_id TEXT,
             actor_name TEXT,
             actor_avatar TEXT,
+            actor_username TEXT,
             type TEXT NOT NULL,
+            reference_id TEXT,
             target_id TEXT,
             message TEXT,
             is_read INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        `CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)`,
-        `UPDATE profiles SET username = 'djflowerz' WHERE email = 'ianmuriithiflowerz@gmail.com' AND (username IS NULL OR username = '')`
+        `INSERT OR IGNORE INTO notifications_new (id, user_id, type, reference_id, message, is_read, created_at)
+         SELECT id, user_id, type, reference_id, message, is_read, created_at
+         FROM notifications`,
+        `DROP TABLE IF EXISTS notifications`,
+        `ALTER TABLE notifications_new RENAME TO notifications`,
+
+        // 8. ADMIN & SYSTEM SECURITY
+        `CREATE TABLE IF NOT EXISTS admin_logs (
+            id TEXT PRIMARY KEY,
+            admin_id TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            reference_id TEXT,
+            before_state TEXT,
+            after_state TEXT,
+            details TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            description TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `INSERT OR IGNORE INTO system_settings (key, value, description) VALUES ('MAINTENANCE_MODE', '0', 'Global Kill Switch')`,
+
+        // 9. PWA & PUSH NOTIFICATIONS
+        `CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            device_type TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subs_user_endpoint ON push_subscriptions(user_id, endpoint)`
     ];
 
     let errs = [];
@@ -129,8 +170,17 @@ export async function handleSetupDB(request, env) {
            await env.DB.prepare(s).run();
            successes++;
         } catch (e) {
-           errs.push({ stmt: s.substring(0, 50), error: e.message });
+           if (!e.message.includes('duplicate column') && !e.message.includes('already exists')) {
+               errs.push({ stmt: s.substring(0, 50), error: e.message });
+           } else {
+               successes++;
+           }
         }
     }
-    return new Response(JSON.stringify({ success: true, total: stmts.length, successes, errors: errs }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+        success: true, 
+        total: stmts.length, 
+        successes, 
+        errors: errs 
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }

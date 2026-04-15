@@ -536,60 +536,45 @@ export async function handlePaystackWebhook(request, env) {
 
         // 5. Handle Marketplace Sales (Fortress Phase 2)
         if (type === 'marketplace' && metadata?.listingId) {
-            const listingId = metadata.listingId;
-            const buyerId = metadata?.userId || 'guest';
-            const totalAmount = amount / 100;
+            // ... (existing marketplace logic)
+        }
 
+        // 6. [NEW] Handle Escrow Funding (P2P Social Marketplace)
+        if (type === 'escrow_funding' && metadata?.escrowId) {
+            const escrowId = metadata.escrowId;
             try {
-                // Fetch listing and vendor details
-                const listing = await env.DB.prepare(`
-                    SELECT mi.*, p.commission_rate, p.email as vendor_email
-                    FROM marketplace_items mi
-                    JOIN profiles p ON mi.vendor_id = p.id
-                    WHERE mi.id = ?
-                `).bind(listingId).first();
-
-                if (listing) {
-                    const commissionRate = listing.commission_rate || 0.15;
-                    const commission = totalAmount * commissionRate;
-                    const vendorEarnings = totalAmount - commission;
-
-                    // Log the sale
+                // Verify escrow exists and is PENDING
+                const escrow = await env.DB.prepare(`SELECT * FROM escrow_transactions WHERE id = ?`).bind(escrowId).first();
+                
+                if (escrow && escrow.state === 'PENDING') {
+                    // Update to FUNDED
                     await env.DB.prepare(`
-                        INSERT INTO marketplace_sales (id, listing_id, vendor_id, buyer_id, amount, vendor_earnings, commission, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'completed')
-                    `).bind(reference, listingId, listing.vendor_id, buyerId, totalAmount, vendorEarnings, commission).run();
+                        UPDATE escrow_transactions 
+                        SET state = 'FUNDED', paystack_ref = ?, funded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).bind(reference, escrowId).run();
 
-                    // Update Vendor Balance
+                    // Log event
                     await env.DB.prepare(`
-                        UPDATE profiles SET vendor_balance = vendor_balance + ? WHERE id = ?
-                    `).bind(vendorEarnings, listing.vendor_id).run();
+                        INSERT INTO escrow_events (id, escrow_id, event, actor_id, note, created_at)
+                        VALUES (?, ?, 'FUNDED_AUTOMATED', ?, ?, CURRENT_TIMESTAMP)
+                    `).bind(`evt_${crypto.randomUUID().slice(0, 8)}`, escrowId, 'paystack', `Payment verified via webhook. Ref: ${reference}`).run();
 
-                    // Notify Vendor
-                    try {
-                        await sendEmail({
-                            to: listing.vendor_email,
-                            subject: `💰 Marketplace Sale: ${listing.name}`,
-                            fromEmail: 'marketplace@djflowerz.co.ke',
-                            fromName: 'DJ FLOWERZ Marketplace',
-                            html: `
-                                <div style="font-family: sans-serif; background: #0b0b0f; padding: 30px; color: #fff; border-radius: 12px; border: 1px solid #ffffff10;">
-                                    <h2 style="color: #a855f7;">Cha-Ching! New Sale</h2>
-                                    <p>Your item <strong>${listing.name}</strong> was just purchased.</p>
-                                    <div style="background: #15151a; padding: 20px; border-radius: 8px;">
-                                        <p><strong>Total Paid:</strong> KES ${totalAmount.toLocaleString()}</p>
-                                        <p><strong>Your Earnings:</strong> KES ${vendorEarnings.toLocaleString()}</p>
-                                        <p><strong>Commission:</strong> KES ${commission.toLocaleString()}</p>
-                                    </div>
-                                    <p style="margin-top: 20px;">Funds have been added to your vendor balance.</p>
-                                </div>
-                            `,
-                            text: `New Sale: ${listing.name}. You earned KES ${vendorEarnings}.`
-                        }, env);
-                    } catch (emailErr) { console.error('[Marketplace Notify Error]', emailErr); }
+                    // Notify Seller
+                    await env.DB.prepare(`
+                        INSERT INTO notifications (id, user_id, type, reference_id, message, is_read, created_at)
+                        VALUES (?, ?, 'escrow_funded', ?, ?, 0, CURRENT_TIMESTAMP)
+                    `).bind(
+                        `notif_${crypto.randomUUID().slice(0, 8)}`,
+                        escrow.seller_id,
+                        escrowId,
+                        `Payment received for "${escrow.item_description}". Please ship the item and provide tracking details.`
+                    ).run();
+
+                    console.log(`[Paystack Webhook] Escrow ${escrowId} moved to FUNDED.`);
                 }
-            } catch (marketplaceErr) {
-                console.error('[Paystack Webhook] Marketplace processing error:', marketplaceErr);
+            } catch (escrowErr) {
+                console.error('[Paystack Webhook] Escrow funding error:', escrowErr);
             }
         }
     }

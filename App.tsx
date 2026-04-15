@@ -13,6 +13,7 @@ import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
 import LiveEventStreamer from './components/LiveEventStreamer';
+import { PushBanner } from './src/components/PushBanner';
 
 import AccessDenied from './components/AccessDenied';
 
@@ -66,6 +67,7 @@ const AdminAffiliates = lazy(() => import('./src/admin/pages/Affiliates'));
 const AdminInstallments = lazy(() => import('./src/admin/pages/Installments'));
 const AdminMarketing = lazy(() => import('./src/admin/pages/Marketing'));
 const AdminShipping = lazy(() => import('./src/admin/pages/Shipping'));
+const AdminCommandCentre = lazy(() => import('./src/admin/pages/CommandCentre'));
 const VideoSession = lazy(() => import('./pages/VideoSession'));
 
 const ScrollToTop = () => {
@@ -165,6 +167,7 @@ const App: React.FC = () => {
               <LiveEventStreamer />
 
               <Layout>
+                <PushBanner />
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
                     <Route path="/" element={<Home />} />
@@ -219,6 +222,7 @@ const App: React.FC = () => {
                     <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
                     <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
                     <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
+                    <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
                     {/* Legacy full-dashboard fallback removed to fix build */}
                   </Routes>
                 </Suspense>

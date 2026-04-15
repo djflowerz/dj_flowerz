@@ -11,29 +11,46 @@ export async function handleCommunityFeed(request, env) {
 
     try {
         if (request.method === 'GET') {
-            const feedType = url.searchParams.get('feed') || 'latest'; // latest | trending | following
+            const feedType = url.searchParams.get('feed') || 'latest'; // latest | trending | following | marketplace
             const viewerId = url.searchParams.get('viewerId'); // user viewing the feed
             const userId = url.searchParams.get('userId'); // user whose posts to fetch
             const followerId = url.searchParams.get('followerId'); // for following feed
             const cursor = url.searchParams.get('cursor'); 
             const limit = 20;
 
+            // REAL-TIME: Join with profiles and marketplace_listings to ensure NO hard-coded data snapshots
             const baseSelect = `
-                p.*,
+                p.id, p.content, p.image_url, p.created_at, p.user_id,
+                COALESCE(prof.full_name, p.author_name, 'User') as author_name,
+                COALESCE(prof.avatar_url, p.author_avatar, '') as author_avatar,
+                COALESCE(prof.username, p.author_username, '') as author_username,
+                COALESCE(prof.role, p.author_role, 'user') as author_role,
                 (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) as likes_count,
                 (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id) as comments_count,
                 (SELECT COUNT(*) FROM community_posts WHERE parent_id = p.id) as reshare_count,
                 ${viewerId ? `(SELECT EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = '${viewerId}'))` : '0'} as is_liked,
-                parent.author_name as parent_author_name,
-                parent.author_avatar as parent_author_avatar,
-                parent.author_username as parent_author_username,
+                
+                -- Shoppable Data
+                p.is_marketplace,
+                p.shoppable_listing_id,
+                COALESCE(ml.price_kes, p.price, 0) as live_price,
+                COALESCE(ml.status, 'active') as listing_status,
+                
+                -- Parent Info (for Reshares)
+                parent.id as parent_id,
+                COALESCE(pprof.full_name, parent.author_name) as parent_author_name,
+                COALESCE(pprof.avatar_url, parent.author_avatar) as parent_author_avatar,
+                COALESCE(pprof.username, parent.author_username) as parent_author_username,
                 parent.content as parent_content,
                 parent.image_url as parent_image_url,
                 parent.created_at as parent_created_at
             `;
             const baseFrom = `
                 FROM community_posts p
+                LEFT JOIN profiles prof ON p.user_id = prof.id
+                LEFT JOIN marketplace_listings ml ON p.shoppable_listing_id = ml.id
                 LEFT JOIN community_posts parent ON p.parent_id = parent.id
+                LEFT JOIN profiles pprof ON parent.user_id = pprof.id
             `;
 
             let query = '';

@@ -42,19 +42,32 @@ import { handlePresence } from './api/presence.js';
 import { handleAdminNotifications, handleUserStatus, handleUserNotifications, handleMarkNotificationsRead } from './api/dashboard/notifications.js';
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
 import { handleCommunityProfile } from './api/community/profile.js';
-import { handleEscrow } from './api/escrow.js';
+import { handleEscrow, handleWallet } from './api/escrow.js';
 import { handleMe } from './api/user.js';
+import { handleUserAuth } from './api/user/auth.js';
 import { handleOffers } from './api/community/offers.js';
 import { getShadowSalt } from './utils/shadow.js';
 import { getAuthorizedUser } from './utils/auth.js';
 
+import { handleAdminPayouts } from './api/admin/payouts.js';
+import { handleAdminCourtroom } from './api/admin/courtroom.js';
+import { handleAdminSystem } from './api/admin/system.js';
+import { handlePushSubscription } from './api/user/push.js';
+
+import { handleEscrowChat } from './api/escrow_chat.js';
 const router = new Router();
 
 router.get('/api/admin/setup-db', handleSetupDB);
+router.post('/api/auth/register', handleUserAuth);
+router.post('/api/auth/login', handleUserAuth);
 router.post('/api/admin/rebrand', handleBulkRebrand);
 router.get('/api/health', handleHealth);
 router.get('/sitemap.xml', handleSitemap);
 router.get('/api/seo/track/:id', handleTrackSEO);
+
+// PWA & Push
+router.post('/api/push/subscribe', handlePushSubscription);
+router.post('/api/push/unsubscribe', handlePushSubscription);
 
 // Community & Profile
 router.get('/api/user/me', handleMe);
@@ -71,11 +84,37 @@ router.get('/api/handshake', async (req, env) => {
 router.post('/api/community/offers', handleOffers);
 router.patch('/api/community/offers/:id', handleOffers);
 
-// Escrow System
-router.get('/api/escrow/orders', handleEscrow);
-router.get('/api/escrow/order/:id', handleEscrow);
-router.post('/api/escrow/order', handleEscrow);
-router.patch('/api/escrow/order/:id', handleEscrow);
+// Escrow System (Full State Machine)
+router.get('/api/escrow', handleEscrow);               // list my escrows
+router.post('/api/escrow', handleEscrow);              // create escrow
+router.get('/api/escrow/:id', handleEscrow);           // get escrow + events
+router.post('/api/escrow/:id/fund', handleEscrow);     // buyer pays
+router.post('/api/escrow/:id/ship', handleEscrow);     // seller ships
+router.post('/api/escrow/:id/deliver', handleEscrow);  // buyer confirms → release
+router.post('/api/escrow/:id/dispute', handleEscrow);  // buyer raises dispute
+router.post('/api/escrow/:id/resolve', handleEscrow);  // admin resolves
+router.post('/api/escrow/:id/cancel', handleEscrow);   // cancel (PENDING only)
+router.post('/api/escrow/:id/review', handleEscrow);   // submit review
+router.post('/api/escrow/:id/evidence', handleEscrow); // upload evidence link
+router.get('/api/escrow/:id/chat', handleEscrowChat);  // GET history
+router.post('/api/escrow/:id/chat', handleEscrowChat); // POST message
+router.post('/api/escrow/reports', handleEscrow);      // report user
+router.post('/api/escrow/cron', handleEscrow);         // auto-release (Cron Trigger)
+
+// Admin Command Centre (New)
+router.get('/api/admin/escrow/payout-queue', handleAdminPayouts);
+router.get('/api/admin/escrow/payout-batch-csv', handleAdminPayouts);
+router.get('/api/admin/escrow/disputes', handleAdminCourtroom);
+router.get('/api/admin/escrow/:id/forensics', handleAdminCourtroom);
+router.post('/api/admin/escrow/:id/adjudicate', handleAdminCourtroom);
+router.get('/api/admin/system/health', handleAdminSystem);
+router.post('/api/admin/system/kill-switch', handleAdminSystem);
+router.get('/api/admin/system/audit-logs', handleAdminSystem);
+router.get('/api/admin/system/security/pin', handleAdminSystem);
+
+// Virtual Wallet
+router.get('/api/wallet', handleWallet);               // get balance & history
+router.post('/api/wallet/withdraw', handleWallet);     // request payout
 
 // User Notifications (D1)
 router.get('/api/user/notifications', handleUserNotifications);
@@ -207,7 +246,13 @@ router.get('/api/admin/interactions', handleCommunity);
 router.patch('/api/admin/interactions/:id', handleCommunity);
 router.delete('/api/admin/interactions/:id', handleCommunity);
 
+import { handleEscrowChat as handleCommunityEscrowChat } from './api/community/chat.js';
+
+// ... (existing code)
+
 // Community interactions (New unified feed)
+router.get('/api/community/escrow-chat/:id', handleCommunityEscrowChat);
+router.post('/api/community/escrow-chat/:id', handleCommunityEscrowChat);
 router.get('/api/community/posts', handleCommunityFeed);
 router.post('/api/community/posts', handleCommunityFeed);
 router.post('/api/community/likes', handleCommunityInteraction);
