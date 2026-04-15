@@ -372,6 +372,7 @@ export default {
         const corsWhitelist = [
             "https://djflowerz.co.ke",
             "https://www.djflowerz.co.ke",
+            "https://dj-flowerz.netlify.app",
             "https://dj-flowerz.vercel.app",
             "http://localhost:5173",
             "http://localhost:3000"
