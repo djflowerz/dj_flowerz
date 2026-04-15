@@ -160,10 +160,10 @@ export async function handleSetupDB(request, env) {
             device_type TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
-        \`CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subs_user_endpoint ON push_subscriptions(user_id, endpoint)\`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subs_user_endpoint ON push_subscriptions(user_id, endpoint)`,
 
         // 10. SOCIAL ENGINE RE-ARCHITECTURE
-        \`CREATE TABLE IF NOT EXISTS posts (
+        `CREATE TABLE IF NOT EXISTS posts (
             id TEXT PRIMARY KEY,
             author_id TEXT NOT NULL,
             content TEXT,
@@ -179,43 +179,43 @@ export async function handleSetupDB(request, env) {
             is_deleted INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )\`,
-        \`CREATE INDEX IF NOT EXISTS idx_posts_author     ON posts(author_id, created_at DESC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_posts_feed       ON posts(is_deleted, post_type, created_at DESC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_posts_reply      ON posts(reply_to_id, created_at ASC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_posts_thread     ON posts(thread_root_id, created_at ASC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_posts_quote      ON posts(quote_of_id)\`,
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_posts_author     ON posts(author_id, created_at DESC)`,
+        `CREATE INDEX IF NOT EXISTS idx_posts_feed       ON posts(is_deleted, post_type, created_at DESC)`,
+        `CREATE INDEX IF NOT EXISTS idx_posts_reply      ON posts(reply_to_id, created_at ASC)`,
+        `CREATE INDEX IF NOT EXISTS idx_posts_thread     ON posts(thread_root_id, created_at ASC)`,
+        `CREATE INDEX IF NOT EXISTS idx_posts_quote      ON posts(quote_of_id)`,
 
-        \`CREATE TABLE IF NOT EXISTS post_likes (
+        `CREATE TABLE IF NOT EXISTS post_likes (
             post_id    TEXT NOT NULL REFERENCES posts(id),
             user_id    TEXT NOT NULL,
             created_at TEXT NOT NULL,
             PRIMARY KEY (post_id, user_id)
-        )\`,
-        \`CREATE INDEX IF NOT EXISTS idx_likes_user ON post_likes(user_id)\`,
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_likes_user ON post_likes(user_id)`,
 
-        \`CREATE TABLE IF NOT EXISTS follows (
+        `CREATE TABLE IF NOT EXISTS follows (
             follower_id  TEXT NOT NULL,
             following_id TEXT NOT NULL,
             created_at   TEXT NOT NULL,
             PRIMARY KEY (follower_id, following_id)
-        )\`,
-        \`CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_follows_follower  ON follows(follower_id)\`,
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_follows_follower  ON follows(follower_id)`,
 
-        \`CREATE TABLE IF NOT EXISTS activity_events (
+        `CREATE TABLE IF NOT EXISTS activity_events (
             id          TEXT PRIMARY KEY,
             actor_id    TEXT NOT NULL,
             event_type  TEXT NOT NULL,
             target_id   TEXT,
             subject_id  TEXT,
             created_at  TEXT NOT NULL
-        )\`,
-        \`CREATE INDEX IF NOT EXISTS idx_activity_actor   ON activity_events(actor_id, created_at DESC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_activity_subject ON activity_events(subject_id, created_at DESC)\`,
-        \`CREATE INDEX IF NOT EXISTS idx_activity_type    ON activity_events(event_type, created_at DESC)\`,
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_actor   ON activity_events(actor_id, created_at DESC)`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_subject ON activity_events(subject_id, created_at DESC)`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_type    ON activity_events(event_type, created_at DESC)`,
 
-        \`CREATE VIEW IF NOT EXISTS user_profiles AS SELECT id, username, name as display_name, avatar_url FROM profiles\`
+        `CREATE VIEW IF NOT EXISTS user_profiles AS SELECT id, username, name as display_name, avatar_url FROM profiles`
     ];
 
     let errs = [];
