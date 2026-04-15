@@ -76,6 +76,19 @@ async function getFeed(url, actor, env) {
       ORDER BY p.created_at DESC
       LIMIT ?
     `, before ? [actor.id, actor.id, before, limit] : [actor.id, actor.id, limit]);
+    `, before ? [actor.id, actor.id, before, limit] : [actor.id, actor.id, limit]);
+  } else if (tab === 'marketplace') {
+    posts = await dbAll(env, `
+      SELECT p.*, u.username, u.display_name, u.avatar_url
+      FROM posts p
+      JOIN user_profiles u ON u.id = p.author_id
+      WHERE p.is_deleted = 0
+        AND p.reply_to_id IS NULL
+        AND p.is_marketplace = 1
+        ${before ? "AND p.created_at < ?" : ""}
+      ORDER BY p.created_at DESC
+      LIMIT ?
+    `, before ? [before, limit] : [limit]);
   } else {
     // "For You" — trending posts weighted by recency + engagement
     posts = await dbAll(env, `
@@ -138,7 +151,7 @@ async function getProfile(userId, url, env) {
 
 async function createPost(request, actor, env) {
   const body = await request.json();
-  const { content, media_urls = [], post_type = 'post', quote_of_id = null, reply_to_id = null } = body;
+  const { content, media_urls = [], post_type = 'post', quote_of_id = null, reply_to_id = null, is_marketplace = 0, price = 0 } = body;
 
   // Validation
   if (post_type === 'post' || post_type === 'quoted_reshare') {
@@ -162,9 +175,9 @@ async function createPost(request, actor, env) {
 
   await dbRun(env, `
     INSERT INTO posts
-      (id, author_id, content, media_urls, post_type, quote_of_id, reply_to_id, thread_root_id, created_at, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?)
-  `, [id, actor.id, content?.trim() ?? null, JSON.stringify(media_urls), post_type, quote_of_id, reply_to_id, thread_root_id, ts, ts]);
+      (id, author_id, content, media_urls, post_type, quote_of_id, reply_to_id, thread_root_id, is_marketplace, price, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+  `, [id, actor.id, content?.trim() ?? null, JSON.stringify(media_urls), post_type, quote_of_id, reply_to_id, thread_root_id, is_marketplace, price, ts, ts]);
 
   // Update counters on parent / original post
   if (reply_to_id) {

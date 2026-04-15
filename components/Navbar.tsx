@@ -30,8 +30,13 @@ const Navbar: React.FC = () => {
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
     { name: 'Community', path: '/community' },
-    { name: 'Aura Vision', path: '/aura-vision' },
+    { name: 'Track Order', path: '/order-tracking' },
+    { name: 'DJ Tools', path: '/dj-tools/bpm-tapper' },
+    { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
+    { name: 'Aura Vision', path: '/aura-vision' },
+    { name: 'Tip Jar', path: '/tip-jar' },
+    { name: 'Contact', path: '/contact' },
   ];
 
   // Close mobile menu and dropdowns when route changes

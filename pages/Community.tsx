@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
+import { useFeed, useComposer, useLike, useFollow, usePost } from '../hooks/useSocial';
 
 const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
@@ -26,19 +27,26 @@ function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () => void)
 // ─── Types ────────────────────────────────────────────────────────
 interface Post {
     id: string;
-    user_id: string;
+    author_id: string;
     author_name: string;
     author_avatar: string;
     author_username: string;
     author_role: string;
+    display_name?: string; // New
+    avatar_url?: string; // New
+    username?: string; // New
     content: string;
     image_url: string | null;
+    media_urls?: string; // New
     is_marketplace: number;
     price: number;
     escrow_status: string;
+    like_count: number; // New
+    comment_count: number; // New
+    reshare_count: number;
+    viewer_liked?: boolean; // New
     likes_count: number;
     comments_count: number;
-    reshare_count: number;
     is_liked: number;
     created_at: string;
     parent_id: string | null;
@@ -48,6 +56,7 @@ interface Post {
     parent_content?: string;
     parent_image_url?: string;
     parent_created_at?: string;
+    quoted_post?: any;
 }
 
 
@@ -84,9 +93,9 @@ const timeAgo = (dateStr: string) => {
 };
 
 // Build a clean profile slug: prefer username, fallback to name-slug-id
-const profileSlug = (user: { id: string, name?: string, username?: string }) => {
-    if (user.username && user.username.trim()) return user.username.trim();
-    const name = user.name || 'user';
+const profileSlug = (user: { id: string; name?: string; username?: string; display_name?: string }) => {
+    if (user.username && user.username.trim()) return `@${user.username.trim()}`;
+    const name = user.display_name || user.name || 'user';
     const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     return `${slug}-${user.id.substring(0, 8)}`;
 };
@@ -116,25 +125,14 @@ const PostCard: React.FC<{
 
     useClickOutside(menuRef, () => setShowMenu(false));
 
-    const isOwnPost = currentUserId === post.user_id;
+    const isOwnPost = currentUserId === post.author_id;
+    const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? 0);
+    const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
 
-    // Check if we already follow this user
-    useEffect(() => {
-        if (!currentUserId || isOwnPost) return;
-        fetch(`${API_URL}/api/community/follows?followerId=${currentUserId}&followingId=${post.user_id}`)
-            .then(r => r.json())
-            .then(d => setIsFollowing(d.isFollowing))
-            .catch(() => {});
-    }, [currentUserId, post.user_id]);
-
-    const [liked, setLiked] = useState(post.is_liked === 1);
-    const [likesCount, setLikesCount] = useState(post.likes_count || 0);
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
     const [commentText, setCommentText] = useState('');
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [followLoading, setFollowLoading] = useState(false);
     const [showEscrowModal, setShowEscrowModal] = useState(false);
     const [shippingAddress, setShippingAddress] = useState('');
     const [isBuying, setIsBuying] = useState(false);
@@ -142,120 +140,51 @@ const PostCard: React.FC<{
     const [offerAmount, setOfferAmount] = useState('');
     const [isOffering, setIsOffering] = useState(false);
 
-    const handleLike = async () => {
+    const handleLike = () => {
         if (!currentUserId) return toast.error('Log in to like posts');
-        const next = !liked;
-        setLiked(next);
-        setLikesCount(c => c + (next ? 1 : -1));
-        try {
-            const res = await fetch(`${API_URL}/api/community/likes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ post_id: post.id, user_id: currentUserId })
-            });
-            const data = await res.json();
-            if (data.count !== undefined) {
-                setLiked(data.liked);
-                setLikesCount(data.count);
-            }
-        } catch {
-            setLiked(!next);
-            setLikesCount(c => c + (next ? -1 : 1));
-        }
+        toggleLike(post.id);
     };
 
+    const handleFollow = () => {
+        if (!currentUserId) return toast.error('Log in to follow users');
+        toggleFollow();
+    };
+    // handleLike and handleFollow moved to hooks above
+
+    const { reshare, comment: addComment, loading: submittingComment } = useComposer();
     const handleReshare = async () => {
         if (!currentUserId) return toast.error('Log in to reshare');
         if (window.confirm('Reshare this post to your feed?')) {
             try {
-                const res = await fetch(`${API_URL}/api/community/posts`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        author_name: currentUser?.name || 'DJ User',
-                        author_avatar: currentUser?.avatarUrl || '',
-                        author_role: currentUser?.role || 'user',
-                        content: '', // Empty content for pure reshare
-                        parent_id: post.id
-                    })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    toast.success('Reshared!');
-                    window.location.reload(); // Quick refresh to show new post
-                }
-            } catch {
-                toast.error('Failed to reshare');
+                await reshare(post.id);
+                toast.success('Reshared!');
+            } catch (err: any) {
+                toast.error(err.message || 'Failed to reshare');
             }
         }
     };
 
-
-    const loadComments = async () => {
-        if (commentsLoaded) return;
-        try {
-            const res = await fetch(`${API_URL}/api/community/comments?postId=${post.id}`);
-            const data = await res.json();
-            setComments(data);
-            setCommentsLoaded(true);
-        } catch {}
-    };
-
-    const toggleComments = () => {
-        const next = !showComments;
-        setShowComments(next);
-        if (next) loadComments();
-    };
+    const { reload: reloadAll, appendComment } = usePost(post.id);
 
     const submitComment = async () => {
         if (!currentUserId) return toast.error('Log in to comment');
         if (!commentText.trim()) return;
         try {
-            const res = await fetch(`${API_URL}/api/community/comments`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    post_id: post.id,
-                    user_id: currentUserId,
-                    author_name: currentUser?.name,
-                    author_avatar: currentUser?.avatarUrl,
-                    author_username: currentUser?.username,
-                    content: commentText.trim()
-                })
-            });
-            const data = await res.json();
-            if (data.comment) {
-                setComments(prev => [...prev, data.comment]);
+            const commentData = await addComment({ content: commentText.trim(), reply_to_id: post.id });
+            if (commentData) {
+                appendComment(commentData);
                 setCommentText('');
+                toast.success('Comment posted');
             }
-        } catch {
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to post comment');
             toast.error('Failed to post comment');
         }
     };
 
-    const handleFollow = async () => {
+    const handleFollowClick = () => {
         if (!currentUserId) return toast.error('Log in to follow users');
-        setFollowLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/api/community/follows`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    follower_id: currentUserId,
-                    following_id: post.user_id,
-                    following_name: post.author_name,
-                    following_avatar: post.author_avatar
-                })
-            });
-            const data = await res.json();
-            setIsFollowing(data.followed);
-            toast.success(data.followed ? `Following ${post.author_name}` : `Unfollowed ${post.author_name}`);
-        } catch {
-            toast.error('Failed to update follow');
-        } finally {
-            setFollowLoading(false);
-        }
+        toggleFollow();
     };
 
     const handleShare = () => {
@@ -266,7 +195,7 @@ const PostCard: React.FC<{
     const handleDelete = async () => {
         if (!window.confirm('Delete this post?')) return;
         try {
-            await fetch(`${API_URL}/api/community/posts?id=${post.id}&userId=${currentUserId}`, { method: 'DELETE' });
+            await fetch(`${API_URL}/api/social/posts/${post.id}?userId=${currentUserId}`, { method: 'DELETE', headers: { 'X-Actor-Id': currentUserId || '' } });
             onDelete(post.id);
             toast.success('Post deleted');
         } catch {
@@ -279,13 +208,13 @@ const PostCard: React.FC<{
             {/* Post Header */}
             <div className="flex items-start justify-between p-5 pb-3">
                 <div className="flex items-center gap-3">
-                    <Link to={`/@${profileSlug({ id: post.user_id, name: post.author_name, username: post.author_username })}`}>
-                        <Avatar src={post.author_avatar} name={post.author_name} size={11} />
+                    <Link to={`/@${profileSlug({ id: post.author_id, name: post.display_name || post.author_name, username: post.username || post.author_username })}`}>
+                        <Avatar src={post.avatar_url || post.author_avatar} name={post.display_name || post.author_name} size={11} />
                     </Link>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <Link to={`/@${profileSlug({ id: post.user_id, name: post.author_name, username: post.author_username })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
-                                {post.author_name || 'DJ User'}
+                            <Link to={`/@${profileSlug({ id: post.author_id, name: post.display_name || post.author_name, username: post.username || post.author_username })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
+                                {post.display_name || post.author_name || 'DJ User'}
                             </Link>
                             {post.author_role === 'admin' && (
                                 <span className="bg-brand-purple/20 text-brand-purple text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase">Admin</span>
@@ -654,18 +583,14 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 if (upload) finalImageUrl = upload.url;
             }
 
-            const res = await fetch(`${API_URL}/api/community/posts`, {
+            const res = await fetch(`${API_URL}/api/social/posts`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Actor-Id': user.id },
                 body: JSON.stringify({
-                    user_id: user.id,
-                    author_name: user.name,
-                    author_avatar: user.avatarUrl,
-                    author_username: user.username,
-                    author_role: user.role,
                     content: content.trim(),
-                    image_url: finalImageUrl,
-                    is_marketplace: isMarketplace,
+                    media_urls: finalImageUrl ? [finalImageUrl] : [],
+                    post_type: 'post',
+                    is_marketplace: isMarketplace ? 1 : 0,
                     price: isMarketplace ? Number(price) : 0
                 })
             });
@@ -900,64 +825,39 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
 const Community: React.FC = () => {
     const { user, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<FeedTab>('latest');
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [nextCursor, setNextCursor] = useState<string | null>(null);
-    const [loadingMore, setLoadingMore] = useState(false);
+    const {
+        posts,
+        loading: isLoading,
+        loadingMore,
+        hasMore,
+        loadMore,
+        refresh,
+        prependPost
+    } = useFeed(activeTab === 'latest' ? 'foryou' : activeTab);
+
     const loaderRef = useRef<HTMLDivElement>(null);
-
-    const fetchPosts = useCallback(async (tab: FeedTab, cursor?: string | null) => {
-        try {
-            if (!cursor) setIsLoading(true);
-            else setLoadingMore(true);
-
-            let url = `${API_URL}/api/community/posts?feed=${tab}`;
-            if (user?.id) url += `&viewerId=${user.id}`;
-            if (tab === 'following' && user?.id) url += `&followerId=${user.id}`;
-            if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
-
-
-            const res = await fetch(url);
-            const data = await res.json();
-
-            if (cursor) {
-                setPosts(prev => [...prev, ...(data.posts || [])]);
-            } else {
-                setPosts(data.posts || []);
-            }
-            setNextCursor(data.nextCursor || null);
-        } catch {
-            toast.error('Failed to load feed');
-        } finally {
-            setIsLoading(false);
-            setLoadingMore(false);
-        }
-    }, [user?.id]);
-
-    useEffect(() => {
-        fetchPosts(activeTab);
-    }, [activeTab, fetchPosts]);
 
     // Infinite scroll
     useEffect(() => {
         const observer = new IntersectionObserver(
             entries => {
-                if (entries[0].isIntersecting && nextCursor && !loadingMore) {
-                    fetchPosts(activeTab, nextCursor);
+                if (entries[0].isIntersecting && hasMore && !loadingMore) {
+                    loadMore();
                 }
             },
             { threshold: 0.1 }
         );
         if (loaderRef.current) observer.observe(loaderRef.current);
         return () => observer.disconnect();
-    }, [nextCursor, loadingMore, activeTab, fetchPosts]);
+    }, [hasMore, loadingMore, loadMore]);
 
-    const handleNewPost = (post: Post) => {
-        setPosts(prev => [post, ...prev]);
+    const handleNewPost = (post: any) => {
+        prependPost(post);
     };
 
     const handleDeletePost = (id: string) => {
-        setPosts(prev => prev.filter(p => p.id !== id));
+        // useFeed hook should ideally have a removePost method, or we just refresh
+        refresh();
     };
 
     const tabs = [
