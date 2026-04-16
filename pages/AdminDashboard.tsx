@@ -1995,7 +1995,7 @@ const AdminDashboard: React.FC = () => {
                                  (liveUsers || []).map(u => (
                                     <div key={u.id} className="flex items-center gap-4 p-4 bg-white/[0.03] hover:bg-white/[0.06] rounded-3xl border border-white/5 transition-all duration-300 group cursor-pointer">
                                        <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 border border-white/10 group-hover:border-brand-cyan/50 transition-colors">
-                                          <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}&background=15151A&color=fff`} alt="" className="w-full h-full object-cover" />
+                                          <img loading="lazy" src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.name}&background=15151A&color=fff`} alt="" className="w-full h-full object-cover" />
                                        </div>
                                        <div className="flex-1 min-w-0">
                                           <p className="text-sm font-black text-white truncate group-hover:text-brand-cyan transition-colors">{u.name}</p>
@@ -2377,8 +2377,7 @@ const AdminDashboard: React.FC = () => {
                                           {/* Cover Art */}
                                           <td className="px-4 py-4">
                                              {track.coverUrl || track.cover_url || track.thumbnail ? (
-                                                <img
-                                                   src={track.coverUrl || track.cover_url || track.thumbnail}
+                                                <img loading="lazy" src={track.coverUrl || track.cover_url || track.thumbnail}
                                                    alt={track.title}
                                                    className="w-12 h-12 rounded-lg object-cover border border-white/10 shadow-md"
                                                    onError={(e: any) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
@@ -2488,7 +2487,7 @@ const AdminDashboard: React.FC = () => {
                            {(genres || []).map(g => (
                               <div key={g.id} className="group relative bg-[#0B0B0F] rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-brand-purple/50 cursor-pointer transition-all duration-500 shadow-2xl" onClick={() => openEditGenre(g)}>
                                  <div className="aspect-square relative overflow-hidden">
-                                    <img src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" />
+                                    <img loading="lazy" src={g.coverUrl} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-transparent to-transparent opacity-60" />
                                     <div className="absolute inset-0 bg-brand-purple/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-500 backdrop-blur-sm">
                                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-brand-purple transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
@@ -2900,8 +2899,7 @@ const AdminDashboard: React.FC = () => {
                                                       {/* Cover Art thumbnail */}
                                                       <td className="px-4 py-4">
                                                          {track.coverUrl || track.thumbnail ? (
-                                                            <img
-                                                               src={track.coverUrl || track.thumbnail}
+                                                            <img loading="lazy" src={track.coverUrl || track.thumbnail}
                                                                alt={track.title}
                                                                className="w-10 h-10 rounded-lg object-cover border border-white/10"
                                                             />
@@ -3169,7 +3167,7 @@ const AdminDashboard: React.FC = () => {
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-5">
                                                 <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 p-0.5">
-                                                   <img src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
+                                                   <img loading="lazy" src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
                                                 </div>
                                                 <div className="min-w-0">
                                                    <div className="font-black text-white truncate max-w-[200px] group-hover:text-brand-purple transition-colors">{p.name}</div>
@@ -3254,7 +3252,7 @@ const AdminDashboard: React.FC = () => {
                            .map((mix) => (
                               <div key={mix.id} className="bg-[#15151A] rounded-xl border border-white/5 p-3 flex gap-3 relative group">
                                  <div className="relative w-16 h-16 shrink-0">
-                                    <img src={mix.coverUrl} alt={mix.title} className="w-full h-full rounded object-cover" />
+                                    <img loading="lazy" src={mix.coverUrl} alt={mix.title} className="w-full h-full rounded object-cover" />
                                     {mix.isExclusive && <div className="absolute -top-1 -right-1 bg-brand-purple text-white text-[8px] font-bold px-1 rounded shadow-lg ring-1 ring-black">EXCL</div>}
                                  </div>
                                  <div className="flex-1 min-w-0 flex flex-col justify-between">
@@ -5655,7 +5653,7 @@ const AdminDashboard: React.FC = () => {
                      <div className="bg-[#0B0B0F] p-8 rounded-3xl border border-white/5 flex flex-col items-center text-center relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-brand-purple/20 to-transparent" />
                         <div className="w-24 h-24 rounded-3xl bg-brand-purple/20 flex items-center justify-center text-brand-purple text-4xl font-black mb-4 relative z-10 border border-brand-purple/30 overflow-hidden">
-                           {selectedUser.avatarUrl ? <img src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto text-gray-500" />}
+                           {selectedUser.avatarUrl ? <img loading="lazy" src={selectedUser.avatarUrl} className="w-full h-full object-cover" /> : <Users size={40} className="m-auto text-gray-500" />}
                         </div>
                         <div className="relative z-10">
                            <h3 className="text-white font-bold text-2xl tracking-tight">{selectedUser.name || "No Name"}</h3>

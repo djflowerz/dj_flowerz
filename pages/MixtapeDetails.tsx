@@ -104,7 +104,7 @@ const MixtapeDetails: React.FC = () => {
                {/* Cover Art */}
                <div className="w-full md:w-1/3">
                   <div className="aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-brand-purple/10 border border-white/5 relative group">
-                     <img src={mixtape.coverUrl} alt={mixtape.title} className="w-full h-full object-cover" />
+                     <img loading="lazy" src={mixtape.coverUrl} alt={mixtape.title} className="w-full h-full object-cover" />
                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <button
                            onClick={() => isCurrent && isPlaying ? pauseTrack() : (isCurrent ? resumeTrack() : playTrack(mixtape))}

@@ -54,7 +54,7 @@ function PublicProfileContent({ username }: { username: string }) {
       {/* Banner */}
       <div style={css.bannerWrap}>
         {profile.banner_url
-          ? <img src={profile.banner_url} alt="" style={css.bannerImg} />
+          ? <img loading="lazy" src={profile.banner_url} alt="" style={css.bannerImg} />
           : <div style={css.bannerPlaceholder} />
         }
         <div style={css.bannerOverlay} />
@@ -65,7 +65,7 @@ function PublicProfileContent({ username }: { username: string }) {
         <div style={css.avatarOuter}>
           <div style={{ ...css.avatar, borderColor: tierColor }}>
             {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={profile.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              ? <img loading="lazy" src={profile.avatar_url} alt={profile.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
               : <span style={{ fontFamily: DISPLAY, fontSize: 40, color: '#1A1A1A', fontWeight: 900 }}>
                   {profile.display_name?.[0]?.toUpperCase() ?? profile.username?.[0]?.toUpperCase() ?? '?'}
                 </span>

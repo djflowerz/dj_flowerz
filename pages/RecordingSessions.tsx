@@ -325,7 +325,7 @@ const RecordingSessions: React.FC = () => {
                                           className={`relative p-4 rounded-xl border flex gap-4 transition-all ${status.available ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'} ${isSelected ? 'bg-brand-purple/10 border-brand-purple' : 'bg-black/20 border-white/5 hover:border-white/20'}`}
                                        >
                                           <div className="w-20 h-20 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0">
-                                             <img src={item.imageUrl || item.image} alt={item.name} className="w-full h-full object-cover" />
+                                             <img loading="lazy" src={item.imageUrl || item.image} alt={item.name} className="w-full h-full object-cover" />
                                           </div>
                                           <div className="flex-1">
                                              <div className="flex justify-between items-start">

@@ -220,7 +220,7 @@ export default function VendorDashboard() {
                 {listings.map(item => (
                   <div key={item.id} className="glass-card p-6 rounded-3xl border border-white/5 flex items-center gap-6">
                     <div className="w-20 h-20 rounded-2xl bg-white/5 overflow-hidden flex-shrink-0">
-                      <img src={item.imageUrl} className="w-full h-full object-cover" alt="" />
+                      <img loading="lazy" src={item.imageUrl} className="w-full h-full object-cover" alt="" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-white font-black uppercase text-sm mb-1">{item.name}</h4>

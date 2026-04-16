@@ -44,8 +44,7 @@ export default function Cart() {
                   {/* Product Image */}
                   <div className="flex-shrink-0 relative overflow-hidden rounded-2xl border border-white/10 w-24 h-24 sm:w-32 sm:h-32 bg-[#0B0B0F]">
                     {product.image || product.image_url ? (
-                      <img
-                        src={product.image || product.image_url}
+                      <img loading="lazy" src={product.image || product.image_url}
                         alt={product.name}
                         className="w-full h-full object-center object-cover group-hover:scale-110 transition-transform duration-500"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

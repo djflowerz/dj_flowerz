@@ -416,9 +416,9 @@ const Success: React.FC = () => {
                         Your transaction was encrypted and processed via Paystack Secure Hub. Digital items are stored in your profile for 30 days. Enjoy the rhythm.
                      </p>
                      <div className="flex items-center justify-center gap-6 grayscale opacity-30 group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-1000">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" alt="M-Pesa" className="h-6" />
+                        <img loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" alt="M-Pesa" className="h-6" />
                         <div className="h-4 w-px bg-white/10" />
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-6" />
+                        <img loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-6" />
                      </div>
                   </div>
                </div>

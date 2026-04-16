@@ -23,7 +23,7 @@ export function usePushNotifications() {
     setSubscription(sub);
   };
 
-  const subscribeUser = async () => {
+  const subscribeToPush = async () => {
     try {
       if (!isSupported) throw new Error('Push notifications not supported');
 
@@ -41,7 +41,8 @@ export function usePushNotifications() {
       });
 
       // Save to backend
-      await fetch('/api/push/subscribe', {
+      const apiBase = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke';
+      await fetch(`${apiBase}/api/push/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub)
@@ -49,18 +50,20 @@ export function usePushNotifications() {
 
       setSubscription(sub);
       setIsSubscribed(true);
-      return sub;
+      return true;
     } catch (e: any) {
       setError(e.message);
       console.error('Subscription error:', e);
+      return false;
     }
   };
 
-  const unsubscribeUser = async () => {
+  const unsubscribeFromPush = async () => {
     if (!subscription) return;
     try {
       await subscription.unsubscribe();
-      await fetch('/api/push/unsubscribe', {
+      const apiBase = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke';
+      await fetch(`${apiBase}/api/push/unsubscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: subscription.endpoint })
@@ -72,7 +75,7 @@ export function usePushNotifications() {
     }
   };
 
-  return { isSubscribed, isSupported, subscribeUser, unsubscribeUser, error };
+  return { isSubscribed, isSupported, subscribeToPush, unsubscribeFromPush, error };
 }
 
 // Utility for key conversion

@@ -133,8 +133,7 @@ const OffersManager: React.FC<{ userId: string }> = ({ userId }) => {
 
                                 {/* Party Info */}
                                 <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-                                    <img 
-                                        src={subTab === 'received' ? offer.buyer_avatar : offer.seller_avatar} 
+                                    <img loading="lazy" src={subTab === 'received' ? offer.buyer_avatar : offer.seller_avatar} 
                                         className="w-8 h-8 rounded-full object-cover" 
                                         alt="Avatar"
                                     />

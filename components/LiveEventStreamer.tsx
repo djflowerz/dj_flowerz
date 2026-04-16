@@ -21,7 +21,7 @@ const LiveEventStreamer: React.FC = () => {
                             toast.custom((t) => (
                                 <div className="glass-card border border-white/10 p-4 rounded-2xl flex items-center gap-4 bg-[#0B0B0F]/90 backdrop-blur-xl shadow-2xl animate-in slide-in-from-right duration-500">
                                     <div className="w-10 h-10 rounded-full border border-brand-purple overflow-hidden flex-shrink-0">
-                                        <img src={latest.author_avatar || ''} className="w-full h-full object-cover" alt="" />
+                                        <img loading="lazy" src={latest.author_avatar || ''} className="w-full h-full object-cover" alt="" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-0.5">

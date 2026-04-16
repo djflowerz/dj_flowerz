@@ -851,8 +851,7 @@ function ChatView({ escrowId, userId }: { escrowId: string; userId: string }) {
                                  {msg.content.includes('[Attachment: Image]') ? (
                                     <div className="space-y-2">
                                         <p className="text-[10px] uppercase font-black tracking-widest opacity-50 mb-1">Shared Image</p>
-                                        <img 
-                                            src={msg.attachment_url} 
+                                        <img loading="lazy" src={msg.attachment_url} 
                                             alt="Chat Attachment" 
                                             className="rounded-lg max-h-60 w-full object-cover border border-white/10 hover:border-brand-purple transition-all cursor-zoom-in"
                                             onClick={() => window.open(msg.attachment_url, '_blank')}

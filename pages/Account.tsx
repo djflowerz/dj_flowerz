@@ -331,8 +331,7 @@ const Account: React.FC = () => {
           <div className="px-6 pb-6 md:px-8 md:pb-8 relative">
             <div className="-mt-12 mb-6 flex flex-col md:flex-row items-end gap-6">
               <div className="relative group">
-                <img
-                  src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}&background=random`}
+                <img loading="lazy" src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}&background=random`}
                   alt="Profile"
                   className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-[#15151A] shadow-lg object-cover bg-[#15151A]"
                 />
@@ -1107,8 +1106,7 @@ const Account: React.FC = () => {
                                   to={item.targetType === 'product' ? `/store/product/${details.slug}` : item.targetType === 'mixtape' ? `/mixtapes/${details.slug}` : '/music-pool'}
                                   className="block aspect-square overflow-hidden bg-black/40"
                                 >
-                                  <img 
-                                    src={details.image || details.artwork || '/placeholder.jpg'} 
+                                  <img loading="lazy" src={details.image || details.artwork || '/placeholder.jpg'} 
                                     alt={details.name || details.title}
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                   />

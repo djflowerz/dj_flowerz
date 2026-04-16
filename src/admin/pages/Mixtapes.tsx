@@ -197,8 +197,7 @@ const Mixtapes: React.FC = () => {
                 ) : mixtapes.map((mx) => (
                     <div key={mx.id} className="group bg-[#0B0B0F] border border-white/5 rounded-[3rem] overflow-hidden hover:border-brand-purple/30 transition-all duration-500 shadow-xl hover:shadow-brand-purple/5">
                         <div className="aspect-[16/10] relative overflow-hidden">
-                            <img
-                                src={mx.coverUrl || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
+                            <img loading="lazy" src={mx.coverUrl || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'}
                                 alt={mx.title}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60 group-hover:opacity-100"
                             />
@@ -338,7 +337,7 @@ const Mixtapes: React.FC = () => {
                                 </div>
                                 {modal.data.coverUrl && (
                                     <div className="mt-3 relative w-20 h-20 rounded-xl overflow-hidden border border-white/10">
-                                        <img src={modal.data.coverUrl} className="w-full h-full object-cover" alt="Preview" />
+                                        <img loading="lazy" src={modal.data.coverUrl} className="w-full h-full object-cover" alt="Preview" />
                                         <button 
                                             onClick={() => handleChange('coverUrl', '')}
                                             className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white"

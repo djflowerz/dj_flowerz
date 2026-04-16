@@ -194,7 +194,7 @@ const Navbar: React.FC = () => {
                             className={`p-4 border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition ${!n.is_read ? 'bg-brand-purple/5 border-l-2 border-l-brand-purple' : ''}`}
                           >
                             <div className="flex gap-3">
-                                <img src={n.actor_avatar || ''} className="w-8 h-8 rounded-full bg-white/10" alt="" />
+                                <img loading="lazy" src={n.actor_avatar || ''} className="w-8 h-8 rounded-full bg-white/10" alt="" />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs text-white leading-snug">
                                         <span className="font-bold">{n.actor_name}</span> {n.message}
@@ -266,8 +266,7 @@ const Navbar: React.FC = () => {
                     onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); setShowMessages(false); }}
                     className="flex items-center hover:scale-105 active:scale-95 transition-all duration-300"
                   >
-                    <img
-                      src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=random&color=fff`}
+                    <img loading="lazy" src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=random&color=fff`}
                       alt="User"
                       className="w-10 h-10 rounded-full border border-brand-purple object-cover shadow-lg"
                       onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || user?.name || 'U')}&background=7C3AED&color=fff`; }}
@@ -374,8 +373,7 @@ const Navbar: React.FC = () => {
                   to="/account"
                   className="flex items-center gap-3 w-full bg-white/5 text-white py-4 px-4 rounded-xl font-bold border border-white/5"
                 >
-                  <img
-                    src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
+                  <img loading="lazy" src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random&color=fff`}
                     alt="User"
                     className="w-6 h-6 rounded-full"
                     onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=7C3AED&color=fff`; }}

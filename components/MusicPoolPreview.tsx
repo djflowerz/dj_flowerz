@@ -243,8 +243,7 @@ const MusicPoolPreview: React.FC = () => {
                                                     <X size={20} />
                                                 </button>
                                             )}
-                                            <img
-                                                src={track.thumbnailUrl || `https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=800&auto=format&fit=crop&sig=${track.id}`}
+                                            <img loading="lazy" src={track.thumbnailUrl || `https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=800&auto=format&fit=crop&sig=${track.id}`}
                                                 alt={track.title}
                                                 className="w-full h-full object-cover opacity-50 group-hover:opacity-70 group-hover:scale-110 transition-all duration-1000"
                                             />

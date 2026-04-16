@@ -93,7 +93,7 @@ export const R2Upload: React.FC<R2UploadProps> = ({
             
             {preview ? (
                 <div className="relative rounded-2xl overflow-hidden border border-white/10 aspect-video bg-black/40 group/preview animate-in fade-in zoom-in duration-300">
-                    <img src={preview} alt="Upload Preview" className="w-full h-full object-cover" />
+                    <img loading="lazy" src={preview} alt="Upload Preview" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-4">
                         <button 
                             onClick={() => fileInputRef.current?.click()}

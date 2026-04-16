@@ -1051,8 +1051,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                     {formData.image_url && (
                                         <div className="w-56 h-56 relative group">
                                             <div className="absolute inset-0 bg-brand-purple/20 blur-3xl group-hover:bg-brand-purple/30 transition-all" />
-                                            <img
-                                                src={formData.image_url}
+                                            <img loading="lazy" src={formData.image_url}
                                                 alt="Preview"
                                                 className="relative w-full h-full object-contain rounded-3xl border border-white/10 bg-black/40 p-4"
                                                 onError={(e) => {
@@ -1089,8 +1088,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onClose, onSuccess }
                                 <div className="grid grid-cols-5 gap-4">
                                     {formData.images.map((img, idx) => (
                                         <div key={idx} className="relative aspect-square group">
-                                            <img 
-                                                src={img} 
+                                            <img loading="lazy" src={img} 
                                                 className="w-full h-full object-cover rounded-2xl border border-white/10" 
                                                 alt={`Gallery ${idx}`} 
                                             />

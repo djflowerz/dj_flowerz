@@ -710,7 +710,7 @@ export default function Checkout() {
                     <div className="p-6 bg-[#0B0B0F] rounded-3xl border border-brand-purple/30 flex items-center gap-6 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-full blur-[60px] translate-x-12 -translate-y-12" />
                       <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl z-10">
-                        <img src="https://paystack.com/assets/img/logos/merchants/paystack.png" alt="Paystack" className="w-12 h-12 grayscale group-hover:grayscale-0 transition-all duration-500" />
+                        <img loading="lazy" src="https://paystack.com/assets/img/logos/merchants/paystack.png" alt="Paystack" className="w-12 h-12 grayscale group-hover:grayscale-0 transition-all duration-500" />
                       </div>
                       <div className="flex-1 z-10">
                         <p className="font-black text-white tracking-tight uppercase mb-1">Paystack Checkout</p>
@@ -776,7 +776,7 @@ export default function Checkout() {
                   <div key={item.id} className="flex gap-4 p-4 bg-[#0B0B0F] rounded-3xl border border-white/5 group">
                     <div className="h-16 w-16 bg-[#15151A] rounded-2xl overflow-hidden border border-white/5 flex-shrink-0">
                       {item.image_url
-                        ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover group-hover:scale-110 transition-transform" />
+                        ? <img loading="lazy" src={item.image_url} alt={item.name} className="h-full w-full object-cover group-hover:scale-110 transition-transform" />
                         : <div className="h-full w-full flex items-center justify-center text-gray-600"><Download size={20} /></div>
                       }
                     </div>

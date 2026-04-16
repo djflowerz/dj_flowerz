@@ -277,8 +277,7 @@ const OrderTracking: React.FC = () => {
                     {order.items?.map((item: any, idx: number) => (
                       <div key={idx} className="flex items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-brand-purple/30 transition-all">
                         <div className="w-16 h-16 bg-white overflow-hidden rounded-xl flex-shrink-0 p-2">
-                          <img 
-                            src={item.image || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} 
+                          <img loading="lazy" src={item.image || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/products/placeholder.jpg'} 
                             alt={item.productName} 
                             className="w-full h-full object-contain"
                           />

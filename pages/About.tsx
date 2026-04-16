@@ -15,7 +15,7 @@ const About: React.FC = () => {
         <div className="flex flex-col md:flex-row items-center gap-12 mb-20">
            <div className="w-full md:w-1/2">
               <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                 <img src={about.image} alt="DJ Profile" className="w-full h-full object-cover" />
+                 <img loading="lazy" src={about.image} alt="DJ Profile" className="w-full h-full object-cover" />
                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
                  <div className="absolute bottom-6 left-6">
                     <span className="bg-brand-purple text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Professional DJ</span>

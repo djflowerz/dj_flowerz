@@ -45,7 +45,7 @@ export const ImageUpload: React.FC<{
                   </div>
                ) : value ? (
                   <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-lg">
-                     <img src={value} alt="Preview" className="w-full h-full object-cover" />
+                     <img loading="lazy" src={value} alt="Preview" className="w-full h-full object-cover" />
                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                         <label className="bg-brand-purple text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-purple-600 transition-all shadow-xl shadow-brand-purple/20">
                            Replace Matrix
@@ -108,7 +108,7 @@ export const MultiImageUpload: React.FC<{
          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {values.map((url, idx) => (
                <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden group border border-white/5">
-                  <img src={url} className="w-full h-full object-cover" alt={`Gallery ${idx}`} />
+                  <img loading="lazy" src={url} className="w-full h-full object-cover" alt={`Gallery ${idx}`} />
                   <button
                      type="button"
                      onClick={() => removeImage(idx)}

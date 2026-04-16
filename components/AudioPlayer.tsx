@@ -55,8 +55,7 @@ const AudioPlayer: React.FC = () => {
         {/* Track Info */}
         <div className="flex items-center w-1/3 min-w-[200px]">
           <div className="relative group">
-            <img
-              src={currentTrack.coverUrl}
+            <img loading="lazy" src={currentTrack.coverUrl}
               alt={currentTrack.title}
               className="w-14 h-14 rounded bg-gray-800 object-cover shadow-lg border border-white/10"
             />

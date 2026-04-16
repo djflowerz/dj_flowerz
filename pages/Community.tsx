@@ -105,8 +105,7 @@ const profileSlug = (user: { id: string; name?: string; username?: string; displ
 const Avatar = ({ src, name, size = 10 }: { src?: string; name?: string; size?: number }) => {
     const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
     return (
-        <img
-            src={src || fallback}
+        <img loading="lazy" src={src || fallback}
             onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
             className={`w-${size} h-${size} rounded-full object-cover border border-white/10 flex-shrink-0`}
             alt={name}
@@ -596,7 +595,7 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
 
                     {imagePreview && (
                         <div className="relative mt-4 mb-4 rounded-2xl overflow-hidden border border-white/10 group/img shadow-2xl">
-                            <img src={imagePreview} className="w-full max-h-80 object-cover" alt="Preview" />
+                            <img loading="lazy" src={imagePreview} className="w-full max-h-80 object-cover" alt="Preview" />
                             <button 
                                 onClick={() => { setImageFile(null); setImagePreview(null); }}
                                 className="absolute top-4 right-4 p-2 bg-black/60 text-white rounded-full hover:bg-red-500 transition-all backdrop-blur-md active:scale-90"
@@ -757,8 +756,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
                 {suggested.map(s => (
                     <div key={s.id} className="flex items-center gap-4 group/item">
                         <Link to={`/community/@${profileSlug(s)}`} className="relative flex-shrink-0">
-                            <img
-                                src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`}
+                            <img loading="lazy" src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`}
                                 onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`; }}
                                 className="w-12 h-12 rounded-[1.2rem] object-cover border border-white/10 group-hover/item:border-brand-purple/50 transition-all duration-500 shadow-lg"
                                 alt={s.name}

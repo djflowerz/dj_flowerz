@@ -124,7 +124,7 @@ const Products: React.FC = () => {
                                             </button>
                                             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 overflow-hidden group-hover:scale-110 transition-transform">
                                                 {product.image_url ? (
-                                                    <img src={product.image_url} className="w-full h-full object-cover" />
+                                                    <img loading="lazy" src={product.image_url} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-gray-600">
                                                         <Package size={24} />
@@ -204,7 +204,7 @@ const Products: React.FC = () => {
                                                     <div key={v.id} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-brand-purple/30 transition-all">
                                                         <div className="flex items-center gap-6">
                                                             <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-600 text-[10px] font-bold overflow-hidden">
-                                                                {v.image_url ? <img src={v.image_url} className="w-full h-full object-cover" /> : <Package size={16} />}
+                                                                {v.image_url ? <img loading="lazy" src={v.image_url} className="w-full h-full object-cover" /> : <Package size={16} />}
                                                             </div>
                                                             <div>
                                                                 <p className="text-[11px] font-black text-white uppercase tracking-wider">{v.name || `Variant ${idx + 1}`}</p>

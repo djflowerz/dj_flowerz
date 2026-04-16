@@ -50,8 +50,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             to={`/store/${product.slug || product.id}`} 
             className="w-full h-full flex items-center justify-center p-6"
           >
-            <img
-              src={productImage}
+            <img loading="lazy" src={productImage}
               alt={product.name}
               className="w-full h-full object-contain transform transition-transform duration-500 group-hover:scale-105 mix-blend-multiply"
             />
@@ -181,8 +180,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
     <div className="glass-card group relative border border-white/5 rounded-[24px] flex flex-col overflow-hidden hover:border-brand-cyan/30 hover:shadow-[0_8px_30px_rgba(40,230,220,0.1)] transition-all duration-300 h-full">
       <div className="relative aspect-square bg-white overflow-hidden border-b border-white/5 flex items-center justify-center group-hover:bg-gray-50 transition-colors">
         <Link to={`/store/${product.slug || product.id}`} className="w-full h-full flex items-center justify-center p-8">
-          <img
-            src={productImage}
+          <img loading="lazy" src={productImage}
             alt={product.name}
             className="w-full h-full object-contain transform transition-transform duration-500 group-hover:scale-110 drop-shadow-2xl z-10 relative mix-blend-multiply"
           />

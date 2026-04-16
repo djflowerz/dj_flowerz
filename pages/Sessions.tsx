@@ -223,8 +223,7 @@ const Sessions: React.FC = () => {
                            {category.items.map((item: any, i: number) => (
                               <div key={i} className="group bg-[#15151A] rounded-xl overflow-hidden border border-white/5 hover:border-brand-purple/50 transition">
                                  <div className="aspect-square bg-gray-800 overflow-hidden relative">
-                                    <img
-                                       src={item.image}
+                                    <img loading="lazy" src={item.image}
                                        alt={item.name}
                                        className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
                                     />
@@ -252,7 +251,7 @@ const Sessions: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {galleryImages.map((img, idx) => (
                      <div key={idx} className={`rounded-xl overflow-hidden border border-white/10 relative group ${idx === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-                        <img src={img} alt="Studio Session" className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+                        <img loading="lazy" src={img} alt="Studio Session" className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                            <span className="text-white font-bold tracking-widest uppercase text-sm border border-white/30 px-4 py-2 rounded-full backdrop-blur-md">View Full Size</span>
                         </div>

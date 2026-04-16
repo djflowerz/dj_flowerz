@@ -114,7 +114,7 @@ const Mixtapes: React.FC = () => {
                   {filteredMixtapes.map((mix, idx) => (
                      <div key={`${mix.id}-${idx}`} className="glass-card rounded-[24px] overflow-hidden border border-white/5 hover:border-brand-cyan/30 transition duration-300 group flex flex-col hover:shadow-[0_8px_30px_rgba(40,230,220,0.1)] relative">
                         <div className="relative aspect-[4/3] sm:aspect-square bg-black/40 border-b border-white/5 overflow-hidden">
-                           <img src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                           <img loading="lazy" src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
                            <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-4 z-20">
                               <button
                                  onClick={(e) => {

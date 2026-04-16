@@ -38,6 +38,7 @@ self.addEventListener('push', event => {
   }
 });
 
+
 // 3. Handle Notification Click
 self.addEventListener('notificationclick', event => {
   event.notification.close();
@@ -56,6 +57,17 @@ self.addEventListener('notificationclick', event => {
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }
+    })
+  );
+});
+
+// 4. Fetch handler (Required for PWA installability)
+self.addEventListener('fetch', event => {
+  // Basic pass-through or caching logic
+  // Chrome requires a fetch handler to show the install prompt
+  event.respondWith(
+    fetch(event.request).catch(() => {
+        return caches.match(event.request);
     })
   );
 });

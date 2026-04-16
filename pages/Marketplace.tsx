@@ -127,8 +127,7 @@ export default function Marketplace() {
               <div key={item.id} className="glass-card group relative rounded-[2rem] border border-white/5 flex flex-col h-full overflow-hidden hover:border-brand-purple/30 transition duration-500">
                 {/* Image / Preview area */}
                 <div className="aspect-square bg-white p-6 relative overflow-hidden">
-                  <img 
-                    src={item.imageUrl || "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=400"} 
+                  <img loading="lazy" src={item.imageUrl || "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=400"} 
                     alt={item.name} 
                     className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700"
                   />

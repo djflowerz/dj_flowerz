@@ -185,8 +185,7 @@ const Notifications: React.FC = () => {
                                     <div className="p-5 flex items-start gap-4">
                                         {/* Actor Avatar */}
                                         <div className="relative flex-shrink-0">
-                                            <img 
-                                                src={n.actor_avatar || `https://ui-avatars.com/api/?name=${n.actor_name}&background=7C3AED&color=fff`} 
+                                            <img loading="lazy" src={n.actor_avatar || `https://ui-avatars.com/api/?name=${n.actor_name}&background=7C3AED&color=fff`} 
                                                 className="w-12 h-12 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" 
                                                 alt={n.actor_name} 
                                             />

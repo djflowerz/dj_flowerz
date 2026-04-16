@@ -278,7 +278,7 @@ export default function Products() {
 
       {/* Sidebar Banner */}
       <div className="aspect-w-3 aspect-h-4 rounded-2xl overflow-hidden relative group">
-        <img src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=400" alt="Banner" className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+        <img loading="lazy" src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=400" alt="Banner" className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-purple/90 to-transparent p-6 flex flex-col justify-end">
           <p className="text-[10px] font-black text-brand-cyan tracking-widest uppercase mb-1">New Arrival</p>
           <h4 className="text-lg font-black text-white leading-tight mb-3">DJ Controller <br />Pro X2</h4>
@@ -295,8 +295,7 @@ export default function Products() {
         {/* ULTIMATE STORE HERO SECTION */}
         <section className="mb-12 rounded-[2rem] overflow-hidden relative group">
           <div className="absolute inset-0 bg-[#0A0A0E]">
-            <img 
-              src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=2000" 
+            <img loading="lazy" src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=2000" 
               className="w-full h-full object-cover opacity-60 scale-105 group-hover:scale-100 transition-transform duration-1000"
               alt="Hero Backdrop"
             />
@@ -331,8 +330,7 @@ export default function Products() {
                {/* Featured Product Floating Card */}
                <div className="glass-card p-1 rounded-3xl overflow-hidden shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-500">
                   <div className="bg-white rounded-[1.4rem] p-8 aspect-square flex items-center justify-center">
-                    <img 
-                      src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=600" 
+                    <img loading="lazy" src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=600" 
                       className="w-full h-full object-contain mix-blend-multiply" 
                       alt="Featured Controller"
                     />
@@ -420,8 +418,7 @@ export default function Products() {
             {products.filter(p => p.isBestSeller).length > 0 && (
               <div className="lg:col-span-1 glass-card rounded-3xl border border-white/5 overflow-hidden group/featured relative">
                 <div className="bg-white p-12 aspect-square flex items-center justify-center relative overflow-hidden">
-                   <img 
-                      src={products.filter(p => p.isBestSeller)[0]?.image || products.filter(p => p.isBestSeller)[0]?.image_url || "https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=600"} 
+                   <img loading="lazy" src={products.filter(p => p.isBestSeller)[0]?.image || products.filter(p => p.isBestSeller)[0]?.image_url || "https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=600"} 
                       className="w-full h-full object-contain mix-blend-multiply group-hover/featured:scale-110 transition-transform duration-700" 
                       alt="Best Seller" 
                    />
@@ -486,8 +483,7 @@ export default function Products() {
                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-cyan/20 blur-[60px]"></div>
                        
                        <div className="bg-white rounded-[2rem] p-10 aspect-square mb-8 flex items-center justify-center relative overflow-hidden">
-                          <img 
-                            src={offer.image || offer.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=600"} 
+                          <img loading="lazy" src={offer.image || offer.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=600"} 
                             className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700" 
                             alt="Special Offer Item"
                           />
@@ -579,7 +575,7 @@ export default function Products() {
                     </button>
                  </div>
                  <div className="w-48 relative z-10 hidden md:block group-hover:rotate-6 transition-transform duration-500">
-                    <img src="https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400" className="w-full drop-shadow-2xl" alt="Promo Item" />
+                    <img loading="lazy" src="https://images.unsplash.com/photo-1543967623-010453d4fba7?auto=format&fit=crop&q=80&w=400" className="w-full drop-shadow-2xl" alt="Promo Item" />
                  </div>
               </div>
            </div>

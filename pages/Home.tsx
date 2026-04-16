@@ -113,7 +113,7 @@ const Home: React.FC = () => {
                   {featuredMixtapes.map((mix) => (
                      <div key={mix.id} className="group relative glass-card rounded-2xl overflow-hidden hover:-translate-y-2 transition-all duration-500 hover:shadow-brand-purple/20">
                         <div className="relative aspect-[4/5] overflow-hidden">
-                           <img src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110 group-hover:rotate-2 opacity-80 group-hover:opacity-100" />
+                           <img loading="lazy" src={mix.coverUrl} alt={mix.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110 group-hover:rotate-2 opacity-80 group-hover:opacity-100" />
                            <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-transparent to-transparent opacity-60" />
                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center backdrop-blur-[2px]">
                               <button

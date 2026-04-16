@@ -183,8 +183,9 @@ const MusicPool: React.FC = () => {
         return `${(bytes / 1024).toFixed(0)} KB`;
     };
 
-    // Extract Years and Months from Scanned Tracks for the Sidebar
-    const scanYears = [...new Set(scannedTracks.map(t => t.release_year))].filter(Boolean).sort((a,b) => b-a);
+    const scanYears = [...new Set(scannedTracks.map(t => Number(t.release_year)))]
+        .filter((y: unknown) => typeof y === 'number' && !isNaN(y) && y > 0)
+        .sort((a: unknown, b: unknown) => (b as number) - (a as number));
 
     return (
         <AdminLayout title="Music Pool">

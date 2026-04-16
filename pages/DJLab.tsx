@@ -193,7 +193,7 @@ const AuraVisionModule: React.FC = () => {
                 ) : (
                     <div className="space-y-8">
                         <div className="relative aspect-video rounded-[1.5rem] overflow-hidden border border-white/10 shadow-inner">
-                            <img src={preview} className="w-full h-full object-cover" alt="Preview" />
+                            <img loading="lazy" src={preview} className="w-full h-full object-cover" alt="Preview" />
                             {isAnalyzing && (
                                 <div className="absolute inset-0 bg-black/70 backdrop-blur-md flex flex-col items-center justify-center gap-4">
                                     <div className="relative">

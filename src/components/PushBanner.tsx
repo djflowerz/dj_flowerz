@@ -1,21 +1,24 @@
-// src/components/PushBanner.tsx
 import React, { useState, useEffect } from 'react';
-import { Bell, X, ShieldCheck, Sparkles } from 'lucide-react';
+import { Bell, X, ShieldCheck, Sparkles, Download } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { cn } from '@/utils';
+import { usePWA } from '../hooks/usePWA';
 
 export const PushBanner: React.FC = () => {
-    const { isSubscribed, subscribeToPush, isSupported } = usePushNotifications();
+    const { isSubscribed, subscribeToPush, isSupported: pushSupported } = usePushNotifications();
+    const { installable, installApp } = usePWA();
+    
     const [isVisible, setIsVisible] = useState(false);
     const [isDismissed, setIsDismissed] = useState(() => localStorage.getItem('push_banner_dismissed') === 'true');
 
     useEffect(() => {
-        // Show after a delay if not subscribed and not dismissed
-        if (isSupported && !isSubscribed && !isDismissed) {
-            const timer = setTimeout(() => setIsVisible(true), 5000);
-            return () => clearTimeout(timer);
+        // Show after a delay if (not subscribed OR installable) and not dismissed
+        if ((pushSupported && !isSubscribed) || installable) {
+            if (!isDismissed) {
+                const timer = setTimeout(() => setIsVisible(true), 5000);
+                return () => clearTimeout(timer);
+            }
         }
-    }, [isSupported, isSubscribed, isDismissed]);
+    }, [pushSupported, isSubscribed, installable, isDismissed]);
 
     const handleDismiss = () => {
         setIsVisible(false);
@@ -23,14 +26,24 @@ export const PushBanner: React.FC = () => {
         localStorage.setItem('push_banner_dismissed', 'true');
     };
 
-    const handleEnable = async () => {
+    const handleNotificationEnable = async () => {
         const success = await subscribeToPush();
         if (success) {
-            setIsVisible(false);
+            // Don't hide yet if still installable, otherwise hide
+            if (!installable) setIsVisible(false);
         }
     };
 
+    const handleInstall = async () => {
+        await installApp();
+        // The hook handles state update; if no longer installable and subscribed, we can hide
+    };
+
     if (!isVisible) return null;
+
+    // Determine what to show
+    const showInstall = installable;
+    const showPush = pushSupported && !isSubscribed;
 
     return (
         <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-8 md:w-96 z-[100] animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -49,25 +62,42 @@ export const PushBanner: React.FC = () => {
                 <div className="flex gap-6 items-start">
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-purple to-brand-cyan p-[1px] flex-shrink-0 animate-pulse">
                         <div className="w-full h-full rounded-2xl bg-[#0B0B0F] flex items-center justify-center">
-                            <Bell size={24} className="text-white" />
+                            {showInstall ? <Download size={24} className="text-white" /> : <Bell size={24} className="text-white" />}
                         </div>
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                            <h4 className="text-[11px] font-black uppercase tracking-widest text-white">Enable Smart Alerts</h4>
+                            <h4 className="text-[11px] font-black uppercase tracking-widest text-white">
+                                {showInstall ? 'App Installation' : 'Enable Smart Alerts'}
+                            </h4>
                             <Sparkles size={12} className="text-brand-purple" />
                         </div>
                         <p className="text-[13px] font-bold text-gray-300 leading-relaxed mb-6">
-                            Never miss a deal. Get instant push notifications for funded deals, shipping updates, and P2P messages.
+                            {showInstall 
+                                ? 'Install DJ Flowerz on your home screen for faster access and a premium native experience.'
+                                : 'Never miss a deal. Get instant push notifications for funded deals, shipping updates, and P2P messages.'
+                            }
                         </p>
                         
                         <div className="flex flex-col gap-3">
-                            <button 
-                                onClick={handleEnable}
-                                className="w-full py-4 rounded-2xl bg-white text-[#050507] text-[11px] font-black uppercase tracking-widest hover:bg-brand-purple hover:text-white transition-all transform active:scale-95 shadow-xl shadow-white/5"
-                            >
-                                Notify My Device
-                            </button>
+                            {showInstall && (
+                                <button 
+                                    onClick={handleInstall}
+                                    className="w-full py-4 rounded-2xl bg-brand-purple text-white text-[11px] font-black uppercase tracking-widest hover:brightness-110 transition-all transform active:scale-95 shadow-xl shadow-brand-purple/20 flex items-center justify-center gap-2"
+                                >
+                                    <Download size={14} /> Install App
+                                </button>
+                            )}
+                            
+                            {showPush && (
+                                <button 
+                                    onClick={handleNotificationEnable}
+                                    className="w-full py-4 rounded-2xl bg-white text-[#050507] text-[11px] font-black uppercase tracking-widest hover:bg-white/90 transition-all transform active:scale-95 shadow-xl shadow-white/5 flex items-center justify-center gap-2"
+                                >
+                                    <Bell size={14} /> Notify My Device
+                                </button>
+                            )}
+
                             <div className="flex items-center justify-center gap-2 text-[9px] font-black text-gray-500 uppercase tracking-tighter">
                                 <ShieldCheck size={10} className="text-emerald-500" />
                                 100% SECURE & PRIVATE

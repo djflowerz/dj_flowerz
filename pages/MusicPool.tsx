@@ -252,7 +252,26 @@ export default function MusicPool() {
   const [activeHub, setActiveHub] = useState('All Hubs');
   const [activeGenre, setActiveGenre] = useState('All Genres');
   const [activeYear, setActiveYear] = useState('All Years');
+  const [bpmRange, setBpmRange] = useState({ min: '', max: '' });
+  const [activeKey, setActiveKey] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [player, setPlayer] = useState<{track: PoolTrack | null, url: string | null}>({ track: null, url: null });
+
+  // Available genres for the selected hub
+  const availableGenres = useMemo(() => {
+    if (activeHub === 'All Hubs') return [];
+    const hub = filters.hubsWithGenres.find(h => h.hub === activeHub);
+    return hub ? hub.genres : [];
+  }, [activeHub, filters.hubsWithGenres]);
+
+  // Reset genre if it's no longer valid for the selected hub
+  useEffect(() => {
+    if (activeHub === 'All Hubs') {
+      setActiveGenre('All Genres');
+    } else if (activeGenre !== 'All Genres' && !availableGenres.includes(activeGenre)) {
+      setActiveGenre('All Genres');
+    }
+  }, [activeHub, availableGenres, activeGenre]);
 
   const isAdminOrSub = user?.isSubscriber || user?.isAdmin || user?.role === 'admin';
 
@@ -271,16 +290,27 @@ export default function MusicPool() {
         search,
         hub: activeHub === 'All Hubs' ? undefined : activeHub,
         genre: activeGenre === 'All Genres' ? undefined : activeGenre,
-        year: activeYear === 'All Years' ? undefined : activeYear
+        year: activeYear === 'All Years' ? undefined : activeYear,
+        bpmMin: bpmRange.min ? parseInt(bpmRange.min) : undefined,
+        bpmMax: bpmRange.max ? parseInt(bpmRange.max) : undefined,
+        key: activeKey || undefined
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [search, activeHub, activeGenre, activeYear, fetchTracks]);
+  }, [search, activeHub, activeGenre, activeYear, bpmRange, fetchTracks]);
 
   const handleDownload = (track: PoolTrack, version: any) => {
     if (!isAdminOrSub) return toast.error("Subscription required.");
     trackDownload(version.id, version.download_url);
     window.open(version.download_url, '_blank');
+  };
+
+  const handleTrackKeydown = (e: React.KeyboardEvent, track: PoolTrack) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
+      setPlayer({ track, url: mainV?.preview_url || track.previewUrl || null });
+    }
   };
 
   if (!isAdminOrSub && !loading) return null;
@@ -309,6 +339,7 @@ export default function MusicPool() {
           <input 
             id="pool-search-input"
             name="pool-search"
+            aria-label="Search track library"
             style={{ ...css.input, paddingLeft: '45px' }} 
             placeholder="SEARCH TRACKS..." 
             value={search}
@@ -316,35 +347,127 @@ export default function MusicPool() {
           />
         </div>
         
-        <select 
-          id="hub-selector"
-          name="active-hub"
-          style={css.select} 
-          value={activeHub} 
-          onChange={(e) => setActiveHub(e.target.value)}
-        >
-          <option>All Hubs</option>
-          {filters.hubsWithGenres.map(h => <option key={h.hub}>{h.hub}</option>)}
-        </select>
-
-        <select 
-          id="year-selector"
-          name="active-year"
-          style={css.select} 
-          value={activeYear} 
-          onChange={(e) => setActiveYear(e.target.value)}
-        >
-          <option>All Years</option>
-          {filters.years.map(y => <option key={y.year}>{y.year}</option>)}
-        </select>
-        
-        <div style={{ ...css.btn, backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}>
-            <Sliders size={18} /> Filters
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label htmlFor="hub-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Hub</label>
+          <select 
+            id="hub-selector"
+            name="active-hub"
+            aria-label="Filter by release hub"
+            style={css.select} 
+            value={activeHub} 
+            onChange={(e) => setActiveHub(e.target.value)}
+          >
+            <option>All Hubs</option>
+            {filters.hubsWithGenres.map(h => <option key={h.hub}>{h.hub}</option>)}
+          </select>
         </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label htmlFor="genre-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Genre</label>
+          <select 
+            id="genre-selector"
+            name="active-genre"
+            aria-label="Filter by genre"
+            style={css.select} 
+            disabled={activeHub === 'All Hubs'}
+            value={activeGenre} 
+            onChange={(e) => setActiveGenre(e.target.value)}
+          >
+            <option>All Genres</option>
+            {availableGenres.map(g => <option key={g}>{g}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label htmlFor="year-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Year</label>
+          <select 
+            id="year-selector"
+            name="active-year"
+            aria-label="Filter by year"
+            style={css.select} 
+            value={activeYear} 
+            onChange={(e) => setActiveYear(e.target.value)}
+          >
+            <option>All Years</option>
+            {filters.years.map(y => <option key={y.year}>{y.year}</option>)}
+          </select>
+        </div>
+        
+        <button 
+          aria-label="Toggle advanced filters"
+          style={{ ...css.btn, backgroundColor: showFilters ? COLORS.INK : COLORS.PAPER, color: showFilters ? COLORS.PAPER : COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
+          onClick={() => setShowFilters(!showFilters)}
+        >
+            <Sliders size={18} /> Filters
+        </button>
       </section>
 
+      {/* ─── Advanced Filters ─── */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.section 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            style={{ maxWidth: '1400px', margin: '-20px auto 40px', padding: '0 20px', overflow: 'hidden' }}
+          >
+            <div style={{ border: `2px solid ${COLORS.BORDER}`, padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px', backgroundColor: '#fcfaf7' }}>
+              <div>
+                <label htmlFor="bpm-min" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Min BPM</label>
+                <input 
+                  id="bpm-min"
+                  type="number"
+                  placeholder="e.g. 100"
+                  style={css.input}
+                  value={bpmRange.min}
+                  onChange={(e) => setBpmRange(prev => ({ ...prev, min: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="bpm-max" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Max BPM</label>
+                <input 
+                  id="bpm-max"
+                  type="number"
+                  placeholder="e.g. 130"
+                  style={css.input}
+                  value={bpmRange.max}
+                  onChange={(e) => setBpmRange(prev => ({ ...prev, max: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="key-filter" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Harmonic Key</label>
+                <input 
+                  id="key-filter"
+                  type="text"
+                  placeholder="e.g. 1A, 4A, 8A"
+                  style={css.input}
+                  value={activeKey}
+                  onChange={(e) => setActiveKey(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button 
+                  style={{ ...css.btn, width: '100%', height: '45px' }}
+                  onClick={() => {
+                    setBpmRange({ min: '', max: '' });
+                    setActiveHub('All Hubs');
+                    setActiveGenre('All Genres');
+                    setActiveYear('All Years');
+                    setBpmRange({ min: '', max: '' });
+                    setActiveKey('');
+                    setSearch('');
+                  }}
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
       {/* ─── Track List ─── */}
-      <main style={css.trackGrid}>
+      <main style={css.trackGrid} role="list" aria-label="Track library">
         {loading && tracks.length === 0 ? (
           <div style={{ backgroundColor: COLORS.PAPER, padding: '100px', textAlign: 'center' }}>
             <Disc3 className="animate-spin" size={48} style={{ margin: '0 auto 20px' }} />
@@ -360,22 +483,26 @@ export default function MusicPool() {
             <div 
               key={track.id} 
               style={css.trackItem}
+              role="button"
+              tabIndex={0}
+              aria-label={`Preview ${track.title} by ${track.artist}`}
               onClick={() => {
                 const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
                 setPlayer({ track, url: mainV?.preview_url || track.previewUrl || null });
               }}
+              onKeyDown={(e) => handleTrackKeydown(e, track)}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = COLORS.PAPER)}
             >
               <div style={css.trackArt}>
-                <Play size={24} fill={COLORS.INK} />
+                <Play size={24} fill={COLORS.INK} aria-hidden="true" />
               </div>
               <div style={css.trackMeta}>
                 <h3 style={css.trackTitle}>{track.title}</h3>
                 <p style={css.trackArtist}>{track.artist}</p>
               </div>
               <div style={css.trackBPM}>
-                <span style={{ fontSize: '10px', display: 'block', color: COLORS.MUTED }}>BPM</span>
+                <span style={{ fontSize: '10px', display: 'block', color: COLORS.MUTED }} aria-hidden="true">BPM</span>
                 {track.bpm || '—'}
               </div>
               <div style={css.trackGenre}>
@@ -384,13 +511,14 @@ export default function MusicPool() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   style={{ ...css.btn, flex: 1 }}
+                  aria-label={`Download ${track.title}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
                     if (mainV) handleDownload(track, mainV);
                   }}
                 >
-                  <Download size={16} /> DL
+                  <Download size={16} aria-hidden="true" /> DL
                 </button>
               </div>
             </div>
@@ -400,23 +528,32 @@ export default function MusicPool() {
 
       {/* ─── Pagination ─── */}
       {!loading && pagination.totalPages > 1 && (
-        <div style={{ maxWidth: '1400px', margin: '40px auto', padding: '0 20px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
+        <div 
+          style={{ maxWidth: '1400px', margin: '40px auto', padding: '0 20px', display: 'flex', gap: '10px', justifyContent: 'center' }}
+          role="navigation"
+          aria-label="Pagination"
+        >
           <button 
+             aria-label="Previous page"
              style={{ ...css.btn, backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
              disabled={pagination.page === 1}
              onClick={() => fetchTracks({ page: pagination.page - 1 })}
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={20} aria-hidden="true" />
           </button>
-          <div style={{ ...css.btn, pointerEvents: 'none', backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}`, minWidth: '100px' }}>
+          <div 
+            style={{ ...css.btn, pointerEvents: 'none', backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}`, minWidth: '100px' }}
+            aria-current="page"
+          >
              PAGE {pagination.page} / {pagination.totalPages}
           </div>
           <button 
+             aria-label="Next page"
              style={{ ...css.btn, backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
              disabled={pagination.page === pagination.totalPages}
              onClick={() => fetchTracks({ page: pagination.page + 1 })}
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={20} aria-hidden="true" />
           </button>
         </div>
       )}
@@ -476,3 +613,4 @@ export default function MusicPool() {
     </div>
   );
 }
+// 🔥 [2026-04-16] DEPLOYMENT HEARTBEAT

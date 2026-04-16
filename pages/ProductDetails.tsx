@@ -242,8 +242,7 @@ export default function ProductDetails() {
           {/* Gallery Sidebar */}
           <div className="w-full lg:w-1/2 lg:sticky lg:top-24">
             <div className="bg-white p-8 rounded-[40px] shadow-2xl overflow-hidden relative group border border-white/5 mb-6">
-                <img 
-                    src={selectedImage} 
+                <img loading="lazy" src={selectedImage} 
                     alt={product.name} 
                     className="w-full h-auto object-contain transition-transform duration-700 group-hover:scale-105"
                 />
@@ -277,7 +276,7 @@ export default function ProductDetails() {
                         onClick={() => setSelectedImage(img)}
                         className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedImage === img ? 'border-brand-purple bg-brand-purple/5 shadow-[0_0_20px_rgba(157,78,221,0.2)]' : 'border-white/5 hover:border-white/20'}`}
                     >
-                        <img src={img} className="w-full h-full object-contain p-2" />
+                        <img loading="lazy" src={img} className="w-full h-full object-contain p-2" />
                     </button>
                 ))}
             </div>
@@ -642,7 +641,7 @@ export default function ProductDetails() {
                         className="group bg-[#15151A] rounded-[32px] p-6 border border-white/5 transition-all hover:border-brand-purple/30 hover:-translate-y-2"
                     >
                         <div className="aspect-square rounded-2xl overflow-hidden mb-6 bg-white p-4">
-                            <img src={related.image || related.image_url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
+                            <img loading="lazy" src={related.image || related.image_url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
                         </div>
                         <h4 className="text-xs font-black text-white uppercase tracking-widest mb-2 line-clamp-1">{related.name}</h4>
                         <p className="text-brand-cyan font-black">KES {formatPrice(related.price)}</p>
