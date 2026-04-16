@@ -19,8 +19,8 @@ import { SecurityWatchdog } from '../utils/watchdog';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 🔥 [2026-04-16] DEPLOYMENT VERIFICATION: ZINE EDITION v1.1
-// This comment is a manual trigger to force Netlify to re-scan the branch.
+// 🔥 [2026-04-16] DEPLOYMENT HEARTBEAT: ZINE EDITION v1.2
+// This comment is a manual trigger to force Netlify to re-scan and deploy the latest fixes.
 
 
 // ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
