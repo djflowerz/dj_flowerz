@@ -392,12 +392,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       try {
-        const { saveToD1 } = await import('../context/DataContext').then(m => ({ saveToD1: (m as any).saveToD1 }));
-        if (saveToD1) {
-          await saveToD1('profiles', 'PUT', updates, user.id);
-        } else {
-          await updateR2Item('profiles', user.id, updates);
-        }
+        // Direct worker API call — avoids importing DataContext (which would create a circular dep)
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const workerUrl = import.meta.env.VITE_API_BASE_URL || '';
+        await fetch(`${workerUrl}/api/user/me`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(updates),
+        });
 
         setUser(prev => prev ? ({
           ...prev,
