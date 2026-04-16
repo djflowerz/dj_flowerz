@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // 🔥 [2026-04-16] DEPLOYMENT VERIFICATION: ZINE EDITION v1.1
 // This comment is a manual trigger to force Netlify to re-scan the branch.
-const watchdogInstance = SecurityWatchdog.getInstance();
+
 
 // ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
 
@@ -237,13 +237,15 @@ export default function MusicPool() {
 
   // ─── Security Watchdog ───
   useEffect(() => {
-    if (watchdogInstance) {
-      watchdogInstance.start(() => {
-        toast.error("Security violation detected.");
-        setTimeout(() => navigate('/'), 1500);
+    const watchdog = SecurityWatchdog.getInstance();
+    if (watchdog) {
+      watchdog.start(() => {
+        // Suppressing visible toast per user request to keep header/UI clean, 
+        // but maintaining functional redirect security.
+        setTimeout(() => navigate('/'), 500);
       });
     }
-    return () => watchdogInstance?.stop();
+    return () => watchdog?.stop();
   }, [navigate]);
 
   const [search, setSearch] = useState('');
@@ -289,11 +291,10 @@ export default function MusicPool() {
       <header style={css.header}>
         <div style={css.masthead}>
           <div>
-            <p style={css.subtitle}>issue no. 024 — limited access only</p>
+            <p style={css.subtitle}>PREMIUM ARCHIVE</p>
             <h1 style={css.title}>Music <span style={{ color: COLORS.ACCENT }}>Pool</span></h1>
           </div>
           <div style={{ textAlign: 'right' }}>
-             <p style={{ ...css.subtitle, color: COLORS.INK }}>authenticated as</p>
              <p style={{ fontFamily: FONTS.TITLE, fontSize: '32px', margin: 0, fontWeight: 900 }}>
                {user?.display_name || user?.username || 'GUEST_USER'}
              </p>
@@ -306,6 +307,8 @@ export default function MusicPool() {
         <div style={{ position: 'relative' }}>
           <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: COLORS.MUTED }} />
           <input 
+            id="pool-search-input"
+            name="pool-search"
             style={{ ...css.input, paddingLeft: '45px' }} 
             placeholder="SEARCH TRACKS..." 
             value={search}
@@ -313,12 +316,24 @@ export default function MusicPool() {
           />
         </div>
         
-        <select style={css.select} value={activeHub} onChange={(e) => setActiveHub(e.target.value)}>
+        <select 
+          id="hub-selector"
+          name="active-hub"
+          style={css.select} 
+          value={activeHub} 
+          onChange={(e) => setActiveHub(e.target.value)}
+        >
           <option>All Hubs</option>
           {filters.hubsWithGenres.map(h => <option key={h.hub}>{h.hub}</option>)}
         </select>
 
-        <select style={css.select} value={activeYear} onChange={(e) => setActiveYear(e.target.value)}>
+        <select 
+          id="year-selector"
+          name="active-year"
+          style={css.select} 
+          value={activeYear} 
+          onChange={(e) => setActiveYear(e.target.value)}
+        >
           <option>All Years</option>
           {filters.years.map(y => <option key={y.year}>{y.year}</option>)}
         </select>

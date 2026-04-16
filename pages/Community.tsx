@@ -385,6 +385,8 @@ const PostCard: React.FC<{
                         {currentUser && <Avatar src={currentUser.avatarUrl} name={currentUser.name} size={9} />}
                         <div className="flex-1 flex gap-2">
                             <input
+                                id="community-comment-input"
+                                name="comment"
                                 value={commentText}
                                 onChange={e => setCommentText(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && submitComment()}
@@ -418,6 +420,8 @@ const PostCard: React.FC<{
                                 <div className="flex justify-between"><span className="text-gray-400">Total Price</span><span className="text-brand-cyan font-black text-xl">KES {post.price.toLocaleString()}</span></div>
                             </div>
                             <textarea 
+                                id="shipping-address-input"
+                                name="shipping_address"
                                 value={shippingAddress} 
                                 onChange={e => setShippingAddress(e.target.value)}
                                 placeholder="Enter Delivery Instructions / Preferred Pickup Location..."
@@ -463,6 +467,8 @@ const PostCard: React.FC<{
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-brand-purple ml-1">Your Tactical Offer (KES)</label>
                                 <input 
+                                    id="offer-amount-input"
+                                    name="offer_amount"
                                     type="number" 
                                     value={offerAmount} 
                                     onChange={e => setOfferAmount(e.target.value)}
@@ -578,6 +584,8 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 <div className="flex-1">
                     <div className="relative">
                         <textarea
+                            id="post-content-composer"
+                            name="broadcast_content"
                             value={content}
                             onChange={e => setContent(e.target.value)}
                             placeholder="What's hitting the speakers? Broadcast a mix, news, or set..."
@@ -610,6 +618,8 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                             <div className="flex-1">
                                 <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">Listing Price (KES)</span>
                                 <input
+                                    id="composer-price-input"
+                                    name="listing_price"
                                     type="number"
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
@@ -623,6 +633,8 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
                         <div className="flex gap-2">
                             <input 
+                                id="composer-file-input"
+                                name="attachment"
                                 type="file" 
                                 ref={fileInputRef} 
                                 onChange={handleImageSelect} 
