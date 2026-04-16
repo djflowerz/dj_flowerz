@@ -19,7 +19,8 @@ import { SecurityWatchdog } from '../utils/watchdog';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 🔥 Initialize Watchdog outside the component as suggested to avoid TDZ issues
+// 🔥 [2026-04-16] DEPLOYMENT VERIFICATION: ZINE EDITION v1.1
+// This comment is a manual trigger to force Netlify to re-scan the branch.
 const watchdogInstance = SecurityWatchdog.getInstance();
 
 // ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
