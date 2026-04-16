@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
-    Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader
+    Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader,
+    Zap, Crown, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
@@ -139,7 +140,7 @@ const PostCard: React.FC<{
     const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
     const { reshare, comment: addComment } = useComposer();
-    const { items: comments, appendComment, loading: commentsLoading } = usePost(post.id);
+    const { comments, appendComment, loading: commentsLoading } = usePost(post.id);
 
     const handleLike = () => {
         if (!currentUserId) return toast.error('Log in to like posts');
@@ -877,7 +878,7 @@ const Community: React.FC = () => {
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
-                        onClick={() => { if (activeTab !== tab.id) { setActiveTab(tab.id); setPosts([]); } }}
+                        onClick={() => { if (activeTab !== tab.id) { setActiveTab(tab.id); } }}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                             activeTab === tab.id
                                 ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'

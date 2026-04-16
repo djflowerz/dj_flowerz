@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, ChevronRight, Minus, Plus, PlayCircle, Check, Share2, Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Flame } from 'lucide-react';
+import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, ChevronRight, Minus, Plus, PlayCircle, Check, Share2, Facebook, Twitter, Instagram, MessageCircle, MessageSquare, Copy, Info, Layout, Package, Flame } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import ProductReviews from '../components/ProductReviews';

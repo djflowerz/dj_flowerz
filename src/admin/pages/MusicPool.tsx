@@ -183,9 +183,9 @@ const MusicPool: React.FC = () => {
         return `${(bytes / 1024).toFixed(0)} KB`;
     };
 
-    const scanYears = [...new Set(scannedTracks.map(t => Number(t.release_year)))]
-        .filter((y: unknown) => typeof y === 'number' && !isNaN(y) && y > 0)
-        .sort((a: unknown, b: unknown) => (b as number) - (a as number));
+    const scanYears = Array.from(new Set(scannedTracks.map(t => Number(t.release_year))))
+        .filter((y): y is number => typeof y === 'number' && !isNaN(y) && y > 0)
+        .sort((a, b) => b - a);
 
     return (
         <AdminLayout title="Music Pool">

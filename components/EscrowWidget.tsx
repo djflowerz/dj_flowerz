@@ -7,7 +7,7 @@
  *   <EscrowWidget listingId="lst_xyz" sellerId="uid_seller" amountKes={4500} itemDescription="Pioneer CDJ-2000NXS2" />
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Lock, Package, CheckCircle2, AlertTriangle, Clock, XCircle,
     ShieldCheck, RotateCcw, ArrowRight, Loader2, ChevronRight,
@@ -62,6 +62,7 @@ export default function EscrowWidget({
     itemDescription,
     className = '',
 }: EscrowWidgetProps) {
+    const { user } = useAuth();
     const [escrowId, setEscrowId] = useState<string | null>(initialEscrowId ?? null);
 
     const {
@@ -660,7 +661,7 @@ function ActionPanel({ escrow, loading, canFund, canShip, canDeliver, canDispute
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={async () => { await onShip({ carrier, tracking }); setModal(null); }}
+                            onClick={async () => { await onShip({ shipping_carrier: carrier, tracking_number: tracking }); setModal(null); }}
                             disabled={!carrier || !tracking || loading}
                             className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-600/80 text-white font-semibold text-xs"
                         >
