@@ -15,8 +15,12 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useMusicPool, PoolTrack, YearData } from '../hooks/useMusicPool';
 import { maskMediaUrl } from '../utils/branding';
+import { SecurityWatchdog } from '../utils/watchdog';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// 🔥 Initialize Watchdog outside the component as suggested to avoid TDZ issues
+const watchdogInstance = SecurityWatchdog.getInstance();
 
 // ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
 
@@ -229,6 +233,17 @@ export default function MusicPool() {
     tracks, filters, loading, error, pagination, 
     fetchTracks, trackDownload 
   } = useMusicPool();
+
+  // ─── Security Watchdog ───
+  useEffect(() => {
+    if (watchdogInstance) {
+      watchdogInstance.start(() => {
+        toast.error("Security violation detected.");
+        setTimeout(() => navigate('/'), 1500);
+      });
+    }
+    return () => watchdogInstance?.stop();
+  }, [navigate]);
 
   const [search, setSearch] = useState('');
   const [activeHub, setActiveHub] = useState('All Hubs');
