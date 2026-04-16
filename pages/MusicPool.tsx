@@ -25,211 +25,215 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
 
-const FONTS = {
-  TITLE: "'Barlow Condensed', sans-serif",
-  BODY: "'Barlow', sans-serif",
-  MONO: "'DM Mono', monospace"
-};
-
-const COLORS = {
-  PAPER: '#fcfaf7',
-  INK: '#1a1a1a',
-  ACCENT: '#a855f7',
-  MUTED: '#888888',
-  BORDER: '#1a1a1a'
-};
-
-const css: Record<string, React.CSSProperties> = {
-  page: {
-    backgroundColor: COLORS.PAPER,
-    minHeight: '100vh',
-    color: COLORS.INK,
-    fontFamily: FONTS.BODY,
-    paddingTop: '80px',
-    paddingBottom: '100px'
-  },
-  header: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '40px 20px',
-    borderBottom: `4px solid ${COLORS.BORDER}`,
-    marginBottom: '40px'
-  },
-  masthead: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap',
-    gap: '20px'
-  },
-  title: {
-    fontFamily: FONTS.TITLE,
-    fontSize: 'clamp(4rem, 10vw, 8rem)',
-    fontWeight: 900,
-    lineHeight: 0.8,
-    margin: 0,
-    textTransform: 'uppercase',
-    letterSpacing: '-0.04em',
-    fontStyle: 'italic'
-  },
-  subtitle: {
-    fontFamily: FONTS.MONO,
-    fontSize: '14px',
-    margin: 0,
-    textTransform: 'uppercase',
-    color: COLORS.MUTED,
-    letterSpacing: '0.1em'
-  },
-  controls: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '0 20px',
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '15px',
-    marginBottom: '40px'
-  },
-  input: {
-    width: '100%',
-    backgroundColor: 'transparent',
-    border: `2px solid ${COLORS.BORDER}`,
-    padding: '12px 15px',
-    fontFamily: FONTS.MONO,
-    fontSize: '14px',
-    outline: 'none',
-    boxSizing: 'border-box'
-  },
-  select: {
-    width: '100%',
-    backgroundColor: 'transparent',
-    border: `2px solid ${COLORS.BORDER}`,
-    padding: '12px 15px',
-    fontFamily: FONTS.MONO,
-    fontSize: '14px',
-    outline: 'none',
-    cursor: 'pointer'
-  },
-  trackGrid: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '0 20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px', // Thin ink lines between items
-    backgroundColor: COLORS.BORDER,
-    border: `2px solid ${COLORS.BORDER}`
-  },
-  trackItem: {
-    backgroundColor: COLORS.PAPER,
-    display: 'grid',
-    gridTemplateColumns: '80px 1fr 150px 100px 150px',
-    alignItems: 'center',
-    padding: '20px',
-    gap: '20px',
-    transition: 'background 0.2s',
-    cursor: 'pointer'
-  },
-  trackArt: {
-    width: '80px',
-    height: '80px',
-    border: `2px solid ${COLORS.BORDER}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#eee'
-  },
-  trackMeta: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px'
-  },
-  trackTitle: {
-    fontFamily: FONTS.TITLE,
-    fontSize: '24px',
-    fontWeight: 800,
-    textTransform: 'uppercase',
-    margin: 0,
-    lineHeight: 1
-  },
-  trackArtist: {
-    fontFamily: FONTS.BODY,
-    fontSize: '16px',
-    color: COLORS.MUTED,
-    margin: 0
-  },
-  trackBPM: {
-    fontFamily: FONTS.MONO,
-    fontSize: '18px',
-    fontWeight: 700,
-    textAlign: 'center'
-  },
-  trackGenre: {
-    fontFamily: FONTS.MONO,
-    fontSize: '12px',
-    textTransform: 'uppercase',
-    textAlign: 'right',
-    color: COLORS.MUTED
-  },
-  btn: {
-    backgroundColor: COLORS.INK,
-    color: COLORS.PAPER,
-    border: 'none',
-    padding: '12px 20px',
-    fontFamily: FONTS.TITLE,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    cursor: 'pointer',
-    fontSize: '16px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    transition: 'transform 0.1s'
-  },
-  overlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(5, 5, 5, 0.95)',
-    zIndex: 1000,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '40px'
-  },
-  playerContainer: {
-    width: '100%',
-    maxWidth: '1200px',
-    backgroundColor: COLORS.PAPER,
-    border: `4px solid ${COLORS.BORDER}`,
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column'
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: '-50px',
-    right: 0,
-    color: 'white',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    fontFamily: FONTS.TITLE,
-    fontSize: '20px',
-    textTransform: 'uppercase'
-  }
-};
+// ─── STYLES HAVE BEEN MOVED INTO THE COMPONENT SCOPE TO PREVENT TDZ ────────
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
 export default function MusicPool() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // ─── STYLES (moved inside to prevent TDZ bundler crash) ───
+  const FONTS = {
+    TITLE: "'Barlow Condensed', sans-serif",
+    BODY: "'Barlow', sans-serif",
+    MONO: "'DM Mono', monospace"
+  };
+
+  const COLORS = {
+    PAPER: '#fcfaf7',
+    INK: '#1a1a1a',
+    ACCENT: '#a855f7',
+    MUTED: '#888888',
+    BORDER: '#1a1a1a'
+  };
+
+  const css: Record<string, React.CSSProperties> = {
+    page: {
+      backgroundColor: COLORS.PAPER,
+      minHeight: '100vh',
+      color: COLORS.INK,
+      fontFamily: FONTS.BODY,
+      paddingTop: '80px',
+      paddingBottom: '100px'
+    },
+    header: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '40px 20px',
+      borderBottom: `4px solid ${COLORS.BORDER}`,
+      marginBottom: '40px'
+    },
+    masthead: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      flexWrap: 'wrap',
+      gap: '20px'
+    },
+    title: {
+      fontFamily: FONTS.TITLE,
+      fontSize: 'clamp(4rem, 10vw, 8rem)',
+      fontWeight: 900,
+      lineHeight: 0.8,
+      margin: 0,
+      textTransform: 'uppercase',
+      letterSpacing: '-0.04em',
+      fontStyle: 'italic'
+    },
+    subtitle: {
+      fontFamily: FONTS.MONO,
+      fontSize: '14px',
+      margin: 0,
+      textTransform: 'uppercase',
+      color: COLORS.MUTED,
+      letterSpacing: '0.1em'
+    },
+    controls: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '0 20px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '15px',
+      marginBottom: '40px'
+    },
+    input: {
+      width: '100%',
+      backgroundColor: 'transparent',
+      border: `2px solid ${COLORS.BORDER}`,
+      padding: '12px 15px',
+      fontFamily: FONTS.MONO,
+      fontSize: '14px',
+      outline: 'none',
+      boxSizing: 'border-box'
+    },
+    select: {
+      width: '100%',
+      backgroundColor: 'transparent',
+      border: `2px solid ${COLORS.BORDER}`,
+      padding: '12px 15px',
+      fontFamily: FONTS.MONO,
+      fontSize: '14px',
+      outline: 'none',
+      cursor: 'pointer'
+    },
+    trackGrid: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '0 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px', // Thin ink lines between items
+      backgroundColor: COLORS.BORDER,
+      border: `2px solid ${COLORS.BORDER}`
+    },
+    trackItem: {
+      backgroundColor: COLORS.PAPER,
+      display: 'grid',
+      gridTemplateColumns: '80px 1fr 150px 100px 150px',
+      alignItems: 'center',
+      padding: '20px',
+      gap: '20px',
+      transition: 'background 0.2s',
+      cursor: 'pointer'
+    },
+    trackArt: {
+      width: '80px',
+      height: '80px',
+      border: `2px solid ${COLORS.BORDER}`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#eee'
+    },
+    trackMeta: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px'
+    },
+    trackTitle: {
+      fontFamily: FONTS.TITLE,
+      fontSize: '24px',
+      fontWeight: 800,
+      textTransform: 'uppercase',
+      margin: 0,
+      lineHeight: 1
+    },
+    trackArtist: {
+      fontFamily: FONTS.BODY,
+      fontSize: '16px',
+      color: COLORS.MUTED,
+      margin: 0
+    },
+    trackBPM: {
+      fontFamily: FONTS.MONO,
+      fontSize: '18px',
+      fontWeight: 700,
+      textAlign: 'center'
+    },
+    trackGenre: {
+      fontFamily: FONTS.MONO,
+      fontSize: '12px',
+      textTransform: 'uppercase',
+      textAlign: 'right',
+      color: COLORS.MUTED
+    },
+    btn: {
+      backgroundColor: COLORS.INK,
+      color: COLORS.PAPER,
+      border: 'none',
+      padding: '12px 20px',
+      fontFamily: FONTS.TITLE,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+      fontSize: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      transition: 'transform 0.1s'
+    },
+    overlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(5, 5, 5, 0.95)',
+      zIndex: 1000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px'
+    },
+    playerContainer: {
+      width: '100%',
+      maxWidth: '1200px',
+      backgroundColor: COLORS.PAPER,
+      border: `4px solid ${COLORS.BORDER}`,
+      position: 'relative',
+      display: 'flex',
+      flexDirection: 'column'
+    },
+    closeBtn: {
+      position: 'absolute',
+      top: '-50px',
+      right: 0,
+      color: 'white',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontFamily: FONTS.TITLE,
+      fontSize: '20px',
+      textTransform: 'uppercase'
+    }
+  };
+
   const { 
     tracks, filters, loading, error, pagination, 
     fetchTracks, trackDownload 
