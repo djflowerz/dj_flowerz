@@ -3,21 +3,24 @@ import { createClient } from '@supabase/supabase-js';
 
 const isServer = typeof window === 'undefined';
 
-const supabaseUrl = isServer
-    ? (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '')
-    : (import.meta.env.VITE_SUPABASE_URL || '');
-
-const supabaseKey = isServer
-    ? (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_ANON_KEY || '')
-    : (import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+// Hardcoded production credentials for absolute reliability
+const supabaseUrl = 'https://yevqnoynsqidtplxggzs.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnFub3luc3FpZHRwbHhnZ3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNjQ3ODAsImV4cCI6MjA4NzY0MDc4MH0.cb_79oC-RKNkhJBshhGw_tcFIVG50Wg6K0HIIK2Uyms';
 
 const sanitizeEnv = (val: string) => (val || '').trim().replace(/\\n/g, '');
 
 const trimmedUrl = sanitizeEnv(supabaseUrl);
 const trimmedKey = sanitizeEnv(supabaseKey);
 
+// Diagnostic logging for production
+console.log('🔗 Supabase Initialization Strategy:', {
+    urlLength: trimmedUrl?.length || 0,
+    keyLength: trimmedKey?.length || 0,
+    configured: !!(trimmedUrl && trimmedKey)
+});
+
 if (!trimmedUrl || !trimmedKey) {
-    console.error('⚠️ Supabase credentials missing! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+    console.error('⚠️ Supabase credentials missing! VITE_SUPABASE_URL:', trimmedUrl, 'Key length:', trimmedKey?.length || 0);
 }
 
 // Create a no-op fallback so the app doesn't crash at module level when credentials are missing

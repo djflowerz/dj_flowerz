@@ -36,7 +36,7 @@ set_var() {
     echo -e "  ${YELLOW}⚠ Skipping empty: $key${NC}"
     return
   fi
-  netlify env:set "$key" "$value" --context production,deploy-preview,branch-deploy \
+  netlify env:set "$key" "$value" --context production,deploy-preview,branch-deploy --force \
     2>/dev/null && echo -e "  ${GREEN}✓${NC} $key" \
     || echo -e "  ${RED}✗ Failed: $key${NC}"
 }
