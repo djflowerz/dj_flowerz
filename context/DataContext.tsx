@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from 'react';
 import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig, WishlistItem } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES } from '../constants';
 import { useAuth } from './AuthContext';
@@ -910,6 +910,9 @@ const useCollection = <T extends { id: string }>(
 ) => {
   const tableName = getTableName(colName);
   const [data, setData] = useState<T[]>(initialData);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
@@ -958,8 +961,8 @@ const useCollection = <T extends { id: string }>(
 
       // If we already have data and the new fetch is empty, it might be a temporary error or propagation lag
       // Don't revert to initialData if we've successfully loaded items before.
-      if (transformed.length === 0 && data.length > 0) {
-        console.warn(`[useCollection] Fetch for ${tableName} returned 0 items, keeping current state of ${data.length} items to avoid flickering.`);
+      if (transformed.length === 0 && dataRef.current.length > 0) {
+        console.warn(`[useCollection] Fetch for ${tableName} returned 0 items, keeping current state of ${dataRef.current.length} items to avoid flickering.`);
         return;
       }
 
@@ -979,9 +982,12 @@ const useCollection = <T extends { id: string }>(
     }
   };
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+
   useEffect(() => {
-    fetchData();
-  }, [colName, enabled, orderByField, orderDirection, useAdminPath]);
+    fetchDataRef.current();
+  }, [colName, enabled, source, orderByField, orderDirection, useAdminPath]);
 
   const loadMore = () => { console.warn("loadMore not implemented"); };
   return [data, setData, isLoading, loadMore, error, fetchData] as const;
@@ -1379,27 +1385,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await saveToR2('settings', updated);
       setReferralSettings(newSettings);
     } catch (err) { console.error('Error updating referral settings', err); }
-  };  // Admin Data Polling
+  };
+  
+  const refreshFnsRef = useRef({ refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments, refreshAdminStats, refreshExpiringUsers });
+  
+  // Keep refresh functions ref up to date
+  useEffect(() => {
+    refreshFnsRef.current = { refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments, refreshAdminStats, refreshExpiringUsers };
+  });
+
   useEffect(() => {
     if (!isAdmin) return;
 
     // Poll for high-priority admin data every 2 minutes
     const interval = setInterval(() => {
-      refreshOrders();
-      refreshUsers();
-      refreshSubscriptions();
-      refreshBookings();
-      refreshPayments();
-      refreshAdminStats();
-      refreshExpiringUsers();
+      refreshFnsRef.current.refreshOrders();
+      refreshFnsRef.current.refreshUsers();
+      refreshFnsRef.current.refreshSubscriptions();
+      refreshFnsRef.current.refreshBookings();
+      refreshFnsRef.current.refreshPayments();
+      refreshFnsRef.current.refreshAdminStats();
+      refreshFnsRef.current.refreshExpiringUsers();
     }, 2 * 60 * 1000);
 
     // Initial fetch
-    refreshAdminStats();
-    refreshExpiringUsers();
+    refreshFnsRef.current.refreshAdminStats();
+    refreshFnsRef.current.refreshExpiringUsers();
 
     return () => clearInterval(interval);
-  }, [isAdmin, refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments]);
+  }, [isAdmin]);
 
   const checkSubscriptionExpiry = async (profiles: any[], userSubscriptions: any[]) => {
     if (!user) return;
@@ -1456,9 +1470,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const checkExpiryRef = useRef(checkSubscriptionExpiry);
+  checkExpiryRef.current = checkSubscriptionExpiry;
+
   useEffect(() => {
     if (user && users.length > 0) {
-      checkSubscriptionExpiry(users, subscriptions);
+      checkExpiryRef.current(users, subscriptions);
     }
   }, [user?.id, users.length, subscriptions.length]);
 

@@ -1,620 +1,694 @@
-/**
- * DJ FLOWERZ — PREMIUM MUSIC POOL (Zine edition)
- * 
- * Aesthetic: Underground music magazine / fanzine.
- * Layout: Bold lines, high contrast, Barlow Condensed & DM Mono.
- * Architecture: Clean state-machine via useMusicPool hook.
- */
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Search, Download, Play, Pause, X, Filter, Disc3, 
-  ChevronLeft, ChevronRight, Globe, Sliders, Type, Hash
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { Virtuoso } from 'react-virtuoso';
+import {
+  Search, Download, Play, Pause, X, ChevronDown,
+  Music, Video, Filter, Zap, CheckCircle2, AlertCircle,
+  Clock, SortAsc, SortDesc, Disc3, Fuel, ChevronRight,
+  Star, Lock, Check, Crown, Flame, Rocket, Zap as ZapIcon,
+  PlayCircle, Package, Layers, Info, Volume2, Globe,
+  ArrowLeft, ArrowRight, MapPin, Trash2
 } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { Track } from '../types';
+import { MONTHS } from '../constants';
 import { useAuth } from '../context/AuthContext';
-import { useMusicPool, PoolTrack, YearData } from '../hooks/useMusicPool';
-import { maskMediaUrl } from '../utils/branding';
-import { SecurityWatchdog } from '../utils/watchdog';
+import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../utils/supabase';
+import { STORAGE_WORKER_URL } from '../utils/r2';
+import axios from 'axios';
+import { isUserSubscriber } from '../utils/authHelpers';
 
-// 🔥 [2026-04-16] DEPLOYMENT HEARTBEAT: ZINE EDITION v1.2
-// This comment is a manual trigger to force Netlify to re-scan and deploy the latest fixes.
+// Components
+import { Sidebar } from '../components/music-pool/Sidebar';
+import { TrackRow } from '../components/music-pool/TrackRow';
+import { MediaOverlay } from '../components/music-pool/MediaOverlay';
+import CrateDigger from '../components/music-pool/CrateDigger';
+import { SecurityWatchdog } from '../utils/watchdog';
+import AccessDenied from '../components/AccessDenied';
+import { maskMediaUrl } from '../utils/branding';
 
+// --- Constants ---
+const MONTH_MAP: Record<string, string> = {
+  'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April',
+  'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August',
+  'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+};
 
-// ─── STYLES (Zine Aesthetic) ────────────────────────────────────────────────
+// --- Types ---
+interface PlayerState {
+  url: string | null;
+  title: string;
+  type: 'audio' | 'video';
+  isPlaying: boolean;
+  id?: string;
+}
 
-// ─── STYLES HAVE BEEN MOVED INTO THE COMPONENT SCOPE TO PREVENT TDZ ────────
+interface HubWithGenres {
+  hub: string;
+  genres: string[];
+}
 
-// ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
+interface YearData {
+  year: number;
+  months: string[];
+}
+
+interface DynamicFilters {
+  hubsWithGenres: HubWithGenres[];
+  years: YearData[];
+}
 
 export default function MusicPool() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { addToCart } = useCart();
+  const isAdmin = user?.role === 'admin' || user?.isAdmin;
+  const isSubscriber = user?.isSubscriber || isAdmin;
 
-  // ─── STYLES (moved inside to prevent TDZ bundler crash) ───
-  const FONTS = {
-    TITLE: "'Barlow Condensed', sans-serif",
-    BODY: "'Barlow', sans-serif",
-    MONO: "'DM Mono', monospace"
-  };
+  const { poolTracks, poolLoading, poolPagination, refreshPoolTracks } = useData();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [genreSearchTerm, setGenreSearchTerm] = useState('');
+  const [activeHub, setActiveHub] = useState('all');
+  const [activeGenre, setActiveGenre] = useState('All');
+  const [activeYear, setActiveYear] = useState('All Years');
+  const [activeMonth, setActiveMonth] = useState('All Months');
+  const [bpmFilter, setBpmFilter] = useState<[number, number]>([60, 180]);
+  const [activeKey, setActiveKey] = useState<string>('All Keys');
+  const [hypeOnly, setHypeOnly] = useState(false);
+  const [securityViolation, setSecurityViolation] = useState(false);
+  const [shadowSalt, setShadowSalt] = useState<string | null>(null);
 
-  const COLORS = {
-    PAPER: '#fcfaf7',
-    INK: '#1a1a1a',
-    ACCENT: '#a855f7',
-    MUTED: '#888888',
-    BORDER: '#1a1a1a'
-  };
-
-  const css: Record<string, React.CSSProperties> = {
-    page: {
-      backgroundColor: COLORS.PAPER,
-      minHeight: '100vh',
-      color: COLORS.INK,
-      fontFamily: FONTS.BODY,
-      paddingTop: '80px',
-      paddingBottom: '100px'
-    },
-    header: {
-      maxWidth: '1400px',
-      margin: '0 auto',
-      padding: '40px 20px',
-      borderBottom: `4px solid ${COLORS.BORDER}`,
-      marginBottom: '40px'
-    },
-    masthead: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-      flexWrap: 'wrap',
-      gap: '20px'
-    },
-    title: {
-      fontFamily: FONTS.TITLE,
-      fontSize: 'clamp(4rem, 10vw, 8rem)',
-      fontWeight: 900,
-      lineHeight: 0.8,
-      margin: 0,
-      textTransform: 'uppercase',
-      letterSpacing: '-0.04em',
-      fontStyle: 'italic'
-    },
-    subtitle: {
-      fontFamily: FONTS.MONO,
-      fontSize: '14px',
-      margin: 0,
-      textTransform: 'uppercase',
-      color: COLORS.MUTED,
-      letterSpacing: '0.1em'
-    },
-    controls: {
-      maxWidth: '1400px',
-      margin: '0 auto',
-      padding: '0 20px',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '15px',
-      marginBottom: '40px'
-    },
-    input: {
-      width: '100%',
-      backgroundColor: 'transparent',
-      border: `2px solid ${COLORS.BORDER}`,
-      padding: '12px 15px',
-      fontFamily: FONTS.MONO,
-      fontSize: '14px',
-      outline: 'none',
-      boxSizing: 'border-box'
-    },
-    select: {
-      width: '100%',
-      backgroundColor: 'transparent',
-      border: `2px solid ${COLORS.BORDER}`,
-      padding: '12px 15px',
-      fontFamily: FONTS.MONO,
-      fontSize: '14px',
-      outline: 'none',
-      cursor: 'pointer'
-    },
-    trackGrid: {
-      maxWidth: '1400px',
-      margin: '0 auto',
-      padding: '0 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '2px', // Thin ink lines between items
-      backgroundColor: COLORS.BORDER,
-      border: `2px solid ${COLORS.BORDER}`
-    },
-    trackItem: {
-      backgroundColor: COLORS.PAPER,
-      display: 'grid',
-      gridTemplateColumns: '80px 1fr 150px 100px 150px',
-      alignItems: 'center',
-      padding: '20px',
-      gap: '20px',
-      transition: 'background 0.2s',
-      cursor: 'pointer'
-    },
-    trackArt: {
-      width: '80px',
-      height: '80px',
-      border: `2px solid ${COLORS.BORDER}`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#eee'
-    },
-    trackMeta: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px'
-    },
-    trackTitle: {
-      fontFamily: FONTS.TITLE,
-      fontSize: '24px',
-      fontWeight: 800,
-      textTransform: 'uppercase',
-      margin: 0,
-      lineHeight: 1
-    },
-    trackArtist: {
-      fontFamily: FONTS.BODY,
-      fontSize: '16px',
-      color: COLORS.MUTED,
-      margin: 0
-    },
-    trackBPM: {
-      fontFamily: FONTS.MONO,
-      fontSize: '18px',
-      fontWeight: 700,
-      textAlign: 'center'
-    },
-    trackGenre: {
-      fontFamily: FONTS.MONO,
-      fontSize: '12px',
-      textTransform: 'uppercase',
-      textAlign: 'right',
-      color: COLORS.MUTED
-    },
-    btn: {
-      backgroundColor: COLORS.INK,
-      color: COLORS.PAPER,
-      border: 'none',
-      padding: '12px 20px',
-      fontFamily: FONTS.TITLE,
-      fontWeight: 700,
-      textTransform: 'uppercase',
-      cursor: 'pointer',
-      fontSize: '16px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '8px',
-      transition: 'transform 0.1s'
-    },
-    overlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(5, 5, 5, 0.95)',
-      zIndex: 1000,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px'
-    },
-    playerContainer: {
-      width: '100%',
-      maxWidth: '1200px',
-      backgroundColor: COLORS.PAPER,
-      border: `4px solid ${COLORS.BORDER}`,
-      position: 'relative',
-      display: 'flex',
-      flexDirection: 'column'
-    },
-    closeBtn: {
-      position: 'absolute',
-      top: '-50px',
-      right: 0,
-      color: 'white',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      fontFamily: FONTS.TITLE,
-      fontSize: '20px',
-      textTransform: 'uppercase'
-    }
-  };
-
-  const { 
-    tracks, filters, loading, error, pagination, 
-    fetchTracks, trackDownload 
-  } = useMusicPool();
-
-  // ─── Security Watchdog ───
+  // --- Security Watchdog ---
   useEffect(() => {
     const watchdog = SecurityWatchdog.getInstance();
     if (watchdog) {
       watchdog.start(() => {
-        // Suppressing visible toast per user request to keep header/UI clean, 
-        // but maintaining functional redirect security.
-        setTimeout(() => navigate('/'), 500);
+        setSecurityViolation(true);
+        // User requested clean UI, but functional security must remain.
+        setTimeout(() => navigate('/'), 1500);
       });
     }
     return () => watchdog?.stop();
   }, [navigate]);
 
-  const [search, setSearch] = useState('');
-  const [activeHub, setActiveHub] = useState('All Hubs');
-  const [activeGenre, setActiveGenre] = useState('All Genres');
-  const [activeYear, setActiveYear] = useState('All Years');
-  const [bpmRange, setBpmRange] = useState({ min: '', max: '' });
-  const [activeKey, setActiveKey] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [player, setPlayer] = useState<{track: PoolTrack | null, url: string | null}>({ track: null, url: null });
-
-  // Available genres for the selected hub
-  const availableGenres = useMemo(() => {
-    if (activeHub === 'All Hubs') return [];
-    const hub = filters.hubsWithGenres.find(h => h.hub === activeHub);
-    return hub ? hub.genres : [];
-  }, [activeHub, filters.hubsWithGenres]);
-
-  // Reset genre if it's no longer valid for the selected hub
+  // --- Stealth Handshake ---
   useEffect(() => {
-    if (activeHub === 'All Hubs') {
-      setActiveGenre('All Genres');
-    } else if (activeGenre !== 'All Genres' && !availableGenres.includes(activeGenre)) {
-      setActiveGenre('All Genres');
+    const fetchSalt = async () => {
+        try {
+            const token = localStorage.getItem('sb-access-token');
+            const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL || ''}/api/handshake`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setShadowSalt(res.data.salt);
+        } catch (e) {
+            console.error("[Stealth] Handshake failed");
+        }
+    };
+    fetchSalt();
+  }, []);
+
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilters>({ 
+    hubsWithGenres: [], 
+    years: [] 
+  });
+
+  const fetchFilters = useCallback(async () => {
+    try {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
+      if (response.ok) {
+        const data = await response.json();
+        const rawHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
+        const safeHubs: HubWithGenres[] = rawHubs
+          .filter((h: any) => h && (h.hub || h.name))
+          .map((h: any) => ({
+            hub: h.hub || h.name,
+            genres: Array.isArray(h.genres)
+              ? h.genres
+                  .map((g: any) => (typeof g === 'string' ? g : g?.name)).filter(Boolean)
+              : []
+          }));
+
+        const rawYears = Array.isArray(data?.years) ? data.years : [];
+        const safeYears: YearData[] = rawYears
+          .map((y: any) => ({
+            year: typeof y === 'number' ? y : y?.year,
+            months: Array.isArray(y?.months) ? y.months : []
+          }))
+          .filter((y: any) => typeof y.year === 'number');
+
+        setDynamicFilters({ hubsWithGenres: safeHubs, years: safeYears });
+      }
+    } catch (err) {
+      console.error("Error fetching filters:", err);
     }
-  }, [activeHub, availableGenres, activeGenre]);
+  }, []);
 
-  const isAdminOrSub = user?.isSubscriber || user?.isAdmin || user?.role === 'admin';
-
-  // Security Redirect (Hard Redirect)
   useEffect(() => {
-    if (!loading && !isAdminOrSub) {
-      toast.error("Subscription required for Pool access.");
-      navigate('/@' + (user?.username || 'explore'));
+    fetchFilters();
+  }, [fetchFilters]);
+
+  const [player, setPlayer] = useState<PlayerState>({ 
+    url: null, 
+    title: '', 
+    type: 'audio', 
+    isPlaying: false 
+  });
+  
+  const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Access Control Redirect
+  useEffect(() => {
+    if (!poolLoading && !isSubscriber && !isAdmin) {
+      console.log("[MusicPool] Unauthorized access detected.");
+      navigate('/', { replace: true });
     }
-  }, [loading, isAdminOrSub, navigate, user]);
+  }, [poolLoading, isSubscriber, isAdmin, navigate]);
 
-  // Handle Search & Filtering
+  // Sync refresh on filter change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchTracks({
-        search,
-        hub: activeHub === 'All Hubs' ? undefined : activeHub,
-        genre: activeGenre === 'All Genres' ? undefined : activeGenre,
+    const timeoutId = setTimeout(() => {
+      const mappedMonth = activeMonth !== 'All Months' ? (MONTH_MAP[activeMonth] || activeMonth) : undefined;
+
+      refreshPoolTracks({
+        page: 1,
+        limit: poolPagination?.limit || 50,
+        hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
+        genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
-        bpmMin: bpmRange.min ? parseInt(bpmRange.min) : undefined,
-        bpmMax: bpmRange.max ? parseInt(bpmRange.max) : undefined,
-        key: activeKey || undefined
+        month: mappedMonth,
+        search: searchTerm,
+        bpmMin: bpmFilter[0],
+        bpmMax: bpmFilter[1],
+        key: activeKey === 'All Keys' ? undefined : activeKey,
+        isHype: hypeOnly ? true : undefined
       });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [search, activeHub, activeGenre, activeYear, bpmRange, fetchTracks]);
+    }, 400);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, activeKey, hypeOnly]);
 
-  const handleDownload = (track: PoolTrack, version: any) => {
-    if (!isAdminOrSub) return toast.error("Subscription required.");
-    trackDownload(version.id, version.download_url);
-    window.open(version.download_url, '_blank');
-  };
+  const handlePageChange = useCallback((newPage: number) => {
+    if (poolLoading) return;
 
-  const handleTrackKeydown = (e: React.KeyboardEvent, track: PoolTrack) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
-      setPlayer({ track, url: mainV?.preview_url || track.previewUrl || null });
+    const mappedMonth = activeMonth !== 'All Months' ? (MONTH_MAP[activeMonth] || activeMonth) : undefined;
+
+    refreshPoolTracks({
+      page: newPage,
+      limit: poolPagination?.limit || 50,
+      hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
+      genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
+      year: activeYear === 'All Years' ? undefined : activeYear,
+      month: mappedMonth,
+      search: searchTerm,
+      bpmMin: bpmFilter[0],
+      bpmMax: bpmFilter[1],
+      key: activeKey === 'All Keys' ? undefined : activeKey
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeHub, activeGenre, activeYear, activeMonth, searchTerm, bpmFilter, refreshPoolTracks, poolLoading, poolPagination?.limit]);
+
+  const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
+    const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
+    
+    setPlayer({ url: maskMediaUrl(url), title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
+    if (trackId) setExpandedTrackId(trackId);
+    
+    if (audioRef.current) audioRef.current.pause();
+  }, []);
+
+  const handleSkip = useCallback((direction: 'next' | 'prev') => {
+    if (!poolTracks.length || !expandedTrackId) return;
+    const currentIndex = poolTracks.findIndex(t => t.id === expandedTrackId);
+    let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    
+    if (nextIndex >= poolTracks.length) nextIndex = 0;
+    if (nextIndex < 0) nextIndex = poolTracks.length - 1;
+    
+    const nextTrack = poolTracks[nextIndex];
+    if (nextTrack) {
+      const mainV = nextTrack.versions?.find(v => v.is_main_version) || nextTrack.versions?.[0];
+      const url = nextTrack.videoUrl || mainV?.preview_url || '';
+      const type = (nextTrack.videoUrl || (mainV?.version_name || '').toLowerCase().includes('video')) ? 'video' : 'audio';
+      handlePlay(url, nextTrack.title, type, nextTrack.id);
     }
-  };
+  }, [poolTracks, expandedTrackId, handlePlay]);
 
-  if (!isAdminOrSub && !loading) return null;
+  const handleDownload = useCallback(async (url: string, fileName: string, versionId?: string) => {
+    if (!isSubscriber) {
+      toast.error("Subscription required to download.");
+      return;
+    }
+    
+    if (!user || securityViolation) {
+      navigate('/');
+      return;
+    }
+    
+    if (!url) {
+      toast.error("Download URL not available");
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        toast.error("Session expired. Please log in again.");
+        return;
+      }
+
+      fetch(`${STORAGE_WORKER_URL}/api/pool/download`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ url, versionId })
+      }).catch(err => console.error("Tracking error:", err));
+
+      const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz.co.ke';
+      const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${encodeURIComponent(versionId || '')}&token=${token}&filename=${encodeURIComponent(fileName)}`;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadApiUrl;
+      document.body.appendChild(iframe);
+      
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 10000);
+      
+    } catch (err) {
+      console.error("Download error:", err);
+      window.open(url, '_blank');
+    }
+  }, [isSubscriber, user, securityViolation, navigate]);
+
+  if (!isSubscriber && !poolLoading) return null;
 
   return (
-    <div style={css.page}>
-      {/* ─── Header ─── */}
-      <header style={css.header}>
-        <div style={css.masthead}>
-          <div>
-            <p style={css.subtitle}>PREMIUM ARCHIVE</p>
-            <h1 style={css.title}>Music <span style={{ color: COLORS.ACCENT }}>Pool</span></h1>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-             <p style={{ fontFamily: FONTS.TITLE, fontSize: '32px', margin: 0, fontWeight: 900 }}>
-               {user?.display_name || user?.username || 'GUEST_USER'}
-             </p>
-          </div>
-        </div>
-      </header>
-
-      {/* ─── Search & Filters ─── */}
-      <section style={css.controls}>
-        <div style={{ position: 'relative' }}>
-          <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: COLORS.MUTED }} />
-          <input 
-            id="pool-search-input"
-            name="pool-search"
-            aria-label="Search track library"
-            style={{ ...css.input, paddingLeft: '45px' }} 
-            placeholder="SEARCH TRACKS..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label htmlFor="hub-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Hub</label>
-          <select 
-            id="hub-selector"
-            name="active-hub"
-            aria-label="Filter by release hub"
-            style={css.select} 
-            value={activeHub} 
-            onChange={(e) => setActiveHub(e.target.value)}
-          >
-            <option>All Hubs</option>
-            {filters.hubsWithGenres.map(h => <option key={h.hub}>{h.hub}</option>)}
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label htmlFor="genre-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Genre</label>
-          <select 
-            id="genre-selector"
-            name="active-genre"
-            aria-label="Filter by genre"
-            style={css.select} 
-            disabled={activeHub === 'All Hubs'}
-            value={activeGenre} 
-            onChange={(e) => setActiveGenre(e.target.value)}
-          >
-            <option>All Genres</option>
-            {availableGenres.map(g => <option key={g}>{g}</option>)}
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label htmlFor="year-selector" style={{ ...css.subtitle, fontSize: '10px' }}>Year</label>
-          <select 
-            id="year-selector"
-            name="active-year"
-            aria-label="Filter by year"
-            style={css.select} 
-            value={activeYear} 
-            onChange={(e) => setActiveYear(e.target.value)}
-          >
-            <option>All Years</option>
-            {filters.years.map(y => <option key={y.year}>{y.year}</option>)}
-          </select>
-        </div>
-        
-        <button 
-          aria-label="Toggle advanced filters"
-          style={{ ...css.btn, backgroundColor: showFilters ? COLORS.INK : COLORS.PAPER, color: showFilters ? COLORS.PAPER : COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-            <Sliders size={18} /> Filters
-        </button>
-      </section>
-
-      {/* ─── Advanced Filters ─── */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.section 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            style={{ maxWidth: '1400px', margin: '-20px auto 40px', padding: '0 20px', overflow: 'hidden' }}
-          >
-            <div style={{ border: `2px solid ${COLORS.BORDER}`, padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px', backgroundColor: '#fcfaf7' }}>
-              <div>
-                <label htmlFor="bpm-min" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Min BPM</label>
-                <input 
-                  id="bpm-min"
-                  type="number"
-                  placeholder="e.g. 100"
-                  style={css.input}
-                  value={bpmRange.min}
-                  onChange={(e) => setBpmRange(prev => ({ ...prev, min: e.target.value }))}
-                />
+    <div className="bg-[#050505] min-h-screen text-white pt-24 pb-32 selection:bg-blue-500/30">
+      
+      {/* Subscription Status Banner */}
+      {isSubscriber && user?.subscriptionExpiry && !isAdmin && (
+        <div className="max-w-[1700px] mx-auto px-6 mb-6">
+          <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between group hover:bg-blue-600/20 transition-all">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                <Crown size={20} />
               </div>
               <div>
-                <label htmlFor="bpm-max" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Max BPM</label>
-                <input 
-                  id="bpm-max"
-                  type="number"
-                  placeholder="e.g. 130"
-                  style={css.input}
-                  value={bpmRange.max}
-                  onChange={(e) => setBpmRange(prev => ({ ...prev, max: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label htmlFor="key-filter" style={{ ...css.subtitle, fontSize: '10px', display: 'block', marginBottom: '8px' }}>Harmonic Key</label>
-                <input 
-                  id="key-filter"
-                  type="text"
-                  placeholder="e.g. 1A, 4A, 8A"
-                  style={css.input}
-                  value={activeKey}
-                  onChange={(e) => setActiveKey(e.target.value)}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <button 
-                  style={{ ...css.btn, width: '100%', height: '45px' }}
-                  onClick={() => {
-                    setBpmRange({ min: '', max: '' });
-                    setActiveHub('All Hubs');
-                    setActiveGenre('All Genres');
-                    setActiveYear('All Years');
-                    setBpmRange({ min: '', max: '' });
-                    setActiveKey('');
-                    setSearch('');
-                  }}
-                >
-                  Clear All
-                </button>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 mb-0.5">Active Subscription</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">
+                    {(() => {
+                      const expiry = new Date(user.subscriptionExpiry);
+                      const diff = expiry.getTime() - new Date().getTime();
+                      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                      return days > 0 ? `${days} Days Remaining` : 'Expires Today';
+                    })()}
+                  </span>
+                  <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">•</span>
+                  <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                    Ends {new Date(user.subscriptionExpiry).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
               </div>
             </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
-
-      {/* ─── Track List ─── */}
-      <main style={css.trackGrid} role="list" aria-label="Track library">
-        {loading && tracks.length === 0 ? (
-          <div style={{ backgroundColor: COLORS.PAPER, padding: '100px', textAlign: 'center' }}>
-            <Disc3 className="animate-spin" size={48} style={{ margin: '0 auto 20px' }} />
-            <p style={{ fontFamily: FONTS.MONO, textTransform: 'uppercase' }}>Indexing pool database...</p>
-          </div>
-        ) : error ? (
-          <div style={{ backgroundColor: COLORS.PAPER, padding: '100px', textAlign: 'center', color: 'red' }}>
-            <X size={48} style={{ margin: '0 auto 20px' }} />
-            <p style={{ fontFamily: FONTS.MONO }}>{error}</p>
-          </div>
-        ) : (
-          tracks.map((track) => (
-            <div 
-              key={track.id} 
-              style={css.trackItem}
-              role="button"
-              tabIndex={0}
-              aria-label={`Preview ${track.title} by ${track.artist}`}
-              onClick={() => {
-                const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
-                setPlayer({ track, url: mainV?.preview_url || track.previewUrl || null });
-              }}
-              onKeyDown={(e) => handleTrackKeydown(e, track)}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = COLORS.PAPER)}
+            <Link 
+              to="/checkout?plan=renew" 
+              className="px-6 py-2 bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-500 transition-colors shadow-[0_0_20px_rgba(37,99,235,0.3)]"
             >
-              <div style={css.trackArt}>
-                <Play size={24} fill={COLORS.INK} aria-hidden="true" />
-              </div>
-              <div style={css.trackMeta}>
-                <h3 style={css.trackTitle}>{track.title}</h3>
-                <p style={css.trackArtist}>{track.artist}</p>
-              </div>
-              <div style={css.trackBPM}>
-                <span style={{ fontSize: '10px', display: 'block', color: COLORS.MUTED }} aria-hidden="true">BPM</span>
-                {track.bpm || '—'}
-              </div>
-              <div style={css.trackGenre}>
-                {track.display_genre}
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  style={{ ...css.btn, flex: 1 }}
-                  aria-label={`Download ${track.title}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const mainV = track.versions.find(v => v.is_main_version) || track.versions[0];
-                    if (mainV) handleDownload(track, mainV);
-                  }}
-                >
-                  <Download size={16} aria-hidden="true" /> DL
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </main>
-
-      {/* ─── Pagination ─── */}
-      {!loading && pagination.totalPages > 1 && (
-        <div 
-          style={{ maxWidth: '1400px', margin: '40px auto', padding: '0 20px', display: 'flex', gap: '10px', justifyContent: 'center' }}
-          role="navigation"
-          aria-label="Pagination"
-        >
-          <button 
-             aria-label="Previous page"
-             style={{ ...css.btn, backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
-             disabled={pagination.page === 1}
-             onClick={() => fetchTracks({ page: pagination.page - 1 })}
-          >
-            <ChevronLeft size={20} aria-hidden="true" />
-          </button>
-          <div 
-            style={{ ...css.btn, pointerEvents: 'none', backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}`, minWidth: '100px' }}
-            aria-current="page"
-          >
-             PAGE {pagination.page} / {pagination.totalPages}
+              Extend Access
+            </Link>
           </div>
-          <button 
-             aria-label="Next page"
-             style={{ ...css.btn, backgroundColor: COLORS.PAPER, color: COLORS.INK, border: `2px solid ${COLORS.BORDER}` }}
-             disabled={pagination.page === pagination.totalPages}
-             onClick={() => fetchTracks({ page: pagination.page + 1 })}
-          >
-            <ChevronRight size={20} aria-hidden="true" />
-          </button>
         </div>
       )}
 
-      {/* ─── Pop-up Player Overlay ─── */}
-      <AnimatePresence>
-        {player.track && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={css.overlay}
-          >
-            <div style={css.playerContainer}>
-              <button style={css.closeBtn} onClick={() => setPlayer({ track: null, url: null })}>
-                <X size={24} /> Close Preview
-              </button>
-
-              <div style={{ padding: '40px', borderBottom: `2px solid ${COLORS.BORDER}` }}>
-                 <h2 style={{ ...css.title, fontSize: '48px', marginBottom: '10px' }}>{player.track.title}</h2>
-                 <p style={{ ...css.subtitle, color: COLORS.ACCENT, fontSize: '18px' }}>{player.track.artist}</p>
+      <div className="max-w-[1700px] mx-auto px-6">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-3 mb-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-blue-600/20 flex items-center justify-center border border-blue-500/30">
+                <Music className="text-blue-400" size={24} />
               </div>
-
-              <div style={{ padding: '40px', backgroundColor: COLORS.INK }}>
-                {player.url && (
-                   player.url.toLowerCase().endsWith('.mp4') || player.url.toLowerCase().endsWith('.webm') ? (
-                     <video 
-                       src={maskMediaUrl(player.url)} 
-                       controls 
-                       autoPlay 
-                       style={{ width: '100%', maxHeight: '60vh', outline: 'none' }} 
-                     />
-                   ) : (
-                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <Disc3 className="animate-spin text-white" size={64} />
-                        <audio src={maskMediaUrl(player.url)} controls autoPlay style={{ flex: 1 }} />
-                     </div>
-                   )
-                )}
+              <div>
+                <h1 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
+                  DJ FLOWERZ <span className="text-blue-500">VIDEOPOOL</span>
+                </h1>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-1">Version 4.0 // 92,000+ Tracks</p>
               </div>
+            </motion.div>
+          </div>
 
-              <div style={{ padding: '20px', display: 'flex', justifyContent: 'flex-end', gap: '15px' }}>
-                {player.track.versions.map(v => (
-                  <button 
-                    key={v.id} 
-                    style={{ ...css.btn, backgroundColor: v.is_main_version ? COLORS.ACCENT : COLORS.INK }}
-                    onClick={() => handleDownload(player.track!, v)}
+          <div className="flex flex-wrap items-center justify-center gap-4">
+             <div className="relative group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-blue-400" size={18} />
+               <input 
+                 type="text"
+                 id="pool-search"
+                 name="search"
+                 placeholder="Search Pool..."
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="bg-zinc-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[300px] transition-all placeholder:text-zinc-600"
+               />
+               {searchTerm && (
+                 <button
+                   type="button"
+                   onClick={() => setSearchTerm('')}
+                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                   aria-label="Clear search"
+                 >
+                   <X size={14} />
+                 </button>
+               )}
+             </div>
+          </div>
+        </div>
+
+        {/* Main Content Layout */}
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          
+          {/* Sidebar */}
+           <Sidebar 
+            hubsWithGenres={dynamicFilters.hubsWithGenres}
+            years={dynamicFilters.years}
+            activeGenre={activeGenre}
+            onGenreSelect={setActiveGenre}
+            searchTerm={genreSearchTerm}
+            onSearchChange={setGenreSearchTerm}
+            activeHub={activeHub}
+            onHubSelect={setActiveHub}
+            activeYear={activeYear}
+            onYearSelect={setActiveYear}
+            activeMonth={activeMonth}
+            onMonthSelect={setActiveMonth}
+          />
+
+          {/* Track List Area */}
+          <div className="flex-1 w-full min-w-0">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-zinc-900/40 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">BPM Range ({bpmFilter[0]}-{bpmFilter[1]})</span>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="range" 
+                      id="bpm-min"
+                      name="bpm_min"
+                      min="60" 
+                      max="180" 
+                      value={bpmFilter[0]} 
+                      onChange={(e) => setBpmFilter([parseInt(e.target.value), bpmFilter[1]])}
+                      className="w-20 accent-blue-500 h-1 bg-zinc-800 rounded-full cursor-pointer"
+                    />
+                    <input 
+                      type="range" 
+                      id="bpm-max"
+                      name="bpm_max"
+                      min="60" 
+                      max="180" 
+                      value={bpmFilter[1]} 
+                      onChange={(e) => setBpmFilter([bpmFilter[0], parseInt(e.target.value)])}
+                      className="w-20 accent-blue-500 h-1 bg-zinc-800 rounded-full cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="h-8 w-px bg-white/5" />
+
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Camelot Key</span>
+                  <select 
+                    id="key-filter"
+                    name="key"
+                    value={activeKey}
+                    onChange={(e) => setActiveKey(e.target.value)}
+                    className="bg-zinc-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                   >
-                    <Download size={16} /> {v.version_name}
+                    <option>All Keys</option>
+                    {[...Array(12)].map((_, i) => (
+                      <React.Fragment key={i}>
+                        <option value={`${i + 1}A`}>{i + 1}A</option>
+                        <option value={`${i + 1}B`}>{i + 1}B</option>
+                      </React.Fragment>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="h-8 w-px bg-white/5" />
+
+                <button
+                  onClick={() => setHypeOnly(!hypeOnly)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${
+                    hypeOnly 
+                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.2)]' 
+                      : 'bg-zinc-800/40 border-white/5 text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Flame size={14} fill={hypeOnly ? "currentColor" : "none"} className={hypeOnly ? "animate-pulse" : ""} />
+                  <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Hype Only</span>
+                </button>
+                
+                <div className="h-8 w-px bg-white/5" />
+                
+                <div className="flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse" />
+                   <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                     {poolPagination?.totalRecords || 0} Tracks Found
+                   </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                 <button 
+                  onClick={() => {
+                    setSearchTerm('');
+                    setActiveGenre('All');
+                    setActiveHub('all');
+                    setActiveYear('All Years');
+                    setActiveMonth('All Months');
+                    setBpmFilter([60, 180]);
+                    setActiveKey('All Keys');
+                    setHypeOnly(false);
+                    toast.success('Filters cleared');
+                  }}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/5"
+                  title="Reset All Filters"
+                >
+                   <Trash2 size={18} />
+                 </button>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="min-h-[600px]">
+              {poolLoading && poolTracks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-32 space-y-4">
+                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-600 animate-pulse">Syncing Engine...</p>
+                </div>
+              ) : poolTracks.length === 0 ? (
+                <div className="text-center py-32 bg-zinc-900/20 rounded-[3rem] border border-dashed border-white/5">
+                  <Package size={48} className="mx-auto text-zinc-700 mb-4" />
+                  <h3 className="text-xl font-bold text-zinc-500">No tracks found in this category</h3>
+                  <button 
+                    onClick={() => { setActiveGenre('All'); setSearchTerm(''); }}
+                    className="mt-4 text-blue-400 font-bold hover:underline"
+                  >
+                    Reset Filters
                   </button>
-                ))}
+                </div>
+              ) : (
+                <Virtuoso
+                  useWindowScroll
+                  data={poolTracks}
+                  itemContent={(index, track) => {
+                    const trackDate = track.created_at ? new Date(track.created_at) : null;
+                    const today = new Date('2026-03-22');
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const isMarch2026 = track.release_year === 2026 && track.release_month === 'March';
+                    const isFromTodayOnwards = trackDate && trackDate >= today;
+
+                    const isActuallyNew = track.is_featured || isMarch2026 || isFromTodayOnwards;
+                    const isHype = track?.genre?.toLowerCase()?.includes('hype') || 
+                                  track?.display_genre?.toLowerCase()?.includes('hype') || 
+                                  track?.sub_genre?.toLowerCase()?.includes('hype');
+
+                    return (
+                      <div className="mb-2" key={track.id}>
+                        <TrackRow
+                          id={track.id}
+                          title={track.title}
+                          artist={track.artist}
+                          bpm={track.bpm}
+                          genre={track.genre || track.display_genre || track.collection_hub || 'Uncategorized'}
+                          videoUrl={track.videoUrl}
+                          previewUrl={track.previewUrl || track.versions?.[0]?.preview_url}
+                          versions={track.versions || []}
+                          isNew={isActuallyNew}
+                          isHype={isHype}
+                          isExpanded={expandedTrackId === track.id}
+                          isPlaying={expandedTrackId === track.id && player.isPlaying}
+                          playingUrl={expandedTrackId === track.id ? player.url : null}
+                          playingType={expandedTrackId === track.id ? player.type : null}
+                          isSubscriber={isSubscriber}
+                          onPlay={(url, title, type) => handlePlay(url, title, type, track.id)}
+                          onDownload={handleDownload}
+                          onDownloadAll={() => {
+                            if (!track.versions) return;
+                            track.versions.forEach((v: any, i: number) => {
+                              setTimeout(() => handleDownload(v.download_url, `${track.artist} - ${track.title} (${v.version_name}).mp3`, v.id), i * 500);
+                            });
+                          }}
+                          onFindSimilar={() => {
+                            setBpmFilter([track.bpm - 3, track.bpm + 3]);
+                            setActiveGenre(track.display_genre || 'All');
+                          }}
+                          onSkipNext={() => handleSkip('next')}
+                          onSkipPrev={() => handleSkip('prev')}
+                          onCloseInline={() => setExpandedTrackId(null)}
+                        />
+                      </div>
+                    );
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Pagination Controls */}
+            {poolPagination && poolPagination.totalPages > 1 && (
+              <div className="mt-12 flex items-center justify-center gap-4 pb-12">
+                <button
+                  onClick={() => handlePageChange(poolPagination.page - 1)}
+                  disabled={poolPagination.page === 1 || poolLoading}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold uppercase text-xs"
+                >
+                  <ArrowLeft size={16} />
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs font-black uppercase tracking-widest">Page</span>
+                  <span className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 font-black text-sm">
+                    {poolPagination.page}
+                  </span>
+                  <span className="text-zinc-500 text-xs font-black uppercase tracking-widest">of</span>
+                  <span className="text-zinc-300 text-xs font-black tracking-widest">
+                    {poolPagination.totalPages}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(poolPagination.page + 1)}
+                  disabled={poolPagination.page === poolPagination.totalPages || poolLoading}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold uppercase text-xs"
+                >
+                  Next
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      <MediaOverlay
+        isOpen={!!player.url && player.type === 'video'}
+        onClose={() => setPlayer({ ...player, url: null })}
+        url={player.url || ''}
+        title={player.title}
+        type={player.type}
+        onSkipNext={() => handleSkip('next')}
+        onSkipPrev={() => handleSkip('prev')}
+      />
+
+      <CrateDigger 
+        onSuggest={(s) => {
+          if (s.search !== undefined) setSearchTerm(s.search);
+          if (s.genre !== undefined) setActiveGenre(s.genre);
+          if (s.bpmMin !== undefined && s.bpmMax !== undefined) setBpmFilter([s.bpmMin, s.bpmMax]);
+          if (s.isHype !== undefined) setHypeOnly(s.isHype);
+        }} 
+      />
+
+      {/* Footer Mini Player (Audio) */}
+      <AnimatePresence>
+        {player.url && player.type === 'audio' && (
+          <motion.div
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A]/80 backdrop-blur-3xl border-t border-white/5 p-4 shadow-2xl"
+          >
+            <div className="max-w-7xl mx-auto flex items-center gap-6">
+              <div className="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/30">
+                <Music className="text-blue-400" size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold truncate">{player.title}</h4>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 text-green-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Playing Preview</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                 <button 
+                   onClick={() => {
+                     setPlayer(p => ({ ...p, isPlaying: !p.isPlaying }));
+                   }}
+                   className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+                 >
+                   {player.isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                 </button>
+                 <button 
+                   onClick={() => setPlayer({ url: null, title: '', type: 'audio', isPlaying: false })}
+                   className="p-2 text-zinc-500 hover:text-white transition-colors"
+                 >
+                   <X size={20} />
+                 </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Hidden audio element for footers */}
+      {player.url && player.type === 'audio' && (
+        <audio 
+          src={player.url} 
+          autoPlay 
+          ref={(ref) => {
+            if (ref) {
+              audioRef.current = ref;
+              if (player.isPlaying) ref.play().catch(() => {});
+              else ref.pause();
+            }
+          }}
+          onEnded={() => setPlayer(p => ({ ...p, isPlaying: false }))}
+        />
+      )}
     </div>
   );
 }
-// 🔥 [2026-04-16] DEPLOYMENT HEARTBEAT
