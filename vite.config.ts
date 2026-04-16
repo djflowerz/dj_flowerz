@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
-      minify: false,
-      sourcemap: true,
+      minify: 'esbuild',
+      sourcemap: false,
       rollupOptions: {
         output: {
           manualChunks: {
