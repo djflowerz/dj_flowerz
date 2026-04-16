@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { User } from '../types';
 import { supabase } from '../utils/supabase';
 import { fetchFromR2, updateR2Item, addR2Item, addAdminNotification } from '../utils/r2';
@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mfaResolver, setMfaResolver] = useState<any>(null);
 
   // Helper to fetch profile and set user
-  const fetchProfileAndSetUser = async (session: any) => {
+  const fetchProfileAndSetUser = useCallback(async (session: any) => {
     setSession(session);
     if (!session?.user) {
       setUser(null);
@@ -113,7 +113,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } as any;
       }
 
-      setUser(userData);
+      const newUserData = userData;
+      setUser(prev => {
+        if (!prev || !newUserData) return newUserData;
+        // Optimization: prevent rotating the user object if core properties are identical
+        if (prev.id === newUserData.id && 
+            prev.updatedAt === newUserData.updatedAt && 
+            prev.isSubscriber === newUserData.isSubscriber &&
+            prev.role === newUserData.role &&
+            prev.balance === newUserData.balance &&
+            prev.auraPoints === newUserData.auraPoints) {
+          return prev;
+        }
+        return newUserData;
+      });
+
       // ─── PostHog: identify user on session load ───
       if (userData) {
         posthog.identify(userData.id, {
@@ -128,28 +142,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Auth sync error:", err);
       if (sbUser) {
         const isAdminEmail2 = normalizeEmail(sbUser.email) === adminEmailFromEnv;
-        setUser({
-          id: sbUser.id,
-          name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
-          email: sbUser.email || '',
-          role: isAdminEmail2 ? 'admin' : 'user',
-          isAdmin: isAdminEmail2,
-          isSubscriber: false,
-          avatarUrl: sbUser.user_metadata?.avatar_url || '',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        } as any);
+        setUser(prev => {
+           const next = {
+            id: sbUser.id,
+            name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+            email: sbUser.email || '',
+            role: isAdminEmail2 ? 'admin' : 'user',
+            isAdmin: isAdminEmail2,
+            isSubscriber: false,
+            avatarUrl: sbUser.user_metadata?.avatar_url || '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          } as any;
+          if (prev && prev.id === next.id && prev.role === next.role) return prev;
+          return next;
+        });
       }
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       await fetchProfileAndSetUser(session);
     }
-  };
+  }, [fetchProfileAndSetUser]);
 
   // Sync with Supabase Auth state
   useEffect(() => {
@@ -219,18 +237,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // 60-second polling to keep profile in sync with R2 updates (referral rewards, subscriptions)
+    const profilePollRef = { current: fetchProfileAndSetUser };
+    profilePollRef.current = fetchProfileAndSetUser;
+
     const interval = setInterval(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (mounted && session) fetchProfileAndSetUser(session);
+        if (mounted && session) profilePollRef.current(session);
       });
     }, 60000);
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      if (subscription) subscription.unsubscribe();
       clearInterval(interval);
+      if (loadingFailsafe) clearTimeout(loadingFailsafe);
     };
-  }, []);
+  }, [fetchProfileAndSetUser]);
 
 
   // --- Auth Methods ---
@@ -239,15 +261,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     throw new Error("Use realLogin instead");
   }
 
-  const realLogin = async (email: string, password: string) => {
+  const realLogin = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
     if (error) throw error;
-  };
+  }, []);
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -259,9 +281,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
     if (error) throw error;
-  };
+  }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -273,7 +295,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
     if (error) throw error;
-  };
+  }, []);
 
   const signInWithGoogleRedirect = async () => {
     await signInWithGoogle();
@@ -293,12 +315,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     alert("TikTok login is currently not supported via Supabase in this demo.");
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
     // ─── PostHog: reset on logout ───
     posthog.reset();
-  };
+  }, []);
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -317,7 +339,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Profile Methods ---
 
-  const updateUserProfile = async (data: Partial<User>) => {
+  const updateUserProfile = useCallback(async (data: Partial<User>) => {
     if (!user) return;
 
     try {
@@ -348,7 +370,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Error updating profile in R2:", error);
       throw error;
     }
-  };
+  }, [user]);
 
   const updateUserEmail = async (email: string) => {
     const { error } = await supabase.auth.updateUser({ email });
@@ -394,7 +416,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
 
-  const subscribe = async () => {
+  const subscribe = useCallback(async () => {
     if (user) {
       const updates = {
         is_subscriber: true,
@@ -428,14 +450,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         alert("Failed to update subscription.");
       }
     }
-  };
+  }, [user]);
 
 
 
   // --- Auto-Remove Expired Subscriptions ---
+  const checkExpiryRef = useRef<() => Promise<void>>(async () => {});
+  
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
     const checkExpiry = async () => {
       if (!user || !user.isSubscriber || user.isAdmin) return;
       if (!user.subscriptionExpiry) return;
@@ -469,22 +491,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
     };
+    checkExpiryRef.current = checkExpiry;
+  });
 
-    if (!loading && user) {
-      checkExpiry();
-      interval = setInterval(checkExpiry, 60000);
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (!loading && user?.id) {
+       checkExpiryRef.current();
+       interval = setInterval(() => checkExpiryRef.current(), 60000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [user, loading]);
+  }, [user?.id, loading]);
 
   // --- Heartbeat for Presence ---
+  const presenceFnRef = useRef<() => Promise<void>>(async () => {});
+  
   useEffect(() => {
-    if (!user || loading) return;
-
     const updatePresence = async () => {
+      if (!user || loading) return;
       try {
         const now = new Date().toISOString();
         
@@ -509,11 +537,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn("Presence loop error:", e);
       }
     };
+    presenceFnRef.current = updatePresence;
+  });
 
-    updatePresence();
-    const presenceInterval = setInterval(updatePresence, 45000); // 45s heartbeat
+  useEffect(() => {
+    if (!user?.id || loading) return;
+
+    presenceFnRef.current();
+    const presenceInterval = setInterval(() => presenceFnRef.current(), 45000); // 45s heartbeat
     return () => clearInterval(presenceInterval);
-  }, [user?.id, loading, session?.access_token]);
+  }, [user?.id, loading, !!session?.access_token]);
 
   // --- Removed Real-time Profile Sync (Supabase) ---
 

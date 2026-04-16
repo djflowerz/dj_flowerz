@@ -4,8 +4,18 @@ import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, Teleg
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader as getR2AuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
 import { supabase } from '../utils/supabase';
+import { 
+  withTimeout, cleanLabel, getYoutubeId, safeJsonParse, 
+  mapR2Track, mapR2Generic, mapR2Product, mapR2Mixtape, mapR2Order, 
+  mapR2User, mapR2Subscription, mapR2Booking, mapR2SessionType, 
+  mapR2MaintenanceLog, mapD1StudioRoom, mapD1StudioEquipment, 
+  mapD1MaintenanceLog, mapR2Coupon, mapR2ReferralStats, 
+  mapD1ReferralLog, mapR2Campaign, mapR2Subscriber, 
+  mapR2Channel, mapR2Plan, mapR2Genre, mapR2Notification, 
+  mapR2Tip, mapR2InstallmentPayment, mapR2InstallmentPlan 
+} from '../utils/mappers';
 
 
 
@@ -319,544 +329,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number = 30000): Promise<T> {
 }
 
 // Label Cleaning Helper (removes (123 tracks) from name)
-const cleanLabel = (label: string) => {
-  if (!label) return '';
-  return label.replace(/\s\(\d+\s*tracks\)/i, '').trim();
-};
 
-const getYoutubeId = (url: string | undefined): string | null => {
-  if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-};
-
-// R2 Mapping Helpers
-const mapR2Track = (t: any): Track => {
-  // Common CDN bases for relative URLs
-  const WORKER_BASE = 'https://api.djflowerz.co.ke';
-  // Use the branded proxy for file access
-  const DEFAULT_CDN_BASE = `/api/files`;
-
-  /**
-   * Fix track media URLs so they point to the branded proxy.
-   */
-  const encodeR2Url = (u: string): string => {
-    if (!u) return u;
-    
-    // If it's already a masked URL, return it
-    if (u.startsWith('/api/files/')) return u;
-
-    try {
-      const urlObj = new URL(u);
-      const lowerHost = urlObj.hostname.toLowerCase();
-
-      // If it matches legacy domains, mask it immediately
-      if (lowerHost.includes('vicknickvideopool.com') || lowerHost.includes('dennismacharia20')) {
-        const parts = u.split(lowerHost.includes('.com/') ? '.com/' : '.dev/');
-        const path = parts[1] || '';
-        const origin = lowerHost.includes('dennismacharia20') ? '?origin=remix' : '';
-        return `/api/files/${path}${origin}`;
-      }
-
-      // Encode each path segment individually (handles spaces, &, parens, etc.)
-      urlObj.pathname = urlObj.pathname
-        .split('/')
-        .map(seg => encodeURIComponent(decodeURIComponent(seg)))
-        .join('/');
-      return urlObj.toString();
-    } catch {
-      // Fallback for non-URL strings or relative paths
-      if (u.startsWith('http')) return u;
-      const cleanPath = u.replace(/^\//, '').replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
-      return `/api/files/${cleanPath}`;
-    }
-  };
-
-  const ensureAbsolute = (u: string) => {
-    if (!u) return u;
-    // Data level masking: ensure all URLs pass through the proxy
-    if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return encodeR2Url(u);
-    return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
-  };
-
-  let versions = safeJsonParse(t.versions, []).map((v: any) => ({
-    ...v,
-    id: String(v.id || Math.random().toString(36).substr(2, 9)),
-    type: String(v.type || v.version_name || v.label || 'Main'),
-    version_name: String(v.version_name || v.type || v.label || 'Main'),
-    preview_url: ensureAbsolute(v.preview_url || v.previewUrl || v.file_url || v.download_url || v.downloadUrl),
-    previewUrl: ensureAbsolute(v.previewUrl || v.preview_url || v.file_url || v.download_url || v.downloadUrl),
-    download_url: ensureAbsolute(v.download_url || v.downloadUrl || v.file_url || v.preview_url || v.previewUrl),
-    downloadUrl: ensureAbsolute(v.downloadUrl || v.download_url || v.file_url || v.previewUrl || v.preview_url),
-    is_main_version: Boolean(v.is_main_version || v.isMainVersion || false)
-  }));
-
-  // 1. Deduplicate true URL clones (Clones like (1))
-  const seenUrls = new Set();
-  versions = versions.filter((v: any) => {
-    const url = v.download_url || v.preview_url || '';
-    const normalized = url.split('?')[0].replace(/\(\d+\)\.[^.]+$/, (m) => m.split('.').pop() || '');
-    if (!normalized || seenUrls.has(normalized)) return false;
-    seenUrls.add(normalized);
-    return true;
-  });
-
-  // 2. Format Labeling Helper
-  // If we have both Audio and Video for the same label, ensure they are distinct
-  const labelCounts = new Map<string, number>();
-  versions.forEach((v: any) => {
-    const base = (v.version_name || v.type || 'Main').replace(/\((Audio|Video)\)$/i, '').trim();
-    labelCounts.set(base, (labelCounts.get(base) || 0) + 1);
-  });
-
-  versions = versions.map((v: any) => {
-    const base = (v.version_name || v.type || 'Main').replace(/\((Audio|Video)\)$/i, '').trim();
-    if (labelCounts.get(base)! > 1 && !v.version_name.includes('(Audio)') && !v.version_name.includes('(Video)')) {
-      const url = (v.download_url || '').toLowerCase();
-      const isVideo = url.endsWith('.mp4') || url.endsWith('.mkv') || url.endsWith('.mov') || url.includes('/video/');
-      return { ...v, version_name: `${base} (${isVideo ? 'Video' : 'Audio'})` };
-    }
-    return v;
-  });
-
-  // Robustly handle URLs - prioritizing streamable content
-  let previewUrl = t.preview_url || t.previewUrl || (versions.length > 0 ? versions[0].downloadUrl : undefined) || t.audio_url || t.audioUrl;
-  previewUrl = ensureAbsolute(previewUrl);
-
-  return {
-    ...t,
-    id: t.id,
-    artist: t.artist || 'DJ Flowerz',
-    title: t.title || 'Untitled Mix',
-    genre: cleanLabel(t.genre),
-    category: (t.category || []).map(cleanLabel),
-    bpm: t.bpm,
-    year: t.year,
-    versions,
-    dateAdded: t.date_added || t.dateAdded || t.created_at || t.createdAt,
-    previewUrl,
-    createdAt: t.created_at || t.createdAt,
-    updatedAt: t.updated_at || t.updatedAt
-  };
-};
-
-// Generic Mapper (for simple tables with just timestamps)
-const mapR2Generic = (item: any): any => ({
-  ...item,
-  createdAt: item.createdAt || item.created_at,
-  updatedAt: item.updatedAt || item.updated_at
-});
-
-const safeJsonParse = (val: any, fallback: any = []) => {
-  if (!val) return fallback;
-  if (typeof val !== 'string') return Array.isArray(val) ? val : fallback;
-  try {
-    const parsed = JSON.parse(val);
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const mapR2Product = (p: any): Product => {
-  try {
-    const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []);
-    const mainImage = p.image || images[0] || '';
-
-    const type = p.type || (['Software', 'Samples', 'digital', 'DJ Software'].includes(p.category || '') ? 'digital' : 'physical');
-    const requiresShipping = Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : (type === 'physical')));
-
-    return {
-      ...p,
-      type: type,
-      id: String(p.id || ''),
-      name: String(p.name || 'Untitled Product'),
-      slug: String(p.slug || ''),
-      image: mainImage,
-      images: images,
-      isActive: Boolean(p.is_active !== undefined ? p.is_active : (p.isActive !== undefined ? p.isActive : (p.status === 'published' || p.status === 'active'))),
-      status: p.status === 'active' ? 'published' : (p.status || (Boolean(p.is_active || p.isActive) ? 'published' : 'draft')),
-      isHot: Boolean(p.is_hot !== undefined ? p.is_hot : (p.isHot !== undefined ? p.isHot : false)),
-      isFeatured: Boolean(p.is_featured !== undefined ? p.is_featured : (p.isFeatured !== undefined ? p.isFeatured : false)),
-      price: Number(p.price !== undefined ? p.price : 0),
-      discountPrice: p.discount_price !== undefined ? Number(p.discount_price) : (p.discountPrice !== undefined ? Number(p.discountPrice) : undefined),
-      compareAtPrice: p.compare_at_price !== undefined ? Number(p.compare_at_price) : (p.compareAtPrice !== undefined ? Number(p.compareAtPrice) : undefined),
-      variantGroups: safeJsonParse(p.variant_groups || p.variantGroups),
-      variants: safeJsonParse(p.variants || p.variant_list, []).map((v: any) => {
-        if (typeof v === 'string') return { id: v, name: v, price: Number(p.price || 0) };
-        return {
-          id: String(v.id || v.sku || Math.random().toString(36).substr(2, 9)),
-          name: String(v.name || v.label || ''),
-          price: Number(v.price !== undefined ? v.price : (p.price || 0)),
-          discountPrice: v.discount_price !== undefined ? Number(v.discount_price) : (v.discountPrice !== undefined ? Number(v.discountPrice) : undefined),
-          compareAtPrice: v.compare_at_price !== undefined ? Number(v.compare_at_price) : (v.compareAtPrice !== undefined ? Number(v.compareAtPrice) : undefined),
-          stock: Number(v.stock !== undefined ? v.stock : (v.stock_quantity !== undefined ? v.stock_quantity : 0)),
-          image: v.image || v.image_url || ''
-        };
-      }),
-      stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
-      features: safeJsonParse(p.features),
-      weight: p.weight,
-      dimensions: p.dimensions,
-      releaseDate: p.release_date || p.releaseDate,
-      tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()) : (p.tag_list ? String(p.tag_list).split(',').map((t: string) => t.trim()) : [])),
-      createdAt: p.created_at || p.createdAt || new Date().toISOString(),
-      updatedAt: p.updated_at || p.updatedAt || new Date().toISOString(),
-      digitalFileUrl: p.digital_file_url || p.digitalFileUrl || '',
-      downloadPassword: p.download_password || p.downloadPassword || '',
-      secureDownloadLink: p.secure_download_link || p.secureDownloadLink || '',
-      meta_title: p.meta_title || p.metaTitle || '',
-      meta_description: p.meta_description || p.metaDescription || '',
-      meta_keywords: p.meta_keywords || '',
-      whatsappEnabled: Boolean(p.whatsapp_enabled !== undefined ? p.whatsapp_enabled : (p.whatsappEnabled !== undefined ? p.whatsappEnabled : true)),
-      requiresShipping: requiresShipping,
-      isBestSeller: Boolean(p.is_best_seller !== undefined ? p.is_best_seller : (p.isBestSeller !== undefined ? p.isBestSeller : false)),
-      isSpecialOffer: Boolean(p.is_special_offer !== undefined ? p.is_special_offer : (p.isSpecialOffer !== undefined ? p.isSpecialOffer : false)),
-      isTrending: Boolean(p.is_trending !== undefined ? p.is_trending : (p.isTrending !== undefined ? p.isTrending : false)),
-      offerExpiry: p.offer_expiry || p.offerExpiry || '',
-      technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails),
-      hotspots: safeJsonParse(p.hotspots),
-      useCases: safeJsonParse(p.use_cases || p.useCases)
-    };
-  } catch (err) {
-    console.error("[DataContext] Error mapping product:", p, err);
-    // Return a minimal valid product to avoid crashing the whole list
-    return { ...p, id: p.id || 'error', name: p.name || 'Error Loading', price: 0, isActive: false } as Product;
-  }
-};
-
-const mapR2Mixtape = (m: any): Mixtape => {
-  try {
-    const ytUrl = m.youtube_url || m.youtubeUrl;
-    const ytId = getYoutubeId(ytUrl);
-    const ytFallback = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '';
-
-    return {
-      ...m,
-      id: String(m.id || ''),
-      title: String(m.title || 'Untitled Mixtape'),
-      coverUrl: m.cover_url || m.coverUrl || m.cover_image || ytFallback || '',
-      audioUrl: m.audio_url || m.audioUrl || '',
-      duration: String(m.duration || '0:00'),
-      releaseDate: m.release_date || m.releaseDate || new Date().toISOString(),
-      previewStartTime: m.preview_start_time || m.previewStartTime,
-      allowFullStream: Boolean(m.allow_full_stream !== undefined ? m.allow_full_stream : m.allowFullStream),
-      allowDownload: Boolean(m.allow_download !== undefined ? m.allow_download : m.allowDownload),
-      downloadType: m.download_type || m.downloadType || 'free',
-      streamQuality: m.stream_quality || m.streamQuality || 'standard',
-      isFeatured: Boolean(m.is_featured !== undefined ? m.is_featured : m.isFeatured),
-      showInGallery: Boolean(m.show_in_gallery !== undefined ? m.show_in_gallery : m.showInGallery),
-      showInMusicPool: Boolean(m.show_in_music_pool !== undefined ? m.show_in_music_pool : m.showInMusicPool),
-      enableComments: Boolean(m.enable_comments !== undefined ? m.enable_comments : m.enableComments),
-      requireLoginToComment: Boolean(m.require_login_to_comment !== undefined ? m.require_login_to_comment : m.requireLoginToComment),
-      moderateComments: Boolean(m.moderate_comments !== undefined ? m.moderate_comments : m.moderateComments),
-      downloadUrl: m.download_url || m.downloadUrl,
-      videoDownloadUrl: m.video_download_url || m.videoDownloadUrl,
-      downloadLimit: m.download_limit !== undefined ? Number(m.download_limit) : undefined,
-      downloadExpiryDays: m.download_expiry_days !== undefined ? Number(m.download_expiry_days) : undefined,
-      requiredTier: 'free',
-      youtubeUrl: m.youtube_url || m.youtubeUrl,
-      soundcloudUrl: m.soundcloud_url || m.soundcloudUrl,
-      metaTitle: m.meta_title || m.metaTitle,
-      metaDescription: m.meta_description || m.metaDescription,
-      ogImage: m.og_image || m.ogImage,
-      isExclusive: Boolean(m.is_exclusive !== undefined ? m.is_exclusive : m.isExclusive),
-      isPremium: Boolean(m.is_premium !== undefined ? m.is_premium : m.isPremium),
-      createdAt: m.created_at || m.createdAt,
-      updatedAt: m.updated_at || m.updatedAt,
-      tracklist: safeJsonParse(m.tracklist || m.track_list, []),
-      tags: Array.isArray(m.tags) ? m.tags : (typeof m.tags === 'string' ? m.tags.split(',').map((t: string) => t.trim()) : [])
-    };
-  } catch (err) {
-    console.error("[DataContext] Error mapping mixtape:", m, err);
-    return { ...m, id: m.id || 'error', title: m.title || 'Error Loading' } as Mixtape;
-  }
-};
-
-const mapR2Order = (o: any): Order => {
-  let parsedItems = o.items;
-  if (typeof o.items === 'string') {
-    try {
-      parsedItems = JSON.parse(o.items);
-    } catch (e) {
-      console.error("Failed to parse order items:", e);
-      parsedItems = [];
-    }
-  }
-
-  return {
-    ...o,
-    items: Array.isArray(parsedItems) ? parsedItems : [],
-    total: o.total !== undefined ? o.total : (o.total_amount !== undefined ? o.total_amount : o.amount),
-    customerName: o.customer_name || o.customerName,
-    customerEmail: o.customer_email || o.customerEmail,
-    customerPhone: o.customer_phone || o.customerPhone || o.phone,
-    city: o.city,
-    address: o.address,
-    paymentStatus: o.payment_status || o.paymentStatus,
-    referenceCode: o.reference_code || o.referenceCode,
-    trackingNumber: o.tracking_number || o.trackingNumber,
-    courierName: o.shipping_provider || o.courier_name || o.courierName,
-    estimatedArrival: o.estimated_arrival || o.estimatedArrival,
-    pickupLocation: o.pickup_location || o.pickupLocation,
-    receiptUrl: o.receipt_url || o.receiptUrl,
-    adminMessage: o.notes || o.admin_message || o.adminMessage,
-    shippedAt: o.shipped_at || o.shippedAt,
-    deliveryMethod: o.delivery_method || o.deliveryMethod || o.shipping_method,
-    requiresShipping: o.requires_shipping !== undefined ? o.requires_shipping : o.requiresShipping,
-    subtotal: o.subtotal !== undefined ? o.subtotal : o.subtotal,
-    discountAmount: o.discount_amount !== undefined ? o.discount_amount : o.discountAmount,
-    shippingCost: o.shipping_cost !== undefined ? o.shipping_cost : o.shippingCost,
-    couponCode: o.coupon_code || o.couponCode,
-    createdAt: o.created_at || o.createdAt,
-    updatedAt: o.updated_at || o.updatedAt
-  };
-};
-
-const mapR2User = (u: any): User => ({
-  ...u,
-  fullName: u.full_name || u.name || u.fullName,
-  full_name: u.full_name || u.name || u.fullName,
-  displayName: u.full_name || u.name || u.displayName || u.fullName,
-  isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
-  subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
-  subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
-  avatarUrl: u.avatar_url || u.avatarUrl,
-  referralCode: u.referral_code || u.referralCode,
-  lastLogin: u.last_login || u.lastLogin,
-  phoneNumber: u.phone_number || u.phoneNumber,
-  lastSeen: u.last_seen || u.lastSeen,
-  referredBy: u.referred_by || u.referredBy,
-  balance: u.balance !== undefined ? u.balance : (u.balance || 0),
-  loyaltyPoints: u.loyalty_points || u.loyaltyPoints || 0,
-  totalSpent: u.total_spent || u.totalSpent || 0,
-  presenceStatus: u.presence_status || u.presenceStatus,
-  createdAt: u.created_at || u.createdAt,
-  updatedAt: u.updated_at || u.updatedAt
-});
-
-const mapR2Subscription = (s: any): Subscription => ({
-  ...s,
-  id: s.id || s.user_id, // Keep user id as the subscription unique identifier if missing
-  userId: s.user_id || s.userId || s.id,
-  userName: s.user_name || s.userName || s.full_name,
-  userEmail: s.user_email || s.userEmail || s.email,
-  planId: s.plan_id || s.planId || s.subscription_plan,
-  startDate: s.start_date || s.startDate,
-  expiryDate: s.expiry_date || s.expiryDate || s.end_date || s.subscription_expiry, // Handle legacy fallbacks
-  paymentMethod: s.payment_method || s.paymentMethod,
-  status: 'active', // Active subscribers returned from this endpoint
-  createdAt: s.created_at || s.createdAt,
-  updatedAt: s.updated_at || s.updatedAt
-});
-
-const mapR2Booking = (b: any): Booking => ({
-  ...b,
-  budget: b.budget !== undefined ? b.budget : (b.total_price_kes || b.quote_amount || 0),
-  clientName: b.client_name || b.clientName,
-  clientEmail: b.client_email || b.clientEmail,
-  clientPhone: b.client_phone || b.clientPhone,
-  serviceType: b.service_type || b.serviceType,
-  serviceName: b.service_name || b.serviceName,
-  paymentStatus: b.payment_status || b.paymentStatus,
-  createdAt: b.created_at || b.createdAt,
-  updatedAt: b.updated_at || b.updatedAt
-});
-
-const mapR2SessionType = (s: any): SessionType => ({
-  ...s,
-  depositRequired: s.deposit_required !== undefined ? s.deposit_required : s.depositRequired,
-  equipmentIncluded: s.equipment_included !== undefined ? s.equipment_included : s.equipmentIncluded,
-  createdAt: s.created_at || s.createdAt,
-  updatedAt: s.updated_at || s.updatedAt
-});
-
-const mapR2StudioRoom = (r: any): StudioRoom => ({
-  ...r,
-  createdAt: r.created_at,
-  updatedAt: r.updated_at
-});
-
-const mapR2MaintenanceLog = (l: any): MaintenanceLog => ({
-  ...l,
-  itemId: l.item_id || l.itemId,
-  itemName: l.item_name || l.itemName,
-  itemType: l.item_type || l.itemType,
-  createdAt: l.created_at || l.createdAt,
-  updatedAt: l.updated_at || l.updatedAt
-});
-
-const mapD1StudioRoom = (r: any): StudioRoom => ({
-  id: String(r.id),
-  name: String(r.name),
-  capacity: Number(r.capacity || 0),
-  description: String(r.description || ''),
-  status: r.status || 'active',
-  rate: Number(r.rate || 0),
-  features: typeof r.features === 'string' ? JSON.parse(r.features) : (r.features || []),
-  imageUrl: r.image_url || r.imageUrl || '',
-  createdAt: r.created_at || r.createdAt,
-  updatedAt: r.updated_at || r.updatedAt
-});
-
-const mapD1StudioEquipment = (e: any): StudioEquipment => ({
-  id: String(e.id),
-  name: String(e.name),
-  category: String(e.category),
-  image: e.image_url || e.image || '',
-  description: String(e.description || ''),
-  status: e.status || 'available',
-  hourlyRate: Number(e.hourly_rate || 0),
-  createdAt: e.created_at || e.createdAt,
-  updatedAt: e.updated_at || e.updatedAt
-});
-
-const mapD1MaintenanceLog = (l: any): MaintenanceLog => ({
-  id: String(l.id),
-  itemId: l.gear_id || l.studio_id || '',
-  itemName: '', // UI will need to resolve this or we can join later
-  type: l.gear_id ? 'equipment' : 'room',
-  description: l.issue || '',
-  date: l.created_at || new Date().toISOString(),
-  status: l.status === 'resolved' ? 'resolved' : 'pending'
-});
-
-const mapR2Coupon = (c: any): Coupon => ({
-  ...c,
-  discountType: c.discount_type || c.discountType,
-  discountValue: c.discount_value !== undefined ? c.discount_value : c.discountValue,
-  appliesTo: c.scope || c.applies_to || c.appliesTo,
-  applicablePlans: safeJsonParse(c.applicable_plans || c.applicablePlans),
-  expiryDate: c.expiry_date || c.expiryDate,
-  usageLimit: c.max_uses_total !== undefined ? c.max_uses_total : (c.usage_limit !== undefined ? c.usage_limit : c.usageLimit),
-  usageCount: c.usage_count !== undefined ? c.usage_count : (c.usageCount || 0),
-  active: Boolean(c.is_active !== undefined ? c.is_active : (c.active !== undefined ? c.active : true)),
-  minSpend: c.min_spend !== undefined ? c.min_spend : c.minSpend,
-  createdAt: c.created_at || c.createdAt,
-  updatedAt: c.updated_at || c.updatedAt
-});
-
-const mapCouponToD1 = (c: Partial<Coupon>) => {
-  const mapped: any = { ...c };
-  if (c.discountType) mapped.discount_type = c.discountType;
-  if (c.discountValue !== undefined) mapped.discount_value = c.discountValue;
-  if (c.appliesTo) mapped.scope = c.appliesTo;
-  if (c.expiryDate) mapped.expiry_date = c.expiryDate;
-  if (c.usageLimit !== undefined) mapped.usage_limit = c.usageLimit;
-  if (c.active !== undefined) mapped.is_active = c.active ? 1 : 0;
-  if (c.minSpend !== undefined) mapped.min_spend = c.minSpend;
-  if (c.isOneTimePerUser !== undefined) mapped.is_one_time_per_user = c.isOneTimePerUser ? 1 : 0;
-  if (c.applicablePlans) mapped.applicable_plans = JSON.stringify(c.applicablePlans);
-  
-  // Clean up camelCase fields
-  delete mapped.discountType;
-  delete mapped.discountValue;
-  delete mapped.appliesTo;
-  delete mapped.expiryDate;
-  delete mapped.usageLimit;
-  delete mapped.active;
-  delete mapped.minSpend;
-  delete mapped.isOneTimePerUser;
-  delete mapped.applicablePlans;
-  
-  return mapped;
-};
-
-const mapR2ReferralStats = (r: any): ReferralStats => ({
-  ...r,
-  userId: r.user_id || r.userId,
-  userName: r.user_name || r.userName,
-  referralCode: r.referral_code || r.referralCode,
-  totalReferrals: r.total_referrals !== undefined ? r.total_referrals : (r.totalReferrals || 0),
-  totalEarnedKes: r.total_earned_kes !== undefined ? r.total_earned_kes : (r.total_earned !== undefined ? r.total_earned : (r.totalEarnedKes || r.totalEarned || 0)),
-  totalEarnedDays: r.total_earned_days !== undefined ? r.total_earned_days : (r.totalEarnedDays || 0),
-  pendingPayout: r.pending_payout !== undefined ? r.pending_payout : (r.pendingPayout || 0),
-  createdAt: r.created_at || r.createdAt,
-  updatedAt: r.updated_at || r.updatedAt
-});
-
-const mapD1ReferralLog = (l: any): ReferralLog => ({
-  id: String(l.id),
-  referrerId: l.referrer_id,
-  referredId: l.referred_id,
-  actionType: l.action_type,
-  rewardType: l.reward_type,
-  rewardAmount: l.reward_amount,
-  createdAt: l.created_at
-});
-
-const mapR2Campaign = (c: any): NewsletterCampaign => ({
-  ...c,
-  sentDate: c.sent_date || c.sentDate,
-  recipientCount: c.recipient_count !== undefined ? c.recipient_count : c.recipientCount,
-  openRate: c.open_rate !== undefined ? c.open_rate : c.openRate,
-  createdAt: c.created_at || c.createdAt,
-  updatedAt: c.updated_at || c.updatedAt
-});
-
-const mapR2Subscriber = (s: any): NewsletterSubscriber => ({
-  ...s,
-  dateSubscribed: s.dateSubscribed || s.date_subscribed || s.created_at || s.subscribed_at,
-  updatedAt: s.updated_at || s.updatedAt
-});
-
-const mapR2Channel = (c: any): TelegramChannel => ({
-  ...c,
-  channelId: c.channel_id || c.channelId,
-  inviteLink: c.invite_link || c.inviteLink,
-  createdAt: c.created_at || c.createdAt,
-  updatedAt: c.updated_at || c.updatedAt
-});
-
-const mapR2Plan = (p: any): SubscriptionPlan => ({
-  ...p,
-  isBestValue: p.is_best_value !== undefined ? (p.is_best_value === 1 || p.is_best_value === true) : p.isBestValue,
-  isEliteChoice: p.is_elite_choice !== undefined ? (p.is_elite_choice === 1 || p.is_elite_choice === true) : p.isEliteChoice,
-  createdAt: p.created_at || p.createdAt,
-  updatedAt: p.updated_at || p.updatedAt
-});
-
-const mapR2Genre = (g: any): Genre => ({
-  ...g,
-  coverUrl: g.cover_url || g.coverUrl,
-  createdAt: g.created_at || g.createdAt,
-  updatedAt: g.updated_at || g.updatedAt
-});
-
-const mapR2Notification = (n: any): AppNotification => ({
-  ...n,
-  userId: n.user_id || n.userId,
-  createdAt: n.created_at || n.createdAt
-});
-
-const mapR2Tip = (t: any): any => ({
-  ...t,
-  amount: t.amount !== undefined ? t.amount : t.total_amount,
-  status: t.status || 'completed',
-  customerName: t.donor_name || t.customer_name || t.customerName || t.name,
-  customerEmail: t.donor_email || t.customer_email || t.customerEmail || t.user_email || t.email,
-  userEmail: t.donor_email || t.user_email || t.userEmail || t.email,
-  createdAt: t.created_at || t.createdAt
-});
-
-const mapR2InstallmentPayment = (p: any): InstallmentPayment => ({
-  ...p,
-  amount: Number(p.amount || 0),
-  createdAt: p.created_at || p.createdAt
-});
-
-const mapR2InstallmentPlan = (p: any): InstallmentPlan => ({
-  ...p,
-  total_amount: Number(p.total_amount || 0),
-  deposit_amount: Number(p.deposit_amount || 0),
-  paid_amount: Number(p.paid_amount || 0),
-  balance: Number(p.balance || 0),
-  is_reminder_enabled: Boolean(p.is_reminder_enabled === 1 || p.is_reminder_enabled === true),
-  payments: Array.isArray(p.payments) ? p.payments.map(mapR2InstallmentPayment) : [],
-  createdAt: p.created_at || p.createdAt,
-  updatedAt: p.updated_at || p.updatedAt
-});
 
 // Helper to fetch collection (Namespaced V8 style)
 // Added 'enabled' parameter to conditionally fetch based on rules
@@ -916,7 +389,7 @@ const useCollection = <T extends { id: string }>(
   const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!enabled) return;
     setIsLoading(true);
     try {
@@ -980,7 +453,7 @@ const useCollection = <T extends { id: string }>(
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [colName, enabled, source, orderByField, orderDirection, useAdminPath, tableName]);
 
   const fetchDataRef = useRef(fetchData);
   fetchDataRef.current = fetchData;
@@ -989,16 +462,23 @@ const useCollection = <T extends { id: string }>(
     fetchDataRef.current();
   }, [colName, enabled, source, orderByField, orderDirection, useAdminPath]);
 
-  const loadMore = () => { console.warn("loadMore not implemented"); };
+  const loadMore = useCallback(() => { console.warn("loadMore not implemented"); }, []);
   return [data, setData, isLoading, loadMore, error, fetchData] as const;
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   console.log("DataProvider Render:", { hasChildren: !!children });
   const { user, updateUserProfile } = useAuth();
+  const isAdmin = Boolean(user?.isAdmin || user?.role === 'admin' || user?.email === 'djflowerz254@gmail.com');
+
+  /**
+   * Stable auth header fetcher to prevent effect re-triggers
+   */
+  const getAuthHeader = useCallback(async () => {
+    return await getR2AuthHeader();
+  }, []);
 
   // Determine roles for conditional fetching
-  const isAdmin = user?.role === 'admin';
   const isSubscriber = user?.isSubscriber || isAdmin;
 
   // -- REALTIME DATA SUBSCRIPTIONS --
@@ -1006,17 +486,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Site Config (R2)
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(INITIAL_CONFIG);
 
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
-      const data = await fetchFromR2<any>('settings');
-      const config = data.find((s: any) => s.id === 'siteConfig');
-      if (config && config.data) {
-        setSiteConfig(config.data as SiteConfig);
-      }
-    } catch (error) {
-      console.warn("R2 fetch error for siteConfig:", error);
+      const data = await fetchFromR2<SiteConfig>('config/site');
+      if (data) setSiteConfig(data);
+    } catch (err) {
+      console.warn("Failed to fetch site config, using defaults.");
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchConfig();
@@ -1030,7 +507,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
   const [storeSettingsLoading, setStoreSettingsLoading] = useState(true);
 
-  const fetchStoreSettings = async () => {
+  const fetchStoreSettings = useCallback(async () => {
     try {
       const response = await fetch(`${STORAGE_WORKER_URL}/api/store/settings`);
       if (response.ok) {
@@ -1050,18 +527,132 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setStoreSettingsLoading(false);
     }
-  };
+  }, []);
 
-  const updateStoreSettings = async (data: Partial<StoreSettings>) => {
+  const addSubscription = useCallback(async (sub: Subscription) => {
+    try {
+      const ok = await saveToD1('subscriptions', 'POST', sub);
+      if (ok) refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Add subscription failed:", err.message);
+    }
+  }, [refreshSubscriptions]);
+
+  const isFirstTimeSubscriber = useCallback(async (userId: string): Promise<boolean> => {
     try {
       const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/store/settings`, {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/user/first-timer?userId=${userId}`, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const { isFirstTime } = await response.json();
+        return isFirstTime;
+      }
+      return false;
+    } catch (error) {
+      console.warn("Error checking first-timer status:", error);
+      return false;
+    }
+  }, []);
+
+  const updateSubscription = useCallback(async (id: string, data: Partial<Subscription>) => {
+    try {
+      const ok = await saveToD1('subscriptions', 'PUT', data, id);
+      if (ok) refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Update subscription failed:", err.message);
+    }
+  }, [refreshSubscriptions]);
+
+  const addSubscriptionPlan = useCallback(async (plan: SubscriptionPlan) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'POST', plan);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Add plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const updateSubscriptionPlan = useCallback(async (id: string, data: Partial<SubscriptionPlan>) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'PUT', data, id);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Update plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const deleteSubscriptionPlan = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'DELETE', undefined, id);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Delete plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const grantSubscription = useCallback(async (email: string, days: number): Promise<void> => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ email, days }),
+      });
+      if (response.ok) {
+        alert(`Successfully granted ${days} days of subscription to ${email}`);
+        refreshSubscriptions();
+        refreshUsers();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to grant subscription');
+      }
+    } catch (error: any) {
+      console.error("Grant subscription error:", error);
+      alert(error.message);
+    }
+  }, [refreshSubscriptions, refreshUsers]);
+
+  const revokeSubscription = useCallback(async (email: string): Promise<void> => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ email }),
+      });
+      if (response.ok) {
+        alert(`Successfully revoked subscription for ${email}`);
+        refreshSubscriptions();
+        refreshUsers();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to revoke subscription');
+      }
+    } catch (error: any) {
+      console.error("Revoke subscription error:", error);
+      alert(error.message);
+    }
+  }, [refreshSubscriptions, refreshUsers]);
+
+  const updateUser = useCallback(async (id: string, data: Partial<User>) => {
+    try {
+      const ok = await saveToD1('users', 'PUT', data, id);
+      if (ok) refreshUsers();
+    } catch (err: any) {
+      console.error("Update user failed:", err.message);
+    }
+  }, [refreshUsers]);
+
+  const updateStoreSettings = useCallback(async (data: Partial<StoreSettings>) => {
+    try {
+      const authHeader = await getAuthHeader();
+      const updated = { ...storeSettings, ...data };
+      setStoreSettings(updated);
+      await saveToR2('config/store', updated);
+      await fetch(`${STORAGE_WORKER_URL}/api/admin/config/store`, {
         method: 'PUT',
-        headers: {
-          ...authHeader,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
       });
       if (response.ok) {
         const updated = await response.json();
@@ -1099,7 +690,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [scannedTracks, setScannedTracks] = useState<any[]>([]);
   const [scannedLoading, setScannedLoading] = useState(false);
 
-  const refreshScannedTracks = async () => {
+  const refreshScannedTracks = useCallback(async () => {
     try {
       setScannedLoading(true);
       const data = await fetchFromR2<any[]>('scanned_tracks');
@@ -1109,9 +700,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setScannedLoading(false);
     }
-  };
+  }, []);
 
-  const refreshPoolTracks = async (filters: any = {}) => {
+  const refreshPoolTracks = useCallback(async (filters: any = {}) => {
     setPoolLoading(true);
     console.log(`[DataContext] Refreshing pool tracks from D1 with filters...`, filters);
     try {
@@ -1150,8 +741,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setPoolTracks(prev => {
             const seen = new Set(prev.map(getFingerprint));
             const uniqueNew = mappedTracks.filter(t => {
-              // Priority: 1. Must have versions (buttons) 2. Must not be a duplicate artist/title
-              if (!t.versions || t.versions.length === 0) return false;
+              // Priority: 1. Must have media (versions, preview, or video) 2. Must not be duplicate
+              const hasMedia = (t.versions && t.versions.length > 0) || t.previewUrl || t.videoUrl;
+              if (!hasMedia) return false;
               
               const fp = getFingerprint(t);
               if (seen.has(fp)) return false;
@@ -1163,7 +755,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else {
           const seen = new Set();
           const unique = mappedTracks.filter(t => {
-            if (!t.versions || t.versions.length === 0) return false;
+            const hasMedia = (t.versions && t.versions.length > 0) || t.previewUrl || t.videoUrl;
+            if (!hasMedia) return false;
             
             const fp = getFingerprint(t);
             if (seen.has(fp)) return false;
@@ -1188,7 +781,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setPoolLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshPoolTracks({ page: 1, limit: 50 });
@@ -1315,7 +908,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
   const [expiringUsersLoading, setExpiringUsersLoading] = useState(false);
 
-  const refreshAdminStats = async () => {
+  const refreshAdminStats = useCallback(async () => {
     if (!isAdmin) return;
     setAdminStatsLoading(true);
     try {
@@ -1333,9 +926,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setAdminStatsLoading(false);
     }
-  };
+  }, [isAdmin]);
 
-  const refreshExpiringUsers = async () => {
+  const refreshExpiringUsers = useCallback(async () => {
     if (!isAdmin) return;
     setExpiringUsersLoading(true);
     try {
@@ -1353,7 +946,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setExpiringUsersLoading(false);
     }
-  };
+  }, [isAdmin]);
 
   const fetchRefSettings = async () => {
     try {
@@ -1415,7 +1008,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, [isAdmin]);
 
-  const checkSubscriptionExpiry = async (profiles: any[], userSubscriptions: any[]) => {
+  const checkSubscriptionExpiry = useCallback(async (profiles: any[], userSubscriptions: any[]) => {
     if (!user) return;
 
     const userProfile = profiles.find(p => p.id === user.id);
@@ -1430,9 +1023,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 1. Check for Expired
     if (diffDays <= 0) {
-      // Create a notification for expired
       const notifId = `exp_${user.id}_${expiryDate.getTime()}`;
-      // Only add if not already notified for this expiry
       const existing = (await fetchFromR2<any[]>('notifications')) || [];
       const alreadyNotified = existing.some((n: any) => n.userId === user.id && n.id === notifId);
 
@@ -1465,21 +1056,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           createdAt: new Date().toISOString(),
           link: '/pricing'
         });
-        if (typeof refreshNotifications === 'function') refreshNotifications();
+        refreshNotifications();
       }
     }
-  };
-
-  const checkExpiryRef = useRef(checkSubscriptionExpiry);
-  checkExpiryRef.current = checkSubscriptionExpiry;
+  }, [user?.id, refreshNotifications]);
 
   useEffect(() => {
     if (user && users.length > 0) {
-      checkExpiryRef.current(users, subscriptions);
+      checkSubscriptionExpiry(users, subscriptions);
     }
-  }, [user?.id, users.length, subscriptions.length]);
+  }, [user?.id, users, subscriptions, checkSubscriptionExpiry]);
 
-  const applyReferralCode = async (code: string) => {
+  const applyReferralCode = useCallback(async (code: string) => {
     if (!referralSettings.enabled) return { success: false, message: 'Referral system is currently disabled.' };
 
     const normalizedCode = (code || '').trim().toUpperCase();
@@ -1487,30 +1075,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 1. Check for Administrative Coupons first
     const activeCoupon = coupons.find(c => c.active && c.code.toUpperCase() === normalizedCode);
     if (activeCoupon) {
-      // Basic check for expiry
       if (activeCoupon.expiryDate && new Date(activeCoupon.expiryDate).getTime() < Date.now()) {
         return { success: false, message: 'This promo code has expired.' };
       }
 
-      // Check for usage limit
       if (activeCoupon.usageLimit > 0 && activeCoupon.usageCount >= activeCoupon.usageLimit) {
         return { success: false, message: 'This promo code has reached its maximum usage limit.' };
       }
 
-      // NEW: Check for Target User Assignment
       if (activeCoupon.assignedUserId && activeCoupon.assignedUserId !== user?.id) {
         return { success: false, message: 'This promo code is not valid for your account.' };
       }
 
-      // NEW: Check for Single Use status (if already used by THIS user)
-      // Since we don't have a reliable usage log per user for every coupon yet,
-      // we'll assume if it's single-use and usageCount > 0 OR if we can verify in user's profile
-      // But for a true "One-time" globally, usageCount check is enough.
-      // If it's single use PER USER, we'd need a different check. 
-      // Given the requirement "coupons that can ONLY be used once", globally OR per user?
-      // Usually "single-use" in this context means globally unique or once per user.
-      // Let's assume once per user or globally unique depending on intent.
-      // If usageLimit is 1, it's globally unique.
       if (activeCoupon.isSingleUse && activeCoupon.usageCount > 0) {
         return { success: false, message: 'This promo code has already been used.' };
       }
@@ -1530,7 +1106,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
     }
 
-    // 2. Special handling for legacy/hardcoded PROMO_DISCOUNT if not in coupons
+    // 2. Special handling for legacy/hardcoded PROMO_DISCOUNT
     if (normalizedCode === 'PROMO_DISCOUNT') {
       const discountLabel = referralSettings.newUserDiscountType === 'percentage'
         ? `${referralSettings.newUserDiscount}% OFF`
@@ -1545,7 +1121,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
     }
 
-    // 3. Check for User Referral Codes (Auto-generated)
+    // 3. Check for User Referral Codes
     try {
       const allProfiles = await fetchFromR2<any>('profiles');
       const profile = allProfiles.find((p: any) => (p.referral_code || p.referralCode) === normalizedCode);
@@ -1568,16 +1144,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Apply referral code error:", err);
       return { success: false, message: 'Error validating referral code.' };
     }
-  };
+  }, [referralSettings, coupons, user?.id]);
 
-  const issueReferralReward = async (referrerId: string, refereeId: string, refereeName: string) => {
+  const issueReferralReward = useCallback(async (referrerId: string, refereeId: string, refereeName: string) => {
     try {
       const settings = await fetchFromR2<any>('settings');
       const refSettings = settings.find(s => s.id === 'referralSettings')?.data;
       const rewardAmount = refSettings?.referrerRewardAmount || 50;
 
-      // 1. Log the referral
-      // 1. Log the referral action in D1
       const logEntry = {
         referrer_id: referrerId,
         referred_id: refereeId,
@@ -1587,13 +1161,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         created_at: new Date().toISOString()
       };
       await saveToD1('referral_logs', 'POST', logEntry);
-
-      // 2. Update referral stats in D1
-      // Note: Backend might handle this via triggers, but for immediate UI update we refresh
       
-      // 3. Update referrer balance in D1
-      const profiles = await fetchFromR2<any>('profiles'); // Profiles still primarily in R2 for some reason? 
-      // Actually, balance should be in D1 as per previous sessions.
+      const profiles = await fetchFromR2<any>('profiles'); 
       const referrer = profiles.find(p => p.id === referrerId);
       if (referrer) {
         await saveToD1('profiles', 'PUT', { balance: (referrer.balance || 0) + rewardAmount }, referrerId);
@@ -1604,13 +1173,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshUsers();
       console.log(`[Referral] Issued KES ${rewardAmount} reward to ${referrerId}`);
     } catch (err) {
-      console.error('Failed to issue referral reward to R2:', err);
+      console.error('Failed to issue referral reward:', err);
       throw err;
     }
-  };
+  }, [refreshReferrals, refreshReferralLogs, refreshUsers]);
 
-  const seedDatabase = async () => {
-    if (!user?.isAdmin) {
+  const seedDatabase = useCallback(async () => {
+    if (!isAdmin) {
       alert("Admin privileges required to seed database.");
       return;
     }
@@ -1634,262 +1203,139 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Error seeding database:", e);
       alert("Error seeding database: " + e.message);
     }
-  };
+  }, [isAdmin, subscriptionPlans, referralSettings]);
 
-  const updateSiteConfig = async (config: SiteConfig) => {
+  const updateSiteConfig = useCallback(async (config: SiteConfig) => {
     try {
       setSiteConfig(config);
-      await updateR2Item('settings', 'siteConfig', { data: config, updated_at: new Date().toISOString() });
+      await updateR2Item(SETTING_COLLECTION, 'siteConfig', { data: config, updated_at: new Date().toISOString() });
       alert("Site Configuration saved successfully!");
-      if (typeof fetchConfig === 'function') fetchConfig();
+      refreshSiteConfig();
     } catch (err: any) {
       console.error("Update site config failed:", err.message);
       alert("Failed to save configuration: " + err.message);
     }
-  };
+  }, [refreshSiteConfig]);
 
 
-  const addProduct = async (product: Partial<Product>) => {
+
+  const addProduct = useCallback(async (product: Partial<Product>) => {
     try {
-      // Respect existing ID/Slug if provided, otherwise generate
-      const newProduct = {
-        ...product,
-        id: product.id || `p${Date.now()}`,
-        slug: product.slug || (product.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: product.isActive ?? true
-      };
-
-      console.log("[DataContext] Adding product to DB:", newProduct);
-      const res = await saveToD1('products', 'POST', newProduct);
-
-      if (res) {
-        setProducts(prev => [newProduct as Product, ...prev]);
-        console.log("[DataContext] Product cataloged successfully in matrix!");
-        
-        // Background Sync to R2 for storefront consistency
-        addR2Item('products', newProduct).catch(e => console.error("[R2 Sync] Failed to add product:", e));
-        
-        refreshProducts();
-        return true;
-      }
-      return false;
+      const ok = await saveToD1('products', 'POST', product);
+      if (ok) refreshProducts();
     } catch (err: any) {
       console.error("Add product failed:", err.message);
-      alert("Failed to add product: " + err.message);
-      return false;
     }
-  };
-  const updateProduct = async (id: string, data: Partial<Product>) => {
+  }, [refreshProducts]);
+
+  const updateProduct = useCallback(async (id: string, data: Partial<Product>) => {
     try {
-      const updatedData = {
-        ...data,
-        updatedAt: new Date().toISOString()
-      };
-      console.log(`[DataContext] Updating product ${id} via API:`, updatedData);
+      const ok = await saveToD1('products', 'PUT', data, id);
+      if (ok) refreshProducts();
+    } catch (err: any) {
+      console.error("Update product failed:", err.message);
+    }
+  }, [refreshProducts]);
 
-      const res = await saveToD1('products', 'PUT', updatedData, id);
+  const deleteProduct = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('products', 'DELETE', undefined, id);
+      if (ok) refreshProducts();
+    } catch (err: any) {
+      console.error("Delete product failed:", err.message);
+    }
+  }, [refreshProducts]);
 
-      if (res) {
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
-        console.log(`[DataContext] Product updated in matrix!`);
-        
-        // Background Sync to R2 for storefront consistency
-        updateR2Item('products', id, updatedData).catch(e => console.error("[R2 Sync] Failed to update product:", e));
-        
-        refreshProducts();
+
+  const addMixtape = useCallback(async (mixtape: Mixtape) => {
+    try {
+      const ok = await saveToD1('mixtapes', 'POST', mixtape);
+      if (ok) refreshMixtapes();
+    } catch (err: any) {
+      console.error("Add mixtape failed:", err.message);
+    }
+  }, [refreshMixtapes]);
+
+  const updateMixtape = useCallback(async (id: string, data: Partial<Mixtape>) => {
+    try {
+      const ok = await saveToD1('mixtapes', 'PUT', data, id);
+      if (ok) refreshMixtapes();
+    } catch (err: any) {
+      console.error("Update mixtape failed:", err.message);
+    }
+  }, [refreshMixtapes]);
+
+  const deleteMixtape = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('mixtapes', 'DELETE', undefined, id);
+      if (ok) refreshMixtapes();
+    } catch (err: any) {
+      console.error("Delete mixtape failed:", err.message);
+    }
+  }, [refreshMixtapes]);
+
+
+  const addPoolTrack = useCallback(async (track: Track) => {
+    try {
+      const ok = await saveToD1('pool_tracks', 'POST', track);
+      if (ok) refreshPoolTracks();
+    } catch (err: any) {
+      console.error("Add pool track failed:", err.message);
+    }
+  }, [refreshPoolTracks]);
+
+  const bulkAddPoolTracks = useCallback(async (newTracks: Track[], idsToRemoveFromScanned: string[]) => {
+    try {
+      // 1. Add all to D1
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/bulk-add`, {
+        method: 'POST',
+        headers: await getAuthHeader(),
+        body: JSON.stringify({ tracks: newTracks })
+      });
+
+      if (res.ok) {
+        // 2. Remove from Scanned Tracks in R2
+        if (idsToRemoveFromScanned.length > 0) {
+          const remainingScanned = scannedTracks.filter(t => !idsToRemoveFromScanned.includes(t.id));
+          await saveToR2('scanned_tracks', remainingScanned);
+          setScannedTracks(remainingScanned);
+        }
+        refreshPoolTracks();
+        refreshScannedTracks();
         return true;
       }
       return false;
     } catch (err: any) {
-      console.error("Update product failed:", err.message);
-      alert("Failed to update product: " + err.message);
+      console.error("Bulk add failed:", err.message);
       return false;
     }
-  };
-  const deleteProduct = async (id: string) => {
+  }, [scannedTracks, refreshPoolTracks, refreshScannedTracks]);
+
+  const addScannedTracks = useCallback(async (tracks: any[]) => {
     try {
-      const newProducts = products.filter(p => p.id !== id);
-      setProducts(newProducts);
-      await saveToD1('products', 'DELETE', undefined, id);
-      
-      // Sync to R2
-      removeR2Item('products', id).catch(e => console.error("[R2 Sync] Failed to delete product:", e));
-      
-      console.log(`[DataContext] Product deleted successfully!`);
-    } catch (err: any) {
-      console.error("Delete product failed:", err.message);
-      alert("Failed to delete product: " + err.message);
-    }
-  };
-
-
-  const addMixtape = async (mixtape: Mixtape) => {
-    try {
-      const finalId = mixtape.id || `m${Date.now()}`;
-      const mapped: Mixtape = {
-        ...mixtape,
-        id: finalId,
-        createdAt: mixtape.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      // Optimistic update using functional state to avoid closure staleness
-      setMixtapes(prev => [mapped, ...prev.filter(m => m.id !== finalId)]);
-
-      const ok = await saveToD1('mixtapes', 'POST', mapped);
-      if (!ok) throw new Error("Database insertion failed");
-
-      // Sync to R2
-      addR2Item('mixtapes', mapped).catch(e => console.error("[R2 Sync] Failed to add mixtape:", e));
-
-      alert("Mixtape added successfully!");
-      refreshMixtapes();
-    } catch (err: any) {
-      console.error("Add mixtape failed:", err.message);
-      alert("Failed to add mixtape: " + err.message);
-      // Revert if fetch is desired, but usually silence is better for UX if it's intermittent
-    }
-  };
-  const updateMixtape = async (id: string, data: Partial<Mixtape>) => {
-    try {
-      setMixtapes(prev => prev.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m));
-      const ok = await saveToD1('mixtapes', 'PUT', data, id);
-      if (!ok) throw new Error("Database update failed");
-
-      // Sync to R2
-      updateR2Item('mixtapes', id, data).catch(e => console.error("[R2 Sync] Failed to update mixtape:", e));
-
-      alert("Mixtape updated successfully!");
-      refreshMixtapes();
-    } catch (err: any) {
-      console.error("Update mixtape failed:", err.message);
-      alert("Failed to update mixtape: " + err.message);
-    }
-  };
-  const deleteMixtape = async (id: string) => {
-    try {
-      const updatedMixtapes = mixtapes.filter(m => m.id !== id);
-      setMixtapes(updatedMixtapes);
-      await saveToD1('mixtapes', 'DELETE', undefined, id);
-      
-      // Sync to R2
-      removeR2Item('mixtapes', id).catch(e => console.error("[R2 Sync] Failed to delete mixtape:", e));
-      alert("Mixtape deleted successfully!");
-      if (typeof refreshMixtapes === 'function') refreshMixtapes();
-    } catch (err: any) {
-      console.error("Delete mixtape failed:", err.message);
-      alert("Failed to delete mixtape: " + err.message);
-    }
-  };
-
-
-  const addPoolTrack = async (track: Track) => {
-    try {
-      await addR2Item('pool_tracks', track);
-      await syncPoolTrackToD1(track);
-      refreshPoolTracks();
-    } catch (error: any) {
-      console.error("Add track failed:", error.message);
-    }
-  };
-
-  // Bulk-add many tracks in a SINGLE R2 write (instead of N sequential writes)
-  const bulkAddPoolTracks = async (newTracks: Track[], idsToRemoveFromScanned: string[]) => {
-    try {
-      // 1. Send the new tracks in an addBatch request
-      await addBatchR2Items('pool_tracks', newTracks);
-
-      // 2. Sync to D1 in chunks of 50 to avoid worker timeouts/payload limits
-      const chunkSize = 50;
-      const authHeader = await getAuthHeader();
-      for (let i = 0; i < newTracks.length; i += chunkSize) {
-        const chunk = newTracks.slice(i, i + chunkSize);
-        const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/pool/bulk-sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader },
-          body: JSON.stringify({ tracks: chunk }),
-        });
-        if (!response.ok) {
-           const errText = await response.text();
-           console.error(`Bulk sync failed for chunk ${i / chunkSize}:`, errText);
-           throw new Error(`Bulk sync failed for chunk ${i / chunkSize}`);
-        }
-      }
-
-      // 3. Update local poolTracks state
-      setPoolTracks(prev => [...newTracks, ...(prev || [])]);
-
-      // 4. Remove promoted tracks from scanned_tracks
-      if (idsToRemoveFromScanned.length > 0) {
-        await removeBatchR2Items('scanned_tracks', idsToRemoveFromScanned);
-      }
-
-      // 5. Update local scannedTracks state
-      setScannedTracks(prev => (prev || []).filter(t => !idsToRemoveFromScanned.includes(t.id)));
-
-    } catch (error: any) {
-      console.error("Bulk add pool tracks failed:", error.message);
-      refreshPoolTracks();
-      refreshScannedTracks();
-      throw error;
-    }
-  };
-
-  const addScannedTracks = async (tracks: any[]) => {
-    try {
-      // Robust Deduplication: Use a Map to ensure unique downloadUrls/IDs locally first
-      const uniqueIncoming = new Map();
-      tracks.forEach(t => {
-        const key = t.downloadUrl || t.url || t.id;
-        if (key && !uniqueIncoming.has(key)) {
-          uniqueIncoming.set(key, t);
-        }
-      });
-
-      setScannedTracks(prev => {
-        // Filter out those that already exist in our LATEST scannedTracks state
-        const existingKeys = new Set((prev || []).map((st: any) => st.downloadUrl || st.url || st.id));
-        const newUniqueItems = Array.from(uniqueIncoming.values()).filter((ni: any) => {
-          const key = ni.downloadUrl || ni.url || ni.id;
-          return !existingKeys.has(key);
-        });
-
-        if (newUniqueItems.length === 0) return prev || [];
-
-        // Merge newest first (new tracks at the front)
-        const merged = [...newUniqueItems, ...(prev || [])].slice(0, 50000);
-
-        // Persist to R2 in background
-        saveToR2('scanned_tracks', merged).catch(err => {
-          console.error("Delayed R2 save error for scanned_tracks add:", err);
-        });
-
-        return merged;
-      });
+      const existing = await fetchFromR2<any[]>('scanned_tracks') || [];
+      const updated = [...tracks, ...existing];
+      await saveToR2('scanned_tracks', updated);
+      setScannedTracks(updated);
+      return true;
     } catch (err: any) {
       console.error("Add scanned tracks failed:", err.message);
-      refreshScannedTracks();
+      return false;
     }
-  };
+  }, []);
 
-  const clearAllScannedTracks = async () => {
+  const clearAllScannedTracks = useCallback(async () => {
     try {
-      const allIds = scannedTracks.map((t: any) => t.id).filter(Boolean);
+      await saveToR2('scanned_tracks', []);
       setScannedTracks([]);
-      if (allIds.length > 0) {
-        await removeBatchR2Items('scanned_tracks', allIds);
-      } else {
-        await saveToR2('scanned_tracks', []);
-      }
+      return true;
     } catch (err: any) {
-      console.error("Clear scanned tracks failed:", err.message);
-      refreshScannedTracks();
+      console.error("Clear scanned failed:", err.message);
+      return false;
     }
-  };
+  }, []);
 
-  const loadMorePoolTracks = async (limit: number = 5000) => {
+  const loadMorePoolTracks = useCallback(async (limit: number = 5000) => {
     try {
       setPoolLoading(true);
       const authHeader = await getAuthHeader();
@@ -1908,34 +1354,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setPoolLoading(false);
     }
-  };
+  }, [getAuthHeader]);
 
-  const updatePoolTrack = async (id: string, data: Partial<Track>) => {
+  const updatePoolTrack = useCallback(async (id: string, data: Partial<Track>) => {
     try {
-      await updateR2Item('pool_tracks', id, data);
-      
-      const existingTrack = poolTracks.find(t => t.id === id);
-      if (existingTrack) {
-        await syncPoolTrackToD1({ ...existingTrack, ...data });
-      }
-      
-      refreshPoolTracks();
-    } catch (error: any) {
-      console.error("Update track failed:", error.message);
+      const ok = await saveToD1('pool_tracks', 'PUT', data, id);
+      if (ok) refreshPoolTracks();
+    } catch (err: any) {
+      console.error("Update track failed:", err.message);
     }
-  };
+  }, [refreshPoolTracks]);
 
-  const deletePoolTrack = async (id: string) => {
+  const deletePoolTrack = useCallback(async (id: string) => {
     try {
-      await removeR2Item('pool_tracks', id);
-      await deletePoolTrackFromD1(id);
-      refreshPoolTracks();
+      const ok = await saveToD1('pool_tracks', 'DELETE', undefined, id);
+      if (ok) refreshPoolTracks();
     } catch (err: any) {
       console.error("Delete track failed:", err.message);
     }
-  };
+  }, [refreshPoolTracks]);
 
-  const deployPoolToStorefront = async () => {
+  const deployPoolToStorefront = useCallback(async () => {
     try {
       setPoolLoading(true);
       const authHeader = await getAuthHeader();
@@ -1955,87 +1394,72 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setPoolLoading(false);
     }
-  };
+  }, [getAuthHeader, poolTracks]);
 
-  const updateGenre = async (id: string, data: Partial<Genre>) => {
+  const updateGenre = useCallback(async (id: string, data: Partial<Genre>) => {
     try {
-      const updatedGenres = genres.map(g => g.id === id ? { ...g, ...data, updatedAt: new Date().toISOString() } : g);
-      setGenres(updatedGenres);
-      await saveToR2('genres', updatedGenres);
-      
-      // Sync to D1
-      await syncGenresToD1(updatedGenres);
-      
-      console.log("Genre updated on R2 & D1");
+      const ok = await saveToD1('genres', 'PUT', data, id);
+      if (ok) refreshGenres();
     } catch (err: any) {
       console.error("Update genre failed:", err.message);
     }
-  };
+  }, [refreshGenres]);
 
-  const addBooking = async (booking: Booking) => {
+  const addBooking = useCallback(async (booking: Booking) => {
     try {
-      const path = booking.serviceType === 'studio' ? '/api/bookings/studio' : '/api/bookings/gig';
-      const endpoint = `${STORAGE_WORKER_URL}${path}`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(booking)
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to add booking');
-      
-      alert(`Booking ${result.success ? 'saved' : 'failed'}`);
-      refreshBookings();
+      const ok = await saveToD1('bookings', 'POST', booking);
+      if (ok) refreshBookings();
     } catch (err: any) {
       console.error("Add booking failed:", err.message);
     }
-  };
+  }, [refreshBookings]);
 
-  const updateBooking = async (id: string, data: Partial<Booking>) => {
+  const updateBooking = useCallback(async (id: string, data: Partial<Booking>) => {
     try {
-      const type = data.serviceType === 'studio' ? 'studio' : 'gig';
-      // Use bookings/${type} - saveToD1 prepends /api/admin
-      const res = await saveToD1(`bookings/${type}`, 'PATCH', data, id);
-      if (res) {
-        alert("Booking updated in D1");
-        refreshBookings();
-      }
+      const ok = await saveToD1('bookings', 'PUT', data, id);
+      if (ok) refreshBookings();
     } catch (err: any) {
       console.error("Update booking failed:", err.message);
     }
-  };
+  }, [refreshBookings]);
 
-  const updateBookingStatus = async (id: string, status: string) => {
-    return updateBooking(id, { status } as any);
-  };
+  const updateBookingStatus = useCallback(async (id: string, status: string) => {
+    try {
+      const ok = await saveToD1('bookings', 'PATCH', { status }, id);
+      if (ok) refreshBookings();
+    } catch (err: any) {
+      console.error("Update status failed:", err.message);
+    }
+  }, [refreshBookings]);
 
-  const addSessionType = async (session: SessionType) => {
+  const addSessionType = useCallback(async (session: SessionType) => {
     try {
       const ok = await saveToD1('session_types', 'POST', session);
       if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Add session type failed:", err.message);
     }
-  };
-  const updateSessionType = async (id: string, data: Partial<SessionType>) => {
+  }, [refreshSessionTypes]);
+
+  const updateSessionType = useCallback(async (id: string, data: Partial<SessionType>) => {
     try {
       const ok = await saveToD1('session_types', 'PATCH', data, id);
       if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Update session type failed:", err.message);
     }
-  };
+  }, [refreshSessionTypes]);
 
-  const deleteSessionType = async (id: string) => {
+  const deleteSessionType = useCallback(async (id: string) => {
     try {
       const ok = await saveToD1('session_types', 'DELETE', undefined, id);
       if (ok) refreshSessionTypes();
     } catch (err: any) {
       console.error("Delete session type failed:", err.message);
     }
-  };
+  }, [refreshSessionTypes]);
 
-  const addVideo = async (video: Video) => {
+  const addVideo = useCallback(async (video: Video) => {
     try {
       const finalId = video.id || `v${Date.now()}`;
       const newVideos = [{ ...video, id: finalId, updatedAt: new Date().toISOString() }, ...youtubeVideos];
@@ -2045,9 +1469,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Add video failed:", err.message);
     }
-  };
+  }, [youtubeVideos, refreshVideos]);
 
-  const deleteVideo = async (id: string) => {
+  const deleteVideo = useCallback(async (id: string) => {
     try {
       const newVideos = youtubeVideos.filter(v => v.id !== id);
       setYoutubeVideos(newVideos);
@@ -2056,7 +1480,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Delete video failed:", err.message);
     }
-  };
+  }, [youtubeVideos, refreshVideos]);
 
   const addStudioEquipment = async (equipment: StudioEquipment) => {
     try {
@@ -2076,160 +1500,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const deleteStudioEquipment = async (id: string) => {
-    try {
-      const ok = await saveToD1('studio/gear', 'DELETE', undefined, id);
-      if (ok) refreshEquipment();
-    } catch (err: any) {
-      console.error("Delete equipment failed:", err.message);
-    }
-  };
-
-  const addSubscription = async (sub: Subscription) => {
-    try {
-      const finalId = sub.id || `sub${Date.now()}`;
-      const newSub = { ...sub, id: finalId, updatedAt: new Date().toISOString() };
-      const newSubs = [newSub, ...subscriptions];
-      await saveToR2('subscriptions', newSubs);
-      refreshSubscriptions();
-    } catch (err: any) {
-      console.error("Add subscription failed:", err.message);
-    }
-  };
-
-  const isFirstTimeSubscriber = async (userId: string): Promise<boolean> => {
-    try {
-      // Check if user has any existing/past subscriptions in the system
-      const hasPastSubs = subscriptions.some(s => s.userId === userId);
-      return !hasPastSubs;
-    } catch (err) {
-      return true;
-    }
-  };
-  const updateSubscription = async (id: string, data: Partial<Subscription>) => {
-    try {
-      // 1. Update in R2
-      const newSubs = subscriptions.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s);
-      await saveToR2('subscriptions', newSubs);
-
-      // 2. Sync changes to User Profile (R2)
-      const sub = subscriptions.find(s => s.id === id);
-      if (sub && sub.userId) {
-        const profileUpdate: any = { updatedAt: new Date().toISOString() };
-        if (data.status === 'active') {
-          profileUpdate.isSubscriber = true;
-          if (data.expiryDate) profileUpdate.subscriptionExpiry = data.expiryDate;
-        } else if (data.status) {
-          profileUpdate.isSubscriber = false;
-        }
-        if (data.expiryDate) {
-          profileUpdate.subscriptionExpiry = data.expiryDate;
-        }
-
-        if (Object.keys(profileUpdate).length > 1) { // more than just updatedAt
-          await saveToD1('profiles', 'PUT', profileUpdate, sub.userId);
-          refreshUsers();
-        }
-      }
-      refreshSubscriptions();
-    } catch (err: any) {
-      console.error("Update subscription failed:", err.message);
-    }
-  };
-
-  const addSubscriptionPlan = async (plan: SubscriptionPlan) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'POST', plan);
-      if (ok) refreshPlans();
-    } catch (err: any) {
-      console.error("Add plan failed:", err.message);
-    }
-  };
-
-  const updateSubscriptionPlan = async (id: string, data: Partial<SubscriptionPlan>) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'PATCH', data, id);
-      if (ok) refreshPlans();
-    } catch (error: any) {
-      console.error("Update plan failed:", error.message);
-    }
-  };
-
-  const deleteSubscriptionPlan = async (id: string) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'DELETE', undefined, id);
-      if (ok) refreshPlans();
-    } catch (err: any) {
-      console.error("Delete plan failed:", err.message);
-    }
-  };
-
-  const grantSubscription = async (email: string, days: number): Promise<void> => {
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/manage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...auth },
-        body: JSON.stringify({ email, action: 'grant', days }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to grant access: ${res.status}`);
-      }
-      refreshUsers();
-    } catch (err: any) {
-      console.error('[grantSubscription]', err.message);
-      throw err;
-    }
-  };
-
-  const revokeSubscription = async (email: string): Promise<void> => {
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/revoke-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...auth },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to revoke access: ${res.status}`);
-      }
-      refreshUsers();
-      refreshSubscriptions();
-    } catch (err: any) {
-      console.error('[revokeSubscription]', err.message);
-      throw err;
-    }
-  };
-
-  const addStudioRoom = async (room: StudioRoom) => {
+  const addStudioRoom = useCallback(async (room: StudioRoom) => {
     try {
       const ok = await saveToD1('studio/locations', 'POST', room);
       if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Add room failed:", err.message);
     }
-  };
-  const updateStudioRoom = async (id: string, data: Partial<StudioRoom>) => {
+  }, [refreshRooms]);
+
+  const updateStudioRoom = useCallback(async (id: string, data: Partial<StudioRoom>) => {
     try {
       const ok = await saveToD1('studio/locations', 'PATCH', data, id);
       if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Update room failed:", err.message);
     }
-  };
+  }, [refreshRooms]);
 
-  const deleteStudioRoom = async (id: string) => {
+  const deleteStudioRoom = useCallback(async (id: string) => {
     try {
       const ok = await saveToD1('studio/locations', 'DELETE', undefined, id);
       if (ok) refreshRooms();
     } catch (err: any) {
       console.error("Delete room failed:", err.message);
     }
-  };
+  }, [refreshRooms]);
 
-  const addMaintenanceLog = async (log: MaintenanceLog) => {
+  const addMaintenanceLog = useCallback(async (log: MaintenanceLog) => {
     try {
       const payload = {
         studioId: log.type === 'room' ? log.itemId : null,
@@ -2242,9 +1540,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Add log failed:", err.message);
     }
-  };
+  }, [refreshLogs]);
 
-  const updateMaintenanceLog = async (id: string, data: Partial<MaintenanceLog>) => {
+  const updateMaintenanceLog = useCallback(async (id: string, data: Partial<MaintenanceLog>) => {
     try {
       const payload: any = {};
       if (data.description) payload.issue = data.description;
@@ -2255,114 +1553,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Update log failed:", err.message);
     }
-  };
+  }, [refreshLogs]);
 
-  const addOrder = async (order: Order) => {
-    try {
-      const newOrders = [order, ...orders];
-      // Save directly to D1
-      await saveToD1('orders', 'POST', order);
-      refreshOrders();
-    } catch (err: any) {
-      console.error("Add order failed:", err.message);
-    }
-  };
-
-  const updateOrder = async (id: string, data: Partial<Order>) => {
-    try {
-      const newOrders = orders.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o);
-      // Save directly to D1
-      await saveToD1('orders', 'PUT', data, id);
-      refreshOrders();
-    } catch (err: any) {
-      console.error("Update order failed:", err.message);
-    }
-  };
-
-
-  const addCampaign = async (camp: NewsletterCampaign) => {
-    try {
-      const ok = await saveToD1('newsletter_campaigns', 'POST', camp);
-      if (ok) refreshCampaigns();
-    } catch (err: any) {
-      console.error("Add campaign failed:", err.message);
-    }
-  };
-
-  const updateCampaign = async (id: string, data: Partial<NewsletterCampaign>) => {
-    try {
-      const ok = await saveToD1('newsletter_campaigns', 'PATCH', data, id);
-      if (ok) refreshCampaigns();
-    } catch (err: any) {
-      console.error("Update campaign failed:", err.message);
-    }
-  };
-
-  const addCoupon = async (coupon: Partial<Coupon>) => {
-    try {
-      const dbCoupon = mapCouponToD1(coupon);
-      const ok = await saveToD1('coupons', 'POST', dbCoupon);
-      if (ok) refreshCoupons();
-    } catch (err: any) {
-      console.error("Add coupon failed:", err.message);
-    }
-  };
-
-  const updateCoupon = async (id: string, data: Partial<Coupon>) => {
-    try {
-      const dbCoupon = mapCouponToD1(data);
-      const ok = await saveToD1('coupons', 'PATCH', dbCoupon, id);
-      if (ok) refreshCoupons();
-    } catch (err: any) {
-      console.error("Update coupon failed:", err.message);
-    }
-  };
-
-  const deleteCoupon = async (id: string) => {
-    try {
-      const ok = await saveToD1('coupons', 'DELETE', undefined, id);
-      if (ok) refreshCoupons();
-    } catch (err: any) {
-      console.error("Delete coupon failed:", err.message);
-    }
-  };
-
-  const validateCoupon = async (code: string): Promise<{ success: boolean; coupon?: Coupon; message?: string }> => {
-    try {
-      // Fetch from D1 via our worker API
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/coupons?t=${Date.now()}`, {
-          headers: authHeader,
-          cache: 'no-store'
-      });
-      
-      if (!response.ok) throw new Error("Failed to fetch coupons for validation");
-      
-      const rawData = await response.json();
-      const allCoupons = Array.isArray(rawData) ? rawData : (rawData.results || []);
-      const couponData = allCoupons.find((c: any) => c.code === code.toUpperCase() && (c.is_active || c.isActive));
-
-      if (!couponData) {
-        return { success: false, message: 'Invalid or expired coupon code.' };
-      }
-
-      const coupon = mapR2Coupon(couponData);
-      const now = new Date();
-      if (coupon.expiryDate && new Date(coupon.expiryDate) < now) {
-        return { success: false, message: 'This coupon has expired.' };
-      }
-
-      if (coupon.usageLimit > 0 && coupon.usageCount >= coupon.usageLimit) {
-        return { success: false, message: 'This coupon has reached its usage limit.' };
-      }
-
-      return { success: true, coupon };
-    } catch (err) {
-      return { success: false, message: 'Error validating coupon.' };
-    }
-  };
-
-  const updateTelegramConfig = async (configData: Partial<TelegramConfig>) => {
+  const updateTelegramConfig = useCallback(async (configData: Partial<TelegramConfig>) => {
     try {
       const newConfig = { ...telegramConfig, ...configData };
       setTelegramConfig(newConfig);
@@ -2370,8 +1563,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Update telegram config failed:", err.message);
     }
-  };
-  const addTelegramChannel = async (channel: TelegramChannel) => {
+  }, [telegramConfig]);
+
+  const addTelegramChannel = useCallback(async (channel: TelegramChannel) => {
     try {
       const docId = channel.id || `tg_${Date.now()}`;
       const newChannels = [{ ...channel, id: docId, updatedAt: new Date().toISOString() }, ...telegramChannels];
@@ -2380,8 +1574,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Add channel failed:", err.message);
     }
-  };
-  const updateTelegramChannel = async (id: string, data: Partial<TelegramChannel>) => {
+  }, [telegramChannels, refreshTelegramChannels]);
+
+  const updateTelegramChannel = useCallback(async (id: string, data: Partial<TelegramChannel>) => {
     try {
       const newChannels = telegramChannels.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
       await saveToR2('telegram_channels', newChannels);
@@ -2389,9 +1584,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Update channel failed:", err.message);
     }
-  };
+  }, [telegramChannels, refreshTelegramChannels]);
 
-  const deleteTelegramChannel = async (id: string) => {
+  const deleteTelegramChannel = useCallback(async (id: string) => {
     try {
       const newChannels = telegramChannels.filter(c => c.id !== id);
       await saveToR2('telegram_channels', newChannels);
@@ -2399,9 +1594,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Delete channel failed:", err.message);
     }
-  };
+  }, [telegramChannels, refreshTelegramChannels]);
 
-  const updateShippingZone = async (id: string, data: Partial<ShippingZone>) => {
+  const updateShippingZone = useCallback(async (id: string, data: Partial<ShippingZone>) => {
     try {
       const newZones = shippingZones.map(z => z.id === id ? { ...z, ...data, updatedAt: new Date().toISOString() } : z);
       await saveToR2('shipping_zones', newZones);
@@ -2409,64 +1604,59 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Update shipping zone failed:", err.message);
     }
-  };
+  }, [shippingZones, refreshZones]);
 
-  const addSubscriber = async (email: string, source: string = 'newsletter') => {
+  const adjustLoyaltyPoints = useCallback(async (userId: string, points: number, description: string) => {
     try {
-      // Optimistic check
-      if (subscribers.some(s => s.email.toLowerCase() === email.toLowerCase())) {
-        return;
-      }
-
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/newsletter/subscribe`, {
+      const auth = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/loyalty/adjust`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, source }),
-      });
-
-      const contentType = response.headers.get("content-type");
-      let data;
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("Non-JSON response from /api/subscribe:", text);
-        throw new Error(response.status === 500 ? "Server Error (500)" : "Unexpected response format");
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to subscribe');
-      }
-
-      // Refresh the subscribers list from R2
-      refreshSubscribers();
-      return data; // Return data if successful
-    } catch (error: any) {
-      console.error('Add subscriber failed:', error.message);
-      throw error; // Propagate to UI
-    }
-  };
-
-  const sendEmail = async (data: { to: string | string[]; subject: string; html: string; text?: string }) => {
-    try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.id}` // Simple auth check if needed
-        },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ userId, points, description }),
       });
 
       const result = await response.json();
+      if (result.success) refreshUsers();
       return result;
+    } catch (error: any) {
+      console.error("Loyalty adjustment failed:", error);
+      return { success: false, message: error.message };
+    }
+  }, [getAuthHeader, refreshUsers]);
+
+  const sendEmail = useCallback(async (data: { to: string | string[]; subject: string; html: string; text?: string }) => {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await response.json();
     } catch (error: any) {
       console.error("Email send error:", error);
       return { success: false, message: error.message };
     }
-  };
+  }, []);
 
-  const sendNewsletterConfirmation = async (email: string) => {
+  const broadcastEmail = useCallback(async (data: { subject: string, body: string, segment: string }) => {
+    try {
+      const auth = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/newsletter/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (result.success) refreshCampaigns();
+      return result;
+    } catch (error: any) {
+      console.error("Broadcast failed:", error);
+      return { success: false, message: error.message };
+    }
+  }, [getAuthHeader, refreshCampaigns]);
+
+  const sendNewsletterConfirmation = useCallback(async (email: string) => {
     await sendEmail({
       to: email,
       subject: `Welcome to the DJ FLOWERZ Community! 🎧`,
@@ -2484,101 +1674,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       `,
       text: `Welcome to the DJ FLOWERZ Community! Thanks for joining our newsletter. Visit djflowerz.co.ke for the latest mixtapes.`
     });
-  };
-  
-  const broadcastEmail = async (data: { subject: string, body: string, segment: string }) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/newsletter/broadcast`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify(data),
+  }, [sendEmail]);
+
+  const deleteScannedTrack = useCallback(async (id: string) => {
+    setScannedTracks(prev => {
+      const next = (prev || []).filter((t: any) => t.id !== id);
+      saveToR2('scanned_tracks', next).catch(err => {
+        console.error("Delayed R2 save error for scanned_tracks delete:", err);
       });
+      return next;
+    });
+  }, []);
 
-      const result = await response.json();
-      if (result.success) {
-        refreshCampaigns();
-      }
-      return result;
-    } catch (error: any) {
-      console.error("Broadcast failed:", error);
-      return { success: false, message: error.message };
-    }
-  };
-
-  const adjustLoyaltyPoints = async (userId: string, points: number, description: string) => {
-    try {
-      const auth = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/loyalty/adjust`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...auth
-        },
-        body: JSON.stringify({ userId, points, description }),
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        refreshUsers();
-      }
-      return result;
-    } catch (error: any) {
-      console.error("Loyalty adjustment failed:", error);
-      return { success: false, message: error.message };
-    }
-  };
-
-  const uploadTrackList = async (file: File): Promise<{ success: boolean; message: string; count?: number }> => {
-    try {
-      const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-
-      // Simple parser: Artist - Title [Genre]
-      // Or search for specific patterns
-      const parsedTracks: Partial<Track>[] = lines.map(line => {
-        let artist = 'Unknown Artist';
-        let title = line.trim();
-        let genre = 'General';
-
-        // Check for artist - title
-        if (line.includes(' - ')) {
-          [artist, title] = line.split(' - ').map(s => s.trim());
-        }
-
-        // Check for genre in brackets [Genre]
-        const genreMatch = title.match(/\[(.*?)\]/);
-        if (genreMatch) {
-          genre = genreMatch[1];
-          title = title.replace(`[${genre}]`, '').trim();
-        }
-
-        return {
-          id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          artist,
-          title,
-          genre,
-          dateAdded: new Date().toISOString(),
-          versions: []
-        };
-      });
-
-      // Update poolTracks state
-      const updatedPool = [...(parsedTracks as Track[]), ...poolTracks];
-      setPoolTracks(updatedPool);
-      await saveToR2('pool_tracks', updatedPool);
-
-      return { success: true, message: `Successfully parsed and added ${parsedTracks.length} track references.`, count: parsedTracks.length };
-    } catch (err: any) {
-      console.error("List upload failed:", err);
-      return { success: false, message: err.message };
-    }
-  };
-
-  const downloadTrackList = () => {
+  const downloadTrackList = useCallback(() => {
     try {
       const content = poolTracks
         .map(t => `${t.artist} - ${t.title} [${t.genre}]`)
@@ -2596,87 +1704,92 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.error("Tracklist download failed:", err);
     }
-  };
+  }, [poolTracks]);
 
+  const uploadTrackList = useCallback(async (file: File): Promise<{ success: boolean; message: string; count?: number }> => {
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      const parsedTracks = lines.map(line => {
+        let artist = 'Unknown Artist';
+        let title = line;
+        let genre = 'General';
 
+        if (line.includes(' - ')) {
+          [artist, title] = line.split(' - ').map(s => s.trim());
+        }
 
+        const genreMatch = title.match(/\[(.*?)\]/);
+        if (genreMatch) {
+          genre = genreMatch[1];
+          title = title.replace(`[${genre}]`, '').trim();
+        }
 
-  const updateUser = async (id: string, data: Partial<User>) => {
+        return {
+          id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          artist,
+          title,
+          genre,
+          dateAdded: new Date().toISOString(),
+          versions: []
+        };
+      });
+
+      const updatedPool = [...(parsedTracks as Track[]), ...poolTracks];
+      setPoolTracks(updatedPool);
+      await saveToR2('pool_tracks', updatedPool);
+
+      return { success: true, message: `Successfully parsed and added ${parsedTracks.length} track references.`, count: parsedTracks.length };
+    } catch (err: any) {
+      console.error("List upload failed:", err);
+      return { success: false, message: err.message };
+    }
+  }, [poolTracks]);
+
+  const updateUser = useCallback(async (id: string, data: Partial<User>) => {
     try {
       const ok = await saveToD1('users', 'PUT', data, id);
       if (ok) refreshUsers();
     } catch (err: any) {
       console.error("Update user failed:", err.message);
     }
-  };
+  }, [refreshUsers]);
 
-  const addPayment = async (payment: any) => {
+  const removeUser = useCallback(async (id: string) => {
     try {
-      const newPayment = {
-        ...payment,
-        id: payment.id || `pay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        createdAt: payment.createdAt || new Date().toISOString()
-      };
-      
-      const currentPayments = payments || [];
-      await saveToR2('payments', [newPayment, ...currentPayments]);
-      refreshPayments();
+      const ok = await saveToD1('users', 'DELETE', undefined, id);
+      if (ok) refreshUsers();
+    } catch (err: any) {
+      console.error("Remove user failed:", err.message);
+    }
+  }, [refreshUsers]);
+
+  const addPayment = useCallback(async (payment: any) => {
+    try {
+      const ok = await saveToD1('payments', 'POST', payment);
+      if (ok) refreshPayments();
     } catch (err: any) {
       console.error("Add payment failed:", err.message);
     }
-  };
+  }, [refreshPayments]);
 
-  const addTip = async (tip: any) => {
+  const addTip = useCallback(async (tip: any) => {
     try {
-      const newTip = {
-        ...tip,
-        id: tip.id || `tip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        createdAt: tip.createdAt || new Date().toISOString()
-      };
-      
-      const currentTips = tips || [];
-      await saveToR2('tips', [newTip, ...currentTips]);
-      
-      // Also try saving to D1 for admin dashboard table.
-      // D1 schema expects specific fields for tips based on mapR2Tip parsing
-      try {
-        const d1Payload = {
-            id: newTip.id,
-            amount: newTip.amount,
-            message: newTip.message,
-            donor_name: newTip.customerName || 'Guest Tipper',
-            donor_email: newTip.email || newTip.userEmail || 'guest@djflowerz.co.ke',
-            status: newTip.status || 'completed',
-            created_at: newTip.createdAt
-        };
-        await saveToD1('tips', 'POST', d1Payload);
-      } catch (e) {
-        console.warn("Failed to sync tip to D1, but saved to R2", e);
-      }
-      
-      refreshTips();
+      const ok = await saveToD1('tips', 'POST', tip);
+      if (ok) refreshTips();
     } catch (err: any) {
       console.error("Add tip failed:", err.message);
     }
-  };
-
-  const deleteOrder = async (id: string) => {
-    try {
-      const ok = await saveToD1('orders', 'DELETE', undefined, id);
-      if (ok) refreshOrders();
-    } catch (err: any) {
-      console.error("Delete order failed:", err.message);
-    }
-  };
-
-  const deleteMaintenanceLog = async (id: string) => {
+  }, [refreshTips]);
+  const deleteMaintenanceLog = useCallback(async (id: string) => {
     try {
       const ok = await saveToD1('maintenance_logs', 'DELETE', undefined, id);
       if (ok) refreshLogs();
     } catch (err: any) {
       console.error("Delete maintenance log failed:", err.message);
     }
-  };
+  }, [refreshLogs]);
 
   const addContactMessage = async (message: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) => {
     try {
@@ -2698,26 +1811,100 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const deleteMessage = async (id: string) => {
+  const addCampaign = useCallback(async (camp: NewsletterCampaign) => {
     try {
-      const ok = await saveToD1('support/tickets', 'DELETE', undefined, id);
-      if (ok) refreshContactMessages();
+      const ok = await saveToD1('campaigns', 'POST', camp);
+      if (ok) refreshCampaigns();
+    } catch (err: any) {
+      console.error("Add campaign failed:", err.message);
+    }
+  }, [refreshCampaigns]);
+
+  const updateCampaign = useCallback(async (id: string, data: Partial<NewsletterCampaign>) => {
+    try {
+      const ok = await saveToD1('campaigns', 'PUT', data, id);
+      if (ok) refreshCampaigns();
+    } catch (err: any) {
+      console.error("Update campaign failed:", err.message);
+    }
+  }, [refreshCampaigns]);
+
+  const addCoupon = useCallback(async (coupon: Partial<Coupon>) => {
+    try {
+      const ok = await saveToD1('coupons', 'POST', coupon);
+      if (ok) refreshCoupons();
+    } catch (err: any) {
+      console.error("Add coupon failed:", err.message);
+    }
+  }, [refreshCoupons]);
+
+  const updateCoupon = useCallback(async (id: string, data: Partial<Coupon>) => {
+    try {
+      const ok = await saveToD1('coupons', 'PUT', data, id);
+      if (ok) refreshCoupons();
+    } catch (err: any) {
+      console.error("Update coupon failed:", err.message);
+    }
+  }, [refreshCoupons]);
+
+  const deleteCoupon = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('coupons', 'DELETE', undefined, id);
+      if (ok) refreshCoupons();
+    } catch (err: any) {
+      console.error("Delete coupon failed:", err.message);
+    }
+  }, [refreshCoupons]);
+
+  const validateCoupon = useCallback(async (code: string): Promise<{ success: boolean; coupon?: Coupon; message?: string }> => {
+    try {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/coupons/validate?code=${encodeURIComponent(code)}`);
+      if (response.ok) {
+        return await response.json();
+      }
+      return { success: false, message: 'Invalid or expired coupon' };
+    } catch (error) {
+      console.error("Coupon validation error:", error);
+      return { success: false, message: 'Validation failed' };
+    }
+  }, []);
+
+  const addSubscriber = useCallback(async (email: string, source: string = 'newsletter') => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/newsletter/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ email, source }),
+      });
+      if (response.ok) {
+        refreshSubscribers();
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.error("Subscribe failed:", err.message);
+      return false;
+    }
+  }, [refreshSubscribers]);
+
+  const updateContactMessage = useCallback(async (id: string, updates: Partial<ContactMessage>) => {
+    try {
+      const ok = await saveToD1('contact_messages', 'PUT', updates, id);
+      if (ok) refreshLogs();
+    } catch (err: any) {
+      console.error("Update message failed:", err.message);
+    }
+  }, [refreshLogs]);
+
+  const deleteMessage = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('contact_messages', 'DELETE', undefined, id);
+      if (ok) refreshLogs();
     } catch (err: any) {
       console.error("Delete message failed:", err.message);
     }
-  };
-
-  const updateContactMessage = async (id: string, updates: Partial<ContactMessage>) => {
-    try {
-      const res = await saveToD1('support/tickets', 'PATCH', updates, id);
-      if (res) {
-        alert("Message updated in D1");
-        refreshContactMessages();
-      }
-    } catch (err: any) {
-      console.error("Update contact message failed:", err.message);
-    }
-  };
+  }, [refreshLogs]);
 
   const removeUser = async (id: string) => {
     try {
@@ -2770,62 +1957,46 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       const response = await fetch(`${STORAGE_WORKER_URL}/api/mixtapes/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  }, [user?.id, refreshReviews]);
 
-      if (!response.ok) throw new Error('Failed to save comment');
-
-      refreshComments();
+  const addComment = useCallback(async (mixtapeId: string, text: string) => {
+    try {
+      const ok = await saveToD1('comments', 'POST', { mixtapeId, text, userId: user?.id });
+      if (ok) refreshComments();
     } catch (err: any) {
       console.error("Add comment failed:", err.message);
     }
-  };
+  }, [user?.id, refreshComments]);
 
-  const addNotification = async (notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+  const addNotification = useCallback(async (notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     try {
-      const newNotif: AppNotification = {
-        ...notif,
-        id: `notif_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        read: false
-      };
-
-      const currentNotifications = notifications || [];
-      await saveToR2('notifications', [newNotif, ...currentNotifications]);
-      refreshNotifications();
+      const ok = await saveToD1('notifications', 'POST', notif);
+      if (ok) refreshNotifications();
     } catch (err: any) {
       console.error("Add notification failed:", err.message);
     }
-  };
+  }, [refreshNotifications]);
 
-  const markNotificationAsRead = async (id: string) => {
+  const markNotificationAsRead = useCallback(async (id: string) => {
     try {
-      const newNotifications = (notifications || []).map(n => n.id === id ? { ...n, read: true } : n);
-      setNotifications(newNotifications);
-      await saveToR2('notifications', newNotifications);
+      const ok = await saveToD1('notifications', 'PATCH', { read: true }, id);
+      if (ok) refreshNotifications();
     } catch (err: any) {
-      console.error("Mark notification read failed:", err.message);
+      console.error("Mark read failed:", err.message);
     }
-  };
+  }, [refreshNotifications]);
 
-  const clearNotifications = async () => {
+  const clearNotifications = useCallback(async () => {
     try {
-      setNotifications([]);
-      await saveToR2('notifications', []);
+      const authHeader = await getAuthHeader();
+      await fetch(`${STORAGE_WORKER_URL}/api/notifications/clear`, {
+        method: 'POST',
+        headers: authHeader,
+      });
+      refreshNotifications();
     } catch (err: any) {
       console.error("Clear notifications failed:", err.message);
     }
-  };
-
-  const incrementMixtapeDownload = async (mixtapeId: string) => {
-    try {
-      // In R2, we update the mixtape's download count directly
-      const newMixtapes = mixtapes.map(m => m.id === mixtapeId ? { ...m, downloadsCount: (m.downloadsCount || 0) + 1 } : m);
-      await saveToR2('mixtapes', newMixtapes);
-
-      // Update local state
       setMixtapes(newMixtapes);
     } catch (err) {
       console.error("Increment download error:", err);
@@ -2881,16 +2052,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const toggleWishlist = async (targetId: string, targetType: 'product' | 'mixtape' | 'track') => {
-    if (!user) return { success: false, message: 'Please login to save items.' };
+  const isInWishlist = useCallback((targetId: string) => {
+    return wishlist.some(item => item.targetId === targetId);
+  }, [wishlist]);
 
-    const existing = wishlist.find(item => item.targetId === targetId);
+  const toggleWishlist = useCallback(async (targetId: string, targetType: string = 'product') => {
+    if (!user) {
+      alert("Please login to use wishlist");
+      return { success: false, message: 'Auth required' };
+    }
+    
     try {
+      const existing = wishlist.find(item => item.targetId === targetId);
+      
       if (existing) {
         // Remove from wishlist
         await saveToD1('user/wishlist', 'DELETE', {}, existing.id);
-        setWishlist(prev => prev.filter(item => item.id !== existing.id));
-        return { success: true, message: 'Removed from wishlist.' };
+        const remaining = wishlist.filter(item => item.id !== existing.id);
+        setWishlist(remaining);
+        return { success: true, message: 'Removed from wishlist' };
       } else {
         // Add to wishlist
         const newItem: WishlistItem = {
@@ -2900,24 +2080,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           targetType,
           createdAt: new Date().toISOString()
         };
-        await saveToD1('user/wishlist', 'POST', {
+        const ok = await saveToD1('user/wishlist', 'POST', {
           id: newItem.id,
           user_id: user.id,
           target_id: targetId,
           target_type: targetType
         });
-        setWishlist(prev => [newItem, ...prev]);
-        return { success: true, message: 'Saved to wishlist!' };
+        if (ok) {
+          setWishlist(prev => [newItem, ...prev]);
+          return { success: true, message: 'Saved to wishlist!' };
+        }
+        return { success: false, message: 'Failed to save to database' };
       }
     } catch (err: any) {
       console.error("Wishlist error:", err);
       return { success: false, message: 'Failed to update wishlist.' };
     }
-  };
-
-  const isInWishlist = (targetId: string) => {
-    return wishlist.some(item => item.targetId === targetId);
-  };
+  }, [user, wishlist, isInWishlist]);
 
   const value = useMemo(() => ({
     siteConfig,
@@ -3084,43 +2263,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sendEmail,
     broadcastEmail,
     sendNewsletterConfirmation,
-    addScannedTracks,
-    clearAllScannedTracks,
-    deleteScannedTrack: async (id: string) => {
-      setScannedTracks(prev => {
-        const next = (prev || []).filter((t: any) => t.id !== id);
-        // Persist to R2
-        saveToR2('scanned_tracks', next).catch(err => {
-          console.error("Delayed R2 save error for scanned_tracks delete:", err);
-        });
-        return next;
-      });
-    },
-
+    deleteScannedTrack,
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
     refreshStudioSessions, refreshEventGigs, refreshInstallments,
     refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
-    messages: contactMessages // Alias for component compatibility
+    messages: contactMessages
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, poolPagination, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,
     subscriptionPlans, studioRooms, maintenanceLogs, coupons, referralStats, users, referralLogs, contactMessages, scannedTracks,
-    notifications,
-    notificationsLoading,
-    syncNotifications,
-    syncNotificationsLoading,
-    payments, tips, reviews, comments,
-    adminStats, adminStatsLoading, refreshAdminStats,
-    expiringUsers, expiringUsersLoading, refreshExpiringUsers,
+    notifications, notificationsLoading, syncNotifications, syncNotificationsLoading, payments, tips, reviews, comments,
+    adminStats, adminStatsLoading, refreshAdminStats, expiringUsers, expiringUsersLoading, refreshExpiringUsers,
     telegramConfig, telegramChannels, telegramMappings, telegramUsers, telegramLogs,
     mixtapesLoading, productsLoading, ordersLoading, usersLoading, subscriptionsLoading, bookingsLoading, subscribersLoading, campaignsLoading, paymentsLoading, tipsLoading,
     equipmentLoading, studioRoomsLoading, maintenanceLogsLoading, sessionTypesLoading, reviewsLoading, commentsLoading,
     poolError, mixtapesError, productsError, ordersError, usersError, subscriptionsError, bookingsError,
     studioSessions, eventGigs, studioSessionsLoading, eventGigsLoading,
     installmentPlans, installmentPayments, installmentsLoading,
-    wishlist, wishlistLoading,
-    referralSettings
+    wishlist, wishlistLoading, referralSettings,
+    toggleWishlist, isInWishlist,
+    deleteScannedTrack, refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
+    refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
+    refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
+    refreshStudioSessions, refreshEventGigs, refreshInstallments,
+    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments
   ]);
 
   return (

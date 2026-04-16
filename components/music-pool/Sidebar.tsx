@@ -150,9 +150,136 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Genre List removed as per user request to rely on dropdowns */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        {/* Navigation is now handled exclusively by the dropdowns above */}
+      {/* Genre List - Restored for traditional navigation */}
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
+        {hubsWithGenres.map((h) => (
+          <div key={h.hub} className="space-y-1">
+            <button
+              onClick={() => {
+                toggleHub(h.hub);
+                if (activeHub !== h.hub) {
+                  onHubSelect(h.hub);
+                  onGenreSelect('All');
+                }
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group ${
+                activeHub === h.hub 
+                  ? 'bg-brand-purple/10 text-brand-purple border border-brand-purple/20 shadow-[0_0_15px_rgba(147,51,234,0.1)]' 
+                  : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Folder size={16} className={activeHub === h.hub ? 'text-brand-purple' : 'text-zinc-600 group-hover:text-zinc-400'} />
+                <span className="text-xs font-bold uppercase tracking-wider truncate max-w-[140px]">{h.hub}</span>
+              </div>
+              <motion.div
+                animate={{ rotate: expandedHubs.includes(h.hub) ? 180 : 0 }}
+                className="opacity-40"
+              >
+                <ChevronDown size={14} />
+              </motion.div>
+            </button>
+
+            <AnimatePresence>
+              {expandedHubs.includes(h.hub) && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden bg-black/20 rounded-xl ml-2 border-l border-white/5"
+                >
+                  <div className="p-1 space-y-0.5">
+                    <button
+                      onClick={() => onGenreSelect('All')}
+                      className={`w-full text-left px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
+                        activeHub === h.hub && activeGenre === 'All'
+                          ? 'text-white bg-white/10'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      View All
+                    </button>
+                    {h.genres
+                      .filter(g => !searchTerm || g.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map((g) => (
+                        <button
+                          key={g}
+                          onClick={() => onGenreSelect(g)}
+                          className={`w-full text-left px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
+                            activeHub === h.hub && activeGenre === g
+                              ? 'text-white bg-white/10'
+                              : 'text-zinc-600 hover:text-zinc-400'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+
+        {/* Year/Month Folders */}
+        {years.length > 0 && (
+          <div className="pt-6 border-t border-white/5 mt-4 space-y-2">
+            <span className="px-3 text-[10px] font-black text-zinc-700 uppercase tracking-[0.2em] mb-2 block">Archive</span>
+            {years.map((y) => (
+              <div key={y.year} className="space-y-1">
+                <button
+                  onClick={() => toggleYear(y.year.toString())}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all ${
+                    activeYear === y.year.toString() 
+                      ? 'bg-white/10 text-white' 
+                      : 'text-zinc-600 hover:text-zinc-400 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Hash size={14} className="text-zinc-700" />
+                    <span className="text-xs font-bold">{y.year}</span>
+                  </div>
+                  <motion.div
+                    animate={{ rotate: expandedYears.includes(y.year.toString()) ? 180 : 0 }}
+                    className="opacity-40"
+                  >
+                    <ChevronDown size={14} />
+                  </motion.div>
+                </button>
+                
+                <AnimatePresence>
+                  {expandedYears.includes(y.year.toString()) && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden ml-4 border-l border-white/5"
+                    >
+                      <div className="py-1 space-y-0.5">
+                        {y.months.map(m => (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              onYearSelect(y.year.toString());
+                              onMonthSelect(m);
+                            }}
+                            className={`w-full text-left px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                              activeYear === y.year.toString() && activeMonth === m
+                                ? 'text-brand-purple'
+                                : 'text-zinc-600 hover:text-zinc-400'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       
       {/* Footer Branding */}
