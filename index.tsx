@@ -2,6 +2,19 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import posthog from 'posthog-js';
+import { PostHogProvider } from 'posthog-js/react';
+
+// ─── PostHog Analytics ───────────────────────────────────────────────────────
+posthog.init('phx_JyyoSjSUvsLUXp6KJqWygQDU9QYe7ixjdPhgqqAn4ag2zHAZ', {
+  api_host: 'https://us.i.posthog.com',
+  person_profiles: 'identified_only',
+  capture_pageview: true,
+  capture_pageleave: true,
+  loaded: (ph) => {
+    if (import.meta.env.DEV) ph.debug();
+  }
+});
 
 // Global error catcher — surfaces silent JS crashes that would blank the page
 window.onerror = (msg, src, line, col, err) => {
@@ -27,7 +40,9 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <PostHogProvider client={posthog}>
+      <App />
+    </PostHogProvider>
   </React.StrictMode>
 );
 

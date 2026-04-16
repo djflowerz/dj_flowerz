@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User } from '../types';
 import { supabase } from '../utils/supabase';
 import { fetchFromR2, updateR2Item, addR2Item, addAdminNotification } from '../utils/r2';
+import posthog from 'posthog-js';
 
 interface AuthContextType {
   user: User | null;
@@ -113,6 +114,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       setUser(userData);
+      // ─── PostHog: identify user on session load ───
+      if (userData) {
+        posthog.identify(userData.id, {
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          isSubscriber: userData.isSubscriber,
+        });
+      }
       setLoading(false);
     } catch (err) {
       console.error("Auth sync error:", err);
@@ -286,6 +296,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    // ─── PostHog: reset on logout ───
+    posthog.reset();
   };
 
   const resetPassword = async (email: string) => {
