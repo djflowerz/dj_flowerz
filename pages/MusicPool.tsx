@@ -130,10 +130,6 @@ export default function MusicPool() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    fetchFilters();
-  }, [fetchFilters]);
-  
   const [dynamicFilters, setDynamicFilters] = useState<DynamicFilters>({ 
     hubsWithGenres: [], 
     years: [] 
@@ -169,6 +165,10 @@ export default function MusicPool() {
       console.error("Error fetching filters:", err);
     }
   }, []);
+
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
 
   const [player, setPlayer] = useState<PlayerState>({ 
     url: null, 
