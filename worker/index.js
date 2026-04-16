@@ -42,7 +42,7 @@ import { handleLoyalty } from './api/loyalty.js';
 import { handlePresence } from './api/presence.js';
 import { handleAdminNotifications, handleUserStatus, handleUserNotifications, handleMarkNotificationsRead } from './api/dashboard/notifications.js';
 import { handleStorefrontCoupons } from './api/storefront/coupons.js';
-import { handleCommunityProfile } from './api/community/profile.js';
+import { handleProfiles } from './api/community/profile-worker.js';
 import { handleEscrow, handleWallet } from './api/escrow.js';
 import { handleMe } from './api/user.js';
 import { handleUserAuth } from './api/user/auth.js';
@@ -72,9 +72,15 @@ router.post('/api/push/unsubscribe', handlePushSubscription);
 
 // Community & Profile
 router.get('/api/user/me', handleMe);
-router.get('/api/community/profile/:username', handleCommunityProfile);
-router.post('/api/community/profile/update', handleCommunityProfile);
-router.get('/api/community/suggested', handleCommunityProfile);
+router.get('/api/profiles/search', handleProfiles);
+router.get('/api/profiles/me/feed', handleProfiles);
+router.patch('/api/profiles/me', handleProfiles);
+router.get('/api/profiles/:username', handleProfiles);
+router.get('/api/profiles/:username/posts', handleProfiles);
+router.get('/api/profiles/:username/likes', handleProfiles);
+router.post('/api/profiles/:username/follow', handleProfiles);
+router.get('/api/profiles/:username/followers', handleProfiles);
+router.get('/api/profiles/:username/following', handleProfiles);
 router.get('/api/community/offers', handleOffers);
 router.get('/api/handshake', async (req, env) => {
     const user = await getAuthorizedUser(req, env);
