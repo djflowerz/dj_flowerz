@@ -1,5 +1,5 @@
 
-import { Product, Mixtape, Booking, Track, SessionType, Video, TelegramChannel, Subscription, Order, NewsletterCampaign, NewsletterSubscriber, SubscriptionPlan, Genre, AppNotification, InstallmentPlan, InstallmentPayment, StudioRoom, StudioEquipment, MaintenanceLog, ReferralStats, ReferralLog } from '../types';
+import { Product, Mixtape, Booking, Track, SessionType, Video, TelegramChannel, Subscription, Order, NewsletterCampaign, NewsletterSubscriber, SubscriptionPlan, Genre, AppNotification, InstallmentPlan, InstallmentPayment, StudioRoom, StudioEquipment, MaintenanceLog, ReferralStats, ReferralLog, Coupon } from '../types';
 
 /**
  * Helper to prevent hanging calls

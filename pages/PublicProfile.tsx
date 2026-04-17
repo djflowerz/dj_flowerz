@@ -193,9 +193,9 @@ function PostGrid({ username, type, isLikes }: { username: string, type: string,
 
 // ─── ProfilePostCard ──────────────────────────────────────────────────────────
 
-function ProfilePostCard({ post, index, onPatch }: { post: any, index: number, onPatch: any }) {
+function ProfilePostCard({ post, index, onPatch }: { key?: React.Key; post: any, index: number, onPatch: any }) {
   const { reshare, loading: reshareLoading } = useComposer();
-  const { liked, count: likeCount, toggle: toggleLike } = useLike(post.id, post.viewer_liked, post.likes_count || post.like_count);
+  const { liked, count: likeCount, toggle: toggleLike } = useLike(post.viewer_liked || false, post.likes_count || post.like_count || 0);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [reshared, setReshared] = useState(false);
   const [reshareCount, setReshareCount] = useState(post.reshare_count || 0);
@@ -246,7 +246,7 @@ function ProfilePostCard({ post, index, onPatch }: { post: any, index: number, o
       <div style={css.postFooter}>
         <time style={css.postTime}>{formatTime(post.created_at)}</time>
         <div style={css.postActions}>
-          <ActionBtn icon={liked ? '♥' : '♡'} count={likeCount} active={liked} activeColor="#DC2626" onClick={toggleLike} />
+          <ActionBtn icon={liked ? '♥' : '♡'} count={likeCount} active={liked} activeColor="#DC2626" onClick={() => toggleLike(post.id)} />
           <ActionBtn icon="◎" count={post.comments_count || post.comment_count} onClick={() => setShowCommentBox(s => !s)} active={showCommentBox} activeColor="#7C3AED" />
           <ActionBtn icon="↺" count={reshareCount} active={reshared} activeColor="#059669" onClick={handleReshare} />
         </div>
@@ -260,13 +260,13 @@ function ProfilePostCard({ post, index, onPatch }: { post: any, index: number, o
 // ─── InlineCommentBox ─────────────────────────────────────────────────────────
 
 function InlineCommentBox({ postId, onDone }: { postId: string, onDone: () => void }) {
-  const { post: submitComment, loading } = useComposer(postId);
+  const { comment, loading } = useComposer();
   const { user } = useAuth();
   const [text, setText] = useState('');
 
   const submit = async () => {
     if (!text.trim() || loading) return;
-    try { await submitComment(text, []); setText(''); onDone?.(); }
+    try { await comment({ content: text, reply_to_id: postId }); setText(''); onDone?.(); }
     catch {}
   };
 

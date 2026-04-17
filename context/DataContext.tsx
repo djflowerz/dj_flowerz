@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, TelegramConfig, TelegramChannel, TelegramMapping, TelegramUser, TelegramLog, StudioEquipment, ShippingZone, NewsletterSubscriber, Genre, Subscription, Order, NewsletterCampaign, NewsletterSegment, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, User, ReferralSettings, ReferralLog, ContactMessage, Review, AppNotification, StudioSession, EventGig, InstallmentPlan, InstallmentPayment, StoreSettings, ShippingConfig, WishlistItem } from '../types';
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES } from '../constants';
 import { useAuth } from './AuthContext';
@@ -320,14 +320,6 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Helper to prevent hanging Firestore calls
-function withTimeout<T>(promise: Promise<T>, ms: number = 30000): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Operation timed out (30s limit reached).")), ms))
-  ]);
-}
-
 // Label Cleaning Helper (removes (123 tracks) from name)
 
 
@@ -636,14 +628,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [refreshSubscriptions, refreshUsers]);
 
-  const updateUser = useCallback(async (id: string, data: Partial<User>) => {
-    try {
-      const ok = await saveToD1('users', 'PUT', data, id);
-      if (ok) refreshUsers();
-    } catch (err: any) {
-      console.error("Update user failed:", err.message);
-    }
-  }, [refreshUsers]);
 
   const updateStoreSettings = useCallback(async (data: Partial<StoreSettings>) => {
     try {
@@ -651,17 +635,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updated = { ...storeSettings, ...data };
       setStoreSettings(updated);
       await saveToR2('config/store', updated);
-      await fetch(`${STORAGE_WORKER_URL}/api/admin/config/store`, {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/config/store`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader
+        },
+        body: JSON.stringify(data)
       });
       if (response.ok) {
-        const updated = await response.json();
-        setStoreSettings(updated);
+        const result = await response.json();
+        setStoreSettings(result);
       }
     } catch (error) {
       console.error("Error updating store settings:", error);
     }
-  };
+  }, [storeSettings, getAuthHeader]);
 
   useEffect(() => {
     fetchStoreSettings();
@@ -1205,17 +1194,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [isAdmin, subscriptionPlans, referralSettings]);
 
-  const updateSiteConfig = useCallback(async (config: SiteConfig) => {
+  const updateSiteConfig = useCallback(async (data: Partial<SiteConfig>) => {
     try {
-      setSiteConfig(config);
-      await updateR2Item(SETTING_COLLECTION, 'siteConfig', { data: config, updated_at: new Date().toISOString() });
+      const updated = { ...siteConfig, ...data };
+      setSiteConfig(updated);
+      await saveToR2('config/site', updated);
       alert("Site Configuration saved successfully!");
-      refreshSiteConfig();
+      // config auto-polls so we don't need a manual refresh hook
     } catch (err: any) {
       console.error("Update site config failed:", err.message);
       alert("Failed to save configuration: " + err.message);
     }
-  }, [refreshSiteConfig]);
+  }, [siteConfig]);
 
 
 
@@ -1906,14 +1896,42 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [refreshLogs]);
 
-  const removeUser = async (id: string) => {
+
+  const deleteStudioEquipment = useCallback(async (id: string) => {
     try {
-      const ok = await saveToD1('users', 'DELETE', undefined, id);
-      if (ok) refreshUsers();
+      const ok = await saveToD1('studio_gear', 'DELETE', undefined, id);
+      if (ok) refreshEquipment();
     } catch (err: any) {
-      console.error("Remove user failed:", err.message);
+      console.error("Delete equipment failed:", err.message);
     }
-  };
+  }, [refreshEquipment]);
+
+  const addOrder = useCallback(async (order: Order) => {
+    try {
+      const ok = await saveToD1('orders', 'POST', order);
+      if (ok) refreshOrders();
+    } catch (err: any) {
+      console.error("Add order failed:", err.message);
+    }
+  }, [refreshOrders]);
+
+  const updateOrder = useCallback(async (id: string, data: Partial<Order>) => {
+    try {
+      const ok = await saveToD1('orders', 'PUT', data, id);
+      if (ok) refreshOrders();
+    } catch (err: any) {
+      console.error("Update order failed:", err.message);
+    }
+  }, [refreshOrders]);
+
+  const deleteOrder = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('orders', 'DELETE', undefined, id);
+      if (ok) refreshOrders();
+    } catch (err: any) {
+      console.error("Delete order failed:", err.message);
+    }
+  }, [refreshOrders]);
 
   const addReview = async (productId: string, rating: number, comment: string) => {
     try {
@@ -1945,19 +1963,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Add review failed:", err.message);
     }
   };
-
-  const addComment = async (mixtapeId: string, text: string) => {
-    try {
-      if (!user) throw new Error('Must be logged in to comment');
-
-      const payload = {
-        mixtapeId,
-        userName: user.full_name || user.name || 'User',
-        text: text
-      };
-
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/mixtapes/comments`, {
-  }, [user?.id, refreshReviews]);
 
   const addComment = useCallback(async (mixtapeId: string, text: string) => {
     try {
@@ -1997,11 +2002,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
       console.error("Clear notifications failed:", err.message);
     }
+  }, [getAuthHeader, refreshNotifications]);
+
+  const incrementMixtapeDownload = useCallback(async (mixtapeId: string) => {
+    try {
+      await fetch(`${STORAGE_WORKER_URL}/api/mixtapes/${mixtapeId}/download`, { method: 'POST' });
+      const newMixtapes = mixtapes.map(m => m.id === mixtapeId ? { ...m, downloads: (m.downloads || 0) + 1 } : m);
       setMixtapes(newMixtapes);
     } catch (err) {
       console.error("Increment download error:", err);
     }
-  };
+  }, [mixtapes, setMixtapes]);
 
   const addInstallmentPlan = async (plan: Partial<InstallmentPlan>) => {
     if (!isAdmin) return false;
@@ -2077,7 +2088,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: `wish_${Date.now()}`,
           userId: user.id,
           targetId,
-          targetType,
+          targetType: targetType as 'product' | 'mixtape' | 'track',
           createdAt: new Date().toISOString()
         };
         const ok = await saveToD1('user/wishlist', 'POST', {
