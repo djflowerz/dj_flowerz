@@ -387,7 +387,7 @@ const useCollection = <T extends { id: string }>(
     try {
       let results: any[] = [];
       if (source === 'D1') {
-        const authHeader = await getAuthHeader();
+        const authHeader = await getR2AuthHeader();
         // Use /api/admin for dashboard/admin collections to bypass public cache/filters
         // GUARD: Never use admin path if no auth token is available (prevents guest errors)
         const effectiveAdminPath = useAdminPath && authHeader.Authorization;
@@ -520,113 +520,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setStoreSettingsLoading(false);
     }
   }, []);
-
-  const addSubscription = useCallback(async (sub: Subscription) => {
-    try {
-      const ok = await saveToD1('subscriptions', 'POST', sub);
-      if (ok) refreshSubscriptions();
-    } catch (err: any) {
-      console.error("Add subscription failed:", err.message);
-    }
-  }, [refreshSubscriptions]);
-
-  const isFirstTimeSubscriber = useCallback(async (userId: string): Promise<boolean> => {
-    try {
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/user/first-timer?userId=${userId}`, {
-        headers: authHeader,
-        cache: 'no-store'
-      });
-      if (response.ok) {
-        const { isFirstTime } = await response.json();
-        return isFirstTime;
-      }
-      return false;
-    } catch (error) {
-      console.warn("Error checking first-timer status:", error);
-      return false;
-    }
-  }, []);
-
-  const updateSubscription = useCallback(async (id: string, data: Partial<Subscription>) => {
-    try {
-      const ok = await saveToD1('subscriptions', 'PUT', data, id);
-      if (ok) refreshSubscriptions();
-    } catch (err: any) {
-      console.error("Update subscription failed:", err.message);
-    }
-  }, [refreshSubscriptions]);
-
-  const addSubscriptionPlan = useCallback(async (plan: SubscriptionPlan) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'POST', plan);
-      if (ok) refreshPlans();
-    } catch (err: any) {
-      console.error("Add plan failed:", err.message);
-    }
-  }, [refreshPlans]);
-
-  const updateSubscriptionPlan = useCallback(async (id: string, data: Partial<SubscriptionPlan>) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'PUT', data, id);
-      if (ok) refreshPlans();
-    } catch (err: any) {
-      console.error("Update plan failed:", err.message);
-    }
-  }, [refreshPlans]);
-
-  const deleteSubscriptionPlan = useCallback(async (id: string) => {
-    try {
-      const ok = await saveToD1('subscription_plans', 'DELETE', undefined, id);
-      if (ok) refreshPlans();
-    } catch (err: any) {
-      console.error("Delete plan failed:", err.message);
-    }
-  }, [refreshPlans]);
-
-  const grantSubscription = useCallback(async (email: string, days: number): Promise<void> => {
-    try {
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/grant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ email, days }),
-      });
-      if (response.ok) {
-        alert(`Successfully granted ${days} days of subscription to ${email}`);
-        refreshSubscriptions();
-        refreshUsers();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to grant subscription');
-      }
-    } catch (error: any) {
-      console.error("Grant subscription error:", error);
-      alert(error.message);
-    }
-  }, [refreshSubscriptions, refreshUsers]);
-
-  const revokeSubscription = useCallback(async (email: string): Promise<void> => {
-    try {
-      const authHeader = await getAuthHeader();
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/revoke`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ email }),
-      });
-      if (response.ok) {
-        alert(`Successfully revoked subscription for ${email}`);
-        refreshSubscriptions();
-        refreshUsers();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to revoke subscription');
-      }
-    } catch (error: any) {
-      console.error("Revoke subscription error:", error);
-      alert(error.message);
-    }
-  }, [refreshSubscriptions, refreshUsers]);
 
 
   const updateStoreSettings = useCallback(async (data: Partial<StoreSettings>) => {
@@ -856,6 +749,115 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [wishlist, setWishlist, wishlistLoading, , , refreshWishlist] = useCollection<WishlistItem>('wishlist', [], !!user, (w) => ({ ...w, createdAt: w.created_at || w.createdAt }), 'createdAt', 'desc', 'D1', false);
   const [syncNotifications, , syncNotificationsLoading, , , refreshSyncNotifications] = useCollection<any>('pool/sync-notifications', [], isAdmin, undefined, 'created_at', 'desc', 'D1', isAdmin);
   const [notifications, setNotifications, notificationsLoading, , , refreshNotifications] = useCollection<AppNotification>('notifications', [], isAdmin, mapR2Notification, 'createdAt', 'desc', 'R2', isAdmin);
+
+  // --- Subscription callbacks (moved here so refreshSubscriptions/refreshPlans/refreshUsers are in-scope) ---
+
+  const addSubscription = useCallback(async (sub: Subscription) => {
+    try {
+      const ok = await saveToD1('subscriptions', 'POST', sub);
+      if (ok) refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Add subscription failed:", err.message);
+    }
+  }, [refreshSubscriptions]);
+
+  const isFirstTimeSubscriber = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/user/first-timer?userId=${userId}`, {
+        headers: authHeader,
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const { isFirstTime } = await response.json();
+        return isFirstTime;
+      }
+      return false;
+    } catch (error) {
+      console.warn("Error checking first-timer status:", error);
+      return false;
+    }
+  }, []);
+
+  const updateSubscription = useCallback(async (id: string, data: Partial<Subscription>) => {
+    try {
+      const ok = await saveToD1('subscriptions', 'PUT', data, id);
+      if (ok) refreshSubscriptions();
+    } catch (err: any) {
+      console.error("Update subscription failed:", err.message);
+    }
+  }, [refreshSubscriptions]);
+
+  const addSubscriptionPlan = useCallback(async (plan: SubscriptionPlan) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'POST', plan);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Add plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const updateSubscriptionPlan = useCallback(async (id: string, data: Partial<SubscriptionPlan>) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'PUT', data, id);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Update plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const deleteSubscriptionPlan = useCallback(async (id: string) => {
+    try {
+      const ok = await saveToD1('subscription_plans', 'DELETE', undefined, id);
+      if (ok) refreshPlans();
+    } catch (err: any) {
+      console.error("Delete plan failed:", err.message);
+    }
+  }, [refreshPlans]);
+
+  const grantSubscription = useCallback(async (email: string, days: number): Promise<void> => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ email, days }),
+      });
+      if (response.ok) {
+        alert(`Successfully granted ${days} days of subscription to ${email}`);
+        refreshSubscriptions();
+        refreshUsers();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to grant subscription');
+      }
+    } catch (error: any) {
+      console.error("Grant subscription error:", error);
+      alert(error.message);
+    }
+  }, [refreshSubscriptions, refreshUsers]);
+
+  const revokeSubscription = useCallback(async (email: string): Promise<void> => {
+    try {
+      const authHeader = await getAuthHeader();
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/admin/subscriptions/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ email }),
+      });
+      if (response.ok) {
+        alert(`Successfully revoked subscription for ${email}`);
+        refreshSubscriptions();
+        refreshUsers();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to revoke subscription');
+      }
+    } catch (error: any) {
+      console.error("Revoke subscription error:", error);
+      alert(error.message);
+    }
+  }, [refreshSubscriptions, refreshUsers]);
 
   // Telegram (Admin) - Non-realtime
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', botUsername: '', status: 'Disconnected' });
