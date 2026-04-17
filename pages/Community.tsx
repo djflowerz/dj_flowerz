@@ -13,6 +13,7 @@ import { uploadFileToR2 } from '../utils/r2';
 import { useFeed, useComposer, useLike, useFollow, usePost } from '../hooks/useSocial';
 
 const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+console.log('[Community] API URL being used:', API_URL);
 
 // Hook: close dropdown when clicking outside
 function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () => void) {
@@ -532,6 +533,13 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
 
     const submit = async () => {
         if (!content.trim() && !imageFile) return;
+
+        // Fix 2 — guard: require valid auth token before posting
+        if (!session?.access_token) {
+            toast.error('Please log in again to post');
+            return;
+        }
+
         setLoading(true);
         try {
             let finalImageUrl = null;
@@ -556,8 +564,14 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 })
             });
             const data = await res.json();
-            if (data.post) {
-                onPost(data.post);
+            console.log('POST RESPONSE STATUS:', res.status);
+            console.log('POST RESPONSE DATA:', data);
+
+            // Fix 1 — handle multiple possible response shapes from the worker
+            const newPost = data.post || data.data || data.result || (data.id ? data : null);
+
+            if (res.ok && newPost) {
+                onPost(newPost);
                 setContent('');
                 setIsMarketplace(false);
                 setPrice('');
@@ -565,7 +579,8 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 setImagePreview(null);
                 toast.success('Broadcast transmitted!');
             } else {
-                toast.error('Transmission failed');
+                console.error('Post failed:', data);
+                toast.error(data.error || data.message || 'Transmission failed');
             }
         } catch {
             toast.error('Frequency unstable. Try again.');
