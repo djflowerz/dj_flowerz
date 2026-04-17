@@ -481,7 +481,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchConfig = useCallback(async () => {
     try {
       const data = await fetchFromR2<SiteConfig>('config/site');
-      if (data) setSiteConfig(data);
+      if (data && typeof data === 'object') {
+        // Deep-merge with INITIAL_CONFIG so a partial R2 response never
+        // wipes out nested keys (hero, home, etc.) that components access
+        // without optional chaining, causing crash.
+        setSiteConfig({
+          ...INITIAL_CONFIG,
+          ...data,
+          hero:    { ...INITIAL_CONFIG.hero,    ...(data.hero    || {}) },
+          home:    { ...INITIAL_CONFIG.home,    ...(data.home    || {}),
+            featuredMixtapes: { ...INITIAL_CONFIG.home.featuredMixtapes, ...(data.home?.featuredMixtapes || {}) },
+            musicPool:        { ...INITIAL_CONFIG.home.musicPool,        ...(data.home?.musicPool        || {}) },
+            storePromo:       { ...INITIAL_CONFIG.home.storePromo,       ...(data.home?.storePromo       || {}) },
+            studioPromo:      { ...INITIAL_CONFIG.home.studioPromo,      ...(data.home?.studioPromo      || {}) },
+            tipJar:           { ...INITIAL_CONFIG.home.tipJar,           ...(data.home?.tipJar           || {}) },
+          },
+          about:   { ...INITIAL_CONFIG.about,   ...(data.about   || {}) },
+          contact: { ...INITIAL_CONFIG.contact, ...(data.contact || {}) },
+          socials: { ...INITIAL_CONFIG.socials, ...(data.socials || {}) },
+          footer:  { ...INITIAL_CONFIG.footer,  ...(data.footer  || {}) },
+          legal:   { ...INITIAL_CONFIG.legal,   ...(data.legal   || {}) },
+          seo:     { ...INITIAL_CONFIG.seo,     ...(data.seo     || {}) },
+          notice:  { ...INITIAL_CONFIG.notice,  ...(data.notice  || {}) },
+        });
+      }
     } catch (err) {
       console.warn("Failed to fetch site config, using defaults.");
     }
