@@ -24,7 +24,7 @@ export function useFeed(tab: string | { profile: string } = 'following') {
     setError(null);
     try {
       let url: string | undefined;
-      if (tab === 'following' || tab === 'foryou') {
+      if (tab === 'following' || tab === 'foryou' || tab === 'latest' || tab === 'trending' || tab === 'marketplace') {
         url = `${SOCIAL_API}/feed?tab=${tab}&limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
       } else if (typeof tab === 'object' && tab.profile) {
         url = `${SOCIAL_API}/feed/profile/${tab.profile}?limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
