@@ -25,7 +25,7 @@ const Home: React.FC = () => {
    const { siteConfig, mixtapes, products, youtubeVideos, addSubscriber } = useData();
    const { addToCart } = useCart();
    const { playTrack, currentTrack, isPlaying } = usePlayer();
-   const { hero, home } = siteConfig;
+   const { hero, home } = siteConfig || {};
 
    const featuredMixtapes = mixtapes.slice(0, 4);
 
@@ -49,21 +49,30 @@ const Home: React.FC = () => {
    return (
       <div className="pb-20">
 
+         {/* Loading guard - wait for siteConfig to hydrate from R2 */}
+         {(!siteConfig || !hero || !home) && (
+            <div className="flex items-center justify-center min-h-screen bg-[#0B0B0F]">
+               <div className="text-white text-xl animate-pulse">Loading...</div>
+            </div>
+         )}
+
          {/* 1. Hero Section */}
-         <Hero 
-            badge="The Official Audio Portal"
-            title={
-               <>
-                  DJ <span className="text-brand-purple">FLOWERZ</span>
-               </>
-            }
-            subtitle={hero.subtitle}
-            cta1Text="Join The Community"
-            cta1Link="/community"
-            cta2Text="Visit Store"
-            cta2Link="/store"
-            bgImage={hero.bgImage}
-         />
+         {hero && (
+            <Hero 
+               badge="The Official Audio Portal"
+               title={
+                  <>
+                     DJ <span className="text-brand-purple">FLOWERZ</span>
+                  </>
+               }
+               subtitle={hero?.subtitle}
+               cta1Text="Join The Community"
+               cta1Link="/community"
+               cta2Text="Visit Store"
+               cta2Link="/store"
+               bgImage={hero?.bgImage}
+            />
+         )}
 
          {/* 2. Store Preview Section */}
          <section className="py-24 bg-[#0B0B0F] border-b border-white/5">
@@ -183,12 +192,12 @@ const Home: React.FC = () => {
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="bg-gradient-to-br from-[#1A1A24] to-[#0B0B0F] p-8 md:p-12 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center gap-12">
                   <div className="w-full md:w-1/2">
-                     <h2 className="text-3xl md:text-4xl font-outfit font-black text-white mb-4">{home.studioPromo.title}</h2>
-                     <p className="text-gray-400 mb-8 leading-relaxed">
-                        {home.studioPromo.description}
-                     </p>
-                     <Link to="/bookings" className="inline-flex items-center justify-center w-full md:w-auto px-8 py-4 bg-brand-purple text-white font-bold rounded-lg hover:bg-purple-600 transition">
-                        {home.studioPromo.ctaText}
+                      <h2 className="text-3xl md:text-4xl font-outfit font-black text-white mb-4">{home?.studioPromo?.title}</h2>
+                      <p className="text-gray-400 mb-8 leading-relaxed">
+                         {home?.studioPromo?.description}
+                      </p>
+                      <Link to="/bookings" className="inline-flex items-center justify-center w-full md:w-auto px-8 py-4 bg-brand-purple text-white font-bold rounded-lg hover:bg-purple-600 transition">
+                         {home?.studioPromo?.ctaText}
                      </Link>
                   </div>
                   <div className="w-full md:w-1/2 grid grid-cols-2 gap-4">
@@ -212,12 +221,12 @@ const Home: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                <div className="mb-16">
                    <Star size={40} className="text-brand-cyan mx-auto mb-4" />
-                  <h2 className="text-3xl font-outfit font-black text-white mb-4">{home.tipJar.title}</h2>
-                  <p className="text-gray-400 max-w-lg mx-auto mb-8">
-                     {home.tipJar.message}
-                  </p>
-                   <Link to="/tip-jar" className="px-8 py-3 border-2 border-brand-pink text-brand-pink font-bold rounded-full hover:bg-brand-pink hover:text-white transition">
-                      {home.tipJar.ctaText}
+                   <h2 className="text-3xl font-outfit font-black text-white mb-4">{home?.tipJar?.title}</h2>
+                   <p className="text-gray-400 max-w-lg mx-auto mb-8">
+                      {home?.tipJar?.message}
+                   </p>
+                    <Link to="/tip-jar" className="px-8 py-3 border-2 border-brand-pink text-brand-pink font-bold rounded-full hover:bg-brand-pink hover:text-white transition">
+                       {home?.tipJar?.ctaText}
                    </Link>
                </div>
             </div>
