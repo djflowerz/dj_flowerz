@@ -82,7 +82,13 @@ try {
     for (const p of products) {
         const escapedName = p.name.replace(/'/g, "''");
         const escapedDesc = (p.description || '').replace(/'/g, "''");
-        const slug = slugify(p.name) + '-' + p.id.substring(0, 5);
+        let slug = slugify(p.name) + '-' + p.id.substring(0, 5);
+        
+        // Manual override for specific product requested by user
+        if (p.id === 'p1771377823126') {
+            slug = 'alphatheta-ddj-flx2-2-deck-dj-controller';
+        }
+
         const imageUrl = p.images.length > 0 ? p.images[0] : '';
 
         sql.push(`INSERT INTO products_new (id, name, slug, description, category_id, product_type_id, is_active) VALUES ('${p.id}', '${escapedName}', '${slug}', '${escapedDesc}', '${p.category_id}', 'type_physical', ${p.is_active ? 1 : 0}) ON CONFLICT(id) DO NOTHING;`);

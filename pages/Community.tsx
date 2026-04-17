@@ -533,8 +533,6 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
 
     const submit = async () => {
         if (!content.trim() && !imageFile) return;
-
-        // Fix 2 — guard: require valid auth token before posting
         if (!session?.access_token) {
             toast.error('Please log in again to post');
             return;
@@ -548,12 +546,14 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 if (upload) finalImageUrl = upload.url;
             }
 
+            console.log('[PostComposer] Attempting post to:', `${API_URL}/api/social/posts`);
+            
             const res = await fetch(`${API_URL}/api/social/posts`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
+                headers: {
+                    'Content-Type': 'application/json',
                     'X-Actor-Id': user.id,
-                    'Authorization': `Bearer ${session?.access_token}`
+                    'Authorization': `Bearer ${session.access_token}`
                 },
                 body: JSON.stringify({
                     content: content.trim(),
@@ -563,11 +563,21 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                     price: isMarketplace ? Number(price) : 0
                 })
             });
-            const data = await res.json();
-            console.log('POST RESPONSE STATUS:', res.status);
-            console.log('POST RESPONSE DATA:', data);
 
-            // Fix 1 — handle multiple possible response shapes from the worker
+            // Read body once as text to handle non-JSON error pages (like 404/500/CORS)
+            const raw = await res.text();
+            let data: any = {};
+            try { 
+                data = JSON.parse(raw); 
+            } catch {
+                console.error('[PostComposer] Non-JSON response:', raw);
+                toast.error(`Server error (${res.status})`);
+                return;
+            }
+
+            console.log('[PostComposer] Response status:', res.status);
+            
+            // Handle multiple possible response shapes from various worker versions
             const newPost = data.post || data.data || data.result || (data.id ? data : null);
 
             if (res.ok && newPost) {
@@ -579,10 +589,11 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                 setImagePreview(null);
                 toast.success('Broadcast transmitted!');
             } else {
-                console.error('Post failed:', data);
-                toast.error(data.error || data.message || 'Transmission failed');
+                console.error('[PostComposer] Post failed:', res.status, data);
+                toast.error(data.error || data.message || `Post failed (${res.status})`);
             }
-        } catch {
+        } catch (err: any) {
+            console.error('[PostComposer] Network/unexpected error:', err);
             toast.error('Frequency unstable. Try again.');
         } finally {
             setLoading(false);

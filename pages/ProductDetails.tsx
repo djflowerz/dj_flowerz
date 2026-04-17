@@ -13,6 +13,11 @@ export default function ProductDetails() {
   const { products, productsLoading, reviews, reviewsLoading, addReview, toggleWishlist, isInWishlist } = useData();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+
+  // Diagnostic Logs
+  console.log('[ProductDetails] loading:', productsLoading, '| count:', products?.length);
+  console.log('[ProductDetails] slug from URL:', slug);
+  console.log('[ProductDetails] slug matches:', products?.map(p => p.slug));
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantOptions, setSelectedVariantOptions] = useState<Record<string, string>>({});
@@ -195,32 +200,35 @@ export default function ProductDetails() {
     <div className="bg-[#050507] text-white min-h-screen pt-24 pb-20">
       {/* Rich Discovery: JSON-LD SEO */}
       {product && (
-        <script type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org/",
-            "@type": "Product",
-            "name": product.name,
-            "image": [product.image || product.image_url, ...(product.images || [])],
-            "description": product.shortDescription || product.description?.replace(/<[^>]*>?/gm, '').slice(0, 160),
-            "sku": product.sku || product.id,
-            "brand": {
-              "@type": "Brand",
-              "name": product.brand || "DJ Flowerz"
-            },
-            "offers": {
-              "@type": "Offer",
-              "url": window.location.href,
-              "priceCurrency": "KES",
-              "price": displayPrice,
-              "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-              "seller": {
-                "@type": "Organization",
-                "name": "DJ Flowerz Marketplace"
-              }
-            },
-            "category": product.category
-          })}
-        </script>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org/",
+              "@type": "Product",
+              "name": product.name,
+              "image": [product.image || product.image_url, ...(product.images || [])],
+              "description": product.shortDescription || product.description?.replace(/<[^>]*>?/gm, '').slice(0, 160),
+              "sku": product.sku || product.id,
+              "brand": {
+                "@type": "Brand",
+                "name": product.brand || "DJ Flowerz"
+              },
+              "offers": {
+                "@type": "Offer",
+                "url": window.location.href,
+                "priceCurrency": "KES",
+                "price": displayPrice,
+                "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                "seller": {
+                  "@type": "Organization",
+                  "name": "DJ Flowerz Marketplace"
+                }
+              },
+              "category": product.category
+            })
+          }}
+        />
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
