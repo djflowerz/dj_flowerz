@@ -140,7 +140,7 @@ const PostCard: React.FC<{
     const isOwnPost = currentUserId === post.author_id;
     const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
-    const { reshare, comment: addComment } = useComposer();
+    const { reshare, comment: addComment, deletePost } = useComposer();
     const { comments, appendComment, loading: commentsLoading } = usePost(post.id);
 
     const handleLike = () => {
@@ -188,14 +188,11 @@ const PostCard: React.FC<{
     const handleDelete = async () => {
         if (!window.confirm('Erase this broadcast?')) return;
         try {
-            await fetch(`${API_URL}/api/social/posts/${post.id}?userId=${currentUserId}`, { 
-                method: 'DELETE', 
-                headers: { 'X-Actor-Id': currentUserId || '' } 
-            });
+            await deletePost(post.id);
             onDelete(post.id);
             toast.success('Broadcast erased');
-        } catch {
-            toast.error('Deletion failed');
+        } catch (err: any) {
+            toast.error(err.message || 'Deletion failed');
         }
     };
 

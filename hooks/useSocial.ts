@@ -152,10 +152,6 @@ export function useComposer() {
     return submit({ content, post_type: 'post', reply_to_id });
   }, [submit]);
 
-  const quotedReshare = useCallback(async ({ content, quote_of_id }: any) => {
-    return submit({ content, post_type: 'quoted_reshare', quote_of_id });
-  }, [submit]);
-
   const reshare = useCallback(async (postId: string) => {
     if (!userId) throw new Error('Not authenticated');
     setLoading(true);
@@ -169,7 +165,31 @@ export function useComposer() {
     }
   }, [userId, token]);
 
-  return { post, comment, quotedReshare, reshare, loading, error };
+  const deletePost = useCallback(async (postId: string) => {
+    if (!userId) throw new Error('Not authenticated');
+    setLoading(true);
+    try {
+      const res = await fetch(`${SOCIAL_API}/posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-Actor-Id': userId,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Deletion failed');
+      }
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, token]);
+
+  return { post, comment, quotedReshare, reshare, deletePost, loading, error };
 }
 
 // ─── Like ─────────────────────────────────────────────────────────────────────
