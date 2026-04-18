@@ -254,11 +254,22 @@ const PostCard: React.FC<{
                     </Link>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="font-bold text-white text-sm hover:text-brand-purple transition">
+                            <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="font-bold text-white text-sm hover:text-brand-purple transition flex items-center gap-1.5">
                                 {post.author_name}
+                                {post.author_role === 'admin' ? (
+                                    <ShieldCheck size={14} className="text-brand-purple" />
+                                ) : (post as any).is_verified === 1 && (
+                                    <CheckCircle2 size={13} className="text-brand-cyan fill-brand-cyan/20" />
+                                )}
                             </Link>
-                            {post.author_role === 'admin' && (
-                                <ShieldCheck size={14} className="text-brand-purple" />
+                            {(post as any).aura_tier && (post as any).aura_tier !== 'none' && (
+                                <div className={`text-[8px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase border ${
+                                    (post as any).aura_tier === 'legendary' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                                    (post as any).aura_tier === 'prime' ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/20' :
+                                    'bg-white/5 text-gray-500 border-white/10'
+                                }`}>
+                                    {(post as any).aura_tier}
+                                </div>
                             )}
                             {post.is_marketplace === 1 && (
                                 <div className="bg-brand-cyan/10 text-brand-cyan text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase flex items-center gap-1 border border-brand-cyan/20">
@@ -266,6 +277,7 @@ const PostCard: React.FC<{
                                 </div>
                             )}
                         </div>
+
                         <div className="flex items-center gap-2 text-[11px] text-gray-500">
                             <span>@{post.author_username || 'user'}</span>
                             <span>•</span>
