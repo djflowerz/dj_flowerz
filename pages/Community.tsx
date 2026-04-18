@@ -572,20 +572,20 @@ const PostComposer: React.FC<{
     quotingPost?: Post | null;
     onCancelQuote?: () => void;
 }> = ({ user, onPost, quotingPost, onCancelQuote }) => {
-    const { session } = useAuth();
     const [content, setContent] = useState('');
     const [isMarketplace, setIsMarketplace] = useState(false);
     const [price, setPrice] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
+    const { session } = useAuth();
     const { post: submitPost, loading } = useComposer();
+
 
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 5 * 1024 * 1024) return toast.error("Image too large (Max 5MB)");
+            if (file.size > 5 * 1024 * 1024) return toast.error("Signal too heavy (Max 5MB)");
             setImageFile(file);
             setImagePreview(URL.createObjectURL(file));
         }
@@ -593,11 +593,6 @@ const PostComposer: React.FC<{
 
     const submit = async () => {
         if (!content.trim() && !imageFile) return;
-        if (!session?.access_token) {
-            toast.error('Log in to pulse the network');
-            return;
-        }
-
         try {
             let mediaUrls: string[] = [];
             if (imageFile) {
@@ -634,7 +629,7 @@ const PostComposer: React.FC<{
             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-[50px] rounded-full group-focus-within:bg-brand-purple/15 transition-all" />
             
             <div className="flex gap-4 relative z-10">
-                <Avatar src={user?.avatarUrl} name={user?.name} size={11} className="mt-1" />
+                <Avatar src={user?.avatar_url} name={user?.display_name || user?.name} size={11} className="mt-1" />
                 
                 <div className="flex-1">
                     <textarea
@@ -646,11 +641,11 @@ const PostComposer: React.FC<{
                     />
 
                     {imagePreview && (
-                        <div className="relative mt-3 inline-block">
-                            <img src={imagePreview} className="max-h-60 rounded-2xl border border-white/10" alt="preview" />
+                        <div className="relative mt-4 mb-4 rounded-2xl overflow-hidden border border-white/10 group/img shadow-2xl">
+                            <img loading="lazy" src={imagePreview} className="w-full max-h-80 object-cover" alt="Preview" />
                             <button 
                                 onClick={() => { setImageFile(null); setImagePreview(null); }}
-                                className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black transition"
+                                className="absolute top-4 right-4 p-2 bg-black/60 text-white rounded-full hover:bg-red-500 transition-all backdrop-blur-md active:scale-90"
                             >
                                 <X size={16} />
                             </button>
@@ -670,18 +665,25 @@ const PostComposer: React.FC<{
                     )}
 
                     {isMarketplace && (
-                        <div className="mt-3 flex gap-3 animate-in slide-in-from-left-2 transition-all">
-                            <div className="relative flex-1 max-w-[200px]">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-cyan font-black">KES</span>
+                        <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="flex items-center gap-4 py-4 border-t border-white/5 mt-2"
+                        >
+                            <div className="p-2.5 bg-brand-cyan/10 rounded-xl text-brand-cyan">
+                                <ShieldCheck size={18} />
+                            </div>
+                            <div className="flex-1">
+                                <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">Listing Price (KES)</span>
                                 <input
                                     type="number"
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
                                     placeholder="0.00"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-14 pr-4 text-white font-black focus:outline-none focus:border-brand-cyan transition-all"
+                                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-sm w-40 focus:outline-none focus:border-brand-cyan transition-all font-mono"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     <div className="flex items-center justify-between mt-4 border-t border-white/[0.06] pt-4">
@@ -717,115 +719,7 @@ const PostComposer: React.FC<{
         </div>
     );
 };
-                <Avatar src={user.avatarUrl} name={user.name} size={12} />
-                <div className="flex-1">
-                    <div className="relative">
-                        <textarea
-                            id="post-content-composer"
-                            name="broadcast_content"
-                            value={content}
-                            onChange={e => setContent(e.target.value)}
-                            placeholder="What's hitting the speakers? Broadcast a mix, news, or set..."
-                            className="w-full bg-transparent text-white text-base placeholder-white/20 outline-none resize-none min-h-[100px] font-medium py-2"
-                            rows={3}
-                        />
-                    </div>
 
-                    {quotingPost && (
-                        <div className="mt-4 mb-4 p-4 glass-panel rounded-2xl border border-brand-purple/20 bg-brand-purple/5 relative animate-in slide-in-from-top-2">
-                            <button 
-                                onClick={onCancelQuote}
-                                className="absolute top-3 right-3 text-gray-500 hover:text-white transition"
-                            >
-                                <X size={14} />
-                            </button>
-                            <div className="flex items-center gap-2 mb-2">
-                                <Avatar src={quotingPost.author_avatar} name={quotingPost.author_name} size={6} />
-                                <span className="text-[10px] font-bold text-gray-400">Quoting @{quotingPost.author_username || 'user'}</span>
-                            </div>
-                            <p className="text-xs text-gray-300 line-clamp-2">{quotingPost.content}</p>
-                        </div>
-                    )}
-
-                    {imagePreview && (
-                        <div className="relative mt-4 mb-4 rounded-2xl overflow-hidden border border-white/10 group/img shadow-2xl">
-                            <img loading="lazy" src={imagePreview} className="w-full max-h-80 object-cover" alt="Preview" />
-                            <button 
-                                onClick={() => { setImageFile(null); setImagePreview(null); }}
-                                className="absolute top-4 right-4 p-2 bg-black/60 text-white rounded-full hover:bg-red-500 transition-all backdrop-blur-md active:scale-90"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                    )}
-
-                    {isMarketplace && (
-                        <motion.div 
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            className="flex items-center gap-4 py-4 border-t border-white/5 mt-2"
-                        >
-                            <div className="p-2.5 bg-brand-cyan/10 rounded-xl text-brand-cyan">
-                                <ShieldCheck size={18} />
-                            </div>
-                            <div className="flex-1">
-                                <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">Listing Price (KES)</span>
-                                <input
-                                    id="composer-price-input"
-                                    name="listing_price"
-                                    type="number"
-                                    value={price}
-                                    onChange={e => setPrice(e.target.value)}
-                                    placeholder="0.00"
-                                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-sm w-40 focus:outline-none focus:border-brand-cyan transition-all font-mono"
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
-                        <div className="flex gap-2">
-                            <input 
-                                id="composer-file-input"
-                                name="attachment"
-                                type="file" 
-                                ref={fileInputRef} 
-                                onChange={handleImageSelect} 
-                                accept="image/*"
-                                className="hidden" 
-                            />
-                            <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className={`p-3 rounded-xl transition-all ${imageFile ? 'text-brand-purple bg-brand-purple/10 border border-brand-purple/20' : 'text-gray-500 hover:text-white hover:bg-white/5 border border-transparent'}`} 
-                                title="Add Visuals"
-                            >
-                                <ImageIcon size={20} />
-                            </button>
-                            <button
-                                onClick={() => setIsMarketplace(!isMarketplace)}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                    isMarketplace ? 'bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20' : 'text-gray-500 hover:text-white hover:bg-white/5 border border-transparent'
-                                }`}
-                            >
-                                <ShoppingBag size={16} />
-                                {isMarketplace ? 'Marketplace Active' : 'Sell Equipment'}
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={submit}
-                            disabled={!content.trim() || loading}
-                            className="bg-brand-purple text-white pl-6 pr-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-brand-purple/80 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-xl shadow-brand-purple/20"
-                        >
-                            {loading ? <Loader size={16} className="animate-spin" /> : <span>Broadcast</span>}
-                            {!loading && <Send size={16} className="-rotate-12" />}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // ─── People You May Know Sidebar ─────────────────────────────────
 interface SuggestedUser {
@@ -967,6 +861,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
 };
 
 // ─── Main Community Page ──────────────────────────────────────────
+// ─── Main Community Page ──────────────────────────────────────────
 const Community: React.FC = () => {
     const { user, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<FeedTab>('latest');
@@ -988,7 +883,6 @@ const Community: React.FC = () => {
             const postToQuote = posts.find(p => p.id === quoteId);
             if (postToQuote) {
                 setQuotedPost(postToQuote);
-                // Clear the param so it doesn't re-trigger on refresh
                 const newParams = new URLSearchParams(searchParams);
                 newParams.delete('quote');
                 setSearchParams(newParams, { replace: true });
@@ -1018,7 +912,6 @@ const Community: React.FC = () => {
     };
 
     const handleDeletePost = (id: string) => {
-        // useFeed hook should ideally have a removePost method, or we just refresh
         refresh();
     };
 
@@ -1032,122 +925,122 @@ const Community: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
             {/* Header */}
-            <div className="text-center mb-8">
-                <h1 className="text-3xl md:text-5xl font-black font-display uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">
-                    DJ Community
+            <div className="text-center mb-10">
+                <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">
+                    DJ Community Hub
                 </h1>
-                <p className="text-gray-400 text-sm mt-2">East Africa's DJ scene — share, trade, and connect.</p>
+                <p className="text-gray-400 text-sm mt-3 font-bold uppercase tracking-widest">Connect • Pulse • Trade</p>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* ── Main Feed Column ── */}
-                <div className="flex-1 min-w-0">
-
-            {/* Tabs */}
-            <div className="flex gap-1 bg-white/5 p-1 rounded-2xl mb-6 sticky top-20 z-30 backdrop-blur-xl border border-white/5">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { if (activeTab !== tab.id) { setActiveTab(tab.id); } }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                            activeTab === tab.id
-                                ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
-                                : 'text-gray-400 hover:text-white'
-                        }`}
-                    >
-                        {tab.icon}
-                        <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                ))}
-            </div>
-
-            {/* Composer (logged in users only) */}
-            {isAuthenticated && user && (
-                <PostComposer 
-                    user={user} 
-                    onPost={handleNewPost} 
-                    quotingPost={quotedPost}
-                    onCancelQuote={() => setQuotedPost(null)}
-                />
-            )}
-
-            {!isAuthenticated && (
-                <div className="glass-card rounded-2xl border border-brand-purple/20 p-6 mb-6 text-center">
-                    <p className="text-gray-300 text-sm mb-4">Join the conversation — log in to post, follow DJs, and trade gear.</p>
-                    <Link to="/login" className="bg-brand-purple text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-brand-purple/80 transition inline-block">
-                        Log In / Sign Up
-                    </Link>
-                </div>
-            )}
-
-            {/* Feed — Wrapped in a premium glass-bordered container */}
-            <div className="glass-panel rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl bg-white/[0.01]">
-                {isLoading ? (
-                    <div className="divide-y divide-white/[0.04]">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                            <div key={i} className="p-6 animate-pulse">
-                                <div className="flex gap-4 mb-4">
-                                    <div className="w-12 h-12 rounded-full bg-white/10" />
-                                    <div className="flex-1 space-y-2.5">
-                                        <div className="h-4 bg-white/10 rounded w-1/3" />
-                                        <div className="h-2.5 bg-white/5 rounded w-1/4" />
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="h-3.5 bg-white/10 rounded w-full" />
-                                    <div className="h-3.5 bg-white/10 rounded w-5/6" />
-                                </div>
-                            </div>
+                <div className="flex-1 min-w-0 space-y-6">
+                    {/* Tabs */}
+                    <div className="flex gap-1 bg-white/5 p-1 rounded-2xl mb-6 sticky top-20 z-30 backdrop-blur-xl border border-white/5 shadow-2xl">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => { if (activeTab !== tab.id) { setActiveTab(tab.id); } }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                    activeTab === tab.id
+                                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/40 ring-1 ring-white/10'
+                                        : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                {tab.icon}
+                                <span className="hidden sm:inline">{tab.label}</span>
+                            </button>
                         ))}
                     </div>
-                ) : posts.length === 0 ? (
-                    <div className="text-center py-24 px-6">
-                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
-                            {activeTab === 'following' ? <Users size={32} className="text-gray-600" /> : <MessageSquare size={32} className="text-gray-600" />}
-                        </div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">No Signals Detected</h3>
-                        <p className="text-gray-500 text-sm max-w-xs mx-auto">
-                            {activeTab === 'following' ? 'Follow some DJs to start receiving their broadcast frequency.' : 'The network is currently silent. Be the first to pulse the community.'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-white/[0.06]">
-                        {posts.map(post => (
-                            <PostCard
-                                key={post.id}
-                                post={post}
-                                currentUserId={user?.id}
-                                currentUser={user}
-                                onDelete={handleDeletePost}
-                                onQuote={(p) => {
-                                    setQuotedPost(p);
-                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                            />
-                        ))}
-                    </div>
-                )}
 
-                {/* Infinite scroll trigger */}
-                <div ref={loaderRef} className="py-10 text-center bg-white/[0.01]">
-                    {loadingMore ? (
-                        <div className="flex items-center justify-center gap-3 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
-                            <Loader size={16} className="animate-spin text-brand-purple" /> Amplifying Buffer...
-                        </div>
-                    ) : hasMore && (
-                        <span className="text-gray-600 text-[10px] font-black uppercase tracking-widest">— End of transmission —</span>
+                    {/* Composer (logged in users only) */}
+                    {isAuthenticated && user && (
+                        <PostComposer 
+                            user={user} 
+                            onPost={handleNewPost} 
+                            quotingPost={quotedPost}
+                            onCancelQuote={() => setQuotedPost(null)}
+                        />
                     )}
-                </div>
-            </div>{/* end feed space-y-4 */}
-        </div>{/* end main feed column */}
 
-        {/* ── Sidebar Column ── */}
-        <div className="lg:w-72 flex-shrink-0 space-y-5 lg:sticky lg:top-24">
-            <SuggestedSidebar currentUser={user} />
-        </div>
-    </div>{/* end flex row */}
+                    {!isAuthenticated && (
+                        <div className="glass-card rounded-[2rem] border border-brand-purple/20 p-8 text-center bg-brand-purple/[0.02]">
+                            <p className="text-gray-300 text-sm mb-6 font-bold uppercase tracking-widest">Join the frequency — log in to pulse the community.</p>
+                            <Link to="/login" className="bg-brand-purple text-white px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-brand-purple/20">
+                                Enter the Hub
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* Feed Container */}
+                    <div className="glass-panel rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl bg-white/[0.01]">
+                        {isLoading ? (
+                            <div className="divide-y divide-white/[0.04]">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="p-6 animate-pulse">
+                                        <div className="flex gap-4 mb-4">
+                                            <div className="w-12 h-12 rounded-full bg-white/10" />
+                                            <div className="flex-1 space-y-2.5">
+                                                <div className="h-4 bg-white/10 rounded w-1/3" />
+                                                <div className="h-2.5 bg-white/5 rounded w-1/4" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <div className="h-3.5 bg-white/10 rounded w-full" />
+                                            <div className="h-3.5 bg-white/10 rounded w-5/6" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : posts.length === 0 ? (
+                            <div className="text-center py-24 px-6 bg-white/[0.02]">
+                                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10 text-gray-700">
+                                    {activeTab === 'following' ? <Users size={32} /> : <MessageSquare size={32} />}
+                                </div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">No Signals Detected</h3>
+                                <p className="text-gray-500 text-sm max-w-xs mx-auto font-medium">
+                                    {activeTab === 'following' ? 'Follow some DJs to start receiving their broadcast frequency.' : 'The network is currently silent. Be the first to pulse the community.'}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-white/[0.06]">
+                                {posts.map(post => (
+                                    <PostCard
+                                        key={post.id}
+                                        post={post}
+                                        currentUserId={user?.id}
+                                        currentUser={user}
+                                        onDelete={handleDeletePost}
+                                        onQuote={(p) => {
+                                            setQuotedPost(p);
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Infinite scroll trigger */}
+                        <div ref={loaderRef} className="py-12 text-center bg-white/[0.01] border-t border-white/[0.05]">
+                            {loadingMore ? (
+                                <div className="flex items-center justify-center gap-3 text-gray-500 font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">
+                                    <Loader size={16} className="animate-spin text-brand-purple" /> Amplifying Buffer...
+                                </div>
+                            ) : hasMore && (
+                                <span className="text-gray-700 text-[10px] font-black uppercase tracking-[0.3em]">— End of Transmission —</span>
+                            )}
+                        </div>
+                    </div>
+                </div>{/* end feed column */}
+
+                {/* ── Sidebar Column ── */}
+                <div className="lg:w-80 flex-shrink-0 space-y-6 lg:sticky lg:top-24">
+                    <SuggestedSidebar currentUser={user} />
+                </div>
+            </div>{/* end flex row */}
         </div>
     );
 };
 
 export default Community;
+
