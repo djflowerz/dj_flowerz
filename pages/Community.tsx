@@ -851,7 +851,7 @@ const Community: React.FC = () => {
         loadMore,
         refresh,
         prependPost
-    } = useFeed(activeTab === 'latest' ? 'foryou' : activeTab);
+    } = useFeed(activeTab);
 
     const loaderRef = useRef<HTMLDivElement>(null);
 

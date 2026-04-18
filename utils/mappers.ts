@@ -187,7 +187,9 @@ export const mapR2Product = (p: any): Product => {
         };
       }),
       stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
-      features: safeJsonParse(p.features),
+      features: safeJsonParse(p.features, typeof p.features === 'string' ? p.features.split('\n').map((f: string) => f.trim()).filter(Boolean) : []),
+      technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails, typeof (p.technical_details || p.technicalDetails) === 'string' ? (p.technical_details || p.technicalDetails).split('\n').map((s: string) => s.trim()).filter(Boolean) : []),
+      useCases: safeJsonParse(p.use_cases || p.useCases, typeof (p.use_cases || p.useCases) === 'string' ? (p.use_cases || p.useCases).split('\n').map((u: string) => u.trim()).filter(Boolean) : []),
       weight: p.weight,
       dimensions: p.dimensions,
       releaseDate: p.release_date || p.releaseDate,

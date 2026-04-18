@@ -130,6 +130,7 @@ export interface Product {
   technicalDetails?: { title: string; description: string }[];
   hotspots?: { x: number; y: number; title: string; description: string }[];
   useCases?: { title: string; description: string; icon?: string }[];
+  features?: string[];
   shipping_cost?: number;
   shipping_size?: ShippingSize;
   shipping_zone_id?: string;

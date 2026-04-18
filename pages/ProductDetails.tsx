@@ -595,12 +595,18 @@ export default function ProductDetails() {
                             ))}
                         </div>
 
-                        {product.technical_details && Array.isArray(product.technical_details) && product.technical_details.length > 0 && (
+                        {product.technicalDetails && Array.isArray(product.technicalDetails) && product.technicalDetails.length > 0 && (
                             <div className="mt-12">
                                 <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-8">Technical Deep Dive</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {product.technical_details.map((spec: string, idx: number) => {
-                                        const [label, value] = spec.includes(':') ? spec.split(':').map(s => s.trim()) : [null, spec];
+                                    {product.technicalDetails.map((spec: string | { title: string, description: string }, idx: number) => {
+                                        let label = null, value = '';
+                                        if (typeof spec === 'string') {
+                                            [label, value] = spec.includes(':') ? spec.split(':').map(s => s.trim()) : [null, spec];
+                                        } else {
+                                            label = spec.title;
+                                            value = spec.description;
+                                        }
                                         return (
                                             <div key={idx} className="bg-[#0B0B0F] p-5 rounded-2xl border border-white/5 flex flex-col gap-1">
                                                 {label && <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</span>}
@@ -612,15 +618,17 @@ export default function ProductDetails() {
                             </div>
                         )}
 
-                        {product.use_cases && Array.isArray(product.use_cases) && product.use_cases.length > 0 && (
+                        {product.useCases && Array.isArray(product.useCases) && product.useCases.length > 0 && (
                             <div className="mt-12">
                                 <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-8">Recommended Use Cases</h3>
                                 <div className="flex flex-wrap gap-3">
-                                    {product.use_cases.map((useCase: string, idx: number) => (
+                                    {product.useCases.map((useCase: string | { title: string, description: string }, idx: number) => {
+                                        const text = typeof useCase === 'string' ? useCase : (useCase.title + (useCase.description ? ': ' + useCase.description : ''));
+                                        return (
                                         <div key={idx} className="px-5 py-3 rounded-xl bg-brand-cyan/5 border border-brand-cyan/10 text-brand-cyan text-[10px] font-black uppercase tracking-widest">
-                                            {useCase}
+                                            {text}
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                             </div>
                         )}
