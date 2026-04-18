@@ -19,13 +19,17 @@ export function useFeed(tab: string | { profile: string } = 'following') {
   const [hasMore,     setHasMore]     = useState(true);
 
   const fetchPage = useCallback(async (cursor: string | null = null, replace = false) => {
-    if (!userId) return;
+    // ✅ No userId guard — public feed works for guests too
     cursor ? setLoadingMore(true) : setLoading(true);
     setError(null);
     try {
       let url: string | undefined;
       if (tab === 'following' || tab === 'foryou' || tab === 'latest' || tab === 'trending' || tab === 'marketplace') {
-        url = `${SOCIAL_API}/feed?tab=${tab}&limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
+        // ✅ Map 'foryou' → 'latest' — worker doesn't have a foryou route
+        const feedTab = tab === 'foryou' ? 'latest' : tab;
+        // ✅ Only append userId if available
+        const userParam = userId ? `&userId=${userId}` : '';
+        url = `${SOCIAL_API}/feed?tab=${feedTab}&limit=20${userParam}${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
       } else if (typeof tab === 'object' && tab.profile) {
         url = `${SOCIAL_API}/feed/profile/${tab.profile}?limit=20${cursor ? `&before=${encodeURIComponent(cursor)}` : ''}`;
       }

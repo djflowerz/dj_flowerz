@@ -5,7 +5,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const path = url.pathname;
   const method = request.method;
 
-  // ─── 1. CORS Preflight ───────────────────────────────────────────────────────
+  // ─── CORS Preflight ──────────────────────────────────────────────────────────
   if (method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -22,127 +22,236 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     'Access-Control-Allow-Origin': '*',
   };
 
-  // ─── 2. Social & Community Routes ──────────────────────────────────────────
-  
+  const json = (data: any, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: commonHeaders });
+
+  // ─── Social Feed ─────────────────────────────────────────────────────────────
+
   // GET /api/social/feed
   if (path === '/api/social/feed' && method === 'GET') {
     const tab = url.searchParams.get('tab') || 'latest';
-    const limit = parseInt(url.searchParams.get('limit') || '20');
-    const before = url.searchParams.get('before'); // Cursor for pagination
-    const actorId = request.headers.get('X-Actor-Id');
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 50);
+    const before = url.searchParams.get('before');
+    const userId = url.searchParams.get('userId') || request.headers.get('X-Actor-Id') || null;
 
-    let query = `
-      SELECT p.*, 
-        (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) as like_count,
-        (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id) as comment_count
-    `;
-    
-    if (actorId) {
-      query += `, (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id AND user_id = ?) as liked_by_me `;
-    } else {
-      query += `, 0 as liked_by_me `;
+    const params: any[] = [];
+    const whereClauses: string[] = ['p.parent_id IS NULL'];
+
+    if (tab === 'marketplace') whereClauses.push(`p.is_marketplace = 1`);
+
+    if (tab === 'following' && userId) {
+      whereClauses.push(`p.author_id IN (SELECT following_id FROM community_follows WHERE follower_id = ?)`);
+      params.push(userId);
     }
 
-    query += ` FROM community_posts p `;
-
-    const params: any[] = actorId ? [actorId] : [];
-
-    // Filtering based on tabs
-    const whereClauses: string[] = [];
-    if (tab === 'marketplace') {
-      whereClauses.push(`p.is_marketplace = 1`);
-    }
     if (before) {
       whereClauses.push(`p.created_at < ?`);
       params.push(before);
     }
 
-    if (whereClauses.length > 0) {
-      query += ` WHERE ` + whereClauses.join(' AND ');
-    }
+    const where = `WHERE ${whereClauses.join(' AND ')}`;
+    const orderBy = tab === 'trending'
+      ? `ORDER BY (p.likes_count + p.comments_count * 2) DESC, p.created_at DESC`
+      : `ORDER BY p.created_at DESC`;
 
-    // Ordering
-    if (tab === 'trending') {
-      query += ` ORDER BY like_count DESC, created_at DESC `;
-    } else {
-      query += ` ORDER BY created_at DESC `;
-    }
+    // Safely inline userId to avoid param ordering issues with subquery
+    const likedExpr = userId
+      ? `(SELECT COUNT(*) FROM community_likes WHERE post_id = p.id AND user_id = '${userId.replace(/'/g, "''")}') > 0`
+      : `0`;
 
-    query += ` LIMIT ? `;
+    const query = `
+      SELECT p.*, ${likedExpr} as viewer_liked
+      FROM community_posts p
+      ${where}
+      ${orderBy}
+      LIMIT ?
+    `;
     params.push(limit);
 
-    const { results } = await env.DB.prepare(query).bind(...params).all();
-    
-    // Determine next cursor
-    const nextCursor = (results.length === limit) ? (results[results.length - 1] as any).created_at : null;
+    try {
+      const { results } = await env.DB.prepare(query).bind(...params).all();
+      const nextCursor = results.length === limit ? (results[results.length - 1] as any).created_at : null;
+      return json({ posts: results, next_cursor: nextCursor });
+    } catch (e: any) {
+      return json({ error: e.message, posts: [], next_cursor: null }, 500);
+    }
+  }
 
-    return new Response(JSON.stringify({ 
-      posts: results,
-      next_cursor: nextCursor 
-    }), { headers: commonHeaders });
+  // GET /api/social/posts/:id
+  const postMatch = path.match(/^\/api\/social\/posts\/([^/]+)$/);
+  if (postMatch && method === 'GET') {
+    const postId = postMatch[1];
+    const post = await env.DB.prepare(`SELECT * FROM community_posts WHERE id = ?`).bind(postId).first();
+    if (!post) return json({ error: 'Post not found' }, 404);
+    return json({ post });
+  }
+
+  // GET /api/social/posts/:id/comments
+  const commentsMatch = path.match(/^\/api\/social\/posts\/([^/]+)\/comments$/);
+  if (commentsMatch && method === 'GET') {
+    const postId = commentsMatch[1];
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '30'), 100);
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM community_comments WHERE post_id = ? ORDER BY created_at ASC LIMIT ?`
+    ).bind(postId, limit).all();
+    return json({ comments: results });
   }
 
   // POST /api/social/posts
   if (path === '/api/social/posts' && method === 'POST') {
     const actorId = request.headers.get('X-Actor-Id');
-    if (!actorId) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: commonHeaders });
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
 
     const body: any = await request.json();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    const profile = await env.DB.prepare(`SELECT * FROM profiles WHERE id = ?`).bind(actorId).first() as any;
+    const authorName = body.author_name || profile?.name || profile?.display_name || 'Anonymous';
+    const authorAvatar = body.author_avatar || profile?.avatar_url || '';
+    const authorUsername = body.author_username || profile?.username || '';
+    const authorRole = profile?.role || 'user';
+
     await env.DB.prepare(`
-      INSERT INTO community_posts (id, user_id, content, image_url, is_marketplace, price, author_name, author_avatar, author_role, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO community_posts
+        (id, author_id, author_name, author_avatar, author_username, author_role,
+         content, image_url, is_marketplace, price, escrow_status,
+         likes_count, comments_count, reshare_count, parent_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 0, 0, 0, ?, ?)
     `).bind(
-      id, 
-      actorId, 
-      body.content || null, 
-      body.image_url || null, 
-      body.is_marketplace ? 1 : 0, 
+      id, actorId, authorName, authorAvatar, authorUsername, authorRole,
+      body.content || null,
+      (body.media_urls && body.media_urls[0]) || body.image_url || null,
+      body.is_marketplace ? 1 : 0,
       body.price || 0,
-      body.author_name || 'Anonymous',
-      body.author_avatar || '',
-      body.author_role || 'user',
+      body.reply_to_id || null,
       now
     ).run();
 
-    const post = await env.DB.prepare(`SELECT * FROM community_posts WHERE id = ?`).bind(id).first();
+    if (body.reply_to_id) {
+      await env.DB.prepare(`UPDATE community_posts SET comments_count = comments_count + 1 WHERE id = ?`)
+        .bind(body.reply_to_id).run();
+    }
 
-    return new Response(JSON.stringify({ post }), { headers: commonHeaders });
+    const post = await env.DB.prepare(`SELECT * FROM community_posts WHERE id = ?`).bind(id).first();
+    return json({ post });
   }
 
-  // GET /api/profiles/:username or :id
+  // POST /api/social/posts/:id/like (toggle)
+  const likeMatch = path.match(/^\/api\/social\/posts\/([^/]+)\/like$/);
+  if (likeMatch && method === 'POST') {
+    const postId = likeMatch[1];
+    const actorId = request.headers.get('X-Actor-Id');
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+
+    const existing = await env.DB.prepare(
+      `SELECT id FROM community_likes WHERE post_id = ? AND user_id = ?`
+    ).bind(postId, actorId).first();
+
+    if (existing) {
+      await env.DB.prepare(`DELETE FROM community_likes WHERE post_id = ? AND user_id = ?`).bind(postId, actorId).run();
+      await env.DB.prepare(`UPDATE community_posts SET likes_count = MAX(0, likes_count - 1) WHERE id = ?`).bind(postId).run();
+      return json({ liked: false });
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO community_likes (id, post_id, user_id, created_at) VALUES (?, ?, ?, ?)`
+      ).bind(crypto.randomUUID(), postId, actorId, new Date().toISOString()).run();
+      await env.DB.prepare(`UPDATE community_posts SET likes_count = likes_count + 1 WHERE id = ?`).bind(postId).run();
+      return json({ liked: true });
+    }
+  }
+
+  // POST /api/social/posts/:id/reshare
+  const reshareMatch = path.match(/^\/api\/social\/posts\/([^/]+)\/reshare$/);
+  if (reshareMatch && method === 'POST') {
+    const postId = reshareMatch[1];
+    const actorId = request.headers.get('X-Actor-Id');
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    await env.DB.prepare(`UPDATE community_posts SET reshare_count = reshare_count + 1 WHERE id = ?`).bind(postId).run();
+    return json({ reshared: true });
+  }
+
+  // GET /api/social/follows/:userId/stats
+  const followStatsMatch = path.match(/^\/api\/social\/follows\/([^/]+)\/stats$/);
+  if (followStatsMatch && method === 'GET') {
+    const targetId = followStatsMatch[1];
+    const followers = await env.DB.prepare(`SELECT COUNT(*) as c FROM community_follows WHERE following_id = ?`).bind(targetId).first() as any;
+    const following = await env.DB.prepare(`SELECT COUNT(*) as c FROM community_follows WHERE follower_id = ?`).bind(targetId).first() as any;
+    return json({ followers: followers?.c || 0, following: following?.c || 0 });
+  }
+
+  // POST /api/social/follows/:userId (toggle)
+  const followMatch = path.match(/^\/api\/social\/follows\/([^/]+)$/);
+  if (followMatch && method === 'POST') {
+    const targetId = followMatch[1];
+    const actorId = request.headers.get('X-Actor-Id');
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+
+    const existing = await env.DB.prepare(
+      `SELECT id FROM community_follows WHERE follower_id = ? AND following_id = ?`
+    ).bind(actorId, targetId).first();
+
+    if (existing) {
+      await env.DB.prepare(`DELETE FROM community_follows WHERE follower_id = ? AND following_id = ?`).bind(actorId, targetId).run();
+      return json({ followed: false });
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO community_follows (id, follower_id, following_id, created_at) VALUES (?, ?, ?, ?)`
+      ).bind(crypto.randomUUID(), actorId, targetId, new Date().toISOString()).run();
+      return json({ followed: true });
+    }
+  }
+
+  // GET /api/community/suggested
+  if (path === '/api/community/suggested' && method === 'GET') {
+    const userId = url.searchParams.get('userId');
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '6'), 20);
+    const params: any[] = [];
+    let query = `SELECT id, name, avatar_url, role FROM profiles`;
+
+    if (userId) {
+      query += ` WHERE id != ? AND id NOT IN (SELECT following_id FROM community_follows WHERE follower_id = ?)`;
+      params.push(userId, userId);
+    }
+
+    query += ` ORDER BY RANDOM() LIMIT ?`;
+    params.push(limit);
+
+    try {
+      const { results } = await env.DB.prepare(query).bind(...params).all();
+      return json({ suggested: results });
+    } catch {
+      return json({ suggested: [] });
+    }
+  }
+
+  // ─── Profile Routes ───────────────────────────────────────────────────────────
+
   if (path.startsWith('/api/profiles/') && method === 'GET') {
     const identifier = path.split('/').pop();
-    // Reconstructing profile logic - normally would join with Supabase, 
-    // but we'll check our local profiles cache/table if it exists
-    const profile = await env.DB.prepare(`SELECT * FROM profiles WHERE username = ? OR id = ?`).bind(identifier, identifier).first();
-    
-    if (!profile) return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 404, headers: commonHeaders });
-    
-    return new Response(JSON.stringify({ profile }), { headers: commonHeaders });
+    const profile = await env.DB.prepare(
+      `SELECT * FROM profiles WHERE username = ? OR id = ?`
+    ).bind(identifier, identifier).first();
+    if (!profile) return json({ error: 'Profile not found' }, 404);
+    return json({ profile });
   }
 
-  // ─── 3. Commerce Routes (Legacy support) ─────────────────────────────────────
-  
-  if (path === '/api/products' || path === '/api/v1/products') {
-    if (method === 'GET') {
-      const { results } = await env.DB.prepare(`SELECT * FROM products WHERE status = 'active' ORDER BY created_at DESC`).all();
-      return new Response(JSON.stringify(results), { headers: commonHeaders });
-    }
+  // ─── Commerce Routes ──────────────────────────────────────────────────────────
+
+  if ((path === '/api/products' || path === '/api/v1/products') && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM products WHERE status = 'active' ORDER BY created_at DESC`
+    ).all();
+    return json(results);
   }
 
-  if (path === '/api/mixtapes') {
-    if (method === 'GET') {
-      const { results } = await env.DB.prepare(`SELECT * FROM mixtapes ORDER BY date_added DESC`).all();
-      return new Response(JSON.stringify(results), { headers: commonHeaders });
-    }
+  if (path === '/api/mixtapes' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM mixtapes ORDER BY date_added DESC`
+    ).all();
+    return json(results);
   }
 
-  // ─── 4. Default 404 ─────────────────────────────────────────────────────────
-  return new Response(JSON.stringify({ error: `Route ${method} ${path} not found on reconstructed worker` }), {
-    status: 404,
-    headers: commonHeaders
-  });
+  // ─── 404 ─────────────────────────────────────────────────────────────────────
+  return json({ error: `Route ${method} ${path} not found` }, 404);
 }

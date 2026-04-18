@@ -83,7 +83,17 @@ export default {
 
     // Otherwise, route through the standard API router
     try {
-      return await handleRequest(request, env, ctx);
+      const response = await handleRequest(request, env, ctx);
+      // Ensure blob: is allowed so Vite lazy-loaded chunks are never blocked
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set(
+        'Content-Security-Policy',
+        "default-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:; script-src-elem 'self' 'unsafe-inline' blob: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https: wss:; worker-src 'self' blob:; object-src 'none';"
+      );
+      return new Response(response.body, {
+        status: response.status,
+        headers: newHeaders,
+      });
     } catch (e: any) {
       console.error('Worker Error:', e);
       return new Response(JSON.stringify({ error: e.message || 'Internal Server Error' }), {
