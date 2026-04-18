@@ -32,13 +32,11 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
       return component;
     } catch (error: any) {
       if (!pageHasBeenForceRefreshed || pageHasBeenForceRefreshed === 'false') {
-        // The error could be a stale asset. Force a refresh once.
         sessionStorage.setItem('page-has-been-force-refreshed', 'true');
         window.location.reload();
+        // Return a dummy component while reloading
         return { default: () => null };
       }
-
-      // If we already refreshed and it still fails, bubble up the error
       throw error;
     }
   });

@@ -88,8 +88,12 @@ export default {
       const newHeaders = new Headers(response.headers);
       newHeaders.set(
         'Content-Security-Policy',
-        "default-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:; script-src-elem 'self' 'unsafe-inline' blob: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https: wss:; worker-src 'self' blob:; object-src 'none';"
+        "script-src 'self' blob: 'unsafe-inline' https:; object-src 'none';"
       );
+      newHeaders.set('Access-Control-Allow-Origin', '*');
+      newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+      newHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Actor-Id');
+      
       return new Response(response.body, {
         status: response.status,
         headers: newHeaders,

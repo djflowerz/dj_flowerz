@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
@@ -104,14 +104,60 @@ const profileSlug = (user: { id: string; name?: string; username?: string; displ
 };
 
 
-const Avatar = ({ src, name, size = 10 }: { src?: string; name?: string; size?: number }) => {
+const Avatar = ({ src, name, size = 10, className = "" }: { src?: string; name?: string; size?: number; className?: string }) => {
     const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
     return (
         <img loading="lazy" src={src || fallback}
             onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
-            className={`w-${size} h-${size} rounded-full object-cover border border-white/10 flex-shrink-0`}
+            className={`w-${size} h-${size} rounded-full object-cover border border-white/10 flex-shrink-0 ${className}`}
             alt={name}
         />
+    );
+};
+
+// ─── MediaGrid — Enhanced support for multi-image displays ────────
+const MediaGrid: React.FC<{ urls: string[] }> = ({ urls }) => {
+    if (!urls || urls.length === 0) return null;
+    const count = urls.length;
+    
+    return (
+      <div className={`grid gap-0.5 rounded-2xl overflow-hidden border border-white/5 shadow-inner mt-3 ${
+        count === 1 ? 'grid-cols-1' : 'grid-cols-2'
+      }`}>
+        {urls.slice(0, 4).map((url, i) => (
+          <div key={i} className={`relative group/media ${
+            count === 3 && i === 0 ? 'row-span-2' : ''
+          }`}>
+            <img 
+              src={url} 
+              className="w-full h-full object-cover aspect-video cursor-zoom-in group-hover/media:scale-[1.02] transition-transform duration-500" 
+              alt={`media-${i}`}
+              loading="lazy"
+            />
+          </div>
+        ))}
+      </div>
+    );
+};
+
+// ─── QuotedPostCard — Visual preview for quoted reshared posts ────
+const QuotedPostCard: React.FC<{ post: any }> = ({ post }) => {
+    if (!post) return null;
+    return (
+      <div className="mt-3 rounded-2xl border border-white/[0.08] p-4 bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-pointer group/quote">
+        <div className="flex items-center gap-2 mb-2">
+          <Avatar src={post.author_avatar} name={post.author_name} size={5} />
+          <span className="font-bold text-white text-[13px]">{post.author_name}</span>
+          <span className="text-gray-500 text-[13px]">@{post.author_username || 'user'}</span>
+          <span className="text-gray-500 text-[13px]">• {timeAgo(post.created_at)}</span>
+        </div>
+        {post.content && (
+          <p className="text-gray-300 text-[14px] leading-snug line-clamp-3 mb-2">{post.content}</p>
+        )}
+        {post.image_url && (
+            <img src={post.image_url} className="w-full h-32 object-cover rounded-xl border border-white/5" alt="quoted media" />
+        )}
+      </div>
     );
 };
 
@@ -122,7 +168,8 @@ const PostCard: React.FC<{
     currentUserId?: string;
     currentUser?: any;
     onDelete: (id: string) => void;
-}> = ({ post, currentUserId, currentUser, onDelete }) => {
+    onQuote?: (post: Post) => void;
+}> = ({ post, currentUserId, currentUser, onDelete, onQuote }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -141,7 +188,7 @@ const PostCard: React.FC<{
     const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
     const { reshare, comment: addComment, deletePost } = useComposer();
-    const { comments, appendComment, loading: commentsLoading } = usePost(post.id);
+    const { post: fetchedPost, quoted, comments, loading: commentsLoading, error, reload: load, appendComment } = usePost(post.id);
 
     const handleLike = () => {
         if (!currentUserId) return toast.error('Log in to like posts');
@@ -250,6 +297,16 @@ const PostCard: React.FC<{
                             <div className="absolute right-0 mt-2 w-48 glass-panel rounded-xl border border-white/10 py-2 z-50 shadow-2xl animate-in fade-in slide-in-from-top-2">
                                 <button onClick={() => { handleShare(); setShowMenu(false); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                                     <Share2 size={16} /> Share Link
+                                </button>
+                                <button 
+                                    onClick={() => { 
+                                        if (onQuote) onQuote(post); 
+                                        setShowMenu(false);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }} 
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition"
+                                >
+                                    <RefreshCw size={16} /> Quote Broadcast
                                 </button>
                                 {isOwnPost && (
                                     <button onClick={() => { handleDelete(); setShowMenu(false); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">
@@ -509,15 +566,21 @@ const PostCard: React.FC<{
 };
 
 // ─── Post Composer ────────────────────────────────────────────────
-const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ user, onPost }) => {
+const PostComposer: React.FC<{ 
+    user: any; 
+    onPost: (post: Post) => void;
+    quotingPost?: Post | null;
+    onCancelQuote?: () => void;
+}> = ({ user, onPost, quotingPost, onCancelQuote }) => {
     const { session } = useAuth();
     const [content, setContent] = useState('');
     const [isMarketplace, setIsMarketplace] = useState(false);
     const [price, setPrice] = useState('');
-    const [loading, setLoading] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const { post: submitPost, loading } = useComposer();
 
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -531,78 +594,129 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
     const submit = async () => {
         if (!content.trim() && !imageFile) return;
         if (!session?.access_token) {
-            toast.error('Please log in again to post');
+            toast.error('Log in to pulse the network');
             return;
         }
 
-        setLoading(true);
         try {
-            let finalImageUrl = null;
+            let mediaUrls: string[] = [];
             if (imageFile) {
                 const upload = await uploadFileToR2(imageFile, 'community-posts');
-                if (upload) finalImageUrl = upload.url;
+                if (upload) mediaUrls = [upload.url];
             }
 
-            console.log('[PostComposer] Attempting post to:', `${API_URL}/api/social/posts`);
-            
-            const res = await fetch(`${API_URL}/api/social/posts`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Actor-Id': user.id,
-                    'Authorization': `Bearer ${session.access_token}`
-                },
-                body: JSON.stringify({
-                    content: content.trim(),
-                    media_urls: finalImageUrl ? [finalImageUrl] : [],
-                    post_type: 'post',
-                    is_marketplace: isMarketplace ? 1 : 0,
-                    price: isMarketplace ? Number(price) : 0
-                })
+            const newPost = await submitPost({
+                content: content.trim(),
+                media_urls: mediaUrls,
+                is_marketplace: isMarketplace ? 1 : 0,
+                price: isMarketplace ? Number(price) : 0,
+                post_type: quotingPost ? 'quoted_reshare' : 'post',
+                quote_of_id: quotingPost?.id
             });
 
-            // Read body once as text to handle non-JSON error pages (like 404/500/CORS)
-            const raw = await res.text();
-            let data: any = {};
-            try { 
-                data = JSON.parse(raw); 
-            } catch {
-                console.error('[PostComposer] Non-JSON response:', raw);
-                toast.error(`Server error (${res.status})`);
-                return;
-            }
-
-            console.log('[PostComposer] Response status:', res.status);
-            
-            // Handle multiple possible response shapes from various worker versions
-            const newPost = data.post || data.data || data.result || (data.id ? data : null);
-
-            if (res.ok && newPost) {
+            if (newPost) {
                 onPost(newPost);
                 setContent('');
                 setIsMarketplace(false);
                 setPrice('');
                 setImageFile(null);
                 setImagePreview(null);
-                toast.success('Broadcast transmitted!');
-            } else {
-                console.error('[PostComposer] Post failed:', res.status, data);
-                toast.error(data.error || data.message || `Post failed (${res.status})`);
+                if (onCancelQuote) onCancelQuote();
+                toast.success('Transmission established!');
             }
         } catch (err: any) {
-            console.error('[PostComposer] Network/unexpected error:', err);
-            toast.error('Frequency unstable. Try again.');
-        } finally {
-            setLoading(false);
+            toast.error(err.message || 'Signal lost. Try again.');
         }
     };
 
     return (
-        <div className="glass-card rounded-[2rem] border border-white/5 p-6 mb-8 relative overflow-hidden group">
-            {/* Decorative background glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-[50px] rounded-full group-focus-within:bg-brand-purple/10 transition-all" />
+        <div className="glass-card rounded-[2rem] border border-white/5 p-5 mb-8 relative overflow-hidden group shadow-2xl">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-[50px] rounded-full group-focus-within:bg-brand-purple/15 transition-all" />
             
             <div className="flex gap-4 relative z-10">
+                <Avatar src={user?.avatarUrl} name={user?.name} size={11} className="mt-1" />
+                
+                <div className="flex-1">
+                    <textarea
+                        value={content}
+                        onChange={e => setContent(e.target.value)}
+                        placeholder={quotingPost ? "Add a comment to this broadcast..." : "Pulse the community..."}
+                        className="w-full bg-transparent border-none text-white text-lg placeholder-gray-500 focus:outline-none resize-none pt-2 min-h-[80px]"
+                        rows={3}
+                    />
+
+                    {imagePreview && (
+                        <div className="relative mt-3 inline-block">
+                            <img src={imagePreview} className="max-h-60 rounded-2xl border border-white/10" alt="preview" />
+                            <button 
+                                onClick={() => { setImageFile(null); setImagePreview(null); }}
+                                className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+
+                    {quotingPost && (
+                        <div className="relative mt-3">
+                            <QuotedPostCard post={quotingPost} />
+                            <button 
+                                onClick={onCancelQuote}
+                                className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+
+                    {isMarketplace && (
+                        <div className="mt-3 flex gap-3 animate-in slide-in-from-left-2 transition-all">
+                            <div className="relative flex-1 max-w-[200px]">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-cyan font-black">KES</span>
+                                <input
+                                    type="number"
+                                    value={price}
+                                    onChange={e => setPrice(e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-14 pr-4 text-white font-black focus:outline-none focus:border-brand-cyan transition-all"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-4 border-t border-white/[0.06] pt-4">
+                        <div className="flex items-center gap-1">
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2.5 text-brand-purple hover:bg-brand-purple/10 rounded-full transition-all"
+                                title="Attach signal image"
+                            >
+                                <ImageIcon size={20} />
+                            </button>
+                            <button 
+                                onClick={() => setIsMarketplace(!isMarketplace)}
+                                className={`p-2.5 rounded-full transition-all ${isMarketplace ? 'text-brand-cyan bg-brand-cyan/10' : 'text-brand-cyan hover:bg-brand-cyan/10'}`}
+                                title="Toggle Marketplace deal"
+                            >
+                                <ShoppingBag size={20} />
+                            </button>
+                            <input ref={fileInputRef} type="file" hidden accept="image/*" onChange={handleImageSelect} />
+                        </div>
+
+                        <button
+                            onClick={submit}
+                            disabled={loading || (!content.trim() && !imageFile)}
+                            className="bg-brand-purple text-white px-8 py-2.5 rounded-full font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                        >
+                            {loading ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+                            {loading ? 'Transmitting...' : 'Pulse'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
                 <Avatar src={user.avatarUrl} name={user.name} size={12} />
                 <div className="flex-1">
                     <div className="relative">
@@ -616,6 +730,22 @@ const PostComposer: React.FC<{ user: any; onPost: (post: Post) => void }> = ({ u
                             rows={3}
                         />
                     </div>
+
+                    {quotingPost && (
+                        <div className="mt-4 mb-4 p-4 glass-panel rounded-2xl border border-brand-purple/20 bg-brand-purple/5 relative animate-in slide-in-from-top-2">
+                            <button 
+                                onClick={onCancelQuote}
+                                className="absolute top-3 right-3 text-gray-500 hover:text-white transition"
+                            >
+                                <X size={14} />
+                            </button>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Avatar src={quotingPost.author_avatar} name={quotingPost.author_name} size={6} />
+                                <span className="text-[10px] font-bold text-gray-400">Quoting @{quotingPost.author_username || 'user'}</span>
+                            </div>
+                            <p className="text-xs text-gray-300 line-clamp-2">{quotingPost.content}</p>
+                        </div>
+                    )}
 
                     {imagePreview && (
                         <div className="relative mt-4 mb-4 rounded-2xl overflow-hidden border border-white/10 group/img shadow-2xl">
@@ -840,6 +970,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
 const Community: React.FC = () => {
     const { user, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<FeedTab>('latest');
+    const [quotedPost, setQuotedPost] = useState<Post | null>(null);
     const {
         posts,
         loading: isLoading,
@@ -849,6 +980,22 @@ const Community: React.FC = () => {
         refresh,
         prependPost
     } = useFeed(activeTab);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const quoteId = searchParams.get('quote');
+
+    useEffect(() => {
+        if (quoteId && posts.length > 0) {
+            const postToQuote = posts.find(p => p.id === quoteId);
+            if (postToQuote) {
+                setQuotedPost(postToQuote);
+                // Clear the param so it doesn't re-trigger on refresh
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete('quote');
+                setSearchParams(newParams, { replace: true });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+    }, [quoteId, posts, searchParams, setSearchParams]);
 
     const loaderRef = useRef<HTMLDivElement>(null);
 
@@ -916,7 +1063,12 @@ const Community: React.FC = () => {
 
             {/* Composer (logged in users only) */}
             {isAuthenticated && user && (
-                <PostComposer user={user} onPost={handleNewPost} />
+                <PostComposer 
+                    user={user} 
+                    onPost={handleNewPost} 
+                    quotingPost={quotedPost}
+                    onCancelQuote={() => setQuotedPost(null)}
+                />
             )}
 
             {!isAuthenticated && (
@@ -928,56 +1080,62 @@ const Community: React.FC = () => {
                 </div>
             )}
 
-            {/* Feed */}
-            <div className="space-y-4">
+            {/* Feed — Wrapped in a premium glass-bordered container */}
+            <div className="glass-panel rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl bg-white/[0.01]">
                 {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="glass-card rounded-2xl border border-white/5 p-5 animate-pulse">
-                            <div className="flex gap-3 mb-4">
-                                <div className="w-11 h-11 rounded-full bg-white/10" />
-                                <div className="flex-1 space-y-2">
-                                    <div className="h-3 bg-white/10 rounded w-1/3" />
-                                    <div className="h-2 bg-white/5 rounded w-1/4" />
+                    <div className="divide-y divide-white/[0.04]">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="p-6 animate-pulse">
+                                <div className="flex gap-4 mb-4">
+                                    <div className="w-12 h-12 rounded-full bg-white/10" />
+                                    <div className="flex-1 space-y-2.5">
+                                        <div className="h-4 bg-white/10 rounded w-1/3" />
+                                        <div className="h-2.5 bg-white/5 rounded w-1/4" />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="h-3.5 bg-white/10 rounded w-full" />
+                                    <div className="h-3.5 bg-white/10 rounded w-5/6" />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <div className="h-3 bg-white/10 rounded" />
-                                <div className="h-3 bg-white/10 rounded w-5/6" />
-                            </div>
-                        </div>
-                    ))
+                        ))}
+                    </div>
                 ) : posts.length === 0 ? (
-                    <div className="text-center py-16">
-                        {activeTab === 'following' ? (
-                            <>
-                                <Users size={40} className="mx-auto mb-4 text-gray-600" />
-                                <p className="text-gray-500">Follow some DJs to see their posts here.</p>
-                            </>
-                        ) : (
-                            <>
-                                <MessageSquare size={40} className="mx-auto mb-4 text-gray-600" />
-                                <p className="text-gray-500">No posts yet. Be the first!</p>
-                            </>
-                        )}
+                    <div className="text-center py-24 px-6">
+                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
+                            {activeTab === 'following' ? <Users size={32} className="text-gray-600" /> : <MessageSquare size={32} className="text-gray-600" />}
+                        </div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">No Signals Detected</h3>
+                        <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                            {activeTab === 'following' ? 'Follow some DJs to start receiving their broadcast frequency.' : 'The network is currently silent. Be the first to pulse the community.'}
+                        </p>
                     </div>
                 ) : (
-                    posts.map(post => (
-                        <PostCard
-                            key={post.id}
-                            post={post}
-                            currentUserId={user?.id}
-                            currentUser={user}
-                            onDelete={handleDeletePost}
-                        />
-                    ))
+                    <div className="divide-y divide-white/[0.06]">
+                        {posts.map(post => (
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                currentUserId={user?.id}
+                                currentUser={user}
+                                onDelete={handleDeletePost}
+                                onQuote={(p) => {
+                                    setQuotedPost(p);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                            />
+                        ))}
+                    </div>
                 )}
 
                 {/* Infinite scroll trigger */}
-                <div ref={loaderRef} className="py-4 text-center">
-                    {loadingMore && (
-                        <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
-                            <Loader size={16} className="animate-spin" /> Loading more...
+                <div ref={loaderRef} className="py-10 text-center bg-white/[0.01]">
+                    {loadingMore ? (
+                        <div className="flex items-center justify-center gap-3 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+                            <Loader size={16} className="animate-spin text-brand-purple" /> Amplifying Buffer...
                         </div>
+                    ) : hasMore && (
+                        <span className="text-gray-600 text-[10px] font-black uppercase tracking-widest">— End of transmission —</span>
                     )}
                 </div>
             </div>{/* end feed space-y-4 */}

@@ -90,7 +90,7 @@ export function usePost(postId?: string) {
   const [error,    setError]    = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!postId || !userId) return;
+    if (!postId) return;
     setLoading(true);
     try {
       const [postData, commentData] = await Promise.all([
