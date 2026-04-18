@@ -48,8 +48,10 @@ const Avatar = ({ src, name, size = 20, className = "" }: { src?: string; name?:
 
 // ─── Main Component ──────────────────────────────────────────────────
 export default function PublicProfile() {
-    const { username } = useParams<{ username: string }>();
+    const { handle } = useParams<{ handle: string }>();
+    const username = handle?.startsWith('@') ? handle.substring(1) : handle;
     const { profile, stats, viewer, loading, error, refreshProfile } = useProfile(username || '');
+
     const { user: currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('posts');
     const [showEditModal, setShowEditModal] = useState(false);
