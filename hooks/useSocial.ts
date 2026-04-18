@@ -152,6 +152,10 @@ export function useComposer() {
     return submit({ content, post_type: 'post', reply_to_id });
   }, [submit]);
 
+  const quotedReshare = useCallback(async ({ content, quote_of_id }: any) => {
+    return submit({ content, post_type: 'quoted_reshare', quote_of_id });
+  }, [submit]);
+
   const reshare = useCallback(async (postId: string) => {
     if (!userId) throw new Error('Not authenticated');
     setLoading(true);
