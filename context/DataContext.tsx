@@ -482,7 +482,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchConfig = useCallback(async () => {
     try {
-      const data = await fetchFromR2<SiteConfig>('config/site');
+      const R2_URL = (import.meta.env.VITE_R2_URL || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev').trim();
+      const res = await fetch(`${R2_URL}/data/config/site.json?t=${Date.now()}`);
+      if (!res.ok) throw new Error('Config fetch failed');
+      const data = await res.json() as SiteConfig;
       if (data && typeof data === 'object') {
         // Deep-merge with INITIAL_CONFIG so a partial R2 response never
         // wipes out nested keys (hero, home, etc.) that components access

@@ -44,7 +44,7 @@ const fmt = (n: number) => {
 /**
  * Premium Post Card for the profile feed
  */
-function ProfilePostCard({ post, currentUserId }: { post: any; currentUserId?: string }) {
+function ProfilePostCard({ post, currentUserId }: { post: any; currentUserId?: string; key?: any }) {
     const { liked, count, toggle } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { deletePost } = useComposer();
     const isOwn = currentUserId === post.author_id;
