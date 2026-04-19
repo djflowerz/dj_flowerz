@@ -745,8 +745,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
   const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
   const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'D1', isAdmin);
-
-  const [installmentPlans, , installmentsLoading, , , refreshInstallments] = useCollection<InstallmentPlan>('installments', [], isAdmin, mapR2InstallmentPlan, 'created_at', 'desc', 'D1', isAdmin);
   const [chatSessions, , chatSessionsLoading, , , refreshChatSessions] = useCollection<any>('chat/sessions', [], isAdmin, undefined, 'last_message_at', 'desc', 'D1', isAdmin);
 
   // NEW collections for Admin Dashboard
