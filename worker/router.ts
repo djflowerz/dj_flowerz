@@ -194,8 +194,15 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const uname = path.split('/').pop()?.replace('@', '') || '';
     const profile = await env.DB.prepare(`
       SELECT id, username, display_name, avatar_url, bio, role, location, website,
-             twitter, instagram, soundcloud, soundcloud as soundcloud_handle,
-             created_at as joined_at
+        COALESCE(twitter, '') as twitter,
+        COALESCE(instagram, '') as instagram, 
+        COALESCE(soundcloud, '') as soundcloud,
+        COALESCE(twitter, '') as twitter_handle,
+        COALESCE(instagram, '') as instagram_handle,
+        COALESCE(soundcloud, '') as soundcloud_handle,
+        COALESCE(banner_url, '') as banner_url,
+        COALESCE(is_verified, 0) as is_verified,
+        created_at as joined_at
       FROM user_profiles WHERE username = ?
     `).bind(uname).first() as any;
     if (!profile) return json({ error: 'User not found' }, 404);
@@ -855,6 +862,31 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // POST /api/admin/r2-sync
     if (path === '/api/admin/r2-sync' && method === 'POST') {
       return json({ success: true, message: 'Sync triggered' });
+    }
+
+    // POST /api/admin/r2-upload
+    if (path === '/api/admin/r2-upload' && method === 'POST') {
+      try {
+        const fileName = req.headers.get('x-file-name');
+        const folder = req.headers.get('x-folder') || 'uploads';
+        const contentType = req.headers.get('content-type') || 'application/octet-stream';
+        
+        if (!fileName) return json({ error: 'Missing x-file-name header' }, 400);
+        
+        const fileId = crypto.randomUUID();
+        const ext = fileName.split('.').pop();
+        const objectKey = `${folder}/${fileId}.${ext}`;
+        
+        const body = await req.arrayBuffer();
+        await env.R2_BUCKET.put(objectKey, body, {
+          httpMetadata: { contentType }
+        });
+        
+        const fileUrl = `https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/${objectKey}`;
+        return json({ success: true, url: fileUrl });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
     }
 
     // GET /api/admin/system/health

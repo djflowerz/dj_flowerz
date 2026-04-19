@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const API = import.meta.env.VITE_PROFILE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_API_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev/api/profiles';
+const BASE = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_WORKER_URL ||
+  import.meta.env.VITE_STORAGE_WORKER_URL ||
+  'https://djflowerz-worker.ianmuriithiflowerz.workers.dev'
+).replace(/\/$/, '');
 
-// Make sure the API matches /api/profiles specifically
-const getBaseUrl = () => {
-    let url = API;
-    if (!url.endsWith('/api/profiles')) {
-        url = url.replace(/\/api$/, '') + '/api/profiles';
-    }
-    return url;
-}
-
+const PROFILES_API = `${BASE}/api/profiles`;
 
 // ─── useProfile ───────────────────────────────────────────────────────────────
 
@@ -29,7 +26,7 @@ export function useProfile(username: string) {
     setLoading(true);
     setError(null);
     try {
-      const d = await apiGet(`${getBaseUrl()}/${username}`, user?.id);
+      const d = await apiGet(`${PROFILES_API}/${username}`, user?.id);
       setData(d);
       setFollowing(d.viewer.following);
       setFollowerCount(d.stats.followers);
@@ -49,7 +46,7 @@ export function useProfile(username: string) {
     setFollowing(next);
     setFollowerCount(c => next ? c + 1 : Math.max(0, c - 1));
     try {
-      await apiPost(`${getBaseUrl()}/${username}/follow`, {}, user.id);
+      await apiPost(`${PROFILES_API}/${username}/follow`, {}, user.id);
     } catch {
       setFollowing(!next);
       setFollowerCount(c => !next ? c + 1 : Math.max(0, c - 1));
@@ -88,7 +85,7 @@ export function useProfilePosts(username: string, type = 'posts') {
     try {
       const params = new URLSearchParams({ limit: '20', type });
       if (before) params.set('before', before);
-      const d = await apiGet(`${getBaseUrl()}/${username}/${type}?${params}`, user?.id);
+      const d = await apiGet(`${PROFILES_API}/${username}/${type}?${params}`, user?.id);
       const incoming = d.posts ?? [];
       setPosts(prev => replace ? incoming : [...prev, ...incoming]);
       setCursor(d.next_cursor ?? null);
@@ -137,7 +134,7 @@ export function useProfileEdit() {
     setError(null);
     setSuccess(false);
     try {
-      const result = await apiPatch(`${getBaseUrl()}/me`, fields, user.id);
+      const result = await apiPatch(`${PROFILES_API}/me`, fields, user.id);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       return result.profile;
@@ -166,7 +163,7 @@ export function useUserSearch() {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const d = await apiGet(`${getBaseUrl()}/search?q=${encodeURIComponent(query)}&limit=8`, user?.id);
+        const d = await apiGet(`${PROFILES_API}/search?q=${encodeURIComponent(query)}&limit=8`, user?.id);
         setResults(d.users ?? []);
       } catch {
         setResults([]);
@@ -196,7 +193,7 @@ export function useFollowList(username: string, type = 'followers') {
     try {
       const params = new URLSearchParams({ limit: '20' });
       if (before) params.set('before', before);
-      const d = await apiGet(`${getBaseUrl()}/${username}/${type}?${params}`, user?.id);
+      const d = await apiGet(`${PROFILES_API}/${username}/${type}?${params}`, user?.id);
       const incoming = d.users ?? [];
       setUsers(prev => replace ? incoming : [...prev, ...incoming]);
       setCursor(d.next_cursor ?? null);
