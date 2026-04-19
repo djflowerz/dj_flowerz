@@ -208,9 +208,8 @@ export const mapR2Product = (p: any): Product => {
       isSpecialOffer: Boolean(p.is_special_offer !== undefined ? p.is_special_offer : (p.isSpecialOffer !== undefined ? p.isSpecialOffer : false)),
       isTrending: Boolean(p.is_trending !== undefined ? p.is_trending : (p.isTrending !== undefined ? p.isTrending : false)),
       offerExpiry: p.offer_expiry || p.offerExpiry || '',
-      technicalDetails: safeJsonParse(p.technical_details || p.technicalDetails),
-      hotspots: safeJsonParse(p.hotspots),
-      useCases: safeJsonParse(p.use_cases || p.useCases)
+      hotspots: safeJsonParse(p.hotspots)
+
     };
   } catch (err) {
     console.error("Error mapping product:", p, err);

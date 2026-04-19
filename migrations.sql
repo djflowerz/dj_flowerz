@@ -1,15 +1,12 @@
--- 1. Extend users table
-ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN cover_url TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN location TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN website TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN dj_genre TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN dj_since INTEGER DEFAULT NULL;
-ALTER TABLE users ADD COLUMN pinned_post_id TEXT DEFAULT NULL;
-ALTER TABLE users ADD COLUMN instagram TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN soundcloud TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN mixcloud TEXT DEFAULT '';
-ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0;
+-- 1. Extend user_profiles table (COMPLETED)
+-- Note: bio, location, website, is_verified, dj_genre, etc. already exist
+-- ALTER TABLE user_profiles ADD COLUMN dj_genre TEXT DEFAULT '';
+-- ALTER TABLE user_profiles ADD COLUMN dj_since INTEGER DEFAULT NULL;
+-- ALTER TABLE user_profiles ADD COLUMN pinned_post_id TEXT DEFAULT NULL;
+-- ALTER TABLE user_profiles ADD COLUMN instagram TEXT DEFAULT '';
+-- ALTER TABLE user_profiles ADD COLUMN soundcloud TEXT DEFAULT '';
+-- ALTER TABLE user_profiles ADD COLUMN mixcloud TEXT DEFAULT '';
+
 
 -- 2. Create social infrastucture
 CREATE TABLE IF NOT EXISTS social_posts (

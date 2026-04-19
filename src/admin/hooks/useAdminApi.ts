@@ -2,7 +2,11 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
-const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
+const WORKER_URL = 
+  import.meta.env.VITE_API_URL || 
+  import.meta.env.VITE_WORKER_URL || 
+  import.meta.env.VITE_STORAGE_WORKER_URL || 
+  'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -17,8 +21,10 @@ export function useAdminApi() {
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const token = session?.access_token || '';
+                const userId = session?.user?.id || '';
                 const headers = new Headers(options.headers);
                 headers.set('Authorization', `Bearer ${token}`);
+                headers.set('X-Actor-Id', userId);
                 if (!headers.has('Content-Type')) {
                     headers.set('Content-Type', 'application/json');
                 }

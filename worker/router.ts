@@ -141,9 +141,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const body = await request.json() as any;
     const { content, media_urls, is_marketplace, price, post_type, reply_to_id, quote_of_id } = body;
 
-    // Fetch author info from users table
+    // Fetch author info from user_profiles table
     const author = await env.DB.prepare(
-      'SELECT id, name, avatar_url, username, role FROM users WHERE id = ?'
+      'SELECT id, display_name as name, avatar_url, username, role FROM user_profiles WHERE id = ?'
     ).bind(actorId).first() as any;
 
     const id = crypto.randomUUID();
@@ -218,7 +218,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const post = await env.DB.prepare('SELECT author_id FROM social_posts WHERE id = ?').bind(postId).first() as any;
     if (!post) return json({ error: 'Not found' }, { status: 404 });
 
-    const user = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(actorId).first() as any;
+    const user = await env.DB.prepare('SELECT role FROM user_profiles WHERE id = ?').bind(actorId).first() as any;
     if (post.author_id !== actorId && user?.role !== 'admin') {
       return json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -233,8 +233,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const postId = path.split('/')[4];
 
     const author = await env.DB.prepare(
-      'SELECT id, name, avatar_url, username, role FROM users WHERE id = ?'
+      'SELECT id, display_name as name, avatar_url, username, role FROM user_profiles WHERE id = ?'
     ).bind(actorId).first() as any;
+
 
     try {
       await env.DB.prepare('INSERT INTO social_reshares (id, post_id, user_id) VALUES (?, ?, ?)')
@@ -308,16 +309,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const username = path.split('/').pop()?.replace('@', '');
 
     const profile = await env.DB.prepare(`
-      SELECT id, name, avatar_url, username, role, bio, cover_url,
+      SELECT id, display_name as name, avatar_url, username, role, bio, banner_url as cover_url,
         location, website, dj_genre, dj_since, pinned_post_id,
         instagram, soundcloud, mixcloud, is_verified, created_at,
         (SELECT COUNT(*) FROM social_posts 
-          WHERE author_id = users.id AND post_type != 'reshare') as post_count,
+          WHERE author_id = user_profiles.id AND post_type != 'reshare') as post_count,
         (SELECT COUNT(*) FROM social_follows 
-          WHERE following_id = users.id) as followers_count,
+          WHERE following_id = user_profiles.id) as followers_count,
         (SELECT COUNT(*) FROM social_follows 
-          WHERE follower_id = users.id) as following_count
-      FROM users WHERE username = ? OR id = ?
+          WHERE follower_id = user_profiles.id) as following_count
+      FROM user_profiles WHERE username = ? OR id = ?
     `).bind(username, username).first() as any;
 
     if (!profile) return json({ error: 'Profile not found' }, { status: 404 });
@@ -360,12 +361,12 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (!actorId) return json({ error: 'Unauthorized' }, { status: 401 });
     
     const body = await request.json() as any;
-    const { bio, cover_url, location, website, dj_genre, dj_since, instagram, soundcloud, mixcloud } = body;
+    const { bio, banner_url, location, website, dj_genre, dj_since, instagram, soundcloud, mixcloud } = body;
 
     await env.DB.prepare(`
-      UPDATE users SET
+      UPDATE user_profiles SET
         bio = COALESCE(?, bio),
-        cover_url = COALESCE(?, cover_url),
+        banner_url = COALESCE(?, banner_url),
         location = COALESCE(?, location),
         website = COALESCE(?, website),
         dj_genre = COALESCE(?, dj_genre),
@@ -375,13 +376,13 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         mixcloud = COALESCE(?, mixcloud)
       WHERE id = ?
     `).bind(
-      bio ?? null, cover_url ?? null, location ?? null,
+      bio ?? null, banner_url ?? null, location ?? null,
       website ?? null, dj_genre ?? null, dj_since ?? null,
       instagram ?? null, soundcloud ?? null, mixcloud ?? null,
       actorId
     ).run();
 
-    const updated = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(actorId).first();
+    const updated = await env.DB.prepare('SELECT *, display_name as name, banner_url as cover_url FROM user_profiles WHERE id = ?').bind(actorId).first();
     return json({ profile: updated });
   }
 
@@ -397,7 +398,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     
     if (!post) return json({ error: 'Post not found' }, { status: 404 });
     
-    await env.DB.prepare('UPDATE users SET pinned_post_id = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE user_profiles SET pinned_post_id = ? WHERE id = ?')
       .bind(postId, actorId).run();
     return json({ success: true });
   }
@@ -405,7 +406,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // DELETE /api/social/profile/pin
   if (method === 'DELETE' && path === '/api/social/profile/pin') {
     if (!actorId) return json({ error: 'Unauthorized' }, { status: 401 });
-    await env.DB.prepare('UPDATE users SET pinned_post_id = NULL WHERE id = ?')
+    await env.DB.prepare('UPDATE user_profiles SET pinned_post_id = NULL WHERE id = ?')
       .bind(actorId).run();
     return json({ success: true });
   }
@@ -416,10 +417,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '6'), 20);
 
     const result = await env.DB.prepare(`
-      SELECT u.id, u.name, u.avatar_url, u.username, u.role,
+      SELECT u.id, u.display_name as name, u.avatar_url, u.username, u.role,
         (SELECT COUNT(*) FROM social_posts WHERE author_id = u.id) as post_count,
         (SELECT COUNT(*) FROM social_follows WHERE following_id = u.id) as followers
-      FROM users u
+      FROM user_profiles u
       WHERE u.id != COALESCE(?, '')
       AND u.id NOT IN (
         SELECT following_id FROM social_follows WHERE follower_id = COALESCE(?, '')
@@ -430,15 +431,6 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(userId || '', userId || '', limit).all();
 
     return json({ suggested: result.results || [] });
-  }
-
-  // ─── Commerce Routes ──────────────────────────────────────────────────────────
-
-  if ((path === '/api/products' || path === '/api/v1/products') && method === 'GET') {
-    const { results } = await env.DB.prepare(
-      `SELECT * FROM products ORDER BY created_at DESC`
-    ).all();
-    return json(results);
   }
 
   // ─── Commerce Routes ──────────────────────────────────────────────────────────
@@ -456,6 +448,104 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     ).all();
     return json(results);
   }
+
+  if (path.startsWith('/api/admin/')) {
+    if (!token) return json({ error: 'Unauthorized — no token provided' }, { status: 401 });
+
+    let userEmail = '';
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const base64 = payloadBase64.replace(/\-/g, '+').replace(/_/g, '/');
+      const payloadStr = atob(base64);
+      const payload = JSON.parse(payloadStr);
+      userEmail = payload.email || '';
+    } catch (e) {
+      console.error('JWT parse error:', e);
+      return json({ error: 'Unauthorized — invalid token format' }, { status: 401 });
+    }
+
+    const adminEmail = env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+    
+    // Strict email enforcement
+    if (userEmail.toLowerCase() !== adminEmail.toLowerCase()) {
+      console.warn(`[Admin Blocked] Unauthorized email attempt: ${userEmail}`);
+      return json({ error: `Forbidden — Administrator access strictly limited to authorized email.` }, { status: 403 });
+    }
+
+
+    // GET /api/admin/dashboard
+    if (path === '/api/admin/dashboard' && method === 'GET') {
+      try {
+        const stats = await env.DB.batch([
+          env.DB.prepare('SELECT SUM(amount_kes) as total FROM payments WHERE status = "success" OR status = "paid"'),
+          env.DB.prepare('SELECT COUNT(*) as count FROM orders'),
+          env.DB.prepare('SELECT COUNT(*) as count FROM mixtapes WHERE status = "published"'),
+          env.DB.prepare('SELECT COUNT(*) as count FROM user_profiles WHERE role = "user" OR role = "dj"'),
+          env.DB.prepare('SELECT SUM(amount) as total FROM tips WHERE status = "success" OR status = "completed"'),
+          env.DB.prepare('SELECT COUNT(*) as count FROM user_profiles'),
+
+          env.DB.prepare('SELECT * FROM payments ORDER BY created_at DESC LIMIT 5'),
+          env.DB.prepare('SELECT * FROM tips ORDER BY created_at DESC LIMIT 5')
+        ]);
+
+        const totalRevenue = ((stats[0].results?.[0] as any)?.total || 0) + ((stats[4].results?.[0] as any)?.total || 0);
+        
+        const recentPayments = (stats[6].results || []).map((p: any) => ({
+          id: p.id,
+          type: 'payment',
+          email: p.customer_email,
+          amount: p.amount_kes || 0,
+          status: p.status,
+          createdAt: p.created_at
+        }));
+
+        const recentTips = (stats[7].results || []).map((t: any) => ({
+          id: t.id,
+          type: 'tip',
+          name: t.donor_name,
+          email: t.donor_email,
+          amount: t.amount || 0,
+          status: t.status,
+          createdAt: t.created_at
+        }));
+
+        const recentActivity = [...recentPayments, ...recentTips]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 10);
+
+        return json({
+          totalRevenue,
+          confirmedRevenue: totalRevenue,
+          totalOrders: (stats[1].results?.[0] as any)?.count || 0,
+          activeMixtapes: (stats[2].results?.[0] as any)?.count || 0,
+          activeUsers: (stats[3].results?.[0] as any)?.count || 0,
+          totalTips: (stats[4].results?.[0] as any)?.count || 0,
+          totalUsers: (stats[5].results?.[0] as any)?.count || 0,
+          recentActivity
+        });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
+    }
+
+    // GET /api/admin/payments
+    if (path === '/api/admin/payments' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM payments ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/finances/tips
+    if (path === '/api/admin/finances/tips' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM tips ORDER BY created_at DESC').all();
+      return json(results);
+    }
+    
+    // POST /api/admin/sync-paystack (Stub)
+    if (path === '/api/admin/sync-paystack' && method === 'POST') {
+      return json({ success: true, synced: 0 });
+    }
+  }
+
 
   // ─── 404 ─────────────────────────────────────────────────────────────────────
   return json({ error: `Route ${method} ${path} not found` }, 404);
