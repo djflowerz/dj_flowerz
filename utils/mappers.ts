@@ -152,9 +152,18 @@ export const mapR2Generic = (item: any): any => ({
  * R2 Product Mapper
  */
 export const mapR2Product = (p: any): Product => {
+  const DEFAULT_CDN_BASE = `/api/files`;
+  const ensureAbsolute = (u: string) => {
+    if (!u) return u;
+    if (u.startsWith('http') || u.startsWith('/api/files/') || u.startsWith('data:') || u.startsWith('blob:')) return u;
+    // Remove leading slash if exists and prepend base
+    const cleanPath = u.replace(/^\//, '').replace(/ /g, '%20');
+    return `${DEFAULT_CDN_BASE}/${cleanPath}`;
+  };
+
   try {
-    const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []);
-    const mainImage = p.image || images[0] || '';
+    const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []).map(ensureAbsolute);
+    const mainImage = ensureAbsolute(p.image || images[0] || '');
     const type = p.type || (['Software', 'Samples', 'digital', 'DJ Software'].includes(p.category || '') ? 'digital' : 'physical');
     const requiresShipping = Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : (type === 'physical')));
 
@@ -183,7 +192,7 @@ export const mapR2Product = (p: any): Product => {
           discountPrice: v.discount_price !== undefined ? Number(v.discount_price) : (v.discountPrice !== undefined ? Number(v.discountPrice) : undefined),
           compareAtPrice: v.compare_at_price !== undefined ? Number(v.compare_at_price) : (v.compareAtPrice !== undefined ? Number(v.compareAtPrice) : undefined),
           stock: Number(v.stock !== undefined ? v.stock : (v.stock_quantity !== undefined ? v.stock_quantity : 0)),
-          image: v.image || v.image_url || ''
+          image: ensureAbsolute(v.image || v.image_url || '')
         };
       }),
       stock: Number(p.stock !== undefined ? p.stock : (p.inventory !== undefined ? p.inventory : 0)),
@@ -209,7 +218,6 @@ export const mapR2Product = (p: any): Product => {
       isTrending: Boolean(p.is_trending !== undefined ? p.is_trending : (p.isTrending !== undefined ? p.isTrending : false)),
       offerExpiry: p.offer_expiry || p.offerExpiry || '',
       hotspots: safeJsonParse(p.hotspots)
-
     };
   } catch (err) {
     console.error("Error mapping product:", p, err);

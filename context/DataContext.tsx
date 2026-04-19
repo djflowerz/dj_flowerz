@@ -139,8 +139,8 @@ interface DataContextType {
   commentsLoading: boolean;
   notificationsLoading: boolean;
   syncNotificationsLoading: boolean;
-  studioSessions: StudioSession[];
-  eventGigs: EventGig[];
+  installmentPlans: InstallmentPlan[];
+  chatSessions: any[];
   installmentPayments: InstallmentPayment[];
   wishlist: WishlistItem[];
   wishlistLoading: boolean;
@@ -282,6 +282,8 @@ interface DataContextType {
   refreshStudioSessions: () => void;
   refreshEventGigs: () => void;
   refreshSyncNotifications: () => void;
+  refreshInstallments: () => void;
+  refreshChatSessions: () => void;
 
   refreshProducts: () => void;
   refreshMixtapes: () => void;
@@ -739,10 +741,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [referralLogs, , referralLogsLoading, , , refreshReferralLogs] = useCollection<ReferralLog>('referrals/logs', [], isAdmin, mapD1ReferralLog, 'createdAt', 'desc', 'D1', isAdmin);
   const [newsletterCampaigns, , campaignsLoading, , , refreshCampaigns] = useCollection<NewsletterCampaign>('newsletter_campaigns', [], isAdmin, mapR2Campaign, 'createdAt', 'desc', 'D1', isAdmin);
   const [newsletterSegments, , segmentsLoading, , , refreshSegments] = useCollection<NewsletterSegment>('newsletter_segments', [], isAdmin, mapR2Generic, 'createdAt', 'desc', 'R2', isAdmin);
-  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapR2Subscriber, 'date_subscribed', 'desc', 'D1', isAdmin);
+  const [subscribers, , subscribersLoading, , , refreshSubscribers] = useCollection<NewsletterSubscriber>('newsletter_subscribers', [], isAdmin, mapR2Subscriber, 'created_at', 'desc', 'D1', isAdmin);
   const [telegramChannels, , tgChannelsLoading, , , refreshTelegramChannels] = useCollection<TelegramChannel>('telegram_channels', [], isAdmin, mapR2Channel, 'createdAt', 'desc', 'R2', isAdmin);
   const [payments, , paymentsLoading, , , refreshPayments] = useCollection<any>('payments', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'R2', isAdmin);
   const [tips, , tipsLoading, , , refreshTips] = useCollection<any>('tips', [], isAdmin, mapR2Tip, 'createdAt', 'desc', 'D1', isAdmin);
+
+  const [installmentPlans, , installmentsLoading, , , refreshInstallments] = useCollection<InstallmentPlan>('installments', [], isAdmin, mapR2InstallmentPlan, 'created_at', 'desc', 'D1', isAdmin);
+  const [chatSessions, , chatSessionsLoading, , , refreshChatSessions] = useCollection<any>('chat/sessions', [], isAdmin, undefined, 'last_message_at', 'desc', 'D1', isAdmin);
 
   // NEW collections for Admin Dashboard
   const [studioSessions, , studioSessionsLoading, , , refreshStudioSessions] = useCollection<StudioSession>('bookings/studio', [], isAdmin, undefined, 'created_at', 'desc', 'D1', isAdmin);
@@ -998,7 +1003,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Keep refresh functions ref up to date
   useEffect(() => {
-    refreshFnsRef.current = { refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments, refreshAdminStats, refreshExpiringUsers };
+    refreshFnsRef.current = { 
+      refreshOrders, refreshUsers, refreshSubscriptions, refreshBookings, refreshPayments, refreshAdminStats, refreshExpiringUsers,
+      refreshInstallments, refreshChatSessions, refreshCampaigns, refreshCoupons
+    };
   });
 
   useEffect(() => {
@@ -2210,6 +2218,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     studioSessionsLoading: studioSessionsLoading || false,
     eventGigsLoading: eventGigsLoading || false,
     installmentsLoading: installmentsLoading || false,
+    chatSessions,
+    chatSessionsLoading: chatSessionsLoading || false,
     storeSettings,
     storeSettingsLoading,
     wishlist,
@@ -2303,7 +2313,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshProducts, refreshMixtapes, refreshOrders, refreshUsers, refreshSubscriptions,
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
-    refreshStudioSessions, refreshEventGigs, refreshInstallments,
+    refreshStudioSessions, refreshEventGigs, refreshInstallments, refreshChatSessions,
     refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
     messages: contactMessages
   }), [

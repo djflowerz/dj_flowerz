@@ -278,8 +278,8 @@ const AdminDashboard: React.FC = () => {
       { id: 'mixtapes', label: 'Mixtapes', icon: Music },
       { id: 'marketing', label: 'Marketing', icon: Tag },
       { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
-      { id: 'content', label: 'Site Content', icon: Globe },
-      { id: 'users', label: 'Profiles', icon: Users },
+      { id: 'site-profile', label: 'Site Profile', icon: Globe },
+      { id: 'community-profiles', label: 'Community Profile', icon: Users },
       { id: 'referrals', label: 'Referrals', icon: Gift },
       { id: 'payments', label: 'Payments', icon: CreditCard },
       { id: 'live-chat', label: 'Live Chat', icon: MessageSquare },
@@ -3192,7 +3192,14 @@ const AdminDashboard: React.FC = () => {
                                                       ) : (p.stock || 0)
                                                    )}
                                                 </span>
-                                                {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-brand-pink font-black uppercase tracking-[0.2em] mt-1">Low Buffer</span>}
+                                                <div className="flex items-center gap-2 mt-1">
+                                                   {p.type === 'physical' && (p.stock || 0) < 10 && <span className="text-[9px] text-brand-pink font-black uppercase tracking-[0.2em]">Low Buffer</span>}
+                                                   {(p.variantGroups?.length || 0) > 0 && (
+                                                      <span className="text-[9px] text-brand-purple font-black uppercase tracking-[0.2em]">
+                                                         {p.variantGroups!.reduce((acc: number, g: any) => acc + (g.variants?.length || 0), 0)} Variants
+                                                      </span>
+                                                   )}
+                                                </div>
                                              </div>
                                           </td>
                                           <td className="px-8 py-6">
@@ -4201,7 +4208,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'users' && <AdminCommunityDirectory />}
+                {activeTab === 'community-profiles' && <AdminCommunityDirectory />}
 
                {activeTab === 'shipping' && (
                   <div className="animate-fade-in-up space-y-8">
@@ -4318,7 +4325,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                )}
 
-               {activeTab === 'content' && (
+               {activeTab === 'site-profile' && (
                   <div className="animate-fade-in-up space-y-8">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>

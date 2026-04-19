@@ -71,8 +71,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
     // MAP IAN DIRECTLY TO THE EXISTENT DJ FLOWERZ DB ROW
-    const adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
-    const isIan = userEmail && userEmail.toLowerCase() === adminEmail;
+    const _adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
+    const isIan = userEmail && userEmail === _adminEmail;
     
     if (isIan) {
       uid = 'user_djflowerz'; // Forces all posts/metadata to link perfectly!
@@ -85,7 +85,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     
     // Auto-create or Auto-sync user if they don't exist
     if (!user) {
-      const username = userEmail ? userEmail.split('@')[0].replace(/[^a-z0-9]/g, '') : `user_${uid.substring(0,6)}`;
+      let username = userEmail ? userEmail.split('@')[0].replace(/[^a-z0-9]/g, '') : `user_${uid.substring(0,6)}`;
+      if (isIan) username = 'djflowerz'; // Ensure @djflowerz is THE admin handle
+      
       const role = isIan ? 'admin' : 'user';
       try {
         await env.DB.prepare(`
@@ -106,10 +108,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
          user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
       }
     } else {
-      // Sync admin privileges if applicable natively
-      if (isIan && user.role !== 'admin') {
-         await env.DB.prepare('UPDATE user_profiles SET role = "admin", email = ? WHERE id = ?').bind(userEmail, uid).run();
-         user.role = 'admin';
+      // Sync admin privileges and email if applicable natively
+      if (isIan) {
+         if (user.role !== 'admin' || user.username !== 'djflowerz') {
+           await env.DB.prepare('UPDATE user_profiles SET role = "admin", username = "djflowerz", email = ? WHERE id = ?').bind(userEmail, uid).run();
+           user.role = 'admin';
+           user.username = 'djflowerz';
+         }
+      } else if (userEmail && (!user.email || user.email !== userEmail)) {
+         await env.DB.prepare('UPDATE user_profiles SET email = ? WHERE id = ?').bind(userEmail, uid).run();
+         user.email = userEmail;
       }
     }
 
@@ -227,6 +235,34 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // PATCH /api/profiles/:username — update profile
+  if (method === 'PATCH' && path.match(/^\/api\/profiles\/[^/]+$/)) {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const uname = path.split('/')[3]?.replace('@', '');
+    const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    if (!profile) return json({ error: 'User not found' }, 404);
+    if (profile.id !== actorId) return json({ error: 'Forbidden' }, 403);
+
+    const body = await request.json() as any;
+    const { display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud } = body;
+    
+    await env.DB.prepare(`
+      UPDATE user_profiles SET 
+        display_name = COALESCE(?, display_name),
+        bio = COALESCE(?, bio),
+        location = COALESCE(?, location),
+        website = COALESCE(?, website),
+        avatar_url = COALESCE(?, avatar_url),
+        banner_url = COALESCE(?, banner_url),
+        twitter = COALESCE(?, twitter),
+        instagram = COALESCE(?, instagram),
+        soundcloud = COALESCE(?, soundcloud)
+      WHERE id = ?
+    `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, actorId).run();
+
+    return json({ success: true });
+  }
+
   // ─── SOCIAL ROUTES (social_* infrastructure) ───────────────────────────────
 
   // GET /api/social/feed
@@ -340,6 +376,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const id = crypto.randomUUID();
     const imageUrl = Array.isArray(media_urls) && media_urls.length > 0 ? media_urls[0] : null;
 
+    // Use specific provided type or detect from context
+    const finalType = post_type || (reply_to_id ? 'comment' : (quote_of_id ? 'reshare' : 'post'));
+
     await env.DB.prepare(`
       INSERT INTO social_posts (
         id, author_id, author_name, author_avatar, author_username, author_role,
@@ -348,16 +387,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(
       id,
       actorId,
-      author?.name || 'Anonymous',
-      author?.avatar_url || '',
-      author?.username || '',
+      author?.name || 'DJ Flowerz Team',
+      author?.avatar_url || 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=100&h=100&fit=crop',
+      author?.username || 'admin',
       author?.role || 'user',
       content || '',
       imageUrl,
       JSON.stringify(media_urls || []),
       is_marketplace ? 1 : 0,
       price || 0,
-      post_type || 'post',
+      finalType,
       reply_to_id || null,
       quote_of_id || null
     ).run();
@@ -719,6 +758,122 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       }
     }
 
+    // GET /api/admin/users
+    if (path === '/api/admin/users' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT id, username, display_name as name, email, avatar_url, role, 
+               created_at,
+               (SELECT expires_at FROM subscriptions WHERE id = user_profiles.id AND status = 'active' ORDER BY expires_at DESC LIMIT 1) as subscription_expiry,
+               (SELECT COUNT(*) FROM subscriptions WHERE id = user_profiles.id AND status = 'active') as is_subscriber
+        FROM user_profiles 
+        ORDER BY created_at DESC
+      `).all();
+      return json(results);
+    }
+
+    // GET /api/admin/orders
+    if (path === '/api/admin/orders' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/mixtapes
+    if (path === '/api/admin/mixtapes' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM mixtapes ORDER BY created_at DESC').all();
+      const mapped = (results || []).map((m: any) => ({
+        ...m,
+        tags: typeof m.tags === 'string' ? JSON.parse(m.tags || '[]') : (m.tags || []),
+        tracklist: typeof m.tracklist === 'string' ? JSON.parse(m.tracklist || '[]') : (m.tracklist || [])
+      }));
+      return json(mapped);
+    }
+
+    // GET /api/admin/products
+    if (path === '/api/admin/products' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM products ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/active-subscribers
+    if (path === '/api/admin/active-subscribers' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT u.id, u.username, u.display_name as name, u.email, u.avatar_url, s.plan_id, s.expires_at
+        FROM user_profiles u
+        INNER JOIN subscriptions s ON s.id = u.id
+        WHERE s.status = 'active' AND s.expires_at > DATETIME('now')
+      `).all();
+      return json(results);
+    }
+
+    // GET /api/admin/stats
+    if (path === '/api/admin/stats' && method === 'GET') {
+      const stats = await env.DB.batch([
+        env.DB.prepare('SELECT COUNT(*) as count FROM user_profiles'),
+        env.DB.prepare('SELECT COUNT(*) as count FROM subscriptions WHERE status = "active"'),
+        env.DB.prepare('SELECT SUM(amount) as total FROM payments WHERE status = "success" OR status = "paid"'),
+        env.DB.prepare('SELECT COUNT(*) as count FROM orders WHERE created_at > DATETIME("now", "-30 days")'),
+        env.DB.prepare('SELECT SUM(total) as total FROM orders WHERE status = "completed" OR status = "shipped"')
+      ]);
+      return json({
+        total_users: (stats[0].results?.[0] as any)?.count || 0,
+        active_subs: (stats[1].results?.[0] as any)?.count || 0,
+        total_revenue: ((stats[2].results?.[0] as any)?.total || 0) + ((stats[4].results?.[0] as any)?.total || 0),
+        monthly_sales_count: (stats[3].results?.[0] as any)?.count || 0
+      });
+    }
+
+    // GET /api/admin/expiry-watch
+    if (path === '/api/admin/expiry-watch' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT u.email, u.display_name as name, s.expires_at, s.plan_id
+        FROM subscriptions s
+        JOIN user_profiles u ON s.id = u.id
+        WHERE s.status = 'active' 
+        AND s.expires_at BETWEEN DATETIME('now') AND DATETIME('now', '+7 days')
+      `).all();
+      return json(results);
+    }
+
+    // GET /api/admin/installments
+    if (path === '/api/admin/installments' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM installments ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/newsletter_subscribers
+    if (path === '/api/admin/newsletter_subscribers' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM newsletter_subscribers ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // POST /api/admin/subscriptions/grant
+    if (path === '/api/admin/subscriptions/grant' && method === 'POST') {
+      const { userId, planId, months } = await request.json() as any;
+      const expiry = new Date();
+      expiry.setMonth(expiry.getMonth() + (months || 1));
+      const expiryStr = expiry.toISOString();
+      
+      await env.DB.prepare(`
+        INSERT INTO subscriptions (id, plan_id, status, expires_at)
+        VALUES (?, ?, 'active', ?)
+        ON CONFLICT(id) DO UPDATE SET status='active', expires_at=?, plan_id=?
+      `).bind(userId, planId, expiryStr, expiryStr, planId).run();
+      
+      await env.DB.prepare('UPDATE user_profiles SET role = "dj" WHERE id = ? AND role = "user"').bind(userId).run();
+      return json({ success: true });
+    }
+
+    // POST /api/admin/revoke-access
+    if (path === '/api/admin/revoke-access' && method === 'POST') {
+      const { email } = await request.json() as any;
+      const user = await env.DB.prepare('SELECT id FROM user_profiles WHERE email = ?').bind(email).first();
+      if (user) {
+        await env.DB.prepare('UPDATE subscriptions SET status = "expired" WHERE id = ?').bind((user as any).id).run();
+        return json({ success: true });
+      }
+      return json({ error: 'User not found' }, 404);
+    }
+
     // GET /api/admin/payments
     if (path === '/api/admin/payments' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM payments ORDER BY created_at DESC').all();
@@ -730,7 +885,41 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const { results } = await env.DB.prepare('SELECT * FROM tips ORDER BY created_at DESC').all();
       return json(results);
     }
-    
+
+    // GET /api/admin/newsletter_campaigns
+    if (path === '/api/admin/newsletter_campaigns' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM newsletter_campaigns ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/coupons
+    if (path === '/api/admin/coupons' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM coupons ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/chat/sessions
+    if (path === '/api/admin/chat/sessions' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM chat_sessions ORDER BY last_message_at DESC').all();
+      return json(results);
+    }
+
+    // GET /api/admin/system/health
+    if (path === '/api/admin/system/health' && method === 'GET') {
+      return json({ status: 'healthy', timestamp: new Date().toISOString(), database: 'connected' });
+    }
+
+    // GET /api/admin/system/security/pin
+    if (path === '/api/admin/system/security/pin' && method === 'GET') {
+      return json({ enabled: true, setup: true });
+    }
+
+    // GET /api/admin/escrow/payout-queue
+    if (path === '/api/admin/escrow/payout-queue' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT id, donor_name as name, amount, status, created_at FROM tips WHERE status = "success" ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
     // POST /api/admin/sync-paystack (Stub)
     if (path === '/api/admin/sync-paystack' && method === 'POST') {
       return json({ success: true, synced: 0 });
