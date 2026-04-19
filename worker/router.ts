@@ -36,6 +36,105 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     });
   };
 
+  // ─── USER & PROFILES ROUTES ────────────────────────────────────────────────
+
+  // GET /api/user/me (Syncs and fetches user profile)
+  if (method === 'GET' && path === '/api/user/me') {
+    let userEmail = '';
+    let uid = actorId;
+    let full_name = '';
+    let avatar_url = '';
+    
+    if (token) {
+      try {
+        const payloadBase64 = token.split('.')[1];
+        const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+        userEmail = payload.email || '';
+        uid = payload.sub || uid;
+        full_name = payload.user_metadata?.full_name || '';
+        avatar_url = payload.user_metadata?.avatar_url || '';
+      } catch(e) {}
+    }
+
+    // MAP IAN DIRECTLY TO THE EXISTENT DJ FLOWERZ DB ROW
+    const adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
+    const isIan = userEmail && userEmail.toLowerCase() === adminEmail;
+    
+    if (isIan) {
+      uid = 'user_djflowerz'; // Forces all posts/metadata to link perfectly!
+    }
+
+    if (!uid) return json({ error: 'Unauthorized' }, 401);
+
+    // Look up existing user
+    let user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first() as any;
+    
+    // Auto-create or Auto-sync user if they don't exist
+    if (!user) {
+      const username = userEmail ? userEmail.split('@')[0].replace(/[^a-z0-9]/g, '') : `user_${uid.substring(0,6)}`;
+      const role = isIan ? 'admin' : 'user';
+      try {
+        await env.DB.prepare(`
+          INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          uid, username, full_name || username, userEmail, avatar_url, role, 'New member of DJ Flowerz Community'
+        ).run();
+        user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
+      } catch(e) {
+         const randomUser = username + Math.floor(Math.random()*1000);
+         await env.DB.prepare(`
+          INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+         `).bind(
+          uid, randomUser, full_name || randomUser, userEmail, avatar_url, role, 'New member of DJ Flowerz Community'
+         ).run();
+         user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
+      }
+    } else {
+      // Sync admin privileges if applicable natively
+      if (isIan && user.role !== 'admin') {
+         await env.DB.prepare('UPDATE user_profiles SET role = "admin", email = ? WHERE id = ?').bind(userEmail, uid).run();
+         user.role = 'admin';
+      }
+    }
+
+    return json({ user: {
+      ...user,
+      fullName: user.display_name,
+      avatarUrl: user.avatar_url,
+      isSubscriber: isIan ? true : user.role === 'admin' || user.role === 'dj'
+    } });
+  }
+
+  // GET /api/user/profile/:username
+  if (method === 'GET' && path.match(/^\/api\/user\/profile\/[^/]+$/)) {
+    const username = path.split('/').pop()?.replace('@', ''); // Handle @nairobisound if provided
+    const user = await env.DB.prepare('SELECT id, username, display_name as name, avatar_url as avatarUrl, bio, role, location, website, created_at as createdAt FROM user_profiles WHERE username = ?').bind(username).first() as any;
+    if (!user) return json({ error: 'User not found' }, 404);
+    
+    // Fetch their posts
+    const result = await env.DB.prepare('SELECT sp.*, CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked FROM social_posts sp LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ? WHERE sp.author_id = ? ORDER BY sp.created_at DESC').bind(actorId || '', user.id).all();
+    const posts = result.results.map((p: any) => ({...p, viewer_liked: p.viewer_liked === 1, like_count: p.likes_count, comment_count: p.comments_count}));
+    
+    return json({ profile: user, posts });
+  }
+
+  // GET /api/social/users/search
+  if (method === 'GET' && path === '/api/social/users/search') {
+    const q = url.searchParams.get('q') || '';
+    if (!q || q.length < 2) return json({ users: [] });
+    
+    const result = await env.DB.prepare(`
+      SELECT id, username, display_name as name, avatar_url, role 
+      FROM user_profiles 
+      WHERE username LIKE ? OR display_name LIKE ?
+      LIMIT 10
+    `).bind(`%${q}%`, `%${q}%`).all();
+    
+    return json({ users: result.results || [] });
+  }
+
   // ─── SOCIAL ROUTES (social_* infrastructure) ───────────────────────────────
 
   // GET /api/social/feed

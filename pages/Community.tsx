@@ -6,7 +6,7 @@ import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
     Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader,
-    Zap, Crown, CheckCircle2
+    Zap, Crown, CheckCircle2, Search
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
@@ -878,6 +878,34 @@ const Community: React.FC = () => {
     const { user, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<FeedTab>('latest');
     const [quotedPost, setQuotedPost] = useState<Post | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchFocused, setSearchFocused] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+    useClickOutside(searchRef, () => setSearchFocused(false));
+
+    // Debounced search effect
+    useEffect(() => {
+        if (!searchQuery.trim() || searchQuery.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        const timer = setTimeout(async () => {
+            setSearchLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/api/social/users/search?q=${encodeURIComponent(searchQuery)}`);
+                const data = await res.json();
+                setSearchResults(data.users || []);
+            } catch {
+                setSearchResults([]);
+            } finally {
+                setSearchLoading(false);
+            }
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     const {
         posts,
         loading: isLoading,
@@ -947,6 +975,56 @@ const Community: React.FC = () => {
             <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* ── Main Feed Column ── */}
                 <div className="flex-1 min-w-0 space-y-6">
+                    {/* Search Bar */}
+                    <div ref={searchRef} className="relative mb-2">
+                        <div className="relative">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                onFocus={() => setSearchFocused(true)}
+                                placeholder="Search DJs, producers, community members..."
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-brand-purple/50 focus:bg-white/8 transition-all backdrop-blur-xl"
+                            />
+                            {searchQuery && (
+                                <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                        {/* Search Dropdown */}
+                        {searchFocused && (searchResults.length > 0 || searchLoading) && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#111117] border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/60 z-50 backdrop-blur-2xl">
+                                {searchLoading && (
+                                    <div className="flex items-center justify-center p-4 gap-2 text-gray-500 text-xs">
+                                        <Loader size={14} className="animate-spin" /> Scanning network...
+                                    </div>
+                                )}
+                                {!searchLoading && searchResults.map((u: any) => (
+                                    <Link
+                                        key={u.id}
+                                        to={`/community/@${u.username}`}
+                                        onClick={() => { setSearchFocused(false); setSearchQuery(''); setSearchResults([]); }}
+                                        className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/result"
+                                    >
+                                        <img
+                                            src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || u.username)}&background=7C3AED&color=fff`}
+                                            className="w-9 h-9 rounded-full object-cover border border-white/10 flex-shrink-0"
+                                            alt={u.name}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white font-bold text-sm truncate">{u.name || u.username}</p>
+                                            <p className="text-gray-500 text-xs">@{u.username}</p>
+                                        </div>
+                                        {u.role === 'admin' && <Crown size={12} className="text-brand-purple flex-shrink-0" />}
+                                        {u.role === 'dj' && <Zap size={12} className="text-brand-cyan flex-shrink-0" />}
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Tabs */}
                     <div className="flex gap-1 bg-white/5 p-1 rounded-2xl mb-6 sticky top-20 z-30 backdrop-blur-xl border border-white/5 shadow-2xl">
                         {tabs.map(tab => (
