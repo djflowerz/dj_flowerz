@@ -149,6 +149,19 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
          await env.DB.prepare('UPDATE user_profiles SET email = ? WHERE id = ?').bind(userEmail, uid).run();
          user.email = userEmail;
       }
+
+      // ── Always sync avatar + display_name from JWT so profile pics stay fresh ──
+      const needsAvatarSync = avatar_url && user.avatar_url !== avatar_url;
+      const needsNameSync   = full_name  && user.display_name !== full_name;
+      if (needsAvatarSync || needsNameSync) {
+        const newAvatar = avatar_url || user.avatar_url;
+        const newName   = full_name  || user.display_name;
+        await env.DB.prepare(
+          'UPDATE user_profiles SET avatar_url = ?, display_name = ? WHERE id = ?'
+        ).bind(newAvatar, newName, uid).run();
+        user.avatar_url   = newAvatar;
+        user.display_name = newName;
+      }
     }
 
     return json({ user: {

@@ -151,6 +151,7 @@ function EditProfileModal({ profile, onClose, onSave }: { profile: any; onClose:
         bio: profile.bio || '',
         location: profile.location || '',
         website: profile.website || '',
+        avatar_url: profile.avatar_url || '',
     });
     const [saving, setSaving] = useState(false);
 
@@ -185,7 +186,7 @@ function EditProfileModal({ profile, onClose, onSave }: { profile: any; onClose:
                     <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-2xl transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-8 space-y-6">
-                    {(['display_name', 'bio', 'location', 'website'] as const).map(field => (
+                    {(['display_name', 'bio', 'avatar_url', 'location', 'website'] as const).map(field => (
                         <div key={field} className="relative group">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-2 ml-1">
                                 {field.replace('_', ' ')}
