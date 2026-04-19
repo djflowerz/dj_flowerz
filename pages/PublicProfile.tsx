@@ -223,8 +223,8 @@ function EditProfileModal({ profile, onClose, onSave }: { profile: any; onClose:
 // ─── Main Public Profile Page ─────────────────────────────────────────
 
 export default function PublicProfile() {
-    const { handle } = useParams<{ handle: string }>();
-    const username = handle?.startsWith('@') ? handle.substring(1) : handle;
+    const { username: rawUsername } = useParams<{ username: string }>();
+    const username = rawUsername?.startsWith('@') ? rawUsername.substring(1) : rawUsername;
     const { profile, stats, viewer, loading, error, reload: refreshProfile, following, followLoading, toggleFollow } = useProfile(username || '');
     const { user: currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('posts');
