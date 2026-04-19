@@ -4,8 +4,22 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
-  const actorId = request.headers.get('X-Actor-Id') || null;
   const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
+  const adminEmail = 'ianmuriithiflowerz@gmail.com';
+
+  // ─── Resolve the real D1 user ID from JWT (fixes Anonymous posts & profile pics)
+  let _actorId = request.headers.get('X-Actor-Id') || null;
+  let _jwtEmail = '';
+  if (token) {
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+      _jwtEmail = (payload.email || '').toLowerCase();
+      if (!_actorId) _actorId = payload.sub || null;
+    } catch(e) {}
+  }
+  // Map Ian's Supabase UUID → the real D1 profile row at all times
+  const actorId = _jwtEmail === adminEmail ? 'user_djflowerz' : _actorId;
 
   // ─── CORS Preflight ──────────────────────────────────────────────────────────
   if (method === 'OPTIONS') {
@@ -120,8 +134,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ profile: user, posts });
   }
 
-  // GET /api/social/users/search
-  if (method === 'GET' && path === '/api/social/users/search') {
+  // GET /api/social/users/search (and /api/profiles/search)
+  if (method === 'GET' && (path === '/api/social/users/search' || path === '/api/profiles/search')) {
     const q = url.searchParams.get('q') || '';
     if (!q || q.length < 2) return json({ users: [] });
     
@@ -133,6 +147,84 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(`%${q}%`, `%${q}%`).all();
     
     return json({ users: result.results || [] });
+  }
+
+  // ─── /api/profiles/* (used by useProfile hook) ─────────────────────────────
+
+  // GET /api/profiles/:username — full profile + stats + viewer context
+  if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/) && !path.endsWith('/posts') && !path.endsWith('/followers') && !path.endsWith('/following')) {
+    const uname = path.split('/').pop()?.replace('@', '') || '';
+    const profile = await env.DB.prepare(`
+      SELECT id, username, display_name, avatar_url, bio, role, location, website,
+             twitter, instagram, soundcloud, soundcloud as soundcloud_handle,
+             created_at as joined_at
+      FROM user_profiles WHERE username = ?
+    `).bind(uname).first() as any;
+    if (!profile) return json({ error: 'User not found' }, 404);
+
+    const [followersR, followingR, postsR, isFollowingR] = await env.DB.batch([
+      env.DB.prepare('SELECT COUNT(*) as c FROM social_follows WHERE following_id = ?').bind(profile.id),
+      env.DB.prepare('SELECT COUNT(*) as c FROM social_follows WHERE follower_id = ?').bind(profile.id),
+      env.DB.prepare('SELECT COUNT(*) as c FROM social_posts WHERE author_id = ? AND post_type != "comment"').bind(profile.id),
+      ...(actorId ? [env.DB.prepare('SELECT id FROM social_follows WHERE follower_id = ? AND following_id = ?').bind(actorId, profile.id)] : [env.DB.prepare('SELECT null as id WHERE 0')])
+    ]);
+
+    return json({
+      profile: { ...profile, is_verified: profile.role === 'admin' ? 1 : 0, twitter_handle: profile.twitter, instagram_handle: profile.instagram },
+      stats: { followers: (followersR as any).results?.[0]?.c ?? 0, following: (followingR as any).results?.[0]?.c ?? 0, posts: (postsR as any).results?.[0]?.c ?? 0 },
+      viewer: { following: !!((isFollowingR as any).results?.[0]?.id), is_owner: actorId === profile.id }
+    });
+  }
+
+  // GET /api/profiles/:username/posts
+  if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+\/posts$/)) {
+    const uname = path.split('/')[3]?.replace('@', '');
+    const limit = parseInt(url.searchParams.get('limit') || '20');
+    const before = url.searchParams.get('before');
+    const type = url.searchParams.get('type') || 'posts';
+
+    const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    if (!profile) return json({ error: 'User not found' }, 404);
+
+    let whereClause = `WHERE sp.author_id = ? AND sp.post_type != 'comment'`;
+    if (type === 'replies') whereClause = `WHERE sp.author_id = ? AND sp.post_type = 'comment'`;
+    if (type === 'media') whereClause = `WHERE sp.author_id = ? AND sp.image_url IS NOT NULL`;
+    if (before) whereClause += ` AND sp.created_at < '${before}'`;
+
+    const result = await env.DB.prepare(`
+      SELECT sp.*, CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
+      FROM social_posts sp
+      LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
+      ${whereClause}
+      ORDER BY sp.created_at DESC LIMIT ?
+    `).bind(actorId || '', profile.id, limit + 1).all();
+
+    const posts = result.results || [];
+    const hasMore = posts.length > limit;
+    if (hasMore) posts.pop();
+
+    return json({
+      posts: posts.map((p: any) => ({ ...p, viewer_liked: p.viewer_liked === 1, like_count: p.likes_count, comment_count: p.comments_count })),
+      next_cursor: hasMore ? (posts[posts.length - 1] as any)?.created_at : null
+    });
+  }
+
+  // POST /api/profiles/:username/follow — toggle follow
+  if (method === 'POST' && path.match(/^\/api\/profiles\/[^/]+\/follow$/)) {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const uname = path.split('/')[3]?.replace('@', '');
+    const target = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    if (!target) return json({ error: 'User not found' }, 404);
+    if (target.id === actorId) return json({ error: 'Cannot follow yourself' }, 400);
+
+    const existing = await env.DB.prepare('SELECT id FROM social_follows WHERE follower_id = ? AND following_id = ?').bind(actorId, target.id).first();
+    if (existing) {
+      await env.DB.prepare('DELETE FROM social_follows WHERE follower_id = ? AND following_id = ?').bind(actorId, target.id).run();
+      return json({ following: false });
+    } else {
+      await env.DB.prepare('INSERT OR IGNORE INTO social_follows (id, follower_id, following_id) VALUES (?, ?, ?)').bind(crypto.randomUUID(), actorId, target.id).run();
+      return json({ following: true });
+    }
   }
 
   // ─── SOCIAL ROUTES (social_* infrastructure) ───────────────────────────────

@@ -149,7 +149,7 @@ export function useComposer() {
   }, [submit]);
 
   const comment = useCallback(async ({ content, reply_to_id }: any) => {
-    return submit({ content, post_type: 'post', reply_to_id });
+    return submit({ content, post_type: 'comment', reply_to_id });
   }, [submit]);
 
   const quotedReshare = useCallback(async ({ content, quote_of_id }: any) => {
