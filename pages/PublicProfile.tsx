@@ -453,6 +453,7 @@ export default function PublicProfile() {
                                         </div>
                                     )}
                                 </div>
+                                </div>{/* close p-10 */}
                             </div>
                         </div>
 
