@@ -56,7 +56,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const sbUser = session.user;
     const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
-    const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+    // Use env var first, fallback to hardcoded owner email if env not set
+    const ADMIN_EMAIL_FALLBACK = 'ianmuriithiflowerz@gmail.com';
+    const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || ADMIN_EMAIL_FALLBACK).toLowerCase().trim();
     const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv;
     let userData: User | null = null;
 

@@ -5,7 +5,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const path = url.pathname;
   const method = request.method;
   const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
-  const adminEmail = (env.VITE_ADMIN_EMAIL || '').toLowerCase(); // Strictly use ENV
+  const adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase(); // Fallback to owner email if env not set
 
   // ─── Resolve the real D1 user ID from JWT (fixes Anonymous posts & profile pics)
   let _actorId = request.headers.get('X-Actor-Id') || null;
@@ -113,7 +113,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
     // MAP IAN DIRECTLY TO THE EXISTENT DJ FLOWERZ DB ROW
-    const _adminEmail = (env.VITE_ADMIN_EMAIL || '').toLowerCase();
+    const _adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
     const isIan = userEmail && userEmail === _adminEmail;
     
     if (isIan) {
@@ -914,10 +914,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json({ error: 'Unauthorized — invalid token format' }, { status: 401 });
     }
 
-    const adminEmail = env.VITE_ADMIN_EMAIL || '';
+    const ADMIN_EMAIL_FALLBACK = 'ianmuriithiflowerz@gmail.com';
+    const adminEmail = (env.VITE_ADMIN_EMAIL || ADMIN_EMAIL_FALLBACK).toLowerCase();
     
-    // Strict email enforcement
-    if (userEmail.toLowerCase() !== adminEmail.toLowerCase()) {
+    // Strict email enforcement — redirect non-admins with 403
+    if (userEmail.toLowerCase() !== adminEmail) {
       console.warn(`[Admin Blocked] Unauthorized email attempt: ${userEmail}`);
       return json({ error: `Forbidden — Administrator access strictly limited to authorized email.` }, { status: 403 });
     }
