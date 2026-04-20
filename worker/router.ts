@@ -723,8 +723,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     const first = (mutuals[0] as any).username;
     const text = mutuals.length > 1 
-      ? \`Connected with @\${first} and \${mutuals.length - 1} other\${mutuals.length > 2 ? 's' : ''} you know.\`
-      : \`Connected with @\${first} whom you know.\`;
+      ? `Connected with @${first} and ${mutuals.length - 1} other${mutuals.length > 2 ? 's' : ''} you know.`
+      : `Connected with @${first} whom you know.`;
 
     return json({ mutuals: { count: mutuals.length, text, users: mutuals } });
   }
