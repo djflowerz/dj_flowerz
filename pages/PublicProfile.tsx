@@ -6,7 +6,7 @@ import {
     Music2, CheckCircle2, Heart, MessageSquare, Share2,
     ArrowLeft, Loader, Crown, Zap, UserPlus, UserCheck,
     Edit3, X, Save, Camera, RefreshCw, AtSign, Globe,
-    ChevronRight, MoreHorizontal, ShieldCheck, Mail
+    ChevronRight, MoreHorizontal, ShieldCheck, Mail, Send, Pin, Star
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProfile, useProfilePosts } from '../hooks/useProfile';
@@ -44,7 +44,7 @@ const fmt = (n: number) => {
 /**
  * Premium Post Card for the profile feed
  */
-function ProfilePostCard({ post, currentUserId }: { post: any; currentUserId?: string; key?: any }) {
+function ProfilePostCard({ post, currentUserId, pinnedPostId, onPinToggle }: { post: any; currentUserId?: string; pinnedPostId?: string; onPinToggle?: (id:string)=>void }) {
     const { liked, count, toggle } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { deletePost } = useComposer();
     const isOwn = currentUserId === post.author_id;
@@ -53,6 +53,9 @@ function ProfilePostCard({ post, currentUserId }: { post: any; currentUserId?: s
     let mediaUrls: string[] = [];
     try { mediaUrls = JSON.parse(post.media_urls || '[]'); } catch { if (post.image_url) mediaUrls = [post.image_url]; }
     if (!mediaUrls.length && post.image_url) mediaUrls = [post.image_url];
+
+    const isPinned = pinnedPostId === post.id;
+    const isHardware = post.is_marketplace === 1;
 
     return (
         <motion.div
@@ -71,18 +74,39 @@ function ProfilePostCard({ post, currentUserId }: { post: any; currentUserId?: s
                             <span className="text-gray-500 text-sm">@{post.author_username}</span>
                             <span className="w-1 h-1 rounded-full bg-gray-700" />
                             <span className="text-gray-500 text-sm">{timeAgo(post.created_at)}</span>
+                            {isPinned && <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-brand-purple bg-brand-purple/10 px-2 py-0.5 rounded-md ml-1"><Pin size={10} /> Pinned</span>}
                         </div>
                         {isOwn && (
-                            <button 
-                                onClick={async () => { if (confirm('Erase this transmission?')) await deletePost(post.id); }}
-                                className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-xl transition-all"
-                            >
-                                <X size={16} />
-                            </button>
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button title="Pin to top" onClick={() => onPinToggle && onPinToggle(post.id)} className="p-2 hover:bg-brand-purple/10 text-gray-500 hover:text-brand-purple rounded-xl transition-all mr-1">
+                                    <Pin size={16} />
+                                </button>
+                                <button 
+                                    onClick={async () => { if (confirm('Erase this transmission?')) await deletePost(post.id); }}
+                                    className="p-2 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-xl transition-all"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
                         )}
                     </div>
                     
-                    {post.content && (
+                    {isHardware && (
+                        <div className="mt-3 p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between">
+                            <div>
+                                <p className="text-xs text-brand-cyan font-black uppercase tracking-[0.2em] mb-1">Hardware Listing</p>
+                                <p className="text-white font-medium text-sm w-3/4 truncate">{post.content?.split('\n')[0] || 'Unknown Item'}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xl font-black text-white">${post.price?.toFixed(2) || '0.00'}</p>
+                                <div className="flex items-center justify-end gap-1 text-[10px] text-yellow-500 mt-1">
+                                    {Array.from({ length: Math.min(5, Math.ceil((post.likes_count||0)/2) || 1) }).map((_, i) => <Star key={i} size={10} fill="currentColor" />)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {!isHardware && post.content && (
                         <p className="text-gray-300 text-[15px] leading-relaxed mt-2 whitespace-pre-wrap break-words">
                             {post.content}
                         </p>
@@ -226,10 +250,11 @@ function EditProfileModal({ profile, onClose, onSave }: { profile: any; onClose:
 export default function PublicProfile() {
     const { username: rawUsername } = useParams<{ username: string }>();
     const username = rawUsername?.startsWith('@') ? rawUsername.substring(1) : rawUsername;
-    const { profile, stats, viewer, loading, error, reload: refreshProfile, following, followLoading, toggleFollow } = useProfile(username || '');
+    const { profile, stats, viewer, mutuals, loading, error, reload: refreshProfile, following, followLoading, toggleFollow } = useProfile(username || '');
     const { user: currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('posts');
     const [showEdit, setShowEdit] = useState(false);
+    const [showChat, setShowChat] = useState(false);
     const navigate = useNavigate();
 
     const isOwner = !!(currentUser && profile && (currentUser.username === profile.username || viewer.is_owner));
@@ -264,6 +289,7 @@ export default function PublicProfile() {
         { id: 'posts', label: 'Transmissions' },
         { id: 'replies', label: 'Interactions' },
         { id: 'media', label: 'Visuals' },
+        { id: 'hardware', label: 'Hardware' },
     ];
 
     return (
@@ -292,18 +318,23 @@ export default function PublicProfile() {
                                 Adjust Profile
                             </button>
                         ) : (
-                            <button
-                                onClick={toggleFollow}
-                                disabled={followLoading}
-                                className={`flex items-center gap-2 px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-2xl ${
-                                    following
-                                        ? 'bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20'
-                                        : 'bg-white text-black hover:scale-105 active:scale-95'
-                                }`}
-                            >
-                                {followLoading ? <Loader size={14} className="animate-spin" /> : following ? <UserCheck size={14} /> : <UserPlus size={14} />}
-                                {following ? 'Disconnect' : 'Connect'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={toggleFollow}
+                                    disabled={followLoading}
+                                    className={`flex items-center gap-2 px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-2xl ${
+                                        following
+                                            ? 'bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20'
+                                            : 'bg-white text-black hover:scale-105 active:scale-95'
+                                    }`}
+                                >
+                                    {followLoading ? <Loader size={14} className="animate-spin" /> : following ? <UserCheck size={14} /> : <UserPlus size={14} />}
+                                    {following ? 'Disconnect' : 'Connect'}
+                                </button>
+                                <button className="p-3.5 bg-white/[0.03] border border-brand-purple/30 rounded-2xl text-brand-purple hover:bg-brand-purple hover:text-white transition-all shadow-xl shadow-brand-purple/10" onClick={() => setShowChat(true)}>
+                                    <MessageSquare size={16} />
+                                </button>
+                            </div>
                         )}
                         <button className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl text-gray-500 hover:text-white transition-all">
                             <MoreHorizontal size={20} />
@@ -414,6 +445,13 @@ export default function PublicProfile() {
                                             <p className="text-2xl font-black text-white tracking-tight">{fmt(stats.following || 0)}</p>
                                         </div>
                                     </div>
+                                    
+                                    {/* Mutual Connections String */}
+                                    {mutuals?.count > 0 && !isOwner && (
+                                        <div className="mt-4 px-1 py-2">
+                                            <p className="text-[10px] text-gray-500 font-bold tracking-wider">{mutuals.text}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -467,7 +505,7 @@ export default function PublicProfile() {
                                     exit={{ opacity: 0, x: -10 }}
                                     transition={{ duration: 0.2 }}
                                 >
-                                    <ProfileFeed username={profile.username} tab={activeTab} currentUserId={currentUser?.id} />
+                                    <ProfileFeed profile={profile} tab={activeTab} currentUserId={currentUser?.id} onSettingsRefresh={refreshProfile} />
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -482,6 +520,16 @@ export default function PublicProfile() {
 
             {/* Edit Modal */}
             {showEdit && <EditProfileModal profile={profile} onClose={() => setShowEdit(false)} onSave={refreshProfile} />}
+
+            {/* Direct Message Sliding Modal */}
+            {showChat && currentUser && (
+                <DirectMessageModal 
+                    targetUserId={profile.id} 
+                    targetUserName={profile.display_name || profile.username} 
+                    targetAvatar={profile.avatar_url}
+                    onClose={() => setShowChat(false)} 
+                />
+            )}
         </div>
     );
 }
@@ -489,8 +537,9 @@ export default function PublicProfile() {
 /**
  * Profile Feed Component - Optimized for the new design
  */
-function ProfileFeed({ username, tab, currentUserId }: { username: string; tab: string; currentUserId?: string }) {
-    const { posts, loading, loadingMore, hasMore, loadMore, error } = useProfilePosts(username, tab);
+function ProfileFeed({ profile, tab, currentUserId, onSettingsRefresh }: { profile: any; tab: string; currentUserId?: string; onSettingsRefresh: () => void }) {
+    const { posts, loading, loadingMore, hasMore, loadMore, error } = useProfilePosts(profile.username, tab);
+    const { session } = useAuth();
     const loaderRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -539,10 +588,32 @@ function ProfileFeed({ username, tab, currentUserId }: { username: string; tab: 
         </div>
     );
 
+    const pinAction = async (postId: string) => {
+        try {
+            const res = await fetch(`${API}/api/social/posts/${postId}/pin`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
+            });
+            if (res.ok) onSettingsRefresh();
+        } catch(e) {}
+    };
+
+    const sortedPosts = [...posts].sort((a, b) => {
+        if (a.id === profile.pinned_post_id) return -1;
+        if (b.id === profile.pinned_post_id) return 1;
+        return 0;
+    });
+
     return (
         <div className="divide-y divide-white/5">
-            {posts.map(post => (
-                <ProfilePostCard key={post.id} post={post} currentUserId={currentUserId} />
+            {sortedPosts.map(post => (
+                <ProfilePostCard 
+                    key={post.id} 
+                    post={post} 
+                    currentUserId={currentUserId} 
+                    pinnedPostId={profile.pinned_post_id} 
+                    onPinToggle={pinAction}
+                />
             ))}
             <div ref={loaderRef} className="py-20 flex items-center justify-center">
                 {loadingMore ? (
@@ -558,6 +629,120 @@ function ProfileFeed({ username, tab, currentUserId }: { username: string; tab: 
                     </div>
                 ) : null}
             </div>
+        </div>
+    );
+}
+
+/**
+ * Direct Message Modal - Sliding Drawer
+ */
+function DirectMessageModal({ targetUserId, targetUserName, targetAvatar, onClose }: { targetUserId: string, targetUserName: string, targetAvatar: string, onClose: () => void }) {
+    const { session, user } = useAuth();
+    const [messages, setMessages] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [text, setText] = useState('');
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const fetchMsgs = async () => {
+            try {
+                const res = await fetch(`${API}/api/social/messages/${targetUserId}`, {
+                    headers: { 'Authorization': `Bearer ${session?.access_token}`, 'X-Actor-Id': user?.id || '' }
+                });
+                const data = await res.json();
+                if (data.messages) setMessages(data.messages);
+            } catch (e) {} finally { setLoading(false); }
+        };
+        fetchMsgs();
+        const int = setInterval(fetchMsgs, 5000);
+        return () => clearInterval(int);
+    }, [targetUserId, session, user]);
+
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages]);
+
+    const send = async () => {
+        if (!text.trim()) return;
+        const tempId = Date.now().toString();
+        const newMsg = { id: tempId, content: text, sender_id: user?.id, created_at: new Date().toISOString() };
+        setMessages(m => [...m, newMsg]);
+        setText('');
+        try {
+            await fetch(`${API}/api/social/messages/${targetUserId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}`, 'X-Actor-Id': user?.id || '' },
+                body: JSON.stringify({ content: newMsg.content })
+            });
+        } catch(e) {
+            toast.error('Failed to send message');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[110] flex justify-end bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
+                className="w-full max-w-md bg-[#0B0B0F] h-full flex flex-col border-l border-white/10 shadow-2xl">
+                
+                {/* Header */}
+                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                    <div className="flex items-center gap-3">
+                        <Avatar src={targetAvatar} name={targetUserName} size={10} />
+                        <div>
+                            <h3 className="text-white font-black uppercase tracking-tighter leading-none">{targetUserName}</h3>
+                            <p className="text-[10px] text-brand-cyan font-bold uppercase tracking-widest mt-1">Encrypted Uplink</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X size={20} className="text-gray-400" /></button>
+                </div>
+
+                {/* Messages Area */}
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {loading ? (
+                        <div className="flex items-center justify-center h-full"><Loader size={24} className="animate-spin text-brand-purple" /></div>
+                    ) : messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center text-center h-full opacity-50">
+                            <MessageSquare className="mb-4 text-gray-600" size={32} />
+                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">No prior transmissions.</p>
+                        </div>
+                    ) : (
+                        messages.map(msg => {
+                            const isMine = msg.sender_id === user?.id;
+                            return (
+                                <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[75%] p-4 rounded-2xl ${
+                                        isMine 
+                                        ? 'bg-brand-purple text-white rounded-br-sm' 
+                                        : 'bg-white/10 text-gray-200 rounded-bl-sm border border-white/5'
+                                    }`}>
+                                        <p className="text-sm font-medium leading-relaxed">{msg.content}</p>
+                                        <span className={`text-[9px] mt-2 block font-bold tracking-widest uppercase ${isMine ? 'text-white/60' : 'text-gray-500'}`}>
+                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4 border-t border-white/5 bg-white/[0.01]">
+                    <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-2 focus-within:border-brand-purple/50 transition-colors">
+                        <input 
+                            type="text" 
+                            value={text} 
+                            onChange={e => setText(e.target.value)} 
+                            onKeyPress={e => e.key === 'Enter' && send()}
+                            placeholder="Encode message..." 
+                            className="flex-1 bg-transparent border-none text-white text-sm px-3 focus:outline-none placeholder-gray-600 font-medium"
+                        />
+                        <button onClick={send} disabled={!text.trim()} className="p-3 bg-brand-purple rounded-xl text-white disabled:opacity-50 hover:bg-brand-purple border border-white/10 shadow-lg shadow-brand-purple/20 transition-all">
+                            <Send size={16} />
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
         </div>
     );
 }

@@ -236,7 +236,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         COALESCE(soundcloud, '') as soundcloud_handle,
         COALESCE(banner_url, '') as banner_url,
         COALESCE(is_verified, 0) as is_verified,
-        created_at as joined_at
+        created_at as joined_at,
+        pinned_post_id
       FROM user_profiles WHERE username = ?
     `).bind(uname).first() as any;
     if (!profile) return json({ error: 'User not found' }, 404);
@@ -268,6 +269,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     let whereClause = `WHERE sp.author_id = ? AND sp.post_type != 'comment'`;
     if (type === 'replies') whereClause = `WHERE sp.author_id = ? AND sp.post_type = 'comment'`;
     if (type === 'media') whereClause = `WHERE sp.author_id = ? AND sp.image_url IS NOT NULL`;
+    if (type === 'hardware') whereClause = `WHERE sp.author_id = ? AND sp.is_marketplace = 1`;
     if (before) whereClause += ` AND sp.created_at < '${before}'`;
 
     const result = await env.DB.prepare(`
@@ -636,6 +638,95 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
       return json({ followed: true });
     }
+  }
+
+  // POST /api/social/posts/:id/pin
+  if (method === 'POST' && path.match(/^\/api\/social\/posts\/[^/]+\/pin$/)) {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const postId = path.split('/')[4];
+    
+    // Check if post belongs to user
+    const post = await env.DB.prepare('SELECT author_id FROM social_posts WHERE id = ?').bind(postId).first() as any;
+    if (!post || post.author_id !== actorId) return json({ error: 'Forbidden' }, 403);
+
+    // Get current pinned_post_id to toggle
+    try {
+      const profile = await env.DB.prepare('SELECT pinned_post_id FROM user_profiles WHERE id = ?').bind(actorId).first() as any;
+      const isCurrentlyPinned = profile?.pinned_post_id === postId;
+      await env.DB.prepare('UPDATE user_profiles SET pinned_post_id = ? WHERE id = ?').bind(isCurrentlyPinned ? null : postId, actorId).run();
+      return json({ pinned: !isCurrentlyPinned });
+    } catch(e) {
+      return json({ error: 'Failed to pin. Ensure column exists.' }, 500);
+    }
+  }
+
+  // GET /api/social/messages/:userId
+  if (method === 'GET' && path.match(/^\/api\/social\/messages\/[^/]+$/)) {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const targetUserId = path.split('/').pop();
+
+    try {
+      const messages = await env.DB.prepare(`
+        SELECT * FROM direct_messages 
+        WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+        ORDER BY created_at ASC LIMIT 100
+      `).bind(actorId, targetUserId, targetUserId, actorId).all();
+      return json({ messages: messages.results || [] });
+    } catch (e) {
+      return json({ messages: [], error: 'Table may not exist' });
+    }
+  }
+
+  // POST /api/social/messages/:userId
+  if (method === 'POST' && path.match(/^\/api\/social\/messages\/[^/]+$/)) {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const targetUserId = path.split('/').pop();
+    const body = await request.json() as any;
+    
+    if (!body.content || !body.content.trim()) return json({ error: 'Content required' }, 400);
+
+    try {
+      const id = crypto.randomUUID();
+      const content = body.content.trim();
+      const now = new Date().toISOString();
+      await env.DB.prepare(`
+        INSERT INTO direct_messages (id, sender_id, receiver_id, content, is_read, created_at)
+        VALUES (?, ?, ?, ?, 0, ?)
+      `).bind(id, actorId, targetUserId, content, now).run();
+      
+      const msg = await env.DB.prepare('SELECT * FROM direct_messages WHERE id = ?').bind(id).first();
+      return json({ success: true, message: msg });
+    } catch (e) {
+      return json({ error: 'Failed to insert message' }, 500);
+    }
+  }
+
+  // GET /api/social/profiles/:username/mutuals
+  if (method === 'GET' && path.match(/^\/api\/social\/profiles\/[^/]+\/mutuals$/)) {
+    if (!actorId) return json({ mutuals: { count: 0, text: '' } });
+    const targetUsername = path.split('/')[4];
+    
+    const target = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(targetUsername).first() as any;
+    if (!target || target.id === actorId) return json({ mutuals: { count: 0, text: '' } });
+
+    // Users that ACTOR follows AND TARGET is followed by
+    const result = await env.DB.prepare(`
+      SELECT u.username 
+      FROM user_profiles u
+      INNER JOIN social_follows sf1 ON sf1.following_id = u.id AND sf1.follower_id = ?
+      INNER JOIN social_follows sf2 ON sf2.follower_id = u.id AND sf2.following_id = ?
+      LIMIT 10
+    `).bind(actorId, target.id).all();
+
+    const mutuals = result.results || [];
+    if (mutuals.length === 0) return json({ mutuals: { count: 0, text: '' } });
+
+    const first = (mutuals[0] as any).username;
+    const text = mutuals.length > 1 
+      ? \`Connected with @\${first} and \${mutuals.length - 1} other\${mutuals.length > 2 ? 's' : ''} you know.\`
+      : \`Connected with @\${first} whom you know.\`;
+
+    return json({ mutuals: { count: mutuals.length, text, users: mutuals } });
   }
 
   // GET /api/social/follows/:userId/stats

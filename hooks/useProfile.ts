@@ -18,6 +18,7 @@ export function useProfile(username: string) {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string|null>(null);
   const [following,  setFollowing]  = useState(false);
+  const [mutuals,    setMutuals]    = useState<any>({ count: 0, text: '' });
   const [followerCount, setFollowerCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -30,6 +31,11 @@ export function useProfile(username: string) {
       setData(d);
       setFollowing(d.viewer.following);
       setFollowerCount(d.stats.followers);
+      if (user && d.profile.id !== user.id) {
+          apiGet(`${BASE}/api/social/profiles/${username}/mutuals`, user.id)
+            .then(m => setMutuals(m.mutuals))
+            .catch(() => null);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -58,6 +64,7 @@ export function useProfile(username: string) {
   return {
     profile:      data?.profile ?? null,
     stats:        { ...data?.stats, followers: followerCount },
+    mutuals,
     viewer:       data?.viewer ?? { following: false, is_owner: false },
     loading,
     error,
