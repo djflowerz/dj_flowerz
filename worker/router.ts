@@ -935,16 +935,126 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   if ((path === '/api/products' || path === '/api/v1/products') && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT * FROM products WHERE status = 'active' ORDER BY created_at DESC`
+      `SELECT * FROM products WHERE status = 'active' OR is_active = 1 ORDER BY created_at DESC`
     ).all();
-    return json(results);
+    const mapped = (results || []).map((p: any) => ({
+      ...p,
+      image_url: normalizeAssetUrl(p.image_url || p.image),
+      imageUrl: normalizeAssetUrl(p.image_url || p.image),
+      category_name: p.category_name || p.category || 'Music'
+    }));
+    return json(mapped);
   }
 
   if (path === '/api/mixtapes' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT * FROM mixtapes ORDER BY date_added DESC`
+      `SELECT * FROM mixtapes ORDER BY created_at DESC`
     ).all();
-    return json(results);
+    const mapped = (results || []).map((m: any) => ({
+      ...m,
+      coverUrl: normalizeAssetUrl(m.cover_url),
+      audioUrl: normalizeAssetUrl(m.audio_url),
+      downloadUrl: normalizeAssetUrl(m.download_url)
+    }));
+    return json(mapped);
+  }
+
+  // ─── Monetization & Store ───────────────────────────────────────────────────
+
+  // POST /api/payments/initialize
+  if (path === '/api/payments/initialize' && method === 'POST') {
+    try {
+      const data = await request.json() as any;
+      const { type, amount, email, metadata } = data;
+      
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email,
+          amount: Math.round(amount * 100), // convert to kobo
+          metadata: {
+            ...metadata,
+            payment_type: type
+          },
+          callback_url: `${env.VITE_APP_URL}/api/payments/verify`
+        })
+      });
+      
+      const resData = await response.json() as any;
+      if (!resData.status) throw new Error(resData.message || 'Paystack initialization failed');
+      
+      return json(resData.data);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/payments/verify
+  if (path === '/api/payments/verify' && method === 'POST') {
+    try {
+      const { reference } = await request.json() as any;
+      const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+        headers: { 'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}` }
+      });
+      const resData = await response.json() as any;
+      return json(resData.data);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/checkout
+  if (path === '/api/checkout' && method === 'POST') {
+    try {
+      const data = await request.json() as any;
+      const orderId = crypto.randomUUID();
+      const { items, total, customer } = data;
+      
+      // Persist order
+      await env.DB.prepare(`
+        INSERT INTO orders (id, customer_email, customer_name, total_amount, items, status, payment_status)
+        VALUES (?, ?, ?, ?, ?, 'pending', 'unpaid')
+      `).bind(orderId, customer.email, customer.name, total, JSON.stringify(items)).run();
+      
+      return json({ orderId, success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // GET /api/orders/:id
+  const orderMatch = path.match(/^\/api\/orders\/([^/]+)$/);
+  if (orderMatch && method === 'GET') {
+    const id = orderMatch[1];
+    const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first();
+    if (!order) return json({ error: 'Order not found' }, 404);
+    return json(order);
+  }
+
+  // POST /api/paystack/webhook
+  if (path === '/api/paystack/webhook' && method === 'POST') {
+    // Basic verification logic would go here
+    const event = await request.json() as any;
+    if (event.event === 'charge.success') {
+      const { reference, metadata } = event.data;
+      if (metadata.payment_type === 'subscription') {
+        const userId = metadata.user_id;
+        const planId = metadata.plan_id;
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + 30);
+        
+        await env.DB.prepare(`
+          INSERT INTO subscriptions (id, plan_id, status, expires_at)
+          VALUES (?, ?, 'active', ?)
+          ON CONFLICT(id) DO UPDATE SET status='active', expires_at=?, plan_id=?
+        `).bind(userId, planId, expiry.toISOString(), expiry.toISOString(), planId).run();
+      }
+    }
+    return json({ received: true });
   }
 
   if (path.startsWith('/api/admin/')) {
@@ -1142,12 +1252,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       
       const mapped = products.map((p: any) => ({
         ...p,
-        image_url: normalizeAssetUrl(p.image_url),
-        imageUrl: normalizeAssetUrl(p.image_url), // Support both cases
+        // Match both possible DB column names and UI expectations
+        image_url: normalizeAssetUrl(p.image_url || p.image),
+        imageUrl: normalizeAssetUrl(p.image_url || p.image),
+        category_name: p.category_name || p.category || 'Music',
         variants: variants.filter((v: any) => v.product_id === p.id).map((v: any) => ({
           ...v,
           image_url: normalizeAssetUrl(v.image_url),
-          imageUrl: normalizeAssetUrl(v.image_url) // Support both cases
+          imageUrl: normalizeAssetUrl(v.image_url)
         }))
       }));
       return json(mapped);

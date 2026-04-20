@@ -6,7 +6,7 @@ import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
     Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader,
-    Zap, Crown, CheckCircle2, Search, TrendingUp
+    Zap, Crown, CheckCircle2, Search, TrendingUp, AtSign
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';

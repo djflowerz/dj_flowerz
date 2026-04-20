@@ -3,7 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, ChevronRight, Minus, Plus, PlayCircle, Check, Share2, Facebook, Twitter, Instagram, MessageCircle, MessageSquare, Copy, Info, Layout, Package, Flame } from 'lucide-react';
+import {
+  Star, Heart, ShieldCheck, Truck, RefreshCw, ChevronRight,
+  Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
+  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import ProductReviews from '../components/ProductReviews';
@@ -13,11 +17,6 @@ export default function ProductDetails() {
   const { products, productsLoading, reviews, reviewsLoading, addReview, toggleWishlist, isInWishlist } = useData();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
-
-  // Diagnostic Logs
-  console.log('[ProductDetails] loading:', productsLoading, '| count:', products?.length);
-  console.log('[ProductDetails] slug from URL:', slug);
-  console.log('[ProductDetails] slug matches:', products?.map(p => p.slug));
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantOptions, setSelectedVariantOptions] = useState<Record<string, string>>({});
@@ -26,8 +25,6 @@ export default function ProductDetails() {
   const [copied, setCopied] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', userName: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<'local' | 'air' | 'sea'>('local');
-
 
   const { addToCart } = useCart();
   const navigate = useNavigate();
@@ -115,9 +112,7 @@ export default function ProductDetails() {
 
       addToCart({
         ...product,
-        price: displayPrice, // Use the tier-specific price
-        selectedVariant: selectedVariantString || undefined,
-        shippingTier: selectedTier
+        selectedVariant: selectedVariantString || undefined
       } as any, quantity);
     }
   };
@@ -179,12 +174,7 @@ export default function ProductDetails() {
   }
 
   const activePriceVar = currentVariant || product;
-  const tierPriceMap = {
-    local: product.price_local || product.price || 0,
-    air: product.price_air || (product.price_local ? product.price_local * 0.9 : product.price),
-    sea: product.price_sea || (product.price_local ? product.price_local * 0.8 : product.price)
-  };
-  const displayPrice = (selectedTier === 'local' ? (activePriceVar.discountPrice || activePriceVar.price || tierPriceMap.local) : tierPriceMap[selectedTier]) || 0;
+  const displayPrice = (activePriceVar.discountPrice || activePriceVar.price || product.price) || 0;
   const originalPrice = activePriceVar.compareAtPrice || (activePriceVar.discountPrice ? activePriceVar.price : product.compareAtPrice);
 
   const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
@@ -198,39 +188,6 @@ export default function ProductDetails() {
 
   return (
     <div className="bg-[#050507] text-white min-h-screen pt-24 pb-20">
-      {/* Rich Discovery: JSON-LD SEO */}
-      {product && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org/",
-              "@type": "Product",
-              "name": product.name,
-              "image": [product.image || product.image_url, ...(product.images || [])],
-              "description": product.shortDescription || product.description?.replace(/<[^>]*>?/gm, '').slice(0, 160),
-              "sku": product.sku || product.id,
-              "brand": {
-                "@type": "Brand",
-                "name": product.brand || "DJ Flowerz"
-              },
-              "offers": {
-                "@type": "Offer",
-                "url": window.location.href,
-                "priceCurrency": "KES",
-                "price": displayPrice,
-                "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                "seller": {
-                  "@type": "Organization",
-                  "name": "DJ Flowerz Marketplace"
-                }
-              },
-              "category": product.category
-            })
-          }}
-        />
-      )}
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Breadcrumbs */}
@@ -250,31 +207,14 @@ export default function ProductDetails() {
           {/* Gallery Sidebar */}
           <div className="w-full lg:w-1/2 lg:sticky lg:top-24">
             <div className="bg-white p-8 rounded-[40px] shadow-2xl overflow-hidden relative group border border-white/5 mb-6">
-                <img loading="lazy" src={selectedImage} 
+                <img 
+                    src={selectedImage} 
                     alt={product.name} 
                     className="w-full h-auto object-contain transition-transform duration-700 group-hover:scale-105"
                 />
-                <div className="absolute top-8 left-8 flex flex-col gap-2 z-20">
-                    {product.isHot && (
-                        <div className="bg-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1">
-                           <Flame size={12} fill="currentColor" /> HOT
-                        </div>
-                    )}
-                    {product.isFeatured && (
-                        <div className="bg-blue-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">FEATURED</div>
-                    )}
-                    {product.isBestSeller && (
-                        <div className="bg-amber-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">BEST SELLER</div>
-                    )}
-                    {product.isTrending && (
-                        <div className="bg-purple-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1">
-                           <Zap size={12} fill="currentColor" /> TRENDING
-                        </div>
-                    )}
-                    {product.isSpecialOffer && (
-                        <div className="bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg">SPECIAL OFFER</div>
-                    )}
-                </div>
+                {product.isHot && (
+                    <div className="absolute top-8 left-8 bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg z-20">HOT</div>
+                )}
             </div>
             
             <div className="grid grid-cols-4 gap-4">
@@ -284,7 +224,7 @@ export default function ProductDetails() {
                         onClick={() => setSelectedImage(img)}
                         className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedImage === img ? 'border-brand-purple bg-brand-purple/5 shadow-[0_0_20px_rgba(157,78,221,0.2)]' : 'border-white/5 hover:border-white/20'}`}
                     >
-                        <img loading="lazy" src={img} className="w-full h-full object-contain p-2" />
+                        <img src={img} className="w-full h-full object-contain p-2" />
                     </button>
                 ))}
             </div>
@@ -341,92 +281,13 @@ export default function ProductDetails() {
                 );
             })()}
 
-            {/* Inventory Status */}
-            {(() => {
-                const inventory = product.inventory ?? product.stock ?? 0;
-                if (inventory <= 0) {
-                    return (
-                        <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
-                            <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center text-red-500">
-                                <AlertTriangle size={20} />
-                            </div>
-                            <div>
-                                <p className="text-[11px] font-black text-white uppercase tracking-widest">OUT OF STOCK</p>
-                                <p className="text-[10px] font-bold text-red-500/80 uppercase">Contact Support for Restock Info</p>
-                            </div>
-                        </div>
-                    );
-                }
-                if (inventory <= 5) {
-                    return (
-                        <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
-                            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
-                                <Zap size={20} fill="currentColor" />
-                            </div>
-                            <div>
-                                <p className="text-[11px] font-black text-white uppercase tracking-widest">FEW REMAINING</p>
-                                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Only {inventory} units left in the sequence!</p>
-                            </div>
-                        </div>
-                    );
-                }
-                return (
-                    <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
-                            <Check size={20} />
-                        </div>
-                        <div>
-                            <p className="text-[11px] font-black text-white uppercase tracking-widest">STABLE INVENTORY</p>
-                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Available for immediate deployment</p>
-                        </div>
-                    </div>
-                );
-            })()}
-
-            {/* Shipping Tier Selector (Patience Discount) */}
-            <div className="space-y-4 pt-4">
-                <div className="flex justify-between items-center">
-                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select Import & Logistics Tier</h4>
-                    <button className="text-[9px] font-black text-brand-purple uppercase hover:underline flex items-center gap-1">
-                        <Info size={10} /> PATIENCE DISCOUNT
-                    </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                        { id: 'local', label: 'Local Stock', sub: 'Immediate', icon: <Package size={14} />, color: 'brand-purple', points: 0 },
-                        { id: 'air', label: 'Air Import', sub: '7-14 Days', icon: <Zap size={14} />, color: 'blue-500', points: 50 },
-                        { id: 'sea', label: 'Sea Import', sub: '30-45 Days', icon: <RefreshCw size={14} />, color: 'emerald-500', points: 150 }
-                    ].map((tier) => (
-                        <button
-                            key={tier.id}
-                            onClick={() => setSelectedTier(tier.id as any)}
-                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-300 ${
-                                selectedTier === tier.id 
-                                    ? `bg-${tier.color}/10 border-${tier.color}/50 shadow-lg shadow-${tier.color}/5` 
-                                    : 'bg-white/5 border-white/5 hover:border-white/20'
-                            }`}
-                        >
-                            <div className={`mb-2 ${selectedTier === tier.id ? `text-${tier.color}` : 'text-gray-500'}`}>
-                                {tier.icon}
-                            </div>
-                            <span className={`text-[10px] font-black uppercase tracking-tight ${selectedTier === tier.id ? 'text-white' : 'text-gray-400'}`}>
-                                {tier.label}
-                            </span>
-                            <span className={`text-[8px] font-bold uppercase tracking-widest ${selectedTier === tier.id ? `text-${tier.color}` : 'text-gray-600'}`}>
-                                {tier.sub}
-                            </span>
-                            {tier.points > 0 && (
-                                <div className={`mt-2 px-2 py-0.5 rounded-full bg-${tier.color}/20 text-[8px] font-black uppercase text-${tier.color}`}>
-                                    +{tier.points} PTS
-                                </div>
-                            )}
-                        </button>
-                    ))}
-                </div>
+            {/* Inventory Note */}
+            <div className="p-4 rounded-2xl bg-green-400/5 border border-green-400/20 flex items-center gap-4">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">In Stock - Free Delivery Within Nairobi</p>
             </div>
 
             {/* Variant Selectors */}
-
             {product.variantGroups?.map((group) => (
                 <div key={group.name} className="space-y-4">
                     <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{group.name}</h4>
@@ -469,15 +330,6 @@ export default function ProductDetails() {
                     className="btn-premium w-full sm:flex-1 py-4 flex items-center justify-center gap-3 text-sm"
                 >
                     <Package size={20} /> ADD TO CATALOGUE
-                </button>
-                <button
-                    onClick={() => {
-                        const text = `Hello DJ Flowerz, I'm interested in ${product.name} (SKU: ${product.sku || 'N/A'}). I'd like to negotiate the price. My best offer is KES ...`;
-                        window.open(`https://wa.me/254700000000?text=${encodeURIComponent(text)}`, '_blank');
-                    }}
-                    className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                >
-                    <MessageSquare size={16} className="text-brand-cyan" /> NEGOTIATE PRICE
                 </button>
                 <button 
                     onClick={() => product && toggleWishlist(product.id, 'product')}
@@ -595,18 +447,12 @@ export default function ProductDetails() {
                             ))}
                         </div>
 
-                        {product.technicalDetails && Array.isArray(product.technicalDetails) && product.technicalDetails.length > 0 && (
+                        {product.technical_details && Array.isArray(product.technical_details) && product.technical_details.length > 0 && (
                             <div className="mt-12">
                                 <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-8">Technical Deep Dive</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {product.technicalDetails.map((spec: string | { title: string, description: string }, idx: number) => {
-                                        let label = null, value = '';
-                                        if (typeof spec === 'string') {
-                                            [label, value] = spec.includes(':') ? spec.split(':').map(s => s.trim()) : [null, spec];
-                                        } else {
-                                            label = spec.title;
-                                            value = spec.description;
-                                        }
+                                    {product.technical_details.map((spec: string, idx: number) => {
+                                        const [label, value] = spec.includes(':') ? spec.split(':').map(s => s.trim()) : [null, spec];
                                         return (
                                             <div key={idx} className="bg-[#0B0B0F] p-5 rounded-2xl border border-white/5 flex flex-col gap-1">
                                                 {label && <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</span>}
@@ -618,17 +464,15 @@ export default function ProductDetails() {
                             </div>
                         )}
 
-                        {product.useCases && Array.isArray(product.useCases) && product.useCases.length > 0 && (
+                        {product.use_cases && Array.isArray(product.use_cases) && product.use_cases.length > 0 && (
                             <div className="mt-12">
                                 <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-8">Recommended Use Cases</h3>
                                 <div className="flex flex-wrap gap-3">
-                                    {product.useCases.map((useCase: string | { title: string, description: string }, idx: number) => {
-                                        const text = typeof useCase === 'string' ? useCase : (useCase.title + (useCase.description ? ': ' + useCase.description : ''));
-                                        return (
+                                    {product.use_cases.map((useCase: string, idx: number) => (
                                         <div key={idx} className="px-5 py-3 rounded-xl bg-brand-cyan/5 border border-brand-cyan/10 text-brand-cyan text-[10px] font-black uppercase tracking-widest">
-                                            {text}
+                                            {useCase}
                                         </div>
-                                    )})}
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -657,7 +501,7 @@ export default function ProductDetails() {
                         className="group bg-[#15151A] rounded-[32px] p-6 border border-white/5 transition-all hover:border-brand-purple/30 hover:-translate-y-2"
                     >
                         <div className="aspect-square rounded-2xl overflow-hidden mb-6 bg-white p-4">
-                            <img loading="lazy" src={related.image || related.image_url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
+                            <img src={related.image || related.image_url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
                         </div>
                         <h4 className="text-xs font-black text-white uppercase tracking-widest mb-2 line-clamp-1">{related.name}</h4>
                         <p className="text-brand-cyan font-black">KES {formatPrice(related.price)}</p>
