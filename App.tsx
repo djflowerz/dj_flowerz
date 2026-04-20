@@ -71,6 +71,7 @@ const VerifyEmail = lazyWithRetry(() => import('./pages/VerifyEmail'));
 const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
 const OrderTracking = lazyWithRetry(() => import('./pages/OrderTracking'));
 const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
+const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 
 
 // Modular Admin Pages
@@ -230,6 +231,7 @@ const App: React.FC = () => {
                       <Route path="/signup" element={<Signup />} />
                       <Route path="/forgot-password" element={<ForgotPassword />} />
                       <Route path="/verify-email" element={<VerifyEmail />} />
+                      <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
                       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
                       <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
                       {/* Admin Modular Pages */}

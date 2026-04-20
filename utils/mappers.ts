@@ -163,14 +163,17 @@ export const mapR2Product = (p: any): Product => {
   const ensureAbsolute = (u: string) => ensureAbsoluteR2Url(u);
 
   try {
-    const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []).map(ensureAbsolute);
-    const mainImage = ensureAbsolute(p.image || images[0] || '');
-    const type = p.type || (['Software', 'Samples', 'digital', 'DJ Software'].includes(p.category || '') ? 'digital' : 'physical');
+    const rawImage = p.image || p.image_url || p.imageUrl || '';
+    const images = safeJsonParse(p.images || p.image_list || p.product_images, rawImage ? [rawImage] : []).map(ensureAbsolute);
+    const mainImage = ensureAbsolute(rawImage || images[0] || '');
+    const category = cleanLabel(p.category || 'Other');
+    const type = p.type || (['Software', 'Samples', 'digital', 'DJ Software'].includes(p.category || category) ? 'digital' : 'physical');
     const requiresShipping = Boolean(p.requires_shipping !== undefined ? p.requires_shipping : (p.requiresShipping !== undefined ? p.requiresShipping : (type === 'physical')));
 
     return {
       ...p,
       type,
+      category,
       id: String(p.id || ''),
       name: String(p.name || 'Untitled Product'),
       slug: String(p.slug || ''),

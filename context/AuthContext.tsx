@@ -23,6 +23,15 @@ interface AuthContextType {
   updateUserEmail: (email: string) => Promise<void>;
   reauthenticate: (password: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
+  isProfileComplete: boolean;
+  checkUsername: (username: string) => Promise<boolean>;
+  finalizeProfile: (data: {
+    username: string;
+    display_name: string;
+    bio?: string;
+    avatar_url?: string;
+    location?: string;
+  }) => Promise<void>;
   isAuthenticated: boolean;
   mfaResolver: any;
   setMfaResolver: (resolver: any) => void;
@@ -44,6 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [session, setSession] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [mfaResolver, setMfaResolver] = useState<any>(null);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(true); // Default to true to prevent flash
 
   // Helper to fetch profile and set user
   const fetchProfileAndSetUser = useCallback(async (session: any) => {
@@ -72,33 +82,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (response.ok) {
-        const { user: profile } = await response.json();
+        const data = await response.json();
         
-        userData = {
-          id: profile.id,
-          name: profile.fullName || profile.name || sbUser.user_metadata?.full_name || 'User',
-          email: profile.email || sbUser.email || '',
-          role: profile.role,
-          isAdmin: profile.role === 'admin' || isAdminEmail,
-          isSubscriber: profile.isSubscriber,
-          subscriptionPlan: profile.subscriptionPlan,
-          subscriptionExpiry: profile.subscriptionExpiry,
-          avatarUrl: profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
-          referralCode: profile.referralCode,
-          balance: profile.balance || 0,
-          auraPoints: profile.loyaltyPoints || 0,
-          auraLevel: profile.auraLevel || 1,
-          phoneNumber: profile.phoneNumber || '',
-          username: profile.username || (profile.email || sbUser.email)?.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || '',
-          bio: profile.bio || '',
-          location: profile.location || '',
-          createdAt: profile.createdAt,
-          updatedAt: profile.updatedAt,
-          referralCount: profile.referralCount || 0,
-          downloadCountTotal: profile.downloadCountTotal || 0,
-          downloadsToday: profile.downloadsToday || 0,
-          lastDownloadDate: profile.lastDownloadDate
-        };
+        if (data.status === 'profile_required') {
+          setIsProfileComplete(false);
+          // Still set basic info from Supabase so we have context
+          userData = {
+            id: sbUser.id,
+            name: sbUser.user_metadata?.full_name || 'User',
+            email: sbUser.email || '',
+            role: 'user',
+            isAdmin: isAdminEmail,
+            isSubscriber: isAdminEmail,
+            avatarUrl: sbUser.user_metadata?.avatar_url || '',
+            username: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          } as any;
+        } else {
+          const profile = data.user;
+          setIsProfileComplete(true);
+          
+          userData = {
+            id: profile.id,
+            name: profile.fullName || profile.name || sbUser.user_metadata?.full_name || 'User',
+            email: profile.email || sbUser.email || '',
+            role: profile.role,
+            isAdmin: profile.role === 'admin' || isAdminEmail,
+            isSubscriber: profile.isSubscriber,
+            subscriptionPlan: profile.subscriptionPlan,
+            subscriptionExpiry: profile.subscriptionExpiry,
+            avatarUrl: profile.avatarUrl || sbUser.user_metadata?.avatar_url || '',
+            referralCode: profile.referralCode,
+            balance: profile.balance || 0,
+            auraPoints: profile.loyaltyPoints || 0,
+            auraLevel: profile.auraLevel || 1,
+            phoneNumber: profile.phoneNumber || '',
+            username: profile.username || '',
+            bio: profile.bio || '',
+            location: profile.location || '',
+            createdAt: profile.createdAt,
+            updatedAt: profile.updatedAt,
+            referralCount: profile.referralCount || 0,
+            downloadCountTotal: profile.downloadCountTotal || 0,
+            downloadsToday: profile.downloadsToday || 0,
+            lastDownloadDate: profile.lastDownloadDate
+          };
+        }
       } else {
         // Simple fallback if API is down
         userData = {
@@ -552,6 +582,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Removed Real-time Profile Sync (Supabase) ---
 
+  const checkUsername = async (username: string): Promise<boolean> => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+      const response = await fetch(`${apiBase}/api/profiles/username-check/${username}`);
+      const data = await response.json();
+      return data.available === true;
+    } catch {
+      return false;
+    }
+  };
+
+  const finalizeProfile = async (data: {
+    username: string;
+    display_name: string;
+    bio?: string;
+    avatar_url?: string;
+    location?: string;
+  }) => {
+    const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+    const response = await fetch(`${apiBase}/api/profiles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (response.ok) {
+      await fetchProfileAndSetUser(session);
+    } else {
+      throw new Error(result.error || 'Identity registration failed');
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -575,9 +641,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       mfaResolver,
       setMfaResolver,
       checkEmailVerification,
-      refreshProfile,
-      session
-    } as any}>
+      refreshProfile: () => fetchProfileAndSetUser(session),
+      session,
+      isProfileComplete,
+      checkUsername,
+      finalizeProfile
+    }}>
       {children}
     </AuthContext.Provider>
   );

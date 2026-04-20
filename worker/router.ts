@@ -105,7 +105,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       try {
         const payloadBase64 = token.split('.')[1];
         const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
-        userEmail = payload.email || '';
+        userEmail = (payload.email || '').toLowerCase();
         uid = payload.sub || uid;
         full_name = payload.user_metadata?.full_name || '';
         avatar_url = payload.user_metadata?.avatar_url || '';
@@ -125,29 +125,28 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // Look up existing user
     let user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first() as any;
     
-    // Auto-create or Auto-sync user if they don't exist
+    // Stop auto-creation for general users. Only Ian/Admin gets auto-provisioned/synced here.
     if (!user) {
-      let username = userEmail ? userEmail.split('@')[0].replace(/[^a-z0-9]/g, '') : `user_${uid.substring(0,6)}`;
-      if (isIan) username = 'djflowerz'; // Ensure @djflowerz is THE admin handle
-      
-      const role = isIan ? 'admin' : 'user';
-      try {
+      if (isIan) {
+        // Essential: Keep admin auto-creation so the platform owner is never locked out
+        const username = 'djflowerz';
+        const role = 'admin';
         await env.DB.prepare(`
           INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          uid, username, full_name || username, userEmail, avatar_url, role, 'New member of DJ Flowerz Community'
+          uid, username, full_name || username, userEmail, avatar_url, role, 'Administrator of DJ Flowerz'
         ).run();
         user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
-      } catch(e) {
-         const randomUser = username + Math.floor(Math.random()*1000);
-         await env.DB.prepare(`
-          INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-         `).bind(
-          uid, randomUser, full_name || randomUser, userEmail, avatar_url, role, 'New member of DJ Flowerz Community'
-         ).run();
-         user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
+      } else {
+        // Return profile_required so frontend can redirect to setup
+        return json({ 
+          user: null, 
+          status: 'profile_required',
+          email: userEmail,
+          name: full_name,
+          avatarUrl: avatar_url
+        });
       }
     } else {
       // Sync admin privileges and email if applicable natively
@@ -181,7 +180,56 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       fullName: user.display_name,
       avatarUrl: normalizeAssetUrl(user.avatar_url),
       isSubscriber: isIan ? true : user.role === 'admin' || user.role === 'dj'
-    } });
+    }, status: 'success' });
+  }
+
+  // GET /api/profiles/username-check/:username
+  if (method === 'GET' && path.match(/^\/api\/profiles\/username-check\/[^/]+$/)) {
+    const username = path.split('/').pop()?.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!username || username.length < 3) return json({ available: false, error: 'Invalid handle' });
+    
+    const existing = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(username).first();
+    return json({ available: !existing });
+  }
+
+  // POST /api/profiles (Create profile)
+  if (method === 'POST' && path === '/api/profiles') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    
+    const body = await request.json() as any;
+    const { username, display_name, bio, avatar_url, location } = body;
+
+    if (!username || username.length < 3) return json({ error: 'Handle too short' }, 400);
+    const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    
+    // Safety check: is it already taken?
+    const existing = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(cleanUsername).first();
+    if (existing) return json({ error: 'Handle already taken' }, 409);
+
+    // Safety check: does this actor already have a profile?
+    const existingProfile = await env.DB.prepare('SELECT id FROM user_profiles WHERE id = ?').bind(actorId).first();
+    if (existingProfile) return json({ error: 'Profile already exists' }, 400);
+
+    try {
+      await env.DB.prepare(`
+        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, location)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        actorId, 
+        cleanUsername, 
+        display_name || cleanUsername, 
+        _jwtEmail, 
+        avatar_url || '', 
+        'user', 
+        bio || 'New member of DJ Flowerz Community',
+        location || ''
+      ).run();
+
+      const newUser = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(actorId).first();
+      return json({ user: newUser, status: 'success' });
+    } catch (e: any) {
+      return json({ error: 'Persistence failure', details: e.message }, 500);
+    }
   }
 
   // GET /api/user/profile/:username

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 
 const Signup: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isProfileComplete } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,10 +19,14 @@ const Signup: React.FC = () => {
 
   React.useEffect(() => {
     if (user && !authLoading) {
+      if (!isProfileComplete) {
+        navigate('/setup-profile', { replace: true });
+        return;
+      }
       const from = (location.state as any)?.from || '/';
       navigate(from, { replace: true });
     }
-  }, [user, authLoading, navigate, location.state]);
+  }, [user, authLoading, isProfileComplete, navigate, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

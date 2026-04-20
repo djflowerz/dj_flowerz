@@ -183,7 +183,19 @@ const PostCard: React.FC<{
     const menuRef = useRef<HTMLDivElement>(null);
     useClickOutside(menuRef, () => setShowMenu(false));
 
-    const { session } = useAuth();
+    const { session, isProfileComplete } = useAuth();
+    const navigate = useNavigate();
+    
+    const checkProfile = () => {
+        if (currentUserId && !isProfileComplete) {
+            toast.error("Identity Required", { 
+                description: "You must establish your handle to interact with the feed.",
+                action: { label: "Complete Setup", onClick: () => navigate('/setup-profile') }
+            });
+            return false;
+        }
+        return true;
+    };
     const isOwnPost = currentUserId === post.author_id;
     const { liked, count: likesCount, toggle: toggleLike } = useLike(!!post.viewer_liked, post.like_count ?? post.likes_count ?? 0);
     const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(post.author_id);
@@ -192,16 +204,19 @@ const PostCard: React.FC<{
 
     const handleLike = () => {
         if (!currentUserId) return toast.error('Log in to like posts');
+        if (!checkProfile()) return;
         toggleLike(post.id);
     };
 
     const handleFollow = () => {
         if (!currentUserId) return toast.error('Log in to follow users');
+        if (!checkProfile()) return;
         toggleFollow();
     };
 
     const handleReshare = async () => {
         if (!currentUserId) return toast.error('Log in to reshare');
+        if (!checkProfile()) return;
         if (window.confirm('Reshare this broadcast?')) {
             try {
                 await reshare(post.id);
@@ -214,6 +229,7 @@ const PostCard: React.FC<{
 
     const submitComment = async () => {
         if (!currentUserId) return toast.error('Log in to comment');
+        if (!checkProfile()) return;
         if (!commentText.trim()) return;
         try {
             const commentData = await addComment({ content: commentText.trim(), reply_to_id: post.id });
@@ -593,8 +609,27 @@ const PostComposer: React.FC<{
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { session } = useAuth();
+    const { session, isProfileComplete } = useAuth();
+    const navigate = useNavigate();
     const { post: submitPost, loading } = useComposer();
+
+    if (user && !isProfileComplete) {
+        return (
+            <div className="glass-card rounded-3xl border border-dashed border-white/10 p-10 text-center space-y-6 mb-12">
+                <div className="w-16 h-16 bg-brand-purple/10 rounded-full flex items-center justify-center mx-auto text-brand-purple ring-4 ring-brand-purple/5">
+                    <AtSign size={32} />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tighter">Identity Broadcast Required</h3>
+                <p className="text-gray-500 text-sm max-w-xs mx-auto">Establish your unique community handle to start broadcasting to the feed.</p>
+                <button 
+                    onClick={() => navigate('/setup-profile')}
+                    className="px-8 py-4 bg-brand-purple text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition-all shadow-xl shadow-brand-purple/20 active:scale-95"
+                >
+                    Setup My Profile
+                </button>
+            </div>
+        );
+    }
 
 
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -878,7 +913,8 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
 // ─── Main Community Page ──────────────────────────────────────────
 // ─── Main Community Page ──────────────────────────────────────────
 const Community: React.FC = () => {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, isProfileComplete } = useAuth();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<FeedTab>('latest');
     const [quotedPost, setQuotedPost] = useState<Post | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -1009,11 +1045,34 @@ const Community: React.FC = () => {
                     )}
 
                     {!isAuthenticated && (
-                        <div className="glass-card rounded-[2rem] border border-brand-purple/20 p-8 text-center bg-brand-purple/[0.02]">
-                            <p className="text-gray-300 text-sm mb-6 font-bold uppercase tracking-widest">Join the frequency — log in to pulse the community.</p>
-                            <Link to="/login" className="bg-brand-purple text-white px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-brand-purple/20">
-                                Enter the Hub
-                            </Link>
+                        <div className="glass-card rounded-[2rem] border border-brand-purple/20 p-10 text-center bg-brand-purple/[0.02] shadow-[0_0_50px_rgba(124,58,237,0.05)] relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-[40px] rounded-full pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-32 h-32 bg-brand-cyan/5 blur-[40px] rounded-full pointer-events-none" />
+                            
+                            <div className="relative z-10">
+                                <div className="w-16 h-16 bg-brand-purple/10 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-purple ring-4 ring-brand-purple/5">
+                                    <Users size={32} />
+                                </div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter mb-3">Join the Frequency</h3>
+                                <p className="text-gray-400 text-sm mb-8 font-medium max-w-sm mx-auto leading-relaxed">
+                                    Sign in or create an account to start pulsing the community, sharing your sounds, and connecting with other DJs.
+                                </p>
+                                
+                                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                                    <Link 
+                                        to="/login" 
+                                        className="w-full sm:w-auto bg-brand-purple text-white px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl shadow-brand-purple/20 active:scale-95"
+                                    >
+                                        Log In
+                                    </Link>
+                                    <Link 
+                                        to="/signup" 
+                                        className="w-full sm:w-auto bg-white/5 border border-white/10 text-white px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all active:scale-95"
+                                    >
+                                        Create Account
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
                     )}
 

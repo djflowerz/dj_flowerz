@@ -3167,7 +3167,7 @@ const AdminDashboard: React.FC = () => {
                                           <td className="px-8 py-6">
                                              <div className="flex items-center gap-5">
                                                 <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 p-0.5">
-                                                   <img loading="lazy" src={p.image} alt="" className="w-full h-full object-cover rounded-[14px]" />
+                                                   <img loading="lazy" src={p.image || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&q=80'} alt="" className="w-full h-full object-cover rounded-[14px]" />
                                                 </div>
                                                 <div className="min-w-0">
                                                    <div className="font-black text-white truncate max-w-[200px] group-hover:text-brand-purple transition-colors">{p.name}</div>
@@ -3179,7 +3179,7 @@ const AdminDashboard: React.FC = () => {
                                              </div>
                                           </td>
                                           <td className="px-8 py-6">
-                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[10px] border border-white/5 px-3 py-1 rounded-full">{p.category}</span>
+                                             <span className="text-gray-400 font-black uppercase tracking-widest text-[10px] border border-white/5 px-3 py-1 rounded-full">{p.category || 'General'}</span>
                                           </td>
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">

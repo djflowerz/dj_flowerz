@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 
 const Login: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isProfileComplete } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,10 +19,19 @@ const Login: React.FC = () => {
   useEffect(() => {
     // Redirect if already logged in
     if (user && !authLoading) {
+      if (!isProfileComplete) {
+        navigate('/setup-profile', { replace: true });
+        return;
+      }
       const from = (location.state as any)?.from?.pathname || (location.state as any)?.from || '/';
-      navigate(from, { replace: true });
+      // Prevent infinite loop if "from" is login or signup or setup-profile
+      if (from === '/login' || from === '/signup' || from === '/setup-profile') {
+        navigate('/', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     }
-  }, [user, authLoading, navigate, location.state]);
+  }, [user, authLoading, isProfileComplete, navigate, location.state]);
 
   useEffect(() => {
     const state = location.state as any;
