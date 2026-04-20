@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
