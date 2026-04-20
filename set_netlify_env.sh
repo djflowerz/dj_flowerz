@@ -54,7 +54,7 @@ echo ""
 echo "🗄  Supabase"
 set_var "VITE_SUPABASE_URL" "https://yevqnoynsqidtplxggzs.supabase.co"
 set_var "VITE_SUPABASE_ANON_KEY" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnFub3luc3FpZHRwbHhnZ3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNjQ3ODAsImV4cCI6MjA4NzY0MDc4MH0.cb_79oC-RKNkhJBshhGw_tcFIVG50Wg6K0HIIK2Uyms"
-set_var "SUPABASE_DB_URL" "postgresql://postgres.yevqnoynsqidtplxggzs:%40Ravin303%23Wanjo@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+set_var "SUPABASE_DB_URL" "" # Set this in Netlify UI or via ENV
 set_var "SUPABASE_PUBLISHABLE_KEY" "sb_publishable_1Wo3mGpyqser-Wg_hjd03g_KOaPbb-I"
 set_var "SUPABASE_SECRET_KEY" "sb_secret_1Yfo54i-FpiyKUI3XY4B6w_Di7b8ABM"
 set_var "SUPABASE_WEBHOOK_SECRET" "djflowerz-sync-2025"
@@ -65,8 +65,8 @@ set_var "VITE_STORAGE_WORKER_URL" "https://djflowerz-worker.ianmuriithiflowerz.w
 
 echo ""
 echo "👑 Admin"
-set_var "VITE_ADMIN_EMAIL" "ianmuriithiflowerz@gmail.com"
-set_var "REACT_APP_ADMIN_EMAIL" "ianmuriithiflowerz@gmail.com"
+set_var "VITE_ADMIN_EMAIL" ""
+set_var "REACT_APP_ADMIN_EMAIL" ""
 
 echo ""
 echo "💳 Paystack"

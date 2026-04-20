@@ -24,8 +24,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."payments"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = current_setting('request.jwt.claims', true)::json ->> 'email' AND (auth.jwt() ->> 'email' = ANY (current_setting('app.admin_emails', true)::text[])) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = current_setting('request.jwt.claims', true)::json ->> 'email' AND (auth.jwt() ->> 'email' = ANY (current_setting('app.admin_emails', true)::text[])) );
 
     CREATE POLICY "Enable read for own" ON "public"."payments"
     AS PERMISSIVE FOR SELECT
@@ -40,8 +40,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."subscriptions"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) );
 
     CREATE POLICY "Enable read for own" ON "public"."subscriptions"
     AS PERMISSIVE FOR SELECT
@@ -58,8 +58,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."profiles"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) );
 
     CREATE POLICY "Enable read access for all users" ON "public"."profiles"
     AS PERMISSIVE FOR SELECT
@@ -85,8 +85,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."orders"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) );
 
     CREATE POLICY "Enable read for own" ON "public"."orders"
     AS PERMISSIVE FOR SELECT
@@ -100,8 +100,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."newsletter_subscribers"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) );
 
     -- CONTACT MESSAGES
     ALTER TABLE "public"."contact_messages" ENABLE ROW LEVEL SECURITY;
@@ -110,8 +110,8 @@ BEGIN
     CREATE POLICY "Enable all for admin" ON "public"."contact_messages"
     AS PERMISSIVE FOR ALL
     TO authenticated
-    USING ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' )
-    WITH CHECK ( (auth.jwt() ->> 'email') = 'ianmuriithiflowerz@gmail.com' OR (auth.jwt() ->> 'email') = 'djflowerz254@gmail.com' );
+    USING ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) )
+    WITH CHECK ( (auth.jwt() ->> 'email') = ANY (string_to_array(current_setting('app.admin_emails', true), ',')) );
 
 END $$;
 `;

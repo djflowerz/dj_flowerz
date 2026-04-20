@@ -43,7 +43,7 @@ async function migrateAll() {
     console.log('🚀 Starting Full Data Migration...');
 
     // 1. Fix Admin Roles
-    const adminEmails = ['ianmuriithiflowerz@gmail.com', 'stereokenya2541@gmail.com'];
+    const adminEmails = (process.env.VITE_ADMIN_EMAIL || '').split(',').map(e => e.trim().toLowerCase());
     console.log('\n👑 Fixing Admin Roles & Profiles...');
 
     // List users from Supabase Auth (requires service role)

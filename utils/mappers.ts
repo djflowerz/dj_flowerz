@@ -44,43 +44,48 @@ export const safeJsonParse = (val: any, fallback: any = []) => {
 };
 
 /**
- * R2 Track Mapper
+ * Shared Helper for R2 URL Normalization
  */
-export const mapR2Track = (t: any): Track => {
-  const DEFAULT_CDN_BASE = `/api/files`;
+export const ensureAbsoluteR2Url = (u: string | undefined | null): string => {
+  if (!u) return '';
+  if (u.startsWith('/api/files/') || u.startsWith('data:') || u.startsWith('blob:')) return u;
 
-  const encodeR2Url = (u: string): string => {
-    if (!u) return u;
-    if (u.startsWith('/api/files/')) return u;
+  const oldDomain = 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
+
+  if (u.startsWith('http')) {
+    if (u.includes(oldDomain)) {
+      const path = u.split(oldDomain + '/')[1] || '';
+      return `/api/files/${path}`;
+    }
+    
+    if (u.includes('vicknickvideopool.com') || u.includes('dennismacharia20')) {
+        const parts = u.split(u.includes('.com/') ? '.com/' : '.dev/');
+        const path = parts[1] || '';
+        const origin = u.includes('dennismacharia20') ? '?origin=remix' : '';
+        return `/api/files/${path}${origin}`;
+    }
 
     try {
       const urlObj = new URL(u);
-      const lowerHost = urlObj.hostname.toLowerCase();
-
-      if (lowerHost.includes('vicknickvideopool.com') || lowerHost.includes('dennismacharia20')) {
-        const parts = u.split(lowerHost.includes('.com/') ? '.com/' : '.dev/');
-        const path = parts[1] || '';
-        const origin = lowerHost.includes('dennismacharia20') ? '?origin=remix' : '';
-        return `/api/files/${path}${origin}`;
+      if (urlObj.hostname.includes('.r2.dev')) {
+          urlObj.pathname = urlObj.pathname.split('/').map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/');
+          return urlObj.toString();
       }
+    } catch {}
 
-      urlObj.pathname = urlObj.pathname
-        .split('/')
-        .map(seg => encodeURIComponent(decodeURIComponent(seg)))
-        .join('/');
-      return urlObj.toString();
-    } catch {
-      if (u.startsWith('http')) return u;
-      const cleanPath = u.replace(/^\//, '').replace(/ /g, '%20').replace(/&(?![a-z#0-9]+;)/g, '%26');
-      return `/api/files/${cleanPath}`;
-    }
-  };
+    return u;
+  }
 
-  const ensureAbsolute = (u: string) => {
-    if (!u) return u;
-    if (u.startsWith('http') || u.startsWith('data:') || u.startsWith('blob:')) return encodeR2Url(u);
-    return encodeR2Url(`${DEFAULT_CDN_BASE}/${u.replace(/^\//, '')}`);
-  };
+  // Relative path: normalize and prepend proxy
+  const cleanPath = u.replace(/^\//, '').split('/').map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/');
+  return `/api/files/${cleanPath}`;
+};
+
+/**
+ * R2 Track Mapper
+ */
+export const mapR2Track = (t: any): Track => {
+  const ensureAbsolute = (u: string) => ensureAbsoluteR2Url(u);
 
   let versions = safeJsonParse(t.versions, []).map((v: any) => ({
     ...v,
@@ -144,6 +149,9 @@ export const mapR2Track = (t: any): Track => {
  */
 export const mapR2Generic = (item: any): any => ({
   ...item,
+  image: ensureAbsoluteR2Url(item.image || item.imageUrl || item.image_url),
+  coverUrl: ensureAbsoluteR2Url(item.coverUrl || item.cover_url),
+  avatarUrl: ensureAbsoluteR2Url(item.avatarUrl || item.avatar_url),
   createdAt: item.createdAt || item.created_at,
   updatedAt: item.updatedAt || item.updated_at
 });
@@ -152,14 +160,7 @@ export const mapR2Generic = (item: any): any => ({
  * R2 Product Mapper
  */
 export const mapR2Product = (p: any): Product => {
-  const DEFAULT_CDN_BASE = `/api/files`;
-  const ensureAbsolute = (u: string) => {
-    if (!u) return u;
-    if (u.startsWith('http') || u.startsWith('/api/files/') || u.startsWith('data:') || u.startsWith('blob:')) return u;
-    // Remove leading slash if exists and prepend base
-    const cleanPath = u.replace(/^\//, '').replace(/ /g, '%20');
-    return `${DEFAULT_CDN_BASE}/${cleanPath}`;
-  };
+  const ensureAbsolute = (u: string) => ensureAbsoluteR2Url(u);
 
   try {
     const images = safeJsonParse(p.images || p.image_list || p.product_images, p.image ? [p.image] : []).map(ensureAbsolute);
@@ -238,8 +239,8 @@ export const mapR2Mixtape = (m: any): Mixtape => {
       ...m,
       id: String(m.id || ''),
       title: String(m.title || 'Untitled Mixtape'),
-      coverUrl: m.cover_url || m.coverUrl || m.cover_image || ytFallback || '',
-      audioUrl: m.audio_url || m.audioUrl || '',
+      coverUrl: ensureAbsoluteR2Url(m.cover_url || m.coverUrl || m.cover_image || ytFallback || ''),
+      audioUrl: ensureAbsoluteR2Url(m.audio_url || m.audioUrl || ''),
       duration: String(m.duration || '0:00'),
       releaseDate: m.release_date || m.releaseDate || new Date().toISOString(),
       previewStartTime: m.preview_start_time || m.previewStartTime,
@@ -330,7 +331,7 @@ export const mapR2User = (u: any): any => ({
   isSubscriber: u.is_subscriber !== undefined ? (u.is_subscriber === 1 || u.is_subscriber === true) : u.isSubscriber,
   subscriptionPlan: u.subscription_plan || u.subscriptionPlan,
   subscriptionExpiry: u.subscription_expiry || u.subscriptionExpiry,
-  avatarUrl: u.avatar_url || u.avatarUrl,
+  avatarUrl: ensureAbsoluteR2Url(u.avatar_url || u.avatarUrl),
   referralCode: u.referral_code || u.referralCode,
   lastLogin: u.last_login || u.lastLogin,
   phoneNumber: u.phone_number || u.phoneNumber,
@@ -412,7 +413,7 @@ export const mapD1StudioRoom = (r: any): StudioRoom => ({
   status: r.status || 'active',
   rate: Number(r.rate || 0),
   features: typeof r.features === 'string' ? JSON.parse(r.features) : (r.features || []),
-  imageUrl: r.image_url || r.imageUrl || '',
+  imageUrl: ensureAbsoluteR2Url(r.image_url || r.imageUrl || ''),
   createdAt: r.created_at || r.createdAt,
   updatedAt: r.updated_at || r.updatedAt
 });
@@ -424,7 +425,7 @@ export const mapD1StudioEquipment = (e: any): StudioEquipment => ({
   id: String(e.id),
   name: String(e.name),
   category: String(e.category),
-  image: e.image_url || e.image || '',
+  image: ensureAbsoluteR2Url(e.image_url || e.image || ''),
   description: String(e.description || ''),
   status: e.status || 'available',
   hourlyRate: Number(e.hourly_rate || 0),
@@ -540,7 +541,7 @@ export const mapR2Plan = (p: any): SubscriptionPlan => ({
  */
 export const mapR2Genre = (g: any): Genre => ({
   ...g,
-  coverUrl: g.cover_url || g.coverUrl,
+  coverUrl: ensureAbsoluteR2Url(g.cover_url || g.coverUrl),
   createdAt: g.created_at || g.createdAt,
   updatedAt: g.updated_at || g.updatedAt
 });

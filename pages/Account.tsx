@@ -493,7 +493,7 @@ const Account: React.FC = () => {
                   { id: 'referrals', icon: Gift, label: 'Referrals' },
                   { id: 'wishlist', icon: Heart, label: 'My Wishlist' },
                   { id: 'installments', icon: CreditCard, label: 'Lipa Pole Pole' },
-                  { id: 'admin', icon: Shield, label: 'Admin Panel', show: user.email === 'ianmuriithiflowerz@gmail.com', link: '/admin' },
+                  { id: 'admin', icon: Shield, label: 'Admin Panel', show: user.role === 'admin' || user.role === 'dj', link: '/admin' },
                 ].filter(item => item.show !== false).map((item, i) => (
                   item.link ? (
                     <Link to={item.link} key={i} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/5 transition border border-transparent hover:border-white/5">

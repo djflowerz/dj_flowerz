@@ -319,26 +319,54 @@ export default function PublicProfile() {
                     <div className="lg:col-span-4 space-y-10 lg:sticky lg:top-32 h-fit">
                         
                         {/* Profile Card */}
-                        <div className="relative group">
+                        <div className="relative group mt-16 lg:mt-0">
                             {/* Ambient Glow */}
                             <div className="absolute -inset-4 bg-brand-purple/5 blur-[60px] rounded-[4rem] group-hover:bg-brand-purple/10 transition-all duration-1000 -z-10" />
                             
-                            <div className="bg-[#0B0B0F]/80 backdrop-blur-2xl border border-white/10 rounded-[3.5rem] p-10 overflow-hidden shadow-2xl">
-                                {/* Profile Pic */}
-                                <div className="mb-10 relative inline-block">
-                                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] p-1 bg-gradient-to-br from-brand-purple to-brand-cyan shadow-2xl">
-                                        <img 
-                                            src={profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.display_name || profile.username)}&background=111&color=fff`}
-                                            className="w-full h-full object-cover rounded-[2.3rem] border-2 border-[#0B0B0F]"
-                                            alt={profile.display_name}
-                                        />
+                            <div className="bg-[#0B0B0F]/80 backdrop-blur-2xl border border-white/10 rounded-[3.5rem] overflow-hidden shadow-2xl relative">
+                                
+                                {/* Cover Banner Region */}
+                                {profile.banner_url ? (
+                                    <div className="absolute top-0 left-0 w-full h-48 bg-[#050508] z-0">
+                                        <img src={profile.banner_url} className="w-full h-full object-cover opacity-60 mix-blend-screen" alt="Cover Header" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-[#0B0B0F]/80 to-transparent" />
                                     </div>
-                                    {profile.is_verified === 1 && (
-                                        <div className="absolute -bottom-2 -right-2 bg-brand-purple p-2.5 rounded-2xl border-4 border-[#0B0B0F] shadow-2xl">
-                                            <CheckCircle2 size={16} className="text-white" />
+                                ) : (
+                                    <div className="absolute top-0 left-0 w-full h-48 bg-[#050508] z-0 overflow-hidden">
+                                        <div className={`absolute -inset-1/2 blur-[80px] opacity-40 rounded-full ${
+                                            profile.aura_tier === 'legendary' ? 'bg-orange-500/30' :
+                                            profile.aura_tier === 'prime' ? 'bg-brand-purple/30' :
+                                            'bg-brand-cyan/20'
+                                        }`} />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-[#0B0B0F]/50 to-transparent" />
+                                    </div>
+                                )}
+
+                                <div className="p-10 relative z-10 pt-24">
+                                    {/* Profile Pic with Aura */}
+                                    <div className="mb-8 relative inline-block">
+                                        <div className={`w-32 h-32 md:w-40 md:h-40 rounded-[3rem] p-1.5 shadow-2xl transition-all duration-700 hover:scale-105 ${
+                                            profile.aura_tier === 'legendary' ? 'bg-gradient-to-br from-orange-400 via-amber-500 to-yellow-600 shadow-orange-500/40 animate-[pulse_3s_infinite]' :
+                                            profile.aura_tier === 'prime' ? 'bg-gradient-to-br from-brand-purple to-brand-cyan shadow-brand-purple/40' :
+                                            'bg-white/10 border border-white/5'
+                                        }`}>
+                                            <img 
+                                                src={profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.display_name || profile.username)}&background=111&color=fff`}
+                                                className="w-full h-full object-cover rounded-[2.8rem] border-4 border-[#0B0B0F]"
+                                                alt={profile.display_name}
+                                            />
                                         </div>
-                                    )}
-                                </div>
+                                        {profile.is_verified === 1 && (
+                                            <div className="absolute -bottom-2 -right-2 bg-brand-cyan p-2.5 rounded-2xl border-4 border-[#0B0B0F] shadow-2xl">
+                                                <CheckCircle2 size={16} className="text-[#0B0B0F]" />
+                                            </div>
+                                        )}
+                                        {profile.aura_tier === 'legendary' && (
+                                            <div className="absolute -top-4 -right-4 bg-gradient-to-r from-orange-500 to-amber-500 p-2.5 rounded-2xl border-4 border-[#0B0B0F] shadow-2xl animate-bounce">
+                                                <Crown size={16} className="text-white" />
+                                            </div>
+                                        )}
+                                    </div>
 
                                 <div className="space-y-6">
                                     <div>

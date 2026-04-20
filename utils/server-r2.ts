@@ -35,7 +35,7 @@ export async function verifyAdmin(req: any) {
     if (authError || !user) throw new Error('Invalid token');
 
     const adminEmails = [
-        (process.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase(),
+        (process.env.VITE_ADMIN_EMAIL || '').toLowerCase(),
         'djflowerz254@gmail.com',
         'testadmin@example.com'
     ];

@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  const adminEmail = 'ianmuriithiflowerz@gmail.com';
+  const adminEmail = process.env.VITE_ADMIN_EMAIL || '';
   const adminPassword = '15457641c1d1c8016ed07e92c97685998ec1d   v1.0-d7c28c002855c962aae0a8b0-0acd7c6e666b03da632bf7caddb0f3f365b3d1bd4f871dbbdf49497c57a9368321409897fa20d6508e2fa79718ef65774030c73a25eff8d49de66989eeb628d3372dc0abda13605061';
 
   console.log('Navigating to login...');

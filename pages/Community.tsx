@@ -6,7 +6,7 @@ import {
     Heart, MessageSquare, Share2, Image as ImageIcon, Send, RefreshCw,
     ShieldCheck, MoreHorizontal, Trash2, Flame, Clock,
     Users, ShoppingBag, UserPlus, UserCheck, X, ChevronDown, Loader,
-    Zap, Crown, CheckCircle2, Search
+    Zap, Crown, CheckCircle2, Search, TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
@@ -435,7 +435,10 @@ const PostCard: React.FC<{
                                     <div className="flex-1">
                                         <div className="bg-white/5 rounded-2xl rounded-tl-none p-3 border border-white/5">
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="font-black text-[10px] text-brand-purple uppercase tracking-widest">{c.author_name}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-black text-[10px] text-brand-purple uppercase tracking-widest">{c.author_name}</span>
+                                                    {c.author_username && <span className="text-[9px] text-gray-500">@{c.author_username}</span>}
+                                                </div>
                                                 <span className="text-[9px] text-gray-600">{timeAgo(c.created_at)}</span>
                                             </div>
                                             <p className="text-gray-200 text-xs leading-relaxed">{c.content}</p>
@@ -975,55 +978,7 @@ const Community: React.FC = () => {
             <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* ── Main Feed Column ── */}
                 <div className="flex-1 min-w-0 space-y-6">
-                    {/* Search Bar */}
-                    <div ref={searchRef} className="relative mb-2">
-                        <div className="relative">
-                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                onFocus={() => setSearchFocused(true)}
-                                placeholder="Search DJs, producers, community members..."
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-brand-purple/50 focus:bg-white/8 transition-all backdrop-blur-xl"
-                            />
-                            {searchQuery && (
-                                <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
-                                    <X size={14} />
-                                </button>
-                            )}
-                        </div>
-                        {/* Search Dropdown */}
-                        {searchFocused && (searchResults.length > 0 || searchLoading) && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#111117] border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/60 z-50 backdrop-blur-2xl">
-                                {searchLoading && (
-                                    <div className="flex items-center justify-center p-4 gap-2 text-gray-500 text-xs">
-                                        <Loader size={14} className="animate-spin" /> Scanning network...
-                                    </div>
-                                )}
-                                {!searchLoading && searchResults.map((u: any) => (
-                                    <Link
-                                        key={u.id}
-                                        to={`/community/@${u.username}`}
-                                        onClick={() => { setSearchFocused(false); setSearchQuery(''); setSearchResults([]); }}
-                                        className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/result"
-                                    >
-                                        <img
-                                            src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || u.username)}&background=7C3AED&color=fff`}
-                                            className="w-9 h-9 rounded-full object-cover border border-white/10 flex-shrink-0"
-                                            alt={u.name}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white font-bold text-sm truncate">{u.name || u.username}</p>
-                                            <p className="text-gray-500 text-xs">@{u.username}</p>
-                                        </div>
-                                        {u.role === 'admin' && <Crown size={12} className="text-brand-purple flex-shrink-0" />}
-                                        {u.role === 'dj' && <Zap size={12} className="text-brand-cyan flex-shrink-0" />}
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    {/* Search Bar Removed from Here - Moved to Sidebar */}
 
                     {/* Tabs */}
                     <div className="flex gap-1 bg-white/5 p-1 rounded-2xl mb-6 sticky top-20 z-30 backdrop-blur-xl border border-white/5 shadow-2xl">
@@ -1125,6 +1080,79 @@ const Community: React.FC = () => {
 
                 {/* ── Sidebar Column ── */}
                 <div className="lg:w-80 flex-shrink-0 space-y-6 lg:sticky lg:top-24">
+                    {/* Network Scanner */}
+                    <div ref={searchRef} className="relative z-[60]">
+                        <div className="relative">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                onFocus={() => setSearchFocused(true)}
+                                placeholder="Network Scanner..."
+                                className="w-full bg-white/5 border border-white/10 rounded-full pl-12 pr-4 py-3.5 text-sm font-bold text-white placeholder-gray-500 focus:outline-none focus:border-brand-purple/50 focus:bg-white/10 transition-all backdrop-blur-xl shadow-inner"
+                            />
+                            {searchQuery && (
+                                <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors bg-white/5 p-1 rounded-full flex items-center justify-center">
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                        {/* Search Dropdown */}
+                        {searchFocused && (searchResults.length > 0 || searchLoading) && (
+                            <div className="absolute top-full left-0 right-0 mt-3 bg-[#111117]/95 border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/80 z-[100] backdrop-blur-2xl">
+                                {searchLoading && (
+                                    <div className="flex items-center justify-center p-6 gap-3 text-gray-400 text-xs font-bold uppercase tracking-widest">
+                                        <Loader size={14} className="animate-spin" /> Scanning ...
+                                    </div>
+                                )}
+                                {!searchLoading && searchResults.map((u: any) => (
+                                    <Link
+                                        key={u.id}
+                                        to={`/community/@${u.username}`}
+                                        onClick={() => { setSearchFocused(false); setSearchQuery(''); setSearchResults([]); }}
+                                        className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/result border-b border-white/5 last:border-0"
+                                    >
+                                        <img
+                                            src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || u.username)}&background=7C3AED&color=fff`}
+                                            className="w-10 h-10 rounded-[1rem] object-cover border border-white/10 flex-shrink-0"
+                                            alt={u.name}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white font-black text-sm truncate uppercase tracking-tight">{u.name || u.username}</p>
+                                            <p className="text-brand-purple text-xs font-bold">@{u.username}</p>
+                                        </div>
+                                        {u.role === 'admin' && <Crown size={14} className="text-brand-purple flex-shrink-0 shadow-xl" />}
+                                        {u.role === 'dj' && <Zap size={14} className="text-brand-cyan flex-shrink-0" />}
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Trending Scenes */}
+                    <div className="glass-card rounded-[2rem] border border-white/5 p-8 shadow-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-cyan/5 blur-[60px] rounded-full pointer-events-none" />
+                        
+                        <h3 className="text-[10px] items-center gap-3 font-black uppercase tracking-[0.3em] text-white flex mb-6">
+                            <TrendingUp size={16} className="text-brand-cyan" /> TRENDING SCENES
+                        </h3>
+                        <div className="flex flex-col gap-5">
+                        {[
+                            { tag: '#AmapianoVibes', count: '12.4k' },
+                            { tag: '#NairobiDJs', count: '8.2k' },
+                            { tag: '#TechnoAfrica', count: '5.1k' },
+                            { tag: '#PioneerGear', count: '3.9k' }
+                        ].map((item) => (
+                            <div key={item.tag} className="group cursor-pointer">
+                                <p className="text-gray-500 text-[9px] font-bold uppercase tracking-widest mb-0.5 group-hover:text-brand-cyan transition-colors">Trending in EA</p>
+                                <p className="font-black text-sm text-white group-hover:underline underline-offset-4 decoration-2 decoration-brand-cyan transition-all">{item.tag}</p>
+                                <p className="text-gray-600 text-[10px] font-bold mt-0.5">{item.count} Pulses</p>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+
                     <SuggestedSidebar currentUser={user} />
                 </div>
             </div>{/* end flex row */}

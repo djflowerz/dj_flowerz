@@ -57,7 +57,7 @@ async function syncUsers() {
         const email = sbUser.email;
         const fireUser = fireUsers.get(email) || {};
 
-        const adminEmails = ['ianmuriithiflowerz@gmail.com', 'stereokenya2541@gmail.com'];
+        const adminEmails = (process.env.VITE_ADMIN_EMAIL || '').split(',').map(e => e.trim().toLowerCase());
         const isAdmin = adminEmails.includes(email || '') || fireUser.role === 'admin';
 
         console.log(`Syncing profile for ${email}...`);

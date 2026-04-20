@@ -482,8 +482,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchConfig = useCallback(async () => {
     try {
-      const R2_URL = (import.meta.env.VITE_R2_URL || 'https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev').trim();
-      const res = await fetch(`${R2_URL}/data/config/site.json?t=${Date.now()}`);
+      const BASE_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || STORAGE_WORKER_URL || '').trim().replace(/\/$/, '');
+      const res = await fetch(`${BASE_URL}/api/data/config/site.json?t=${Date.now()}`);
       if (!res.ok) throw new Error('Config fetch failed');
       const data = await res.json() as SiteConfig;
       if (data && typeof data === 'object') {

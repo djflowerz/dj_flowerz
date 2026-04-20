@@ -60,7 +60,7 @@
   ],
   "vars": {
     "PUBLIC_R2_DOMAIN": "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev",
-    "VITE_ADMIN_EMAIL": "ianmuriithiflowerz@gmail.com",
+    "VITE_ADMIN_EMAIL": "",
     "VITE_APP_URL": "https://www.djflowerz.co.ke"
   },
   "triggers": {

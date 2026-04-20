@@ -5,7 +5,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const path = url.pathname;
   const method = request.method;
   const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
-  const adminEmail = 'ianmuriithiflowerz@gmail.com';
+  const adminEmail = (env.VITE_ADMIN_EMAIL || '').toLowerCase(); // Strictly use ENV
 
   // ─── Resolve the real D1 user ID from JWT (fixes Anonymous posts & profile pics)
   let _actorId = request.headers.get('X-Actor-Id') || null;
@@ -49,13 +49,25 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       },
     });
   };
+  
+  // Helper to normalize legacy R2 URLs to proxy paths
+  const normalizeAssetUrl = (url: string | null | undefined): string => {
+    if (!url) return '';
+    const legacyDomain = 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
+    if (url.includes(legacyDomain)) {
+      return url.replace(`https://${legacyDomain}/`, '/api/files/');
+    }
+    return url;
+  };
+
   // ─── CORE INFRASTRUCTURE ──────────────────────────────────────────────────
   
   // GET /api/files/* (Serves files from R2)
   if (method === 'GET' && path.startsWith('/api/files/')) {
-    const key = path.replace('/api/files/', '');
+    const rawKey = path.replace('/api/files/', '');
+    const key = decodeURIComponent(rawKey);
     const object = await env.R2_BUCKET.get(key);
-    if (!object) return new Response('File not found', { status: 404 });
+    if (!object) return new Response('File not found: ' + key, { status: 404 });
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
@@ -101,7 +113,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
     // MAP IAN DIRECTLY TO THE EXISTENT DJ FLOWERZ DB ROW
-    const _adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
+    const _adminEmail = (env.VITE_ADMIN_EMAIL || '').toLowerCase();
     const isIan = userEmail && userEmail === _adminEmail;
     
     if (isIan) {
@@ -167,7 +179,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ user: {
       ...user,
       fullName: user.display_name,
-      avatarUrl: user.avatar_url,
+      avatarUrl: normalizeAssetUrl(user.avatar_url),
       isSubscriber: isIan ? true : user.role === 'admin' || user.role === 'dj'
     } });
   }
@@ -182,7 +194,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const result = await env.DB.prepare('SELECT sp.*, CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked FROM social_posts sp LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ? WHERE sp.author_id = ? ORDER BY sp.created_at DESC').bind(actorId || '', user.id).all();
     const posts = result.results.map((p: any) => ({...p, viewer_liked: p.viewer_liked === 1, like_count: p.likes_count, comment_count: p.comments_count}));
     
-    return json({ profile: user, posts });
+    return json({ 
+      profile: {
+        ...user,
+        avatarUrl: normalizeAssetUrl(user.avatarUrl)
+      }, 
+      posts: posts.map((p: any) => ({
+        ...p,
+        image_url: normalizeAssetUrl(p.image_url)
+      }))
+    });
   }
 
   // GET /api/social/users/search (and /api/profiles/search)
@@ -250,8 +271,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (before) whereClause += ` AND sp.created_at < '${before}'`;
 
     const result = await env.DB.prepare(`
-      SELECT sp.*, CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
+      SELECT sp.*, 
+        u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username, u.role as author_role,
+        CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
       FROM social_posts sp
+      LEFT JOIN user_profiles u ON sp.author_id = u.id
       LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
       ${whereClause}
       ORDER BY sp.created_at DESC LIMIT ?
@@ -327,31 +351,33 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     const baseSelect = `
       SELECT sp.*,
+        u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username, u.role as author_role,
         CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
       FROM social_posts sp
+      LEFT JOIN user_profiles u ON u.id = sp.author_id
       LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
     `;
 
     if (tab === 'following' && userId) {
       query = `${baseSelect}
         INNER JOIN social_follows sf ON sf.following_id = sp.author_id AND sf.follower_id = ?
-        WHERE 1=1 ${before ? 'AND sp.created_at < ?' : ''}
+        WHERE (sp.post_type IS NULL OR sp.post_type != 'comment') ${before ? 'AND sp.created_at < ?' : ''}
         ORDER BY sp.created_at DESC LIMIT ?`;
       params.push(userId || '', userId, ...(before ? [before] : []), limit + 1);
     } else if (tab === 'trending') {
       query = `${baseSelect}
-        WHERE 1=1 ${before ? 'AND sp.created_at < ?' : ''}
+        WHERE (sp.post_type IS NULL OR sp.post_type != 'comment') ${before ? 'AND sp.created_at < ?' : ''}
         ORDER BY sp.likes_count DESC, sp.comments_count DESC, sp.created_at DESC LIMIT ?`;
       params.push(userId || '', ...(before ? [before] : []), limit + 1);
     } else if (tab === 'marketplace') {
       query = `${baseSelect}
-        WHERE sp.is_marketplace = 1 ${before ? 'AND sp.created_at < ?' : ''}
+        WHERE sp.is_marketplace = 1 AND (sp.post_type IS NULL OR sp.post_type != 'comment') ${before ? 'AND sp.created_at < ?' : ''}
         ORDER BY sp.created_at DESC LIMIT ?`;
       params.push(userId || '', ...(before ? [before] : []), limit + 1);
     } else {
       // latest (default)
       query = `${baseSelect}
-        WHERE 1=1 ${before ? 'AND sp.created_at < ?' : ''}
+        WHERE (sp.post_type IS NULL OR sp.post_type != 'comment') ${before ? 'AND sp.created_at < ?' : ''}
         ORDER BY sp.created_at DESC LIMIT ?`;
       params.push(userId || '', ...(before ? [before] : []), limit + 1);
     }
@@ -382,8 +408,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const userId = actorId;
     
     const post = await env.DB.prepare(`
-      SELECT sp.*, CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
+      SELECT sp.*, 
+        u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username, u.role as author_role,
+        CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
       FROM social_posts sp
+      LEFT JOIN user_profiles u ON u.id = sp.author_id
       LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
       WHERE sp.id = ?
     `).bind(userId || '', postId).first() as any;
@@ -405,7 +434,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const limit = parseInt(url.searchParams.get('limit') || '30');
 
     const result = await env.DB.prepare(`
-      SELECT * FROM social_comments WHERE post_id = ? ORDER BY created_at ASC LIMIT ?
+      SELECT sp.*, u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username
+      FROM social_posts sp
+      LEFT JOIN user_profiles u ON u.id = sp.author_id
+      WHERE sp.post_type = 'comment' AND sp.reply_to_id = ? 
+      ORDER BY sp.created_at ASC LIMIT ?
     `).bind(postId, limit).all();
 
     return json({ comments: result.results || [] });
@@ -463,6 +496,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       await env.DB.prepare(
         'UPDATE social_posts SET comments_count = comments_count + 1 WHERE id = ?'
       ).bind(reply_to_id).run();
+      
+      try {
+        const parentPost = await env.DB.prepare('SELECT author_id FROM social_posts WHERE id = ?').bind(reply_to_id).first() as any;
+        if (parentPost && parentPost.author_id !== actorId) {
+          await env.DB.prepare(`
+            INSERT INTO notifications (id, user_id, type, actor_id, actor_name, actor_avatar, target_id, content, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+          `).bind(crypto.randomUUID(), parentPost.author_id, 'comment', actorId, authorName, authorAvatar, reply_to_id, 'replied to your broadcast', new Date().toISOString()).run();
+        }
+      } catch (e) { console.error('Notification error', e); }
     }
 
     const newPost = await env.DB.prepare('SELECT * FROM social_posts WHERE id = ?').bind(id).first();
@@ -492,7 +535,18 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       await env.DB.prepare(
         'UPDATE social_posts SET likes_count = likes_count + 1 WHERE id = ?'
       ).bind(postId).run();
-      const post = await env.DB.prepare('SELECT likes_count FROM social_posts WHERE id = ?').bind(postId).first() as any;
+      const post = await env.DB.prepare('SELECT author_id, likes_count FROM social_posts WHERE id = ?').bind(postId).first() as any;
+
+      try {
+        if (post && post.author_id !== actorId) {
+          const liker = await env.DB.prepare('SELECT display_name as name, avatar_url FROM user_profiles WHERE id = ?').bind(actorId).first() as any;
+          await env.DB.prepare(`
+            INSERT INTO notifications (id, user_id, type, actor_id, actor_name, actor_avatar, target_id, content, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+          `).bind(crypto.randomUUID(), post.author_id, 'like', actorId, liker?.name || 'A user', liker?.avatar_url || '', postId, 'vibed with your broadcast', new Date().toISOString()).run();
+        }
+      } catch (e) { console.error('Notification error', e); }
+
       return json({ liked: true, count: post?.likes_count ?? 0 });
     }
   }
@@ -569,6 +623,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     } else {
       await env.DB.prepare('INSERT OR IGNORE INTO social_follows (id, follower_id, following_id) VALUES (?, ?, ?)')
         .bind(crypto.randomUUID(), actorId, targetId).run();
+        
+      try {
+        const follower = await env.DB.prepare('SELECT display_name as name, avatar_url FROM user_profiles WHERE id = ?').bind(actorId).first() as any;
+        if (follower) {
+          await env.DB.prepare(`
+            INSERT INTO notifications (id, user_id, type, actor_id, actor_name, actor_avatar, target_id, content, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+          `).bind(crypto.randomUUID(), targetId, 'follow', actorId, follower.name || 'A user', follower.avatar_url || '', targetId, 'started tracking your signals', new Date().toISOString()).run();
+        }
+      } catch (e) { console.error('Notification error', e); }
+
       return json({ followed: true });
     }
   }
@@ -629,8 +694,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     const posts = await env.DB.prepare(`
       SELECT sp.*,
+        u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username, u.role as author_role,
         CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
       FROM social_posts sp
+      LEFT JOIN user_profiles u ON u.id = sp.author_id
       LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
       WHERE sp.author_id = ?
       ORDER BY sp.created_at DESC LIMIT 20
@@ -756,7 +823,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json({ error: 'Unauthorized — invalid token format' }, { status: 401 });
     }
 
-    const adminEmail = env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com';
+    const adminEmail = env.VITE_ADMIN_EMAIL || '';
     
     // Strict email enforcement
     if (userEmail.toLowerCase() !== adminEmail.toLowerCase()) {
@@ -844,16 +911,194 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const { results } = await env.DB.prepare('SELECT * FROM mixtapes ORDER BY created_at DESC').all();
       const mapped = (results || []).map((m: any) => ({
         ...m,
+        // Frontend expects camelCase for many fields in Admin Dashboard
+        coverUrl: normalizeAssetUrl(m.cover_url),
+        audioUrl: normalizeAssetUrl(m.audio_url),
+        downloadUrl: normalizeAssetUrl(m.download_url),
+        videoUrl: normalizeAssetUrl(m.video_url),
+        videoDownloadUrl: normalizeAssetUrl(m.video_download_url),
+        // Keep snake_case for consistency with DB if needed
+        cover_url: normalizeAssetUrl(m.cover_url),
+        audio_url: normalizeAssetUrl(m.audio_url),
         tags: typeof m.tags === 'string' ? JSON.parse(m.tags || '[]') : (m.tags || []),
         tracklist: typeof m.tracklist === 'string' ? JSON.parse(m.tracklist || '[]') : (m.tracklist || [])
       }));
       return json(mapped);
     }
 
+    // POST /api/admin/mixtapes
+    if (path === '/api/admin/mixtapes' && method === 'POST') {
+      const data = await request.json() as any;
+      const id = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO mixtapes (
+          id, title, artist, genre, duration, cover_url, audio_url, download_url, 
+          video_url, video_download_url, tags, is_featured, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        data.title,
+        data.artist || '',
+        data.genre || '',
+        data.duration || '',
+        data.coverUrl || data.cover_url || '',
+        data.audioUrl || data.audio_url || '',
+        data.downloadUrl || data.download_url || '',
+        data.videoUrl || data.video_url || '',
+        data.videoDownloadUrl || data.video_download_url || '',
+        JSON.stringify(data.tags || []),
+        data.isFeatured ? 1 : 0,
+        data.status || 'published'
+      ).run();
+      return json({ success: true, id });
+    }
+
+    // PUT /api/admin/mixtapes/:id
+    const mixtapeMatch = path.match(/^\/api\/admin\/mixtapes\/([^/]+)$/);
+    if (mixtapeMatch && method === 'PUT') {
+      const id = mixtapeMatch[1];
+      const data = await request.json() as any;
+      await env.DB.prepare(`
+        UPDATE mixtapes SET 
+          title = ?, artist = ?, genre = ?, duration = ?, 
+          cover_url = ?, audio_url = ?, download_url = ?, 
+          video_url = ?, video_download_url = ?, tags = ?, 
+          is_featured = ?, status = ?
+        WHERE id = ?
+      `).bind(
+        data.title,
+        data.artist || '',
+        data.genre || '',
+        data.duration || '',
+        data.coverUrl || data.cover_url || '',
+        data.audioUrl || data.audio_url || '',
+        data.downloadUrl || data.download_url || '',
+        data.videoUrl || data.video_url || '',
+        data.videoDownloadUrl || data.video_download_url || '',
+        JSON.stringify(data.tags || []),
+        data.isFeatured ? 1 : 0,
+        data.status || 'published',
+        id
+      ).run();
+      return json({ success: true });
+    }
+
+    // DELETE /api/admin/mixtapes/:id
+    if (mixtapeMatch && method === 'DELETE') {
+      const id = mixtapeMatch[1];
+      await env.DB.prepare('DELETE FROM mixtapes WHERE id = ?').bind(id).run();
+      return json({ success: true });
+    }
+
     // GET /api/admin/products
     if (path === '/api/admin/products' && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT * FROM products ORDER BY created_at DESC').all();
-      return json(results);
+      const [productsR, variantsR] = await env.DB.batch([
+        env.DB.prepare('SELECT * FROM products ORDER BY created_at DESC'),
+        env.DB.prepare('SELECT * FROM product_variants')
+      ]);
+      
+      const products = productsR.results || [];
+      const variants = variantsR.results || [];
+      
+      const mapped = products.map((p: any) => ({
+        ...p,
+        image_url: normalizeAssetUrl(p.image_url),
+        imageUrl: normalizeAssetUrl(p.image_url), // Support both cases
+        variants: variants.filter((v: any) => v.product_id === p.id).map((v: any) => ({
+          ...v,
+          image_url: normalizeAssetUrl(v.image_url),
+          imageUrl: normalizeAssetUrl(v.image_url) // Support both cases
+        }))
+      }));
+      return json(mapped);
+    }
+
+    // POST /api/admin/products
+    if (path === '/api/admin/products' && method === 'POST') {
+      const data = await request.json() as any;
+      const id = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO products (
+          id, name, slug, description, price, image_url, category, type, stock, status, is_featured
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        data.name,
+        data.slug,
+        data.description || '',
+        data.price || 0,
+        data.imageUrl || data.image_url || '',
+        data.category || 'Music',
+        data.type || 'digital',
+        data.stock || 0,
+        data.status || 'published',
+        data.isFeatured ? 1 : 0
+      ).run();
+      
+      // Handle variants if provided
+      if (Array.isArray(data.variants) && data.variants.length > 0) {
+        const variantStatements = data.variants.map((v: any) => 
+          env.DB.prepare(`
+            INSERT INTO product_variants (id, product_id, name, sku, price, inventory, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(crypto.randomUUID(), id, v.name, v.sku || '', v.price || data.price, v.inventory || 0, v.imageUrl || v.image_url || '')
+        );
+        await env.DB.batch(variantStatements);
+      }
+      
+      return json({ success: true, id });
+    }
+
+    // PUT /api/admin/products/:id
+    const productMatch = path.match(/^\/api\/admin\/products\/([^/]+)$/);
+    if (productMatch && method === 'PUT') {
+      const id = productMatch[1];
+      const data = await request.json() as any;
+      await env.DB.prepare(`
+        UPDATE products SET 
+          name = ?, slug = ?, description = ?, price = ?, 
+          image_url = ?, category = ?, type = ?, stock = ?, 
+          status = ?, is_featured = ?
+        WHERE id = ?
+      `).bind(
+        data.name,
+        data.slug,
+        data.description || '',
+        data.price || 0,
+        data.imageUrl || data.image_url || '',
+        data.category || 'Music',
+        data.type || 'digital',
+        data.stock || 0,
+        data.status || 'published',
+        data.isFeatured ? 1 : 0,
+        id
+      ).run();
+      
+      // Update variants (simplified: delete and re-insert or update existing)
+      if (Array.isArray(data.variants)) {
+        await env.DB.prepare('DELETE FROM product_variants WHERE product_id = ?').bind(id).run();
+        if (data.variants.length > 0) {
+          const variantStatements = data.variants.map((v: any) => 
+            env.DB.prepare(`
+              INSERT INTO product_variants (id, product_id, name, sku, price, inventory, image_url)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).bind(crypto.randomUUID(), id, v.name, v.sku || '', v.price || data.price, v.inventory || 0, v.imageUrl || v.image_url || '')
+          );
+          await env.DB.batch(variantStatements);
+        }
+      }
+      
+      return json({ success: true });
+    }
+
+    // DELETE /api/admin/products/:id
+    if (productMatch && method === 'DELETE') {
+      const id = productMatch[1];
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM product_variants WHERE product_id = ?').bind(id),
+        env.DB.prepare('DELETE FROM products WHERE id = ?').bind(id)
+      ]);
+      return json({ success: true });
     }
 
     // GET /api/admin/active-subscribers
@@ -864,7 +1109,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         INNER JOIN subscriptions s ON s.id = u.id
         WHERE s.status = 'active' AND s.expires_at > DATETIME('now')
       `).all();
-      return json(results);
+      const mapped = (results || []).map((r: any) => ({
+        ...r,
+        avatar_url: normalizeAssetUrl(r.avatar_url)
+      }));
+      return json(mapped);
     }
 
     // GET /api/admin/notifications
@@ -880,23 +1129,23 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // POST /api/admin/r2-upload
     if (path === '/api/admin/r2-upload' && method === 'POST') {
       try {
-        const fileName = req.headers.get('x-file-name');
-        const folder = req.headers.get('x-folder') || 'uploads';
-        const contentType = req.headers.get('content-type') || 'application/octet-stream';
-        
-        if (!fileName) return json({ error: 'Missing x-file-name header' }, 400);
+        const rawFileName = request.headers.get('x-file-name');
+        const fileName = rawFileName ? decodeURIComponent(rawFileName) : `upload_${Date.now()}`;
+        const folder = request.headers.get('x-folder') || 'uploads';
+        const contentType = request.headers.get('content-type') || 'application/octet-stream';
         
         const fileId = crypto.randomUUID();
-        const ext = fileName.split('.').pop();
+        const ext = fileName.split('.').pop() || 'bin';
         const objectKey = `${folder}/${fileId}.${ext}`;
         
-        const body = await req.arrayBuffer();
+        const body = await request.arrayBuffer();
         await env.R2_BUCKET.put(objectKey, body, {
           httpMetadata: { contentType }
         });
         
-        const fileUrl = `https://pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev/${objectKey}`;
-        return json({ success: true, url: fileUrl });
+        const fileUrl = `https://${env.PUBLIC_R2_DOMAIN}/${objectKey}`;
+        console.log(`[R2 Upload] Success: ${fileUrl} (Key: ${objectKey})`);
+        return json({ success: true, url: fileUrl, key: objectKey });
       } catch (e: any) {
         return json({ error: e.message }, 500);
       }
