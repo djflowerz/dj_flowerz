@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [session, setSession] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [mfaResolver, setMfaResolver] = useState<any>(null);
-  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(true); // Default to true to prevent flash
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false); // Default to false to ensure new users are redirected to setup
 
   // Helper to fetch profile and set user
   const fetchProfileAndSetUser = useCallback(async (session: any) => {

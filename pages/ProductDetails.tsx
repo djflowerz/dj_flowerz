@@ -179,10 +179,25 @@ export default function ProductDetails() {
 
   const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
 
-  const galleryImages = [
-    product.image || product.image_url,
-    ...(product.images || [])
-  ].filter(Boolean);
+  const galleryImages = useMemo(() => {
+    const rawImages = Array.isArray(product.images) ? product.images : (typeof product.images === 'string' ? JSON.parse(product.images) : []);
+    return [
+      product.image || product.image_url,
+      ...rawImages
+    ].filter(Boolean);
+  }, [product]);
+
+  const productFeatures = useMemo(() => {
+    if (Array.isArray(product.features)) return product.features;
+    if (typeof product.features === 'string') {
+      try {
+        return JSON.parse(product.features);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }, [product]);
 
   const productReviews = reviews.filter(r => r.target_id === product.id || r.productId === product.id);
 
@@ -241,7 +256,7 @@ export default function ProductDetails() {
                         <div className="flex gap-0.5">
                             {[...Array(5)].map((_, i) => <Star key={i} size={12} fill="currentColor" className={i < 4 ? 'text-yellow-400' : 'text-gray-600'} />)}
                         </div>
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">(12 Verified Reviews)</span>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">({productReviews.length || 12} Verified Reviews)</span>
                     </div>
                 </div>
 
@@ -255,31 +270,23 @@ export default function ProductDetails() {
                 </div>
             </div>
 
-            {(() => {
-                const features = Array.isArray(product.features) ? product.features : [];
-
-                if (features.length > 0) {
-                    return (
-                        <div className="space-y-3 max-w-xl">
-                            <h4 className="text-[10px] font-black text-brand-cyan uppercase tracking-[0.2em]">Key Features</h4>
-                            <div className="grid grid-cols-1 gap-2">
-                                {features.slice(0, 5).map((feature, idx) => (
-                                    <div key={idx} className="flex items-start gap-3 group">
-                                        <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-all group-hover:scale-125" />
-                                        <p className="text-gray-300 text-sm font-medium leading-tight tracking-wide">{feature}</p>
-                                    </div>
-                                ))}
+            {productFeatures.length > 0 ? (
+                <div className="space-y-3 max-w-xl">
+                    <h4 className="text-[10px] font-black text-brand-cyan uppercase tracking-[0.2em]">Key Features</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                        {productFeatures.map((feature: string, idx: number) => (
+                            <div key={idx} className="flex items-start gap-3 group">
+                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-all group-hover:scale-125" />
+                                <p className="text-gray-300 text-sm font-medium leading-tight tracking-wide">{feature}</p>
                             </div>
-                        </div>
-                    );
-                }
-
-                return (
-                    <div className="text-gray-400 text-sm leading-relaxed max-w-xl">
-                        {product.shortDescription || product.description}
+                        ))}
                     </div>
-                );
-            })()}
+                </div>
+            ) : (
+                <div className="text-gray-400 text-sm leading-relaxed max-w-xl">
+                    {product.shortDescription || product.description}
+                </div>
+            )}
 
             {/* Inventory Note */}
             <div className="p-4 rounded-2xl bg-green-400/5 border border-green-400/20 flex items-center gap-4">

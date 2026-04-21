@@ -3,6 +3,7 @@ import { Heart, Coffee } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { STORAGE_WORKER_URL } from '../utils/r2';
 
 const TipJar: React.FC = () => {
   const { user } = useAuth();
@@ -30,12 +31,12 @@ const TipJar: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/payments/initialize', {
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/payments/initialize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'tip',
-          amount: Number(amount) * 100, // Amount in KES kobo
+          amount: Number(amount), // Amount in KES (worker will convert to kobo)
           email: user?.email || guestEmail,
           metadata: {
             userId: user?.id,

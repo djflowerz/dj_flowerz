@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false, subscriberOnly = false }) => {
-    const { user, loading } = useAuth();
+    const { user, loading, isProfileComplete } = useAuth();
     const location = useLocation();
 
     if (loading) {
@@ -35,6 +35,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
     if (!user) {
         // Normal protected pages go to login
         return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // ✅ redirect to profile setup if not complete
+    if (!isProfileComplete && location.pathname !== '/setup-profile') {
+        return <Navigate to="/setup-profile" replace />;
     }
 
     if (adminOnly && !user.isAdmin) {

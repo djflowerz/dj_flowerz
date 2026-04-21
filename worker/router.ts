@@ -941,9 +941,34 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       ...p,
       image_url: normalizeAssetUrl(p.image_url || p.image),
       imageUrl: normalizeAssetUrl(p.image_url || p.image),
+      images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
+      features: typeof p.features === 'string' ? JSON.parse(p.features) : (p.features || []),
+      shipping_tier: p.shipping_tier || p.shippingTier || 'local',
+      shippingTier: p.shipping_tier || p.shippingTier || 'local',
       category_name: p.category_name || p.category || 'Music'
     }));
     return json(mapped);
+  }
+
+  // GET /api/coupons/validate
+  if (path === '/api/coupons/validate' && method === 'GET') {
+    const code = url.searchParams.get('code');
+    if (!code) return json({ error: 'Coupon code required' }, 400);
+
+    const coupon = await env.DB.prepare('SELECT * FROM coupons WHERE code = ? AND is_active = 1').bind(code).first() as any;
+    if (!coupon) return json({ error: 'Invalid or expired coupon' }, 404);
+
+    // Basic expiry check if valid_until exists
+    if (coupon.valid_until && new Date(coupon.valid_until) < new Date()) {
+      return json({ error: 'Coupon has expired' }, 400);
+    }
+
+    return json({
+      code: coupon.code,
+      discount_type: coupon.discount_type,
+      discount_value: coupon.discount_value,
+      min_order_amount: coupon.min_order_amount || 0
+    });
   }
 
   if (path === '/api/mixtapes' && method === 'GET') {
@@ -975,7 +1000,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         },
         body: JSON.stringify({
           email,
-          amount: Math.round(amount * 100), // convert to kobo
+          amount: Math.round(Number(amount) * 100), // convert to kobo (input should be KES)
           metadata: {
             ...metadata,
             payment_type: type
@@ -1007,18 +1032,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
-  // POST /api/checkout
-  if (path === '/api/checkout' && method === 'POST') {
+  // POST /api/orders (Successor to /api/checkout)
+  if ((path === '/api/orders' || path === '/api/checkout') && method === 'POST') {
     try {
       const data = await request.json() as any;
       const orderId = crypto.randomUUID();
-      const { items, total, customer } = data;
+      const { items, total, total_amount, customer } = data;
       
+      const finalTotal = total_amount || total || 0;
+
       // Persist order
       await env.DB.prepare(`
-        INSERT INTO orders (id, customer_email, customer_name, total_amount, items, status, payment_status)
-        VALUES (?, ?, ?, ?, ?, 'pending', 'unpaid')
-      `).bind(orderId, customer.email, customer.name, total, JSON.stringify(items)).run();
+        INSERT INTO orders (id, customer_email, customer_name, total_amount, items, status, payment_status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'pending', 'unpaid', datetime('now'))
+      `).bind(orderId, customer.email, customer.name, finalTotal, JSON.stringify(items)).run();
       
       return json({ orderId, success: true });
     } catch (e: any) {
@@ -1255,6 +1282,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         // Match both possible DB column names and UI expectations
         image_url: normalizeAssetUrl(p.image_url || p.image),
         imageUrl: normalizeAssetUrl(p.image_url || p.image),
+        images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
+        features: typeof p.features === 'string' ? JSON.parse(p.features) : (p.features || []),
+        shipping_tier: p.shipping_tier || p.shippingTier || 'local',
+        shippingTier: p.shipping_tier || p.shippingTier || 'local',
         category_name: p.category_name || p.category || 'Music',
         variants: variants.filter((v: any) => v.product_id === p.id).map((v: any) => ({
           ...v,

@@ -94,6 +94,47 @@ export default function Checkout() {
   ), [items]);
 
   const isDigitalOnly = !hasPhysical;
+  const hasImportItems = useMemo(() => (items || []).some((i: any) => 
+    i.shippingTier === 'air' || i.shippingTier === 'sea' || i.shipping_tier === 'air' || i.shipping_tier === 'sea'
+  ), [items]);
+
+  // Logic for Friday Shipments
+  const shippingInfo = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay(); // 0 (Sun) to 6 (Sat)
+    const hour = now.getHours();
+    
+    // Dispatch is every Friday. 
+    // Orders before Friday 12:00 PM (noon) ship THIS Friday.
+    // Orders after Friday 12:00 PM ship NEXT Friday.
+    let daysUntilDispatch = (5 - day + 7) % 7;
+    if (day === 5 && hour >= 12) {
+      daysUntilDispatch = 7;
+    }
+    
+    const dispatchDate = new Date(now);
+    dispatchDate.setDate(now.getDate() + daysUntilDispatch);
+    
+    // Calculate Arrival based on tier
+    const tier = items.find(i => i.shippingTier === 'sea' || i.shipping_tier === 'sea') ? 'sea' : 
+                 (items.find(i => i.shippingTier === 'air' || i.shipping_tier === 'air') ? 'air' : 'local');
+    
+    let minDays = 1, maxDays = 3;
+    if (tier === 'air') { minDays = 7; maxDays = 14; }
+    else if (tier === 'sea') { minDays = 30; maxDays = 45; }
+    
+    const minArrival = new Date(dispatchDate);
+    minArrival.setDate(dispatchDate.getDate() + minDays);
+    
+    const maxArrival = new Date(dispatchDate);
+    maxArrival.setDate(dispatchDate.getDate() + maxDays);
+
+    return {
+      dispatchDate: dispatchDate.toLocaleDateString('en-KE', { weekday: 'long', month: 'short', day: 'numeric' }),
+      arrivalRange: `${minArrival.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' })} - ${maxArrival.toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      tier
+    };
+  }, [items]);
 
   const selectedCounty = watch('county');
   const [selectedTown, setSelectedTown] = useState<string>('');
@@ -689,10 +730,42 @@ export default function Checkout() {
                           <span className="font-black uppercase tracking-widest text-xs">Full Payment</span>
                           <span className="text-[10px] font-bold">100% Secure</span>
                         </button>
-                        <button type="button" onClick={() => setPaymentType('lipa_pole_pole')} className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (hasImportItems) {
+                              toast.error("Installments are only available for local products. Import items (Air/Sea) must be paid in full.");
+                              return;
+                            }
+                            setPaymentType('lipa_pole_pole');
+                          }} 
+                          className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${hasImportItems ? 'opacity-40 cursor-not-allowed grayscale' : ''} ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}
+                        >
                           <span className="font-black uppercase tracking-widest text-xs">Installments</span>
-                          <span className="text-[10px] font-bold">20% Deposit</span>
+                          <span className="text-[10px] font-bold">{hasImportItems ? 'Not available for imports' : '20% Deposit'}</span>
                         </button>
+                      </div>
+                    )}
+
+                    {!isDigitalOnly && (
+                      <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-3">
+                        <div className="flex items-center gap-3 text-brand-cyan">
+                          <Truck size={18} />
+                          <h4 className="font-black uppercase text-xs tracking-widest">Delivery Estimate</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase">Dispatch Friday</p>
+                            <p className="font-bold text-sm text-white">{shippingInfo.dispatchDate}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase">Expected Arrival</p>
+                            <p className="font-bold text-sm text-brand-cyan">{shippingInfo.arrivalRange}</p>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-gray-600 font-medium italic">
+                          * Orders made by Friday 12:00 PM ship the same week. Later orders shift to the next Friday cycle.
+                        </p>
                       </div>
                     )}
 
