@@ -614,6 +614,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
 
+    // PUT /api/admin/store/settings
+    if (path === '/api/admin/store/settings' && method === 'PUT') {
+      try {
+        const payload = await request.text();
+        await env.KV.put('store_settings', payload);
+        return json({ success: true, message: 'Settings updated successfully' });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
+    }
+
     // GET /api/admin/orders
     if (path === '/api/admin/orders' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
