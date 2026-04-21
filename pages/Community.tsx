@@ -157,15 +157,15 @@ export default function Community() {
             <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-4">
                 Community <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">Hub</span>
             </h1>
-            <p className="text-gray-400 text-lg max-w-2xl">Connect, collaborate, and share with fellow DJs and producers.</p>
+            <p className="text-gray-400 text-lg max-w-2xl">Share updates, talk music, buy & sell with the DJ Flowerz community.</p>
         </div>
 
         {/* Old Feed Tabs Layout */}
         <div className="flex border-b border-white/10 mb-8 overflow-x-auto custom-scrollbar">
             {[
-              { id: 'latest', label: 'Latest Feed', icon: Activity },
+              { id: 'latest', label: 'Latest Posts', icon: Activity },
               { id: 'trending', label: 'Trending', icon: TrendingUp },
-              { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag }
+              { id: 'marketplace', label: 'Buy & Sell', icon: ShoppingBag }
             ].map((v) => (
               <button
                 key={v.id}
@@ -193,8 +193,8 @@ export default function Community() {
                     
                     <div className="w-full flex justify-center gap-4 pt-4 border-t border-white/5 text-center mt-2 group-hover:border-brand-cyan/20 transition-colors">
                         <div className="flex-1">
-                            <p className="font-black text-white">Tier</p>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest">{user?.auraTier || 'Standard'}</p>
+                            <p className="font-black text-white">Level</p>
+                            <p className="text-xs text-gray-500 uppercase tracking-widest">{user?.auraTier || 'Member'}</p>
                         </div>
                         <div className="w-px h-8 bg-white/5" />
                         <div className="flex-1">
@@ -208,7 +208,7 @@ export default function Community() {
             <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl shadow-2xl">
                 <h4 className="font-black text-white mb-4 flex items-center gap-2">
                     <Activity size={18} className="text-brand-purple" />
-                    Aura Leaders
+                    Top Members
                 </h4>
                 <div className="space-y-4">
                   {leaders.slice(0, 5).map((leader, i) => (
@@ -236,16 +236,16 @@ export default function Community() {
                         <textarea
                             value={newPulseContent}
                             onChange={e => setNewPulseContent(e.target.value)}
-                            placeholder="Pulse the community..."
+                            placeholder="What's on your mind? Share something with the community..."
                             className="w-full bg-transparent border-none text-white text-lg placeholder-gray-500 focus:outline-none resize-none pt-2 min-h-[80px]"
                             rows={3}
                         />
                         <div className="flex items-center justify-between mt-4 border-t border-white/[0.06] pt-4">
                             <div className="flex items-center gap-1">
-                                <button className="p-2.5 text-brand-purple hover:bg-brand-purple/10 rounded-full transition-all">
+                                <button className="p-2.5 text-brand-purple hover:bg-brand-purple/10 rounded-full transition-all" title="Add a photo">
                                     <ImageIcon size={20} />
                                 </button>
-                                <button className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 rounded-full transition-all">
+                                <button className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 rounded-full transition-all" title="List something for sale">
                                     <ShoppingBag size={20} />
                                 </button>
                             </div>
@@ -254,7 +254,7 @@ export default function Community() {
                                 disabled={!newPulseContent.trim()}
                                 className="bg-brand-purple text-white px-8 py-2.5 rounded-full font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
                             >
-                                <Send size={18} /> Pulse
+                                <Send size={18} /> Post
                             </button>
                         </div>
                     </div>
@@ -310,19 +310,19 @@ export default function Community() {
                     )}
 
                     <div className="px-4 py-3 border-t border-white/5 flex items-center gap-2 bg-white/[0.01]">
-                        <button onClick={() => reactToPulse(p.id, 'heart')} className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-red-400 hover:bg-red-400/5 transition">
+                        <button onClick={() => reactToPulse(p.id, 'heart')} title="Like" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-red-400 hover:bg-red-400/5 transition">
                             <Heart size={18} className={p.hearts > 0 ? "fill-red-400" : ""} />
-                            <span>{p.hearts}</span>
+                            <span>{p.hearts} Likes</span>
                         </button>
-                        <button className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <button title="Comment" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
                             <MessageSquare size={18} />
-                            <span>{Math.floor(p.echoes / 2)}</span>
+                            <span>{Math.floor(p.echoes / 2)} Comments</span>
                         </button>
-                        <button onClick={() => reactToPulse(p.id, 'echo')} className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-green-400 hover:bg-green-400/5 transition">
+                        <button onClick={() => reactToPulse(p.id, 'echo')} title="Repost" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-green-400 hover:bg-green-400/5 transition">
                             <Repeat size={18} />
-                            <span>{p.echoes}</span>
+                            <span>{p.echoes} Reposts</span>
                         </button>
-                        <button className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+                        <button title="Share" className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
                             <Share2 size={18} />
                         </button>
                     </div>
@@ -335,17 +335,17 @@ export default function Community() {
             <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl shadow-2xl">
                 <h4 className="font-black text-white mb-4 flex items-center gap-2">
                     <TrendingUp size={18} className="text-brand-cyan" />
-                    Market Echoes
+                    Items for Sale
                 </h4>
                 <div className="space-y-4">
                   {marketEchoes.length === 0 ? (
-                      <p className="text-xs text-gray-500 italic">No market signals.</p>
+                      <p className="text-xs text-gray-500 italic">Nothing listed for sale yet.</p>
                   ) : marketEchoes.slice(0, 4).map(echo => (
                       <div key={echo.id} className="p-3 bg-white/5 rounded-xl border border-white/5 hover:border-brand-cyan/20 transition-all cursor-pointer">
                           <p className="text-xs text-gray-300 line-clamp-2 mb-2">{echo.content}</p>
                           <div className="flex items-center justify-between">
                               <span className="text-[10px] text-gray-500">@{echo.author_handle?.replace('@', '')}</span>
-                              <span className="text-[10px] font-bold text-brand-cyan">DEAL</span>
+                              <span className="text-[10px] font-bold text-brand-cyan">FOR SALE</span>
                           </div>
                       </div>
                   ))}
@@ -353,8 +353,8 @@ export default function Community() {
             </div>
             
             <div className="glass-card p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-brand-purple/10 to-transparent">
-              <h3 className="font-black text-white mb-2">Community Support</h3>
-              <p className="text-xs text-gray-400 mb-4">Need help resolving an escrow dispute or reporting content?</p>
+              <h3 className="font-black text-white mb-2">Need Help?</h3>
+              <p className="text-xs text-gray-400 mb-4">Having an issue with a purchase, a post, or another member? We're here to help.</p>
               <button className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors">
                   Contact Support
               </button>
