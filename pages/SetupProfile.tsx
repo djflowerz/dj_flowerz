@@ -10,8 +10,9 @@ import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 
 const SetupProfile: React.FC = () => {
-  const { user, finalizeProfile, checkUsername, isProfileComplete } = useAuth();
+  const { user, finalizeProfile, checkUsername, isProfileComplete, session } = useAuth();
   const navigate = useNavigate();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [form, setForm] = useState({
     username: '',
@@ -60,6 +61,39 @@ const SetupProfile: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [form.username, checkUsername]);
+
+  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingAvatar(true);
+    const toastId = toast.loading('Uploading avatar...');
+
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+      
+      const res = await fetch(`${apiBase}/api/social/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-file-name': encodeURIComponent(file.name),
+          'x-folder': 'avatars',
+          'content-type': file.type
+        },
+        body: await file.arrayBuffer()
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      setForm({ ...form, avatar_url: data.url });
+      toast.success('Avatar updated successfully', { id: toastId });
+    } catch (err: any) {
+      toast.error('Avatar upload failed', { description: err.message, id: toastId });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,8 +176,14 @@ const SetupProfile: React.FC = () => {
             <div className="relative z-10 space-y-8">
               {/* Profile Picture Preview */}
               <div className="flex flex-col items-center gap-4">
-                <div className="relative group/avatar">
-                  <div className="w-24 h-24 rounded-full border-2 border-white/10 p-1 bg-black/40 overflow-hidden">
+                <label className="relative group/avatar cursor-pointer block">
+                  <input type="file" accept="image/*" className="hidden" onChange={uploadAvatar} disabled={uploadingAvatar} />
+                  <div className="w-24 h-24 rounded-full border-2 border-white/10 p-1 bg-black/40 overflow-hidden relative">
+                    {uploadingAvatar ? (
+                      <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10">
+                        <Loader2 size={24} className="text-brand-purple animate-spin" />
+                      </div>
+                    ) : null}
                     {form.avatar_url ? (
                       <img src={form.avatar_url} alt="Avatar" className="w-full h-full object-cover rounded-full" />
                     ) : (
@@ -152,11 +192,11 @@ const SetupProfile: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity cursor-not-allowed">
+                  <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
                     <Camera size={20} className="text-white" />
                   </div>
-                </div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avatar synced from login</p>
+                </label>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Operator Identity Key</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

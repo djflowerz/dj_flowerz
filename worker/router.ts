@@ -242,7 +242,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/user/profile/:username
   if (method === 'GET' && path.match(/^\/api\/user\/profile\/[^/]+$/)) {
-    const username = path.split('/').pop()?.replace('@', ''); // Handle @nairobisound if provided
+    const username = path.split('/').pop()?.replace('@', '')?.toLowerCase(); // Handle @nairobisound if provided
     const user = await env.DB.prepare('SELECT id, username, display_name as name, avatar_url as avatarUrl, bio, role, location, website, created_at as createdAt FROM user_profiles WHERE username = ?').bind(username).first() as any;
     if (!user) return json({ error: 'User not found' }, 404);
     
@@ -281,7 +281,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/profiles/:username — full profile + stats + viewer context
   if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/) && !path.endsWith('/posts') && !path.endsWith('/followers') && !path.endsWith('/following')) {
-    const uname = path.split('/').pop()?.replace('@', '') || '';
+    const uname = path.split('/').pop()?.replace('@', '')?.toLowerCase() || '';
     const profile = await env.DB.prepare(`
       SELECT id, username, display_name, avatar_url, bio, role, location, website,
         COALESCE(twitter, '') as twitter,
@@ -314,7 +314,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/profiles/:username/posts
   if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+\/posts$/)) {
-    const uname = path.split('/')[3]?.replace('@', '');
+    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const before = url.searchParams.get('before');
     const type = url.searchParams.get('type') || 'posts';
@@ -352,7 +352,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // POST /api/profiles/:username/follow — toggle follow
   if (method === 'POST' && path.match(/^\/api\/profiles\/[^/]+\/follow$/)) {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const uname = path.split('/')[3]?.replace('@', '');
+    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
     const target = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
     if (!target) return json({ error: 'User not found' }, 404);
     if (target.id === actorId) return json({ error: 'Cannot follow yourself' }, 400);
@@ -370,7 +370,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // PATCH /api/profiles/:username — update profile
   if (method === 'PATCH' && path.match(/^\/api\/profiles\/[^/]+$/)) {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const uname = path.split('/')[3]?.replace('@', '');
+    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
     const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
     if (!profile) return json({ error: 'User not found' }, 404);
     if (profile.id !== actorId) return json({ error: 'Forbidden' }, 403);
@@ -664,6 +664,31 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // POST /api/social/upload
+  if (method === 'POST' && path === '/api/social/upload') {
+    if (!actorId) return json({ error: 'Unauthorized' }, { status: 401 });
+    try {
+      const rawFileName = request.headers.get('x-file-name');
+      const fileName = rawFileName ? decodeURIComponent(rawFileName) : `upload_${Date.now()}`;
+      const folder = request.headers.get('x-folder') || 'community';
+      const contentType = request.headers.get('content-type') || 'application/octet-stream';
+      
+      const fileId = crypto.randomUUID();
+      const ext = fileName.split('.').pop() || 'png';
+      const objectKey = `${folder}/${fileId}.${ext}`;
+      
+      const body = await request.arrayBuffer();
+      await env.PROFILES_BUCKET.put(objectKey, body, {
+        httpMetadata: { contentType }
+      });
+      
+      const fileUrl = `https://${env.PUBLIC_R2_DOMAIN}/${objectKey}`;
+      return json({ success: true, url: fileUrl });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // POST /api/social/follows/:userId (toggle)
   if (method === 'POST' && path.match(/^\/api\/social\/follows\/[^/]+$/)) {
     if (!actorId) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -810,7 +835,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/social/profile/:username
   if (method === 'GET' && path.match(/^\/api\/social\/profile\/[^/]+$/)) {
-    const username = path.split('/').pop()?.replace('@', '');
+    const username = path.split('/').pop()?.replace('@', '')?.toLowerCase();
 
     const profile = await env.DB.prepare(`
       SELECT id, display_name as name, avatar_url, username, role, bio, banner_url as cover_url,
