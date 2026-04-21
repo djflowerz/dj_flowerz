@@ -70,10 +70,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const sbUser = session.user;
     const normalizeEmail = (e: string) => e?.toLowerCase().trim() || '';
-    // Use env var first, fallback to hardcoded owner email if env not set
-    const ADMIN_EMAIL_FALLBACK = 'ianmuriithiflowerz@gmail.com';
-    const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || ADMIN_EMAIL_FALLBACK).toLowerCase().trim();
-    const isAdminEmail = normalizeEmail(sbUser.email) === adminEmailFromEnv;
+    
+    // Multi-email admin support (matched with worker)
+    const ADMIN_EMAILS = [
+      (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase().trim(),
+      'djflowerz254@gmail.com'
+    ];
+    
+    const isAdminEmail = ADMIN_EMAILS.includes(normalizeEmail(sbUser.email));
     let userData: User | null = null;
 
     try {

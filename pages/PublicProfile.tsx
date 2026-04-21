@@ -702,7 +702,7 @@ export default function PublicProfile() {
         username === user?.id || 
         username === user?.username || 
         username === 'me' || 
-        (user?.role === 'admin' && (username === 'djflowerz' || username === 'user_djflowerz' || username === '3361e605-645a-40a2-9d33-35619cc41470'))
+        (user?.isAdmin && (username === 'djflowerz' || username === 'user_djflowerz' || username === '3361e605-645a-40a2-9d33-35619cc41470'))
     );
 
     if (error || !profile) return (

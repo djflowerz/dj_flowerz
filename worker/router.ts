@@ -30,7 +30,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     } catch(e) {}
   }
   // Map Admin Supabase UUIDs → the real D1 profile row (user_djflowerz)
-  const isIan = ADMIN_EMAILS.includes(_jwtEmail);
+  const isIan = _jwtEmail && ADMIN_EMAILS.includes(_jwtEmail);
   const actorId = isIan ? 'user_djflowerz' : _actorId;
   const adminUuid = '3361e605-645a-40a2-9d33-35619cc41470';
 
@@ -152,9 +152,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
     // MAP IAN DIRECTLY TO THE EXISTENT DJ FLOWERZ DB ROW
-    const _adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
-    const isIan = userEmail && userEmail === _adminEmail;
-    
+    // (Uses isIan/actorId from outer scope)
     if (isIan) {
       uid = 'user_djflowerz'; // Forces all posts/metadata to link perfectly!
     }
