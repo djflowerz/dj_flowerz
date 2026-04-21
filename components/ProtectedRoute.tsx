@@ -37,9 +37,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // ✅ redirect to profile setup if not complete
-    if (!isProfileComplete && location.pathname !== '/setup-profile') {
-        return <Navigate to="/setup-profile" replace />;
+    // ✅ Redirect to community identity setup if handle hasn't been claimed yet
+    if (user?.needsSetup && location.pathname !== '/setup-identity') {
+        return <Navigate to="/setup-identity" replace />;
     }
 
     if (adminOnly && !user.isAdmin) {

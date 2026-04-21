@@ -114,10 +114,6 @@ const AppContent = () => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
   
-  // Enforce Identity Setup for all logged-in users who haven't claimed a handle
-  if (isAuthenticated && user?.needsSetup && location.pathname !== '/setup-identity' && !loading) {
-    return <Navigate to="/setup-identity" replace />;
-  }
   return (
     <Layout>
       <PushBanner />
