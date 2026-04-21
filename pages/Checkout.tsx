@@ -341,6 +341,7 @@ export default function Checkout() {
   };
 
   const onSubmit = async (data: any) => {
+    if (!data) return;
     setIsProcessing(true);
     try {
       const orderData = {

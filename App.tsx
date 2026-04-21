@@ -192,7 +192,7 @@ const App: React.FC = () => {
               <Layout>
                 <PushBanner />
                 <ErrorBoundary>
-                  <Suspense fallback={<LoadingSpinner />}>
+                  <Suspense key={location.pathname} fallback={<LoadingSpinner />}>
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/pool" element={<Navigate to="/" replace />} />

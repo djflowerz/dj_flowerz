@@ -1,5 +1,12 @@
 import { Env } from './types';
 
+// Helper to generate referral codes
+function generateReferralCode(name: string) {
+  const prefix = (name || 'USR').replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}${random}`;
+}
+
 export async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -125,17 +132,25 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // Look up existing user
     let user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first() as any;
     
+    // Auto-generate referral code for existing users if missing
+    if (user && !user.referral_code) {
+      const newRefCode = generateReferralCode(user.display_name || user.username);
+      await env.DB.prepare('UPDATE user_profiles SET referral_code = ? WHERE id = ?').bind(newRefCode, user.id).run();
+      user.referral_code = newRefCode;
+    }
+    
     // Stop auto-creation for general users. Only Ian/Admin gets auto-provisioned/synced here.
     if (!user) {
       if (isIan) {
         // Essential: Keep admin auto-creation so the platform owner is never locked out
         const username = 'djflowerz';
         const role = 'admin';
+        const referralCode = generateReferralCode(username);
         await env.DB.prepare(`
-          INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, referral_code)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          uid, username, full_name || username, userEmail, avatar_url, role, 'Administrator of DJ Flowerz'
+          uid, username, full_name || username, userEmail, avatar_url, role, 'Administrator of DJ Flowerz', referralCode
         ).run();
         user = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(uid).first();
       } else {
@@ -211,11 +226,12 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (existingProfile) return json({ error: 'Profile already exists' }, 400);
 
     const now = new Date().toISOString();
+    const referralCode = generateReferralCode(display_name || cleanUsername);
 
     try {
       await env.DB.prepare(`
-        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, location, website, instagram, twitter, soundcloud, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, location, website, instagram, twitter, soundcloud, created_at, updated_at, referral_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         actorId, 
         cleanUsername, 
@@ -230,7 +246,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         twitter || '',
         soundcloud || '',
         now,
-        now
+        now,
+        referralCode
       ).run();
 
       const newUser = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(actorId).first();
@@ -395,6 +412,27 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier, actorId).run();
 
     return json({ success: true });
+  }
+
+  // GET /api/user/installments
+  if (path === '/api/user/installments' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { results } = await env.DB.prepare('SELECT * FROM installments WHERE customer_id = ? OR user_id = ? ORDER BY created_at DESC').bind(actorId, actorId).all();
+    return json(results);
+  }
+
+  // GET /api/user/referrals
+  if (path === '/api/user/referrals' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { results } = await env.DB.prepare('SELECT * FROM referral_logs WHERE referrer_id = ? ORDER BY created_at DESC').bind(actorId).all();
+    return json(results);
+  }
+
+  // GET /api/user/referral-stats
+  if (path === '/api/user/referral-stats' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const stats = await env.DB.prepare('SELECT * FROM referral_stats WHERE user_id = ?').bind(actorId).first();
+    return json(stats || { total_referrals: 0, total_earned: 0 });
   }
 
   // ─── SOCIAL ROUTES (social_* infrastructure) ───────────────────────────────
@@ -1027,6 +1065,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const data = await request.json() as any;
       const { type, amount, email, metadata } = data;
       
+      const appUrl = (env.VITE_APP_URL || 'https://djflowerz.co.ke').replace(/\/$/, '');
       const response = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
@@ -1040,7 +1079,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
             ...metadata,
             payment_type: type
           },
-          callback_url: `${env.VITE_APP_URL}/api/payments/verify`
+          callback_url: `${appUrl}/api/payments/verify`
         })
       });
       
