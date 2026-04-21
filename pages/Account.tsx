@@ -276,54 +276,32 @@ const Account: React.FC = () => {
         console.warn('[Account] R2 profile update failed (non-fatal):', r2Err);
       }
 
-      // 2. Sync to D1 via PATCH /api/profiles/me — always uses 'me' so it works
-      // regardless of what username was previously stored.
-      if (session?.access_token) {
-        const cleanUsername = editUsername ? editUsername.toLowerCase().replace(/[^a-z0-9_]/g, '') : undefined;
+      // 2. Sync to D1 via PATCH /api/user/me — uses JWT actorId directly, no path matching issues.
+      // Auto-creates the D1 row if it doesn't exist yet.
+      const cleanUsername = editUsername ? editUsername.toLowerCase().replace(/[^a-z0-9_]/g, '') : undefined;
 
-        const patchRes = await fetch(`${API}/api/profiles/me`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'X-Actor-Id': user?.id || ''
-          },
-          body: JSON.stringify({
-            username: cleanUsername,
-            display_name: editName,
-            bio: editBio,
-            location: editLocation,
-            avatar_url: editAvatar || user?.avatarUrl || ''
-          })
-        });
+      const patchRes = await fetch(`${API}/api/user/me`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          username: cleanUsername,
+          display_name: editName,
+          bio: editBio,
+          location: editLocation,
+          avatar_url: editAvatar || user?.avatarUrl || ''
+        })
+      });
 
-        // If 404 → no D1 profile yet (bypassed SetupProfile) → create one now
-        if (patchRes.status === 404 && cleanUsername && cleanUsername.length >= 3) {
-          const postRes = await fetch(`${API}/api/profiles`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-              'X-Actor-Id': user?.id || ''
-            },
-            body: JSON.stringify({
-              username: cleanUsername,
-              display_name: editName,
-              bio: editBio,
-              location: editLocation,
-              avatar_url: editAvatar || user?.avatarUrl || ''
-            })
-          });
-          if (!postRes.ok) {
-            const err = await postRes.json().catch(() => ({}));
-            console.error('[Account] Profile creation failed:', err);
-          }
-        } else if (!patchRes.ok && patchRes.status !== 404) {
-          const err = await patchRes.json().catch(() => ({}));
-          if (err.error === 'Handle already taken') {
-            throw new Error('That community handle is already taken. Please choose another.');
-          }
+      if (!patchRes.ok) {
+        const err = await patchRes.json().catch(() => ({})) as any;
+        if ((err as any).error === 'Handle already taken') {
+          throw new Error('That community handle is already taken. Please choose another.');
         }
+        // Log but don't throw — local state is already updated
+        console.error('[Account] D1 profile sync failed:', err);
       }
 
       toast.success("Profile updated successfully!");
