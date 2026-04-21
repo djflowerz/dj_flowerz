@@ -12,7 +12,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const path = url.pathname;
   const method = request.method;
   const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
-  const adminEmail = (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase(); // Fallback to owner email if env not set
+  const ADMIN_EMAILS = [
+    (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase(),
+    'djflowerz254@gmail.com'
+  ];
+  const adminEmail = ADMIN_EMAILS[0];
 
   // ─── Resolve the real D1 user ID from JWT (fixes Anonymous posts & profile pics)
   let _actorId = request.headers.get('X-Actor-Id') || null;
@@ -26,7 +30,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     } catch(e) {}
   }
   // Map Ian's Supabase UUID → the real D1 profile row at all times
-  const actorId = _jwtEmail === adminEmail ? 'user_djflowerz' : _actorId;
+  const actorId = ADMIN_EMAILS.includes(_jwtEmail) ? 'user_djflowerz' : _actorId;
 
   // ─── CORS Preflight ──────────────────────────────────────────────────────────
   if (method === 'OPTIONS') {
@@ -97,6 +101,34 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const settings = await env.KV.get('store_settings');
     if (!settings) return json({ error: 'Settings not set' }, 404);
     return json(JSON.parse(settings));
+  }
+
+  }
+
+  // POST /api/upload (Authenticated File Upload - accessible to regular users)
+  if (path === '/api/upload' && method === 'POST') {
+    if (!token) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const rawFileName = request.headers.get('x-file-name');
+      const fileName = rawFileName ? decodeURIComponent(rawFileName) : `upload_${Date.now()}`;
+      const folder = request.headers.get('x-folder') || 'uploads';
+      const contentType = request.headers.get('content-type') || 'application/octet-stream';
+      
+      const fileId = crypto.randomUUID();
+      const ext = fileName.split('.').pop() || 'bin';
+      const objectKey = `${folder}/${fileId}.${ext}`;
+      
+      const body = await request.arrayBuffer();
+      await env.R2_BUCKET.put(objectKey, body, {
+        httpMetadata: { contentType }
+      });
+      
+      const fileUrl = `https://${env.PUBLIC_R2_DOMAIN}/${objectKey}`;
+      console.log(`[R2 Upload] Success: ${fileUrl} (Key: ${objectKey})`);
+      return json({ success: true, url: fileUrl, key: objectKey });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
   }
 
   // ─── USER & PROFILES ROUTES ────────────────────────────────────────────────
@@ -1125,11 +1157,13 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json({ error: 'Unauthorized — invalid token format' }, { status: 401 });
     }
 
-    const ADMIN_EMAIL_FALLBACK = 'ianmuriithiflowerz@gmail.com';
-    const adminEmail = (env.VITE_ADMIN_EMAIL || ADMIN_EMAIL_FALLBACK).toLowerCase();
+    const ADMIN_EMAILS = [
+      (env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase(),
+      'djflowerz254@gmail.com'
+    ];
     
     // Strict email enforcement — redirect non-admins with 403
-    if (userEmail.toLowerCase() !== adminEmail) {
+    if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
       console.warn(`[Admin Blocked] Unauthorized email attempt: ${userEmail}`);
       return json({ error: `Forbidden — Administrator access strictly limited to authorized email.` }, { status: 403 });
     }
@@ -1435,30 +1469,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json({ success: true, message: 'Sync triggered' });
     }
 
-    // POST /api/admin/r2-upload
-    if (path === '/api/admin/r2-upload' && method === 'POST') {
-      try {
-        const rawFileName = request.headers.get('x-file-name');
-        const fileName = rawFileName ? decodeURIComponent(rawFileName) : `upload_${Date.now()}`;
-        const folder = request.headers.get('x-folder') || 'uploads';
-        const contentType = request.headers.get('content-type') || 'application/octet-stream';
-        
-        const fileId = crypto.randomUUID();
-        const ext = fileName.split('.').pop() || 'bin';
-        const objectKey = `${folder}/${fileId}.${ext}`;
-        
-        const body = await request.arrayBuffer();
-        await env.R2_BUCKET.put(objectKey, body, {
-          httpMetadata: { contentType }
-        });
-        
-        const fileUrl = `https://${env.PUBLIC_R2_DOMAIN}/${objectKey}`;
-        console.log(`[R2 Upload] Success: ${fileUrl} (Key: ${objectKey})`);
-        return json({ success: true, url: fileUrl, key: objectKey });
-      } catch (e: any) {
-        return json({ error: e.message }, 500);
-      }
-    }
+    // [DELETED FROM HERE - MOVED TO PUBLIC AUTH SECTION BELOW]
 
     // GET /api/admin/system/health
     if (path === '/api/admin/system/health' && method === 'GET') {
