@@ -632,14 +632,46 @@ function ProfileFeed({ profile, tab, currentUserId, onSettingsRefresh }: { profi
 export default function PublicProfile() {
     const { username: rawUsername } = useParams<{ username: string }>();
     const username = rawUsername?.startsWith('@') ? rawUsername.substring(1) : rawUsername;
-    const { profile, stats, viewer, mutuals, loading, error, reload: refreshProfile, following, followLoading, toggleFollow } = useProfile(username || '');
-    const { user: currentUser } = useAuth();
+    const { profile, stats, viewer, mutuals, loading, error, reload: refresh } = useProfile(username || '');
+    const { user, isAuthenticated, session } = useAuth();
+    const navigate = useNavigate();
+    const [isSyncing, setIsSyncing] = useState(false);
     const [activeTab, setActiveTab] = useState('posts');
     const [showEdit, setShowEdit] = useState(false);
     const [showChat, setShowChat] = useState(false);
-    const navigate = useNavigate();
 
-    const isOwner = !!(currentUser && profile && (currentUser.username === profile.username || viewer.is_owner));
+    const handleForceSync = async () => {
+        if (!user || !session) return;
+        setIsSyncing(true);
+        const tid = toast.loading("Broadcasting sync signal...");
+        try {
+            const res = await fetch(`${API}/api/user/me`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'X-Actor-Id': user.id
+                },
+                body: JSON.stringify({
+                    display_name: user.name,
+                    avatar_url: user.avatarUrl
+                })
+            });
+            if (res.ok) {
+                toast.success("Identity synchronized with D1", { id: tid });
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                const err = await res.json().catch(() => ({}));
+                toast.error(err.error || "Sync failed", { id: tid });
+            }
+        } catch (e) {
+            toast.error("Network interface error", { id: tid });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const isOwner = !!(user && profile && (user.username === profile.username || viewer.is_owner));
     const auraTier: AuraTier = profile?.aura_tier || 'standard';
 
     // Build a synthetic pulse data from stats (30 points)
@@ -666,7 +698,12 @@ export default function PublicProfile() {
         </div>
     );
 
-    const isOwnFailedProfile = currentUser && currentUser.username && currentUser.username.toLowerCase() === username?.toLowerCase();
+    const isOwnFailedProfile = isAuthenticated && (
+        username === user?.id || 
+        username === user?.username || 
+        username === 'me' || 
+        (user?.role === 'admin' && (username === 'djflowerz' || username === 'user_djflowerz' || username === '3361e605-645a-40a2-9d33-35619cc41470'))
+    );
 
     if (error || !profile) return (
         <div className="min-h-screen bg-[#050508] flex flex-col items-center justify-center p-8 text-center">
@@ -679,9 +716,19 @@ export default function PublicProfile() {
                 {isOwnFailedProfile ? "Your profile identity needs synchronization." : "This frequency is currently unassigned."}
             </p>
             {isOwnFailedProfile ? (
-                <Link to="/account?tab=profile" className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10">
-                    Fix in Account Settings
-                </Link>
+                <div className="flex flex-col gap-4 items-center">
+                    <button 
+                        onClick={handleForceSync}
+                        disabled={isSyncing}
+                        className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10 flex items-center gap-3 disabled:opacity-50"
+                    >
+                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                        {isSyncing ? "Syncing Identity..." : "Force Sync Identity"}
+                    </button>
+                    <Link to="/account?tab=profile" className="text-gray-500 hover:text-white transition-colors font-bold uppercase tracking-widest text-[10px] py-2">
+                        Account Settings
+                    </Link>
+                </div>
             ) : (
                 <Link to="/community" className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10">
                     Return to Network

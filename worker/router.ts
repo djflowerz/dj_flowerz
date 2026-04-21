@@ -25,12 +25,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     try {
       const payloadBase64 = token.split('.')[1];
       const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
-      _jwtEmail = (payload.email || '').toLowerCase();
+      _jwtEmail = (payload.email || payload.user_metadata?.email || '').toLowerCase();
       if (!_actorId) _actorId = payload.sub || null;
     } catch(e) {}
   }
-  // Map Ian's Supabase UUID → the real D1 profile row at all times
-  const actorId = ADMIN_EMAILS.includes(_jwtEmail) ? 'user_djflowerz' : _actorId;
+  // Map Admin Supabase UUIDs → the real D1 profile row (user_djflowerz)
+  const isIan = ADMIN_EMAILS.includes(_jwtEmail);
+  const actorId = isIan ? 'user_djflowerz' : _actorId;
+  const adminUuid = '3361e605-645a-40a2-9d33-35619cc41470';
 
   // ─── CORS Preflight ──────────────────────────────────────────────────────────
   if (method === 'OPTIONS') {
@@ -142,7 +144,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       try {
         const payloadBase64 = token.split('.')[1];
         const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
-        userEmail = (payload.email || '').toLowerCase();
+        userEmail = (payload.email || payload.user_metadata?.email || '').toLowerCase();
         uid = payload.sub || uid;
         full_name = payload.user_metadata?.full_name || '';
         avatar_url = payload.user_metadata?.avatar_url || '';
@@ -229,7 +231,76 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }, status: 'success' });
   }
 
+
+  // PATCH /api/user/me — update own profile (most reliable save path, uses JWT actorId only)
+  if (method === 'PATCH' && path === '/api/user/me') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+
+    const body = await request.json() as any;
+    const { display_name, bio, location, website, avatar_url, banner_url,
+            twitter, instagram, soundcloud, aura_tier, username: newUsername } = body;
+
+    // Validate + clean new username if provided
+    let cleanNewUsername: string | null = null;
+    if (newUsername) {
+      cleanNewUsername = newUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (cleanNewUsername.length < 3) cleanNewUsername = null;
+      else {
+        const taken = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ? AND id != ?')
+          .bind(cleanNewUsername, actorId).first();
+        if (taken) return json({ error: 'Handle already taken' }, 409);
+      }
+    }
+
+    // Check if the profile row exists
+    const existing = await env.DB.prepare('SELECT id FROM user_profiles WHERE id = ?').bind(actorId).first() as any;
+
+    if (existing) {
+      // UPDATE existing row
+      await env.DB.prepare(`
+        UPDATE user_profiles SET
+          display_name = COALESCE(?, display_name),
+          bio          = COALESCE(?, bio),
+          location     = COALESCE(?, location),
+          website      = COALESCE(?, website),
+          avatar_url   = COALESCE(?, avatar_url),
+          banner_url   = COALESCE(?, banner_url),
+          twitter      = COALESCE(?, twitter),
+          instagram    = COALESCE(?, instagram),
+          soundcloud   = COALESCE(?, soundcloud),
+          aura_tier    = COALESCE(?, aura_tier),
+          username     = COALESCE(?, username),
+          updated_at   = ?
+        WHERE id = ?
+      `).bind(
+        display_name || null, bio || null, location || null, website || null,
+        avatar_url || null, banner_url || null, twitter || null, instagram || null,
+        soundcloud || null, aura_tier || null, cleanNewUsername,
+        new Date().toISOString(), actorId
+      ).run();
+    } else {
+      // Auto-create if missing (user skipped SetupProfile)
+      let _email = '';
+      if (token) {
+        try {
+          const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+          _email = (p.email || '').toLowerCase();
+        } catch(e) {}
+      }
+      const uname = cleanNewUsername || actorId.substring(0, 12).replace(/[^a-z0-9]/g, '');
+      const refCode = generateReferralCode(display_name || uname);
+      await env.DB.prepare(`
+        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, bio, location, role, referral_code, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'user', ?, datetime('now'), datetime('now'))
+      `).bind(actorId, uname, display_name || uname, _email, avatar_url || '', bio || '', location || '', refCode).run();
+    }
+
+    const updated = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(actorId).first();
+    return json({ success: true, profile: updated });
+  }
+
   // GET /api/profiles/username-check/:username
+
   if (method === 'GET' && path.match(/^\/api\/profiles\/username-check\/[^/]+$/)) {
     const username = path.split('/').pop()?.toLowerCase().replace(/[^a-z0-9_]/g, '');
     if (!username || username.length < 3) return json({ available: false, error: 'Invalid handle' });
@@ -330,17 +401,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // GET /api/profiles/:username — full profile + stats + viewer context
   if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/) && !path.endsWith('/posts') && !path.endsWith('/followers') && !path.endsWith('/following')) {
     const rawUname = path.split('/').pop() || '';
-    const uname = rawUname.replace('@', '').toLowerCase().trim();
+    const cleanUname = decodeURIComponent(rawUname).replace(/^@/, '').toLowerCase().trim();
     
-    // Support lookup by ID or Username (case-insensitive)
+    // Identity Aliasing: Match against username, worker ID, or Supabase UUID
+    const isLookupAdmin = cleanUname === 'djflowerz' || cleanUname === 'user_djflowerz' || cleanUname === adminUuid;
+    const lookupId = isLookupAdmin ? 'user_djflowerz' : cleanUname;
+
     const profile = await env.DB.prepare(`
       SELECT *, display_name as name, banner_url as cover_url 
       FROM user_profiles 
-      WHERE LOWER(username) = ? OR id = ?
-    `).bind(uname, uname).first() as any;
+      WHERE LOWER(username) = ? OR id = ? OR (id = 'user_djflowerz' AND ? = '1')
+    `).bind(cleanUname, lookupId, isLookupAdmin ? '1' : '0').first() as any;
 
     if (!profile) {
-      console.warn(`[Profile] Unknown Operator lookup: ${uname}`);
+      console.warn(`[Profile] Lookup failed for: ${cleanUname} (lookupId: ${lookupId})`);
       return json({ error: 'UNKNOWN OPERATOR: THIS FREQUENCY IS CURRENTLY UNASSIGNED.' }, 404);
     }
 
@@ -360,12 +434,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/profiles/:username/posts
   if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+\/posts$/)) {
-    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
-    const limit = parseInt(url.searchParams.get('limit') || '20');
-    const before = url.searchParams.get('before');
-    const type = url.searchParams.get('type') || 'posts';
+    const rawUname = path.split('/')[3]?.replace(/^@/, '')?.toLowerCase();
+    const adminUuid = '3361e605-645a-40a2-9d33-35619cc41470';
+    const lookupId = rawUname === adminUuid ? 'user_djflowerz' : rawUname;
 
-    const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ? OR id = ?').bind(rawUname, lookupId).first() as any;
     if (!profile) return json({ error: 'User not found' }, 404);
 
     let whereClause = `WHERE sp.author_id = ? AND sp.post_type != 'comment'`;
@@ -398,8 +471,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // POST /api/profiles/:username/follow — toggle follow
   if (method === 'POST' && path.match(/^\/api\/profiles\/[^/]+\/follow$/)) {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
-    const target = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    const rawUname = path.split('/')[3]?.replace(/^@/, '')?.toLowerCase();
+    const adminUuid = '3361e605-645a-40a2-9d33-35619cc41470';
+    const lookupId = rawUname === adminUuid ? 'user_djflowerz' : rawUname;
+    
+    const target = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ? OR id = ?').bind(rawUname, lookupId).first() as any;
     if (!target) return json({ error: 'User not found' }, 404);
     if (target.id === actorId) return json({ error: 'Cannot follow yourself' }, 400);
 

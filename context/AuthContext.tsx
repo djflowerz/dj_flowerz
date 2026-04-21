@@ -92,10 +92,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setIsProfileComplete(false);
           // Still set basic info from Supabase so we have context
           userData = {
-            id: sbUser.id,
+            id: isAdminEmail ? 'user_djflowerz' : sbUser.id,
             name: sbUser.user_metadata?.full_name || 'User',
             email: sbUser.email || '',
-            role: 'user',
+            role: isAdminEmail ? 'admin' : 'user',
             isAdmin: isAdminEmail,
             isSubscriber: isAdminEmail,
             avatarUrl: sbUser.user_metadata?.avatar_url || '',

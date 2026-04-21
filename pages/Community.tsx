@@ -95,12 +95,10 @@ const timeAgo = (dateStr: string) => {
     return `${Math.floor(seconds / 86400)}d`;
 };
 
-// Build a clean profile slug: prefer username, fallback to name-slug-id
-const profileSlug = (user: { id: string; name?: string; username?: string; display_name?: string }) => {
-    if (user.username && user.username.trim()) return user.username.trim();
-    const name = user.display_name || user.name || 'user';
-    const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    return `${slug}-${user.id.substring(0, 8)}`;
+// Stable profile identifier: prefer @username, fallback to raw ID
+const profileLink = (user: { id: string; username?: string }) => {
+    if (user.username && user.username.trim()) return `@${user.username.trim()}`;
+    return user.id;
 };
 
 
@@ -264,13 +262,13 @@ const PostCard: React.FC<{
             {/* Post Header */}
             <div className="flex items-start justify-between p-5 pb-3">
                 <div className="flex items-center gap-3">
-                    <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="relative group/avatar">
+                    <Link to={`/community/${profileLink({ id: post.author_id, username: post.author_username })}`} className="relative group/avatar">
                         <Avatar src={post.author_avatar} name={post.author_name} size={11} />
                         <div className="absolute inset-0 rounded-full border-2 border-brand-purple opacity-0 group-hover/avatar:opacity-100 transition-opacity" />
                     </Link>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <Link to={`/community/@${post.author_username || profileSlug({ id: post.author_id, name: post.author_name })}`} className="font-bold text-white text-sm hover:text-brand-purple transition flex items-center gap-1.5">
+                            <Link to={`/community/${profileLink({ id: post.author_id, username: post.author_username })}`} className="font-bold text-white text-sm hover:text-brand-purple transition flex items-center gap-1.5">
                                 {post.author_name}
                                 {post.author_role === 'admin' ? (
                                     <ShieldCheck size={14} className="text-brand-purple" />
@@ -853,7 +851,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
             <div className="space-y-6">
                 {suggested.map(s => (
                     <div key={s.id} className="flex items-center gap-4 group/item">
-                        <Link to={`/community/@${profileSlug(s)}`} className="relative flex-shrink-0">
+                        <Link to={`/community/${profileLink(s)}`} className="relative flex-shrink-0">
                             <img loading="lazy" src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`}
                                 onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=7C3AED&color=fff`; }}
                                 className="w-12 h-12 rounded-[1.2rem] object-cover border border-white/10 group-hover/item:border-brand-purple/50 transition-all duration-500 shadow-lg"
@@ -866,7 +864,7 @@ const SuggestedSidebar: React.FC<{ currentUser: any }> = ({ currentUser }) => {
                             )}
                         </Link>
                         <div className="flex-1 min-w-0">
-                            <Link to={`/@${profileSlug(s)}`} className="font-black text-white text-xs hover:text-brand-purple transition-all duration-300 truncate block uppercase tracking-tight">
+                            <Link to={`/community/${profileLink(s)}`} className="font-black text-white text-xs hover:text-brand-purple transition-all duration-300 truncate block uppercase tracking-tight">
                                 {s.name}
                             </Link>
                             <span className="text-[10px] text-gray-600 font-bold block mt-0.5">{s.followers} followers</span>
@@ -1168,7 +1166,7 @@ const Community: React.FC = () => {
                                 {!searchLoading && searchResults.map((u: any) => (
                                     <Link
                                         key={u.id}
-                                        to={`/community/@${u.username}`}
+                                        to={`/community/${profileLink(u)}`}
                                         onClick={() => { setSearchFocused(false); setSearchQuery(''); setSearchResults([]); }}
                                         className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/result border-b border-white/5 last:border-0"
                                     >
