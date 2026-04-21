@@ -35,7 +35,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Actor-Id',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Actor-Id, X-Actor-Role, X-Actor-Email, x-file-name, x-folder',
         'Access-Control-Max-Age': '86400',
       }
     });
@@ -49,8 +49,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Actor-Id',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Actor-Id, X-Actor-Role, X-Actor-Email, x-file-name, x-folder',
         'Content-Security-Policy': "script-src 'self' blob: 'unsafe-inline' https:;",
         ...(init.headers || {}),
       },
@@ -194,6 +194,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       ...user,
       fullName: user.display_name,
       avatarUrl: normalizeAssetUrl(user.avatar_url),
+      referralCode: user.referral_code,
       isSubscriber: isIan ? true : user.role === 'admin' || user.role === 'dj'
     }, status: 'success' });
   }
@@ -298,23 +299,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/profiles/:username — full profile + stats + viewer context
   if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/) && !path.endsWith('/posts') && !path.endsWith('/followers') && !path.endsWith('/following')) {
-    const uname = path.split('/').pop()?.replace('@', '')?.toLowerCase() || '';
+    const rawUname = path.split('/').pop() || '';
+    const uname = rawUname.replace('@', '').toLowerCase().trim();
+    
+    // Support lookup by ID or Username (case-insensitive)
     const profile = await env.DB.prepare(`
-      SELECT id, username, display_name, avatar_url, bio, role, location, website,
-        COALESCE(twitter, '') as twitter,
-        COALESCE(instagram, '') as instagram, 
-        COALESCE(soundcloud, '') as soundcloud,
-        COALESCE(twitter, '') as twitter_handle,
-        COALESCE(instagram, '') as instagram_handle,
-        COALESCE(soundcloud, '') as soundcloud_handle,
-        COALESCE(banner_url, '') as banner_url,
-        COALESCE(is_verified, 0) as is_verified,
-        COALESCE(aura_tier, 'standard') as aura_tier,
-        created_at as joined_at,
-        pinned_post_id
-      FROM user_profiles WHERE username = ?
-    `).bind(uname).first() as any;
-    if (!profile) return json({ error: 'User not found' }, 404);
+      SELECT *, display_name as name, banner_url as cover_url 
+      FROM user_profiles 
+      WHERE LOWER(username) = ? OR id = ?
+    `).bind(uname, uname).first() as any;
+
+    if (!profile) {
+      console.warn(`[Profile] Unknown Operator lookup: ${uname}`);
+      return json({ error: 'UNKNOWN OPERATOR: THIS FREQUENCY IS CURRENTLY UNASSIGNED.' }, 404);
+    }
 
     const [followersR, followingR, postsR, isFollowingR] = await env.DB.batch([
       env.DB.prepare('SELECT COUNT(*) as c FROM social_follows WHERE following_id = ?').bind(profile.id),
@@ -874,51 +872,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   }
 
   // GET /api/social/profile/:username
-  // GET /api/profiles/:username (Robust & Case-Insensitive)
-  if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/)) {
-    const handle = path.split('/').pop()?.replace('@', '');
-    const { results } = await env.DB.prepare(`
-      SELECT *, display_name as name, banner_url as cover_url 
-      FROM user_profiles 
-      WHERE LOWER(username) = LOWER(?) OR id = ?
-    `).bind(handle, handle).all();
-
-    const profile = results?.[0] as any;
-    if (!profile) return json({ error: 'UNKNOWN OPERATOR: THIS FREQUENCY IS CURRENTLY UNASSIGNED.' }, 404);
-
-    const isFollowing = actorId ? await env.DB.prepare(
-      'SELECT 1 FROM social_follows WHERE follower_id = ? AND following_id = ?'
-    ).bind(actorId, profile.id).first() : null;
-
-    let pinnedPost = null;
-    if (profile.pinned_post_id) {
-      pinnedPost = await env.DB.prepare(
-        'SELECT * FROM social_posts WHERE id = ?'
-      ).bind(profile.pinned_post_id).first();
-    }
-
-    const posts = await env.DB.prepare(`
-      SELECT sp.*,
-        u.display_name as author_name, u.avatar_url as author_avatar, u.username as author_username, u.role as author_role,
-        CASE WHEN sl.user_id IS NOT NULL THEN 1 ELSE 0 END as viewer_liked
-      FROM social_posts sp
-      LEFT JOIN user_profiles u ON u.id = sp.author_id
-      LEFT JOIN social_likes sl ON sl.post_id = sp.id AND sl.user_id = ?
-      WHERE sp.author_id = ?
-      ORDER BY sp.created_at DESC LIMIT 20
-    `).bind(actorId || '', profile.id).all();
-
-    return json({
-      profile: { ...profile, is_following: !!isFollowing },
-      pinned_post: pinnedPost,
-      posts: (posts.results || []).map((p: any) => ({
-        ...p,
-        viewer_liked: p.viewer_liked === 1,
-        like_count: p.likes_count,
-        comment_count: p.comments_count,
-      }))
-    });
-  }
+    // Profile posts and stats already handled below
 
   // PUT /api/social/profile
   if (method === 'PUT' && path === '/api/social/profile') {
@@ -1650,6 +1604,28 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (path === '/api/studio/gear' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM studio_gear WHERE status = "active"').all();
       return json(results || []);
+    }
+
+    // POST /api/presence
+    if (path === '/api/presence' && method === 'POST') {
+      return json({ success: true });
+    }
+
+    // POST /api/admin/system/cleanup-stale-community — DANGEROUS: Clears all non-admin profiles and posts
+    if (path === '/api/admin/system/cleanup-stale-community' && method === 'POST') {
+      if (!isIan) return json({ error: 'Only technical owner can perform hard reset' }, 403);
+      
+      console.warn(`[System] Hard Reset initiated by ${actorId}`);
+      
+      // Delete all posts
+      await env.DB.prepare('DELETE FROM social_posts').run();
+      // Delete all likes/follows
+      await env.DB.prepare('DELETE FROM social_likes').run();
+      await env.DB.prepare('DELETE FROM social_follows').run();
+      // Delete all profiles EXECPT Ian/Admin
+      await env.DB.prepare('DELETE FROM user_profiles WHERE id != ? AND role != "admin"').bind(actorId).run();
+      
+      return json({ success: true, message: 'Community data cleared except admins.' });
     }
   }
 

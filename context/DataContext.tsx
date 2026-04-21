@@ -442,8 +442,14 @@ const useCollection = <T extends { id: string }>(
       setData(useHardcodedFallback ? initialData : transformed);
       setError(null);
     } catch (err: any) {
-      console.error(`${source} fetch error (${tableName}):`, err.message);
-      setError(err.message);
+      const errorMessage = err.message || 'Unknown fetch error';
+      console.error(`[useCollection] ${source} fetch error (${tableName}):`, errorMessage);
+      setError(errorMessage);
+      
+      // Safety Fallback: If we crash hard and have no data, use initialData to prevent white screen
+      if (dataRef.current.length === 0 && initialData.length > 0) {
+        setData(initialData);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -463,7 +469,14 @@ const useCollection = <T extends { id: string }>(
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   console.log("DataProvider Render:", { hasChildren: !!children });
   const { user, updateUserProfile } = useAuth();
-  const isAdmin = Boolean(user?.isAdmin || user?.role === 'admin' || user?.email === 'djflowerz254@gmail.com');
+  const adminEmailFromEnv = (import.meta.env.VITE_ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').toLowerCase();
+  const isAdmin = Boolean(
+    user?.isAdmin || 
+    user?.role === 'admin' || 
+    user?.role === 'dj' || 
+    (user?.email && user.email.toLowerCase() === adminEmailFromEnv) ||
+    (user?.email && user.email.toLowerCase() === 'djflowerz254@gmail.com')
+  );
 
   /**
    * Stable auth header fetcher to prevent effect re-triggers
