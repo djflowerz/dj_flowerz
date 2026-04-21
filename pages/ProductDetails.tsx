@@ -25,6 +25,7 @@ export default function ProductDetails() {
   const [copied, setCopied] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', userName: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<'local' | 'air' | 'sea'>('local');
 
   const { addToCart } = useCart();
   const navigate = useNavigate();
@@ -112,6 +113,7 @@ export default function ProductDetails() {
 
       addToCart({
         ...product,
+        shippingTier: selectedTier,
         selectedVariant: selectedVariantString || undefined
       } as any, quantity);
     }
@@ -167,7 +169,12 @@ export default function ProductDetails() {
   const galleryImages = useMemo(() => {
     if (!product) return [];
     const mainImage = product.image || product.image_url;
-    const rawImages = Array.isArray(product.images) ? product.images : (typeof product.images === 'string' ? JSON.parse(product.images) : []);
+    let rawImages: string[] = [];
+    if (Array.isArray(product.images)) {
+        rawImages = product.images;
+    } else if (typeof product.images === 'string') {
+        try { rawImages = JSON.parse(product.images); } catch (e) { rawImages = []; }
+    }
     return [mainImage, ...rawImages].filter(Boolean);
   }, [product]);
 
@@ -198,7 +205,13 @@ export default function ProductDetails() {
   }
 
   const activePriceVar = currentVariant || product;
-  const displayPrice = (activePriceVar.discountPrice || activePriceVar.price || product.price) || 0;
+  const tierPriceMap = {
+    local: product.price_local || product.price,
+    air: product.price_air || (product.price_local ? product.price_local * 0.9 : product.price),
+    sea: product.price_sea || (product.price_local ? product.price_local * 0.8 : product.price)
+  };
+  const baseOrVariantPrice = activePriceVar.discountPrice || activePriceVar.price || product.price;
+  const displayPrice = (selectedTier === 'local' ? baseOrVariantPrice : tierPriceMap[selectedTier]) || 0;
   const originalPrice = activePriceVar.compareAtPrice || (activePriceVar.discountPrice ? activePriceVar.price : product.compareAtPrice);
 
   const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
@@ -294,7 +307,37 @@ export default function ProductDetails() {
             {/* Inventory Note */}
             <div className="p-4 rounded-2xl bg-green-400/5 border border-green-400/20 flex items-center gap-4">
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-                <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">In Stock - Free Delivery Within Nairobi</p>
+                <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">In Stock - Ready to Dispatch</p>
+            </div>
+
+            {/* Shipping Tier Selector */}
+            <div className="space-y-4 pt-4">
+                <div className="flex justify-between items-center">
+                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select Import & Logistics Tier</h4>
+                    <button className="text-[9px] font-black text-brand-purple uppercase hover:underline flex items-center gap-1">
+                        <Info size={10} /> PATIENCE DISCOUNT
+                    </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                        { id: 'local', label: 'Local Stock', sub: 'Immediate', icon: <Package size={14} />, color: 'brand-purple', points: 0 },
+                        { id: 'air', label: 'Air Import', sub: '7-14 Days', icon: <Zap size={14} />, color: 'blue-500', points: 50 },
+                        { id: 'sea', label: 'Sea Import', sub: '30-45 Days', icon: <RefreshCw size={14} />, color: 'emerald-500', points: 150 }
+                    ].map((tier) => (
+                        <button
+                            key={tier.id}
+                            onClick={() => setSelectedTier(tier.id as any)}
+                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-300 ${
+                                selectedTier === tier.id 
+                                    ? `bg-${tier.color}/10 border-${tier.color}/50 shadow-lg shadow-${tier.color}/5` 
+                                    : 'bg-white/5 border-white/5 hover:border-white/20'
+                            }`}
+                        >
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${selectedTier === tier.id ? `text-${tier.color}` : 'text-gray-400'}`}>{tier.label}</span>
+                            <span className="text-[9px] font-bold text-gray-500 mt-1">{tier.sub}</span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Variant Selectors */}
@@ -407,10 +450,21 @@ export default function ProductDetails() {
                 {activeTab === 'description' && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                         <h3 className="text-3xl font-display font-black text-white uppercase tracking-tight">Experience The Craftsmanship</h3>
-                        <div 
-                            className="text-gray-400 text-lg leading-relaxed font-light whitespace-pre-line product-description-html prose prose-invert max-w-none prose-p:text-gray-400 prose-li:text-gray-400 prose-ul:list-disc prose-ul:pl-6 prose-ol:list-decimal prose-ol:pl-6"
-                            dangerouslySetInnerHTML={{ __html: product.description || '' }}
-                        />
+                        {product.description && product.description.includes('\n') ? (
+                            <ul className="space-y-4">
+                                {product.description.split('\n').filter(l => l.trim().length > 0).map((line, idx) => (
+                                    <li key={idx} className="flex items-start gap-4">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(6,182,212,0.5)] shrink-0" />
+                                        <span className="text-gray-300 text-base leading-relaxed">{line.replace(/^[-\*\•]\s*/, '')}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div 
+                                className="text-gray-400 text-lg leading-relaxed font-light whitespace-pre-line product-description-html prose prose-invert max-w-none"
+                                dangerouslySetInnerHTML={{ __html: product.description || '' }}
+                            />
+                        )}
                         <div className="grid md:grid-cols-2 gap-8 pt-8">
                             <div className="bg-[#15151A] p-8 rounded-[32px] border border-white/5">
                                 <h4 className="text-white font-black uppercase tracking-widest text-[10px] mb-4">Core Benefits</h4>

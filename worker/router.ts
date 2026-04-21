@@ -445,7 +445,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // GET /api/user/installments
   if (path === '/api/user/installments' && method === 'GET') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const { results } = await env.DB.prepare('SELECT * FROM installments WHERE customer_id = ? OR user_id = ? ORDER BY created_at DESC').bind(actorId, actorId).all();
+    const { results } = await env.DB.prepare('SELECT * FROM installment_plans WHERE user_id = ? ORDER BY created_at DESC').bind(actorId).all();
     return json(results);
   }
 
@@ -1093,17 +1093,68 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     try {
       const data = await request.json() as any;
       const orderId = crypto.randomUUID();
-      const { items, total, total_amount, customer } = data;
+      const { items, total_amount, total, customer_email, customer_name, payment_type, installments_count, customer_id, email: fallbackEmail, name: fallbackName, customer } = data;
       
       const finalTotal = total_amount || total || 0;
+      const email = customer_email || fallbackEmail || customer?.email || '';
+      const name = customer_name || fallbackName || customer?.name || 'Customer';
+
+      let chargeAmount = finalTotal;
+      const isLipa = payment_type === 'lipa_pole_pole';
+      const depositAmount = finalTotal * 0.20;
+
+      if (isLipa) {
+         chargeAmount = depositAmount;
+      }
+
+      const appUrl = (env.VITE_APP_URL || 'https://djflowerz.co.ke').replace(/\/$/, '');
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          amount: Math.round(Number(chargeAmount) * 100),
+          reference: `ORD_${Date.now()}_${orderId.substring(0, 6)}`,
+          metadata: {
+            order_id: orderId,
+            payment_type: isLipa ? 'installment_deposit' : 'order_payment',
+            user_id: customer_id || ''
+          },
+          callback_url: `${appUrl}/checkout`
+        })
+      });
+
+      const resData = await response.json() as any;
+      if (!resData.status) throw new Error(resData.message || 'Paystack initialization failed');
 
       // Persist order
       await env.DB.prepare(`
         INSERT INTO orders (id, customer_email, customer_name, total_amount, items, status, payment_status, created_at)
         VALUES (?, ?, ?, ?, ?, 'pending', 'unpaid', datetime('now'))
-      `).bind(orderId, customer.email, customer.name, finalTotal, JSON.stringify(items)).run();
+      `).bind(orderId, email, name, finalTotal, JSON.stringify(items)).run();
+
+      // Persist installment plan if Lipa Pole Pole
+      if (isLipa) {
+         const planId = crypto.randomUUID();
+         const firstItem = items && items[0] ? items[0] : {};
+         await env.DB.prepare(`
+           INSERT INTO installment_plans (
+             id, order_id, user_id, product_id, product_name, total_amount, deposit_amount, balance, status, installments_count, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_deposit', ?, datetime('now'), datetime('now'))
+         `).bind(
+           planId, orderId, customer_id || '', firstItem.product_id || '', firstItem.product_name || firstItem.name || 'Store Order', 
+           finalTotal, depositAmount, finalTotal, installments_count || 3
+         ).run();
+      }
       
-      return json({ orderId, success: true });
+      return json({ 
+        orderId, 
+        success: true,
+        authorizationUrl: resData.data.authorization_url 
+      });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }

@@ -50,8 +50,9 @@ const TipJar: React.FC = () => {
       });
 
       const data = await response.json();
-      if (data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
+      const authUrl = data.authorization_url || data.authorizationUrl;
+      if (authUrl) {
+        window.location.href = authUrl;
       } else {
         throw new Error(data.error || "Failed to initialize payment");
       }

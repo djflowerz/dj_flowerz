@@ -734,16 +734,12 @@ export default function Checkout() {
                         <button 
                           type="button" 
                           onClick={() => {
-                            if (hasImportItems) {
-                              toast.error("Installments are only available for local products. Import items (Air/Sea) must be paid in full.");
-                              return;
-                            }
                             setPaymentType('lipa_pole_pole');
                           }} 
-                          className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${hasImportItems ? 'opacity-40 cursor-not-allowed grayscale' : ''} ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}
+                          className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${paymentType === 'lipa_pole_pole' ? 'border-brand-cyan bg-brand-cyan/10 text-white shadow-lg' : 'border-white/5 bg-[#0B0B0F] text-gray-500 hover:border-white/20'}`}
                         >
                           <span className="font-black uppercase tracking-widest text-xs">Installments</span>
-                          <span className="text-[10px] font-bold">{hasImportItems ? 'Not available for imports' : '20% Deposit'}</span>
+                          <span className="text-[10px] font-bold">20% Deposit</span>
                         </button>
                       </div>
                     )}
