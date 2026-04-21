@@ -201,15 +201,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     try {
       await env.DB.prepare(`
-        UPDATE profiles SET 
-          handle = ?, 
-          full_name = ?, 
-          primary_role = ?, 
+        INSERT INTO profiles (id, handle, full_name, primary_role, aura_tier, aura_points, updated_at)
+        VALUES (?, ?, ?, ?, 'standard', 100, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          handle = EXCLUDED.handle,
+          full_name = EXCLUDED.full_name,
+          primary_role = EXCLUDED.primary_role,
           aura_tier = 'standard',
-          aura_points = 100, -- Initial aura for claiming identity
+          aura_points = 100,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(cleanHandle, fullName || '', role || 'Collector', actorId).run();
+      `).bind(actorId, cleanHandle, fullName || '', role || 'Collector').run();
       
       return json({ success: true, handle: cleanHandle });
     } catch (e: any) {

@@ -14,6 +14,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   session: any | null;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,7 +162,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signInWithGoogle,
       logout,
       isAuthenticated: !!user,
-      session
+      session,
+      refreshUserProfile: () => fetchProfileAndSetUser(session)
     }}>
       {children}
     </AuthContext.Provider>

@@ -14,7 +14,7 @@ const ROLES = [
 ];
 
 export default function SetupProfile() {
-  const { user, session } = useAuth();
+  const { user, session, refreshUserProfile } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [handle, setHandle] = useState('');
@@ -68,6 +68,8 @@ export default function SetupProfile() {
       });
       const data = await resp.json();
       if (data.success) {
+        // Refresh profile in context so needsSetup becomes false
+        await refreshUserProfile();
         setStep(3);
         setTimeout(() => navigate('/community'), 2500);
       } else {
