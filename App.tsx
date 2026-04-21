@@ -71,6 +71,16 @@ const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
 const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 
+const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
+const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));
+const MusicPool = lazyWithRetry(() => import('./pages/MusicPool'));
+const DJLab = lazyWithRetry(() => import('./pages/DJLab'));
+const Account = lazyWithRetry(() => import('./pages/Account'));
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const Signup = lazyWithRetry(() => import('./pages/Signup'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
+const VerifyEmail = lazyWithRetry(() => import('./pages/VerifyEmail'));
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -147,7 +157,6 @@ const AppContent = () => {
             <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
-            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/op/:handle" element={<PublicProfile />} />
           </Routes>
         </Suspense>
