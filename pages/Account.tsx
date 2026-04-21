@@ -270,18 +270,20 @@ const Account: React.FC = () => {
         location: editLocation
       });
 
-      // 2. Sync to D1 — upsert the community profile row so /community/@username works
-      if (editUsername && session?.access_token) {
-        const cleanUsername = editUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
-        
-        // Try PATCH first (profile already exists)
-        const patchRes = await fetch(`${API}/api/profiles/${cleanUsername}`, {
+      // 2. Sync to D1 via PATCH /api/profiles/me — always uses 'me' so it works
+      // regardless of what username was previously stored.
+      if (session?.access_token) {
+        const cleanUsername = editUsername ? editUsername.toLowerCase().replace(/[^a-z0-9_]/g, '') : undefined;
+
+        const patchRes = await fetch(`${API}/api/profiles/me`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'X-Actor-Id': user?.id || ''
           },
           body: JSON.stringify({
+            username: cleanUsername,
             display_name: editName,
             bio: editBio,
             location: editLocation,
@@ -289,13 +291,14 @@ const Account: React.FC = () => {
           })
         });
 
-        // If PATCH 404 means no profile row — create it
-        if (patchRes.status === 404) {
-          await fetch(`${API}/api/profiles`, {
+        // If 404 → no D1 profile yet (bypassed SetupProfile) → create one now
+        if (patchRes.status === 404 && cleanUsername && cleanUsername.length >= 3) {
+          const postRes = await fetch(`${API}/api/profiles`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
+              'Authorization': `Bearer ${session.access_token}`,
+              'X-Actor-Id': user?.id || ''
             },
             body: JSON.stringify({
               username: cleanUsername,
@@ -305,6 +308,15 @@ const Account: React.FC = () => {
               avatar_url: editAvatar || user?.avatarUrl || ''
             })
           });
+          if (!postRes.ok) {
+            const err = await postRes.json().catch(() => ({}));
+            console.error('[Account] Profile creation failed:', err);
+          }
+        } else if (!patchRes.ok && patchRes.status !== 404) {
+          const err = await patchRes.json().catch(() => ({}));
+          if (err.error === 'Handle already taken') {
+            throw new Error('That community handle is already taken. Please choose another.');
+          }
         }
       }
 

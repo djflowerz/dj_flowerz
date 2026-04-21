@@ -414,18 +414,42 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   }
 
   // PATCH /api/profiles/:username — update profile
+  // FIX: Support 'me' as a special keyword so useProfileEdit and Account page work correctly.
+  // Previously PATCH /api/profiles/me did WHERE username = 'me' → always 404.
+  // Also support username changes in the body.
   if (method === 'PATCH' && path.match(/^\/api\/profiles\/[^/]+$/)) {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const uname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
-    const profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ?').bind(uname).first() as any;
+    const rawUname = path.split('/')[3]?.replace('@', '')?.toLowerCase();
+
+    // 'me' → look up the profile by actorId directly
+    let profile: any;
+    if (rawUname === 'me') {
+      profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE id = ?').bind(actorId).first();
+    } else {
+      // Also try actorId in case the username changed and the old username is stale
+      profile = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ? OR id = ?').bind(rawUname, actorId).first();
+    }
+
     if (!profile) return json({ error: 'User not found' }, 404);
     if (profile.id !== actorId) return json({ error: 'Forbidden' }, 403);
 
     const body = await request.json() as any;
-    const { display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier } = body;
-    
+    const { display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier, username: newUsername } = body;
+
+    // FIX: Allow username changes — validate and check uniqueness before applying
+    let cleanNewUsername: string | null = null;
+    if (newUsername) {
+      cleanNewUsername = newUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (cleanNewUsername.length >= 3) {
+        const taken = await env.DB.prepare('SELECT id FROM user_profiles WHERE username = ? AND id != ?').bind(cleanNewUsername, actorId).first();
+        if (taken) return json({ error: 'Handle already taken' }, 409);
+      } else {
+        cleanNewUsername = null; // too short, ignore
+      }
+    }
+
     await env.DB.prepare(`
-      UPDATE user_profiles SET 
+      UPDATE user_profiles SET
         display_name = COALESCE(?, display_name),
         bio = COALESCE(?, bio),
         location = COALESCE(?, location),
@@ -435,11 +459,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         twitter = COALESCE(?, twitter),
         instagram = COALESCE(?, instagram),
         soundcloud = COALESCE(?, soundcloud),
-        aura_tier = COALESCE(?, aura_tier)
+        aura_tier = COALESCE(?, aura_tier),
+        username = COALESCE(?, username),
+        updated_at = ?
       WHERE id = ?
-    `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier, actorId).run();
+    `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier, cleanNewUsername, new Date().toISOString(), actorId).run();
 
-    return json({ success: true });
+    const updated = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(actorId).first();
+    return json({ success: true, profile: updated });
   }
 
   // GET /api/user/installments

@@ -666,6 +666,8 @@ export default function PublicProfile() {
         </div>
     );
 
+    const isOwnFailedProfile = currentUser && currentUser.username && currentUser.username.toLowerCase() === username?.toLowerCase();
+
     if (error || !profile) return (
         <div className="min-h-screen bg-[#050508] flex flex-col items-center justify-center p-8 text-center">
             <div className="w-32 h-32 bg-white/[0.02] rounded-full flex items-center justify-center mb-8 border border-white/5 shadow-2xl relative">
@@ -673,10 +675,18 @@ export default function PublicProfile() {
                 <div className="absolute inset-0 bg-red-500/5 blur-3xl rounded-full" />
             </div>
             <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-3">Unknown Operator</h1>
-            <p className="text-gray-500 mb-10 font-bold uppercase tracking-widest text-xs">This frequency is currently unassigned.</p>
-            <Link to="/community" className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10">
-                Return to Network
-            </Link>
+            <p className="text-gray-500 mb-10 font-bold uppercase tracking-widest text-xs">
+                {isOwnFailedProfile ? "Your profile identity needs synchronization." : "This frequency is currently unassigned."}
+            </p>
+            {isOwnFailedProfile ? (
+                <Link to="/account?tab=profile" className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10">
+                    Fix in Account Settings
+                </Link>
+            ) : (
+                <Link to="/community" className="bg-brand-purple text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-purple/20 border border-white/10">
+                    Return to Network
+                </Link>
+            )}
         </div>
     );
 
