@@ -275,7 +275,7 @@ const Navbar: React.FC = () => {
                   {showUserMenu && (
                     <div className="absolute right-0 mt-6 w-56 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 py-3">
                       {user?.username && (
-                        <Link to={`/community/@${user.username}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-white/5 transition">
+                        <Link to={`/community/@${user.username.toLowerCase()}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-white/5 transition">
                           <User size={16} /> My Social Profile
                         </Link>
                       )}

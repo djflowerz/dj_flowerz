@@ -101,8 +101,10 @@ const generateOrderPDF = (order: any) => {
   toast.success("Order PDF downloaded successfully");
 };
 
+const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+
 const Account: React.FC = () => {
-  const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount } = useAuth();
+  const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount, session } = useAuth();
   const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats, wishlist, products, mixtapes, poolTracks, toggleWishlist, wishlistLoading } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
   
@@ -258,6 +260,7 @@ const Account: React.FC = () => {
   const handleSaveProfile = async () => {
     setEditLoading(true);
     try {
+      // 1. Save to R2 / local state
       await updateUserProfile({ 
         name: editName, 
         phoneNumber: editPhone, 
@@ -266,10 +269,49 @@ const Account: React.FC = () => {
         bio: editBio,
         location: editLocation
       });
-      alert("Profile updated successfully!");
+
+      // 2. Sync to D1 — upsert the community profile row so /community/@username works
+      if (editUsername && session?.access_token) {
+        const cleanUsername = editUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        
+        // Try PATCH first (profile already exists)
+        const patchRes = await fetch(`${API}/api/profiles/${cleanUsername}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            display_name: editName,
+            bio: editBio,
+            location: editLocation,
+            avatar_url: editAvatar || user?.avatarUrl || ''
+          })
+        });
+
+        // If PATCH 404 means no profile row — create it
+        if (patchRes.status === 404) {
+          await fetch(`${API}/api/profiles`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              username: cleanUsername,
+              display_name: editName,
+              bio: editBio,
+              location: editLocation,
+              avatar_url: editAvatar || user?.avatarUrl || ''
+            })
+          });
+        }
+      }
+
+      toast.success("Profile updated successfully!");
       setIsEditing(false);
     } catch (error: any) {
-      alert("Failed to update profile: " + error.message);
+      toast.error("Failed to update profile: " + error.message);
     } finally {
       setEditLoading(false);
     }
