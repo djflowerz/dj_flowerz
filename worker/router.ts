@@ -127,6 +127,30 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // POST /api/pool/download (Proxy asset download)
+  if (path === '/api/pool/download' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const { url: fileUrl, fileName, trackId, type, orderId } = await request.json() as any;
+      if (!fileUrl) return json({ error: 'URL is required' }, 400);
+      
+      const isSub = await env.DB.prepare('SELECT status FROM "active-subscribers" WHERE id = ?').bind(actorId).first();
+      // Require subscription unless it's an order or a public mixtape
+      if (!isSub && !orderId && type !== 'mixtape_audio' && type !== 'mixtape_video') {
+         // Allow if admin
+         if (!jwtEmail || jwtEmail !== adminEmail) {
+             return json({ error: 'Active subscription required' }, 403);
+         }
+      }
+
+      // Simple implementation: return the redirect URL directly to the frontend
+      // In a strict setup, we would generate a signed URL or proxy the stream.
+      return json({ success: true, redirectUrl: fileUrl, fileName });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // ─── IDENTITY & COMMUNITY (The Pulse) ──────────────────────────────────
   
   // GET /api/profiles/leaders (Top Aura Users)

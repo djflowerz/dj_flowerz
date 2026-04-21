@@ -33,8 +33,15 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
       base: 'border-white/20 text-white hover:bg-white/10',
       glow: 'shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]',
       border: 'border-white/40'
+    },
+    ghost: {
+      base: 'border-white/10 text-white hover:bg-white/10 bg-white/5',
+      glow: 'shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]',
+      border: 'border-white/20'
     }
   };
+
+  const safeVariant = variants[variant as keyof typeof variants] ? variant : 'cyan';
 
   const sizes = {
     sm: 'px-4 py-2 text-[10px] tracking-[0.2em] uppercase font-black',
@@ -48,8 +55,8 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
       whileTap={{ scale: 0.98 }}
       className={cn(
         'relative group overflow-hidden border transition-all duration-300 font-heading italic',
-        variants[variant].base,
-        glow && variants[variant].glow,
+        variants[safeVariant as keyof typeof variants].base,
+        glow && variants[safeVariant as keyof typeof variants].glow,
         sizes[size],
         className
       )}
@@ -59,8 +66,8 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
       
       {/* Neon Corner Accents */}
-      <div className={cn("absolute top-0 left-0 w-2 h-2 border-t border-l", variants[variant].border)} />
-      <div className={cn("absolute bottom-0 right-0 w-2 h-2 border-b border-r", variants[variant].border)} />
+      <div className={cn("absolute top-0 left-0 w-2 h-2 border-t border-l", variants[safeVariant as keyof typeof variants].border)} />
+      <div className={cn("absolute bottom-0 right-0 w-2 h-2 border-b border-r", variants[safeVariant as keyof typeof variants].border)} />
       
       <span className="relative z-10">{children}</span>
     </motion.button>
