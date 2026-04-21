@@ -18,7 +18,11 @@ const SetupProfile: React.FC = () => {
     display_name: user?.name || '',
     bio: '',
     location: '',
-    avatar_url: user?.avatarUrl || ''
+    avatar_url: user?.avatarUrl || '',
+    website: '',
+    instagram: '',
+    twitter: '',
+    soundcloud: ''
   });
 
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
@@ -71,7 +75,11 @@ const SetupProfile: React.FC = () => {
         display_name: form.display_name,
         bio: form.bio,
         location: form.location,
-        avatar_url: form.avatar_url
+        avatar_url: form.avatar_url,
+        website: form.website,
+        instagram: form.instagram,
+        twitter: form.twitter,
+        soundcloud: form.soundcloud
       });
       toast.success("Identity established!", {
         description: "Welcome to the DJ Flowerz community."
@@ -239,6 +247,50 @@ const SetupProfile: React.FC = () => {
                   onChange={(e) => setForm({ ...form, location: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
                 />
+              </div>
+
+              {/* Social Links */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Instagram</label>
+                  <input
+                    type="text"
+                    placeholder="@djflowerz"
+                    value={form.instagram}
+                    onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Twitter / X</label>
+                  <input
+                    type="text"
+                    placeholder="@djflowerz"
+                    value={form.twitter}
+                    onChange={(e) => setForm({ ...form, twitter: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">SoundCloud</label>
+                  <input
+                    type="text"
+                    placeholder="soundcloud.com/djflowerz"
+                    value={form.soundcloud}
+                    onChange={(e) => setForm({ ...form, soundcloud: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Website</label>
+                  <input
+                    type="url"
+                    placeholder="https://djflowerz.co.ke"
+                    value={form.website}
+                    onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
+                  />
+                </div>
               </div>
             </div>
           </div>

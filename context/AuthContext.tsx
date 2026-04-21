@@ -31,6 +31,10 @@ interface AuthContextType {
     bio?: string;
     avatar_url?: string;
     location?: string;
+    website?: string;
+    instagram?: string;
+    twitter?: string;
+    soundcloud?: string;
   }) => Promise<void>;
   isAuthenticated: boolean;
   mfaResolver: any;
@@ -599,6 +603,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     bio?: string;
     avatar_url?: string;
     location?: string;
+    website?: string;
+    instagram?: string;
+    twitter?: string;
+    soundcloud?: string;
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
     const response = await fetch(`${apiBase}/api/profiles`, {

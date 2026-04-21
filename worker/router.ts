@@ -197,7 +197,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
     
     const body = await request.json() as any;
-    const { username, display_name, bio, avatar_url, location } = body;
+    const { username, display_name, bio, avatar_url, location, website, instagram, twitter, soundcloud } = body;
 
     if (!username || username.length < 3) return json({ error: 'Handle too short' }, 400);
     const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -210,10 +210,12 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const existingProfile = await env.DB.prepare('SELECT id FROM user_profiles WHERE id = ?').bind(actorId).first();
     if (existingProfile) return json({ error: 'Profile already exists' }, 400);
 
+    const now = new Date().toISOString();
+
     try {
       await env.DB.prepare(`
-        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, location)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_profiles (id, username, display_name, email, avatar_url, role, bio, location, website, instagram, twitter, soundcloud, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         actorId, 
         cleanUsername, 
@@ -222,7 +224,13 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         avatar_url || '', 
         'user', 
         bio || 'New member of DJ Flowerz Community',
-        location || ''
+        location || '',
+        website || '',
+        instagram || '',
+        twitter || '',
+        soundcloud || '',
+        now,
+        now
       ).run();
 
       const newUser = await env.DB.prepare('SELECT * FROM user_profiles WHERE id = ?').bind(actorId).first();
