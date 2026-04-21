@@ -70,6 +70,7 @@ const Community = lazyWithRetry(() => import('./pages/Community'));
 const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
 const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
+const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
 
 const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));
@@ -152,6 +153,7 @@ const AppContent = () => {
             <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/op/:handle" element={<PublicProfile />} />
           </Routes>
