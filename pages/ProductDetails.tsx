@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 import {
   Star, Heart, ShieldCheck, Truck, RefreshCw, ChevronRight,
   Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
-  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package
+  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
