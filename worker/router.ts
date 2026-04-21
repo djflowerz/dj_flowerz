@@ -103,8 +103,6 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json(JSON.parse(settings));
   }
 
-  }
-
   // POST /api/upload (Authenticated File Upload - accessible to regular users)
   if (path === '/api/upload' && method === 'POST') {
     if (!token) return json({ error: 'Unauthorized' }, 401);
