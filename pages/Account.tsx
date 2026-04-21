@@ -285,6 +285,7 @@ const Account: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`,
+          'X-Actor-Id': user?.id || ''
         },
         body: JSON.stringify({
           username: cleanUsername,
@@ -297,11 +298,11 @@ const Account: React.FC = () => {
 
       if (!patchRes.ok) {
         const err = await patchRes.json().catch(() => ({})) as any;
-        if ((err as any).error === 'Handle already taken') {
+        if (err.error === 'Handle already taken') {
           throw new Error('That community handle is already taken. Please choose another.');
         }
-        // Log but don't throw — local state is already updated
-        console.error('[Account] D1 profile sync failed:', err);
+        // THROW error so it's caught by the outer loop and shows a failure toast
+        throw new Error(err.error || `Database synchronization failed (Status ${patchRes.status})`);
       }
 
       toast.success("Profile updated successfully!");
