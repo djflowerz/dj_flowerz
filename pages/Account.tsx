@@ -101,7 +101,7 @@ const generateOrderPDF = (order: any) => {
   toast.success("Order PDF downloaded successfully");
 };
 
-const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
+const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
 const Account: React.FC = () => {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount, session } = useAuth();
@@ -260,15 +260,21 @@ const Account: React.FC = () => {
   const handleSaveProfile = async () => {
     setEditLoading(true);
     try {
-      // 1. Save to R2 / local state
-      await updateUserProfile({ 
-        name: editName, 
-        phoneNumber: editPhone, 
-        avatarUrl: editAvatar,
-        username: editUsername,
-        bio: editBio,
-        location: editLocation
-      });
+      // 1. Save to R2 / local state — wrap separately so R2 failures don't abort the D1 write
+      try {
+        await updateUserProfile({ 
+          name: editName, 
+          phoneNumber: editPhone, 
+          avatarUrl: editAvatar,
+          username: editUsername,
+          bio: editBio,
+          location: editLocation
+        });
+      } catch (r2Err) {
+        // R2 write failed (e.g. profile JSON doesn't exist yet) — log and continue.
+        // The D1 write below is the real source of truth for community profiles.
+        console.warn('[Account] R2 profile update failed (non-fatal):', r2Err);
+      }
 
       // 2. Sync to D1 via PATCH /api/profiles/me — always uses 'me' so it works
       // regardless of what username was previously stored.
