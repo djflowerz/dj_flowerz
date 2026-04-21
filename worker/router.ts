@@ -292,6 +292,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         COALESCE(soundcloud, '') as soundcloud_handle,
         COALESCE(banner_url, '') as banner_url,
         COALESCE(is_verified, 0) as is_verified,
+        COALESCE(aura_tier, 'standard') as aura_tier,
         created_at as joined_at,
         pinned_post_id
       FROM user_profiles WHERE username = ?
@@ -376,7 +377,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (profile.id !== actorId) return json({ error: 'Forbidden' }, 403);
 
     const body = await request.json() as any;
-    const { display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud } = body;
+    const { display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier } = body;
     
     await env.DB.prepare(`
       UPDATE user_profiles SET 
@@ -388,9 +389,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         banner_url = COALESCE(?, banner_url),
         twitter = COALESCE(?, twitter),
         instagram = COALESCE(?, instagram),
-        soundcloud = COALESCE(?, soundcloud)
+        soundcloud = COALESCE(?, soundcloud),
+        aura_tier = COALESCE(?, aura_tier)
       WHERE id = ?
-    `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, actorId).run();
+    `).bind(display_name, bio, location, website, avatar_url, banner_url, twitter, instagram, soundcloud, aura_tier, actorId).run();
 
     return json({ success: true });
   }
