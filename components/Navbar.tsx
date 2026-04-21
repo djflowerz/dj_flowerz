@@ -146,8 +146,9 @@ const Navbar: React.FC = () => {
                   {showUserMenu && (
                     <div className="absolute right-0 mt-4 w-64 bg-[#0A0A0A]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] overflow-hidden py-3 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div className="px-5 py-3 border-b border-white/5 mb-2">
-                        <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">Authenticated Operator</p>
-                        <p className="text-white font-bold truncate text-base">@{user?.handle?.replace('@', '') || 'Anonymous'}</p>
+                        <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">{user?.role === 'admin' ? 'System Administrator' : 'Authenticated User'}</p>
+                        <p className="text-white font-bold truncate text-base">{user?.name || 'Anonymous'}</p>
+                        <p className="text-white/40 text-xs">@{user?.handle?.replace('@', '') || user?.id?.substring(0, 8) || 'user'}</p>
                       </div>
                       
                       {user?.handle && (

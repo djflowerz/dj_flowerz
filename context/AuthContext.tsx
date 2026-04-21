@@ -13,6 +13,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isProfileComplete: boolean;
   session: any | null;
   refreshUserProfile: () => Promise<void>;
 }
@@ -162,6 +163,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signInWithGoogle,
       logout,
       isAuthenticated: !!user,
+      isProfileComplete: !!user && !user.needsSetup,
       session,
       refreshUserProfile: () => fetchProfileAndSetUser(session)
     }}>

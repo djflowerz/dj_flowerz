@@ -81,6 +81,10 @@ const Login = lazyWithRetry(() => import('./pages/Login'));
 const Signup = lazyWithRetry(() => import('./pages/Signup'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
 const VerifyEmail = lazyWithRetry(() => import('./pages/VerifyEmail'));
+const Sessions = lazyWithRetry(() => import('./pages/Sessions'));
+const Bookings = lazyWithRetry(() => import('./pages/Bookings'));
+const TipJar = lazyWithRetry(() => import('./pages/TipJar'));
+const Contact = lazyWithRetry(() => import('./pages/Contact'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -156,6 +160,10 @@ const AppContent = () => {
             <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/op/:handle" element={<PublicProfile />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/tip-jar" element={<TipJar />} />
+            <Route path="/contact" element={<Contact />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>
