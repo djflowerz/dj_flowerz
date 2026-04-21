@@ -8,7 +8,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
