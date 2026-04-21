@@ -122,6 +122,79 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
+const AppContent = () => {
+  const location = useLocation();
+  
+  return (
+    <Layout>
+      <PushBanner />
+      <ErrorBoundary>
+        <Suspense key={location.pathname} fallback={<LoadingSpinner />}>
+          <Routes location={location}>
+            <Route path="/" element={<Home />} />
+            <Route path="/pool" element={<Navigate to="/" replace />} />
+            <Route path="/track/:id" element={<Navigate to="/" replace />} />
+            <Route path="/mixtapes" element={<Mixtapes />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/escrow-mngt" element={<EscrowManager />} />
+            <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
+            <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
+            <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
+            <Route path="/aura-vision" element={<Navigate to="/dj-lab" replace />} />
+            <Route path="/dj-tools/bpm-tapper" element={<Navigate to="/dj-lab" replace />} />
+            <Route path="/community/:username" element={<PublicProfile />} />
+            <Route path="/:username" element={<Navigate to="/community/:username" replace />} />
+
+            <Route path="/community" element={<Community />} />
+
+            <Route path="/store" element={<Store />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+            <Route path="/store/:slug" element={<ProductDetails />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/success" element={<Success />} />
+            <Route path="/success/:id" element={<Success />} />
+            <Route path="/order-tracking" element={<OrderTracking />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/recording-sessions" element={<RecordingSessions />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/sessions/video/:sessionId" element={<ProtectedRoute><VideoSession /></ProtectedRoute>} />
+            <Route path="/tip-jar" element={<TipJar />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/premium" element={<ProtectedRoute subscriberOnly><AccessDenied /></ProtectedRoute>} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+            {/* Admin Modular Pages */}
+            <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/products" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/orders" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminOrders /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/mixtapes" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMixtapes /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/customers" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCustomers /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/payments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPayments /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/subscriptions" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSubscriptions /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/messages" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMessages /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/pool" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPool /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/settings" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/newsletter" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminNewsletter /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/affiliates" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminAffiliates /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+    </Layout>
+  );
+};
+
 const App: React.FC = () => {
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
@@ -188,72 +261,6 @@ const App: React.FC = () => {
               <Toaster position="top-right" richColors closeButton theme="dark" />
               <FloatingChatWidget />
               <LiveEventStreamer />
-
-              <Layout>
-                <PushBanner />
-                <ErrorBoundary>
-                  <Suspense key={location.pathname} fallback={<LoadingSpinner />}>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/pool" element={<Navigate to="/" replace />} />
-                      <Route path="/track/:id" element={<Navigate to="/" replace />} />
-                      <Route path="/mixtapes" element={<Mixtapes />} />
-                      <Route path="/notifications" element={<Notifications />} />
-                      <Route path="/escrow-mngt" element={<EscrowManager />} />
-                      <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
-                      <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
-                      <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
-                      <Route path="/aura-vision" element={<Navigate to="/dj-lab" replace />} />
-                      <Route path="/dj-tools/bpm-tapper" element={<Navigate to="/dj-lab" replace />} />
-                      <Route path="/community/:username" element={<PublicProfile />} />
-                      <Route path="/:username" element={<Navigate to="/community/:username" replace />} />
-
-                      <Route path="/community" element={<Community />} />
-
-                      <Route path="/store" element={<Store />} />
-                      <Route path="/marketplace" element={<Marketplace />} />
-                      <Route path="/vendor-dashboard" element={<VendorDashboard />} />
-                      <Route path="/store/:slug" element={<ProductDetails />} />
-                      <Route path="/cart" element={<Cart />} />
-                      <Route path="/checkout" element={<Checkout />} />
-                      <Route path="/success" element={<Success />} />
-                      <Route path="/success/:id" element={<Success />} />
-                      <Route path="/order-tracking" element={<OrderTracking />} />
-                      <Route path="/bookings" element={<Bookings />} />
-                      <Route path="/recording-sessions" element={<RecordingSessions />} />
-                      <Route path="/sessions" element={<Sessions />} />
-                      <Route path="/sessions/video/:sessionId" element={<ProtectedRoute><VideoSession /></ProtectedRoute>} />
-                      <Route path="/tip-jar" element={<TipJar />} />
-                      <Route path="/contact" element={<Contact />} />
-                      <Route path="/about" element={<About />} />
-                      <Route path="/premium" element={<ProtectedRoute subscriberOnly><AccessDenied /></ProtectedRoute>} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/signup" element={<Signup />} />
-                      <Route path="/forgot-password" element={<ForgotPassword />} />
-                      <Route path="/verify-email" element={<VerifyEmail />} />
-                      <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
-                      <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-                      <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-                      {/* Admin Modular Pages */}
-                      <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/products" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/orders" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminOrders /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/mixtapes" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMixtapes /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/customers" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCustomers /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/payments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPayments /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/subscriptions" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSubscriptions /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/messages" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMessages /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/pool" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminPool /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/settings" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/newsletter" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminNewsletter /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/affiliates" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminAffiliates /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
-                      <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
-                    </Routes>
-                  </Suspense>
-                </ErrorBoundary>
               </Layout>
             </Router>
           </PlayerProvider>

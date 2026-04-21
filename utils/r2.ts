@@ -13,18 +13,23 @@ export async function getAuthHeader() {
 }
 
 export async function fetchFromR2<T>(collection: string): Promise<T[]> {
-    // 1. Primary Source: Prefer Worker Proxy for reliability if public domain is legacy
     const legacyDomain = 'pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev';
     const R2_URL = (import.meta.env.VITE_R2_URL || '').trim();
+    let directUrl = '';
     
-    // If we have a custom R2 URL that isn't the legacy one, try it first
+    // 1. Primary Source: Prefer Custom R2 URL if provided and not legacy
     if (R2_URL && !R2_URL.includes(legacyDomain)) {
-        const directUrl = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
+        directUrl = `${R2_URL}/data/${collection}.json?t=${Date.now()}`;
         console.log(`[R2] Fetching ${collection} from custom URL: ${directUrl}`);
         try {
             const response = await fetch(directUrl);
             if (response.ok) return await response.json();
         } catch (e) {}
+    }
+
+    // Default or Legacy direct URL
+    if (!directUrl) {
+        directUrl = `https://${legacyDomain}/data/${collection}.json?t=${Date.now()}`;
     }
 
     console.log(`[R2] Fetching ${collection} from: ${directUrl}`);

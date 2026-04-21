@@ -874,29 +874,22 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   }
 
   // GET /api/social/profile/:username
-  if (method === 'GET' && path.match(/^\/api\/social\/profile\/[^/]+$/)) {
-    const username = path.split('/').pop()?.replace('@', '')?.toLowerCase();
+  // GET /api/profiles/:username (Robust & Case-Insensitive)
+  if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+$/)) {
+    const handle = path.split('/').pop()?.replace('@', '');
+    const { results } = await env.DB.prepare(`
+      SELECT *, display_name as name, banner_url as cover_url 
+      FROM user_profiles 
+      WHERE LOWER(username) = LOWER(?) OR id = ?
+    `).bind(handle, handle).all();
 
-    const profile = await env.DB.prepare(`
-      SELECT id, display_name as name, avatar_url, username, role, bio, banner_url as cover_url,
-        location, website, dj_genre, dj_since, pinned_post_id,
-        instagram, soundcloud, mixcloud, is_verified, created_at,
-        (SELECT COUNT(*) FROM social_posts 
-          WHERE author_id = user_profiles.id AND post_type != 'reshare') as post_count,
-        (SELECT COUNT(*) FROM social_follows 
-          WHERE following_id = user_profiles.id) as followers_count,
-        (SELECT COUNT(*) FROM social_follows 
-          WHERE follower_id = user_profiles.id) as following_count
-      FROM user_profiles WHERE username = ? OR id = ?
-    `).bind(username, username).first() as any;
-
-    if (!profile) return json({ error: 'Profile not found' }, { status: 404 });
+    const profile = results?.[0] as any;
+    if (!profile) return json({ error: 'UNKNOWN OPERATOR: THIS FREQUENCY IS CURRENTLY UNASSIGNED.' }, 404);
 
     const isFollowing = actorId ? await env.DB.prepare(
       'SELECT 1 FROM social_follows WHERE follower_id = ? AND following_id = ?'
     ).bind(actorId, profile.id).first() : null;
 
-    // Fetch pinned post if set
     let pinnedPost = null;
     if (profile.pinned_post_id) {
       pinnedPost = await env.DB.prepare(
@@ -1002,6 +995,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(userId || '', userId || '', limit).all();
 
     return json({ suggested: result.results || [] });
+  }
+
+  // GET /api/community/posts (Legacy support)
+  if (method === 'GET' && path === '/api/community/posts') {
+    return handleRequest(new Request(request.url.replace('/community/posts', '/social/feed'), request), env, ctx);
   }
 
   // ─── Commerce Routes ──────────────────────────────────────────────────────────
@@ -1629,8 +1627,29 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
 
     // POST /api/admin/sync-paystack (Stub)
-    if (path === '/api/admin/sync-paystack' && method === 'POST') {
-      return json({ success: true, synced: 0 });
+    // GET /api/user/status
+    if (path === '/api/user/status' && method === 'GET') {
+      if (!actorId) return json({ authenticated: false });
+      const user = await env.DB.prepare('SELECT id, role, username FROM user_profiles WHERE id = ?').bind(actorId).first();
+      return json({ authenticated: true, user });
+    }
+
+    // GET /api/session_types
+    if (path === '/api/session_types' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM session_types WHERE is_active = 1').all();
+      return json(results || []);
+    }
+
+    // GET /api/plans
+    if (path === '/api/plans' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM subscription_plans WHERE is_active = 1').all();
+      return json(results || []);
+    }
+
+    // GET /api/studio/gear
+    if (path === '/api/studio/gear' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT * FROM studio_gear WHERE status = "active"').all();
+      return json(results || []);
     }
   }
 

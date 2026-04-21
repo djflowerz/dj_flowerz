@@ -139,22 +139,32 @@ export default function ProductDetails() {
     const shareUrl = `${baseUrl}/store/${product.slug || product.id}`;
     const text = `Check out ${product.name} on DJ Flowerz!`;
 
-    switch (platform) {
-      case 'whatsapp':
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + shareUrl)}`, '_blank');
-        break;
-      case 'facebook':
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
-        break;
-      case 'twitter':
-        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`, '_blank');
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(shareUrl);
-        toast.success("Link copied to clipboard!");
-        break;
+  // Memoized values (must be before conditional returns)
+  const productReviews = useMemo(() => 
+    reviews.filter(r => r.target_id === product?.id || r.productId === product?.id)
+  , [reviews, product?.id]);
+
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+    const rawImages = Array.isArray(product.images) ? product.images : (typeof product.images === 'string' ? JSON.parse(product.images) : []);
+    return [
+      product.image || product.image_url,
+      ...rawImages
+    ].filter(Boolean);
+  }, [product]);
+
+  const productFeatures = useMemo(() => {
+    if (!product) return [];
+    if (Array.isArray(product.features)) return product.features;
+    if (typeof product.features === 'string') {
+      try {
+        return JSON.parse(product.features);
+      } catch (e) {
+        return [];
+      }
     }
-  };
+    return [];
+  }, [product]);
 
   if (productsLoading) {
     return (
@@ -179,27 +189,6 @@ export default function ProductDetails() {
 
   const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
 
-  const galleryImages = useMemo(() => {
-    const rawImages = Array.isArray(product.images) ? product.images : (typeof product.images === 'string' ? JSON.parse(product.images) : []);
-    return [
-      product.image || product.image_url,
-      ...rawImages
-    ].filter(Boolean);
-  }, [product]);
-
-  const productFeatures = useMemo(() => {
-    if (Array.isArray(product.features)) return product.features;
-    if (typeof product.features === 'string') {
-      try {
-        return JSON.parse(product.features);
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
-  }, [product]);
-
-  const productReviews = reviews.filter(r => r.target_id === product.id || r.productId === product.id);
 
   return (
     <div className="bg-[#050507] text-white min-h-screen pt-24 pb-20">
