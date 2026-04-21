@@ -351,7 +351,7 @@ const getTableName = (colName: string): string => {
     'contact_messages': 'support/tickets',
     'bookings': 'bookings/gigs',
     'syncNotifications': 'pool/sync-notifications',
-    'profiles': 'users',
+    'profiles': 'profiles',
     // --- Subscription plans (Standardized to /api/plans) ---
     'subscriptionPlans': 'plans',
     'subscriptions': 'active-subscribers',

@@ -105,23 +105,11 @@ const Dashboard: React.FC = () => {
                     color="brand-yellow"
                 />
                 <StatCard
-                    label="Subscribed Users"
-                    value={loading ? '...' : (stats?.activeUsers || 0).toString()}
-                    icon={Users}
-                    color="brand-purple"
-                />
-                <StatCard
                     label="Total Tips"
                     value={loading ? '...' : formatCurrency(stats?.totalTips || 0)}
                     icon={Heart}
                     color="brand-pink"
                 />
-            </div>
-            <div className="grid grid-cols-1 mb-8">
-                <div className="inline-flex items-center gap-3 text-xs text-gray-500 font-bold uppercase tracking-widest">
-                    <Users size={14} className="text-brand-purple" />
-                    <span>Total Registered Users: <span className="text-white">{loading ? '...' : (stats?.totalUsers || 0)}</span></span>
-                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

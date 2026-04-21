@@ -67,5 +67,62 @@
     "crons": [
       "0 0 * * *"
     ]
+  },
+  "env": {
+    "production": {
+      "name": "djflowerz-worker",
+      "main": "worker/index.ts",
+      "compatibility_date": "2024-09-23",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "vars": {
+        "PUBLIC_R2_DOMAIN": "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev",
+        "VITE_ADMIN_EMAIL": "",
+        "VITE_APP_URL": "https://www.djflowerz.co.ke",
+        "ENVIRONMENT": "production"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "b668b18e61c347acb939e80cf89c173b"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "djflowerz-db",
+          "database_id": "62987ae1-d5e5-484a-8259-2642900a3a23",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_BUCKET",
+          "bucket_name": "djflowerz-images"
+        },
+        {
+          "binding": "PROFILES_BUCKET",
+          "bucket_name": "djflowerz-images"
+        }
+      ],
+      "vectorize": [
+        {
+          "binding": "VECTOR_INDEX",
+          "index_name": "djflowerz-search-index"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "ADMIN_HUB",
+            "class_name": "AdminHub"
+          }
+        ]
+      }
+    }
   }
 }

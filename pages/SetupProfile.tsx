@@ -1,363 +1,215 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, AtSign, PenLine, MapPin, 
-  CheckCircle2, AlertCircle, Loader2, 
-  ArrowRight, Sparkles, Camera
-} from 'lucide-react';
-import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { GlassCard } from '../components/ui/GlassCard';
+import { NeonButton } from '../components/ui/NeonButton';
+import { Shield, AtSign, Briefcase, Zap, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const SetupProfile: React.FC = () => {
-  const { user, finalizeProfile, checkUsername, isProfileComplete, session } = useAuth();
+const ROLES = [
+  { id: 'dj', name: 'DJ / Performer', icon: Zap },
+  { id: 'producer', name: 'Producer', icon: Shield },
+  { id: 'collector', name: 'Collector', icon: Briefcase },
+  { id: 'curator', name: 'Curator', icon: AtSign }
+];
+
+export default function SetupProfile() {
+  const { user, session } = useAuth();
   const navigate = useNavigate();
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  const [form, setForm] = useState({
-    username: '',
-    display_name: user?.name || '',
-    bio: '',
-    location: '',
-    avatar_url: user?.avatarUrl || '',
-    website: '',
-    instagram: '',
-    twitter: '',
-    soundcloud: ''
-  });
-
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [handle, setHandle] = useState('');
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [role, setRole] = useState('collector');
+  const [isCheckingHandle, setIsCheckingHandle] = useState(false);
+  const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Redirect if already complete
   useEffect(() => {
-    if (isProfileComplete && user?.username) {
-      navigate('/community', { replace: true });
+    if (handle.length > 2) {
+      const timer = setTimeout(checkHandle, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setHandleAvailable(null);
     }
-  }, [isProfileComplete, user, navigate]);
+  }, [handle]);
 
-  // Username validation logic
-  useEffect(() => {
-    if (!form.username) {
-      setUsernameStatus('idle');
-      return;
-    }
-
-    if (form.username.length < 3) {
-      setUsernameStatus('invalid');
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setUsernameStatus('checking');
-      try {
-        const available = await checkUsername(form.username);
-        setUsernameStatus(available ? 'available' : 'taken');
-      } catch {
-        setUsernameStatus('idle');
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [form.username, checkUsername]);
-
-  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setUploadingAvatar(true);
-    const toastId = toast.loading('Uploading avatar...');
-
+  const checkHandle = async () => {
+    setIsCheckingHandle(true);
     try {
-      const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
-      
-      const res = await fetch(`${apiBase}/api/social/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'x-file-name': encodeURIComponent(file.name),
-          'x-folder': 'avatars',
-          'content-type': file.type
-        },
-        body: await file.arrayBuffer()
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-
-      setForm({ ...form, avatar_url: data.url });
-      toast.success('Avatar updated successfully', { id: toastId });
-    } catch (err: any) {
-      toast.error('Avatar upload failed', { description: err.message, id: toastId });
+      const cleanHandle = handle.replace(/^@/, '').toLowerCase();
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/handle/${cleanHandle}`);
+      const data = await resp.json();
+      setHandleAvailable(data.available);
+    } catch (e) {
+      setHandleAvailable(false);
     } finally {
-      setUploadingAvatar(false);
+      setIsCheckingHandle(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (usernameStatus !== 'available') {
-      toast.error("Please choose a valid & available handle.");
-      return;
-    }
-
+  const handleClaim = async () => {
+    if (!handleAvailable) return;
     setLoading(true);
+    setError('');
     try {
-      await finalizeProfile({
-        username: form.username,
-        display_name: form.display_name,
-        bio: form.bio,
-        location: form.location,
-        avatar_url: form.avatar_url,
-        website: form.website,
-        instagram: form.instagram,
-        twitter: form.twitter,
-        soundcloud: form.soundcloud
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/handle/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        },
+        body: JSON.stringify({
+          handle,
+          fullName,
+          role
+        })
       });
-      toast.success("Identity established!", {
-        description: "Welcome to the DJ Flowerz community."
-      });
-      navigate('/community', { replace: true });
-    } catch (err: any) {
-      toast.error("Command Failed", {
-        description: err.message || "Could not finalize profile."
-      });
+      const data = await resp.json();
+      if (data.success) {
+        setStep(3);
+        setTimeout(() => navigate('/community'), 2500);
+      } else {
+        setError(data.error || 'Failed to claim handle');
+      }
+    } catch (e) {
+      setError('A system error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: "easeOut" }
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#050507] text-white pt-32 pb-20 px-6 flex flex-col items-center justify-center overflow-hidden relative">
-      {/* Ambient backgrounds */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] right-[-5%] w-[50%] h-[50%] bg-brand-cyan/10 blur-[120px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[40%] bg-brand-purple/10 blur-[100px] rounded-full" />
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 font-sans">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#A349F5]/10 rounded-full blur-[120px] animate-pulse-slow"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#00F5FF]/10 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-full max-w-xl z-10"
-      >
-        <div className="text-center mb-10">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-[10px] font-black uppercase tracking-[0.2em] mb-4"
-          >
-            <Sparkles size={12} />
-            Onboarding Protocol
-          </motion.div>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40">
-            Establish Your Identity
-          </h1>
-          <p className="text-gray-500 font-medium max-w-md mx-auto leading-relaxed">
-            Choose how you'll be known in the DJ Flowerz universe. Your handle is unique and serves as your digital signature.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="glass-panel p-8 rounded-[32px] border-white/5 relative overflow-hidden group hover:border-white/10 transition-colors">
-            <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/5 via-transparent to-brand-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            
-            <div className="relative z-10 space-y-8">
-              {/* Profile Picture Preview */}
-              <div className="flex flex-col items-center gap-4">
-                <label className="relative group/avatar cursor-pointer block">
-                  <input type="file" accept="image/*" className="hidden" onChange={uploadAvatar} disabled={uploadingAvatar} />
-                  <div className="w-24 h-24 rounded-full border-2 border-white/10 p-1 bg-black/40 overflow-hidden relative">
-                    {uploadingAvatar ? (
-                      <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10">
-                        <Loader2 size={24} className="text-brand-purple animate-spin" />
-                      </div>
-                    ) : null}
-                    {form.avatar_url ? (
-                      <img src={form.avatar_url} alt="Avatar" className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-white/5 flex items-center justify-center text-gray-600">
-                        <User size={32} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
-                    <Camera size={20} className="text-white" />
-                  </div>
-                </label>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Operator Identity Key</p>
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={step}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="w-full max-w-md"
+        >
+          {step === 1 && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                  Claim Your Identity
+                </h1>
+                <p className="text-white/40">Secure your unique @handle to join the Pulse.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Username Input */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                    <AtSign size={12} />
-                    Unique Handle
-                  </label>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-xl space-y-6">
+                <div>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">FULL NAME</label>
+                  <input 
+                    type="text" 
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#A349F5] focus:ring-1 focus:ring-[#A349F5] outline-none transition-all"
+                    placeholder="Operator Name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">CHOOSE HANDLE</label>
                   <div className="relative">
-                    <input
-                      type="text"
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">@</span>
+                    <input 
+                      type="text" 
+                      value={handle}
+                      onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white focus:border-[#00F5FF] focus:ring-1 focus:ring-[#00F5FF] outline-none transition-all"
                       placeholder="username"
-                      value={form.username}
-                      onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
-                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 focus:ring-1 focus:ring-brand-purple/20 transition-all font-bold placeholder:text-gray-700"
-                      required
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                      <AnimatePresence mode="wait">
-                        {usernameStatus === 'checking' && (
-                          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <Loader2 size={16} className="text-brand-purple animate-spin" />
-                          </motion.div>
-                        )}
-                        {usernameStatus === 'available' && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-emerald-500">
-                            <CheckCircle2 size={16} />
-                          </motion.div>
-                        )}
-                        {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-red-500">
-                            <AlertCircle size={16} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      {isCheckingHandle && <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>}
+                      {handleAvailable === true && <CheckCircle2 className="w-5 h-5 text-[#00F5FF]" />}
+                      {handleAvailable === false && <span className="text-xs text-red-500">Taken</span>}
                     </div>
                   </div>
-                  <div className="flex justify-between items-center px-1">
-                    <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">Min 3 chars, letters/nums/underscores</p>
-                    {usernameStatus === 'taken' && <span className="text-[9px] text-red-500 font-bold uppercase">Already Claimed</span>}
-                    {usernameStatus === 'available' && <span className="text-[9px] text-emerald-500 font-bold uppercase">Handle Available</span>}
-                  </div>
                 </div>
 
-                {/* Display Name */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                    <User size={12} />
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="E.g. DJ Flowerz"
-                    value={form.display_name}
-                    onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Bio */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                  <PenLine size={12} />
-                  Tell the community about yourself
-                </label>
-                <textarea
-                  placeholder="Official DJ for the streets... Music is life."
-                  value={form.bio}
-                  onChange={(e) => setForm({ ...form, bio: e.target.value })}
-                  rows={3}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700 resize-none"
-                />
-              </div>
-
-              {/* Location */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                  <MapPin size={12} />
-                  Base of Operations
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nairobi, Kenya"
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                />
-              </div>
-
-              {/* Social Links */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Instagram</label>
-                  <input
-                    type="text"
-                    placeholder="@djflowerz"
-                    value={form.instagram}
-                    onChange={(e) => setForm({ ...form, instagram: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Twitter / X</label>
-                  <input
-                    type="text"
-                    placeholder="@djflowerz"
-                    value={form.twitter}
-                    onChange={(e) => setForm({ ...form, twitter: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">SoundCloud</label>
-                  <input
-                    type="text"
-                    placeholder="soundcloud.com/djflowerz"
-                    value={form.soundcloud}
-                    onChange={(e) => setForm({ ...form, soundcloud: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Website</label>
-                  <input
-                    type="url"
-                    placeholder="https://djflowerz.co.ke"
-                    value={form.website}
-                    onChange={(e) => setForm({ ...form, website: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-purple/50 transition-all font-bold placeholder:text-gray-700"
-                  />
-                </div>
+                <button 
+                  onClick={() => setStep(2)}
+                  disabled={!handleAvailable || !fullName}
+                  className="w-full bg-[#A349F5] hover:bg-[#B060F7] disabled:opacity-30 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(163,73,245,0.3)]"
+                >
+                  Continue
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={loading || usernameStatus !== 'available'}
-            className="w-full group relative overflow-hidden flex items-center justify-center gap-3 py-5 bg-white text-black rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all hover:gap-5 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_30px_rgba(255,255,255,0.1)] active:scale-95"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-brand-cyan via-white to-brand-purple translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 opacity-20" />
-            {loading ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <>
-                Finalize Identity
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
+          {step === 2 && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h1 className="text-4xl font-heading mb-2">Define Your Role</h1>
+                <p className="text-white/40">How do you interact with the ecosystem?</p>
+              </div>
 
-        <p className="mt-8 text-center text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em]">
-          By proceeding, you agree to established Community Protocols.
-        </p>
-      </motion.div>
+              <div className="grid grid-cols-2 gap-4">
+                {ROLES.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setRole(r.id)}
+                    className={`p-6 rounded-2xl border transition-all text-left flex flex-col space-y-3 ${
+                      role === r.id 
+                        ? 'bg-[#A349F5]/20 border-[#A349F5] shadow-[0_0_30px_rgba(163,73,245,0.15)] text-white' 
+                        : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+                    }`}
+                  >
+                    <r.icon className={`w-6 h-6 ${role === r.id ? 'text-[#00F5FF]' : 'text-white/40'}`} />
+                    <span className="font-semibold">{r.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-4 pt-4">
+                {error && <p className="text-center text-red-500 text-sm">{error}</p>}
+                <button 
+                  onClick={handleClaim}
+                  disabled={loading}
+                  className="w-full bg-[#00F5FF] hover:bg-[#33F7FF] text-[#050505] font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] flex items-center justify-center space-x-2"
+                >
+                  {loading ? <div className="w-5 h-5 border-2 border-[#050505]/20 border-t-[#050505] rounded-full animate-spin"></div> : 'Initialize Identity'}
+                </button>
+                <button 
+                  onClick={() => setStep(1)}
+                  className="w-full text-white/40 hover:text-white transition-colors text-sm"
+                >
+                  Back to identity
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="text-center space-y-6">
+              <div className="w-24 h-24 bg-[#00F5FF]/20 rounded-full flex items-center justify-center mx-auto mb-8 border border-[#00F5FF]/50 shadow-[0_0_50px_rgba(0,245,255,0.2)]">
+                <CheckCircle2 className="w-12 h-12 text-[#00F5FF]" />
+              </div>
+              <h1 className="text-5xl font-heading animate-pulse">Welcome, @{handle}</h1>
+              <p className="text-white/40">Broadcasting your identity to the Pulse...</p>
+              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-12">
+                <div className="bg-gradient-to-r from-[#A349F5] to-[#00F5FF] h-full animate-[loading_2s_ease-in-out_forwards]"></div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes loading {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+      `}} />
     </div>
   );
-};
-
-export default SetupProfile;
+}

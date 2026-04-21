@@ -1,60 +1,52 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Spline+Sans:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
-}
-
 :root {
-    /* Brand tokens */
-    --brand-primary: #7B5CFF;
-    --brand-secondary: #28E6DC;
-    --brand-purple: #7B5CFF;
-    --brand-cyan: #28E6DC;
-    --brand-pink: #FF287E;
-    --brand-red: #f42c37;
-    --brand-gold: #fbbf24;
-    --bg-dark: #131313;
-    --bg-card: #1a1a1a;
+    /* Cyber-Minimalist Core Palette */
+    --void: #050505;
+    --electric-purple: #A349F5;
+    --cyber-cyan: #00F5FF;
+    --aura-gold: #FFD700;
+    --error-neon: #FF2E2E;
+    
+    /* Semantic mapping */
+    --background: var(--void);
+    --foreground: #FFFFFF;
+    --primary: var(--electric-purple);
+    --secondary: var(--cyber-cyan);
+    
+    /* Glassmorphism Presets */
     --glass-bg: rgba(255, 255, 255, 0.03);
-    --glass-border: rgba(255, 255, 255, 0.08);
-
-    /* shadcn/ui tokens — mapped to dark brand palette */
-    --background: 0 0% 7.5%;        /* #131313 */
-    --foreground: 0 0% 98%;
-    --card: 0 0% 9.8%;              /* #191919 */
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 9.8%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 254 100% 68%;        /* #7B5CFF */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 86% 57%;       /* #f42c37 */
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 100% / 0.08;
-    --input: 0 0% 100% / 0.10;
-    --ring: 254 100% 68%;           /* #7B5CFF */
-    --radius: 0.5rem;
+    --glass-border: rgba(255, 255, 255, 0.05);
+    --glass-blur: blur(20px);
+    
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
 }
 
 html {
     scroll-behavior: smooth;
-    background-color: var(--bg-dark);
+    background-color: var(--void);
 }
 
 body {
-    font-family: 'Poppins', sans-serif;
-    color: white;
+    font-family: 'Spline Sans', sans-serif;
+    color: var(--foreground);
+    background-color: var(--void);
     -webkit-font-smoothing: antialiased;
-    background-color: var(--bg-dark);
+    overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
 }
 
 /* Custom Scrollbar */

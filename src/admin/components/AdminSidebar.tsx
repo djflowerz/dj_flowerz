@@ -11,17 +11,14 @@ const navItems = [
     { icon: ShoppingBag, label: 'Products', path: '/admin/products' },
     { icon: Package, label: 'Orders', path: '/admin/orders' },
     { icon: Music, label: 'Mixtapes', path: '/admin/mixtapes' },
-    { icon: MessageSquare, label: 'Messages', path: '/admin/messages' },
     { icon: Mail, label: 'Newsletter', path: '/admin/newsletter' },
-    { icon: Share2, label: 'Affiliates', path: '/admin/affiliates' },
     { icon: Wallet, label: 'Lipa Pole Pole', path: '/admin/installments' },
     { icon: Package, label: 'Shipping', path: '/admin/shipping' },
     { icon: Megaphone, label: 'Marketing', path: '/admin/marketing' },
-    { icon: Users, label: 'Profiles', path: '/admin/customers' },
-    { icon: Crown, label: 'Subscriptions', path: '/admin/subscriptions' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
     { icon: ShieldAlert, label: 'Command Centre', path: '/admin/command-centre' },
+    { icon: Users, label: 'Governance', path: '/admin/governance' },
 ];
 
 export const AdminSidebar: React.FC = () => {

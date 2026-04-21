@@ -29,7 +29,7 @@ const Navbar: React.FC = () => {
     { name: 'Home', path: '/' },
     { name: 'Mixtapes', path: '/mixtapes' },
     { name: 'Store', path: '/store' },
-    { name: 'Community', path: '/community' },
+    { name: 'The Pulse', path: '/community' },
     { name: 'DJ Vision Lab', path: '/dj-lab' },
     { name: 'Sessions', path: '/sessions' },
     { name: 'Bookings', path: '/bookings' },
@@ -139,117 +139,6 @@ const Navbar: React.FC = () => {
 
               {/* JOIN POOL button removed per request */}
 
-              {/* Notifications Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={async () => { 
-                    const next = !showNotifications;
-                    setShowNotifications(next); 
-                    setShowMessages(false); 
-                    setShowUserMenu(false); 
-                    if (next && user) {
-                        setLoadingNotifs(true);
-                        try {
-                            const res = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/user/notifications`);
-                            const data = await res.json();
-                            setCommunityNotifications(data);
-                        } finally {
-                            setLoadingNotifs(false);
-                        }
-                    }
-                  }}
-                  className="text-gray-300 hover:text-white transition group relative p-1"
-                >
-
-                  <Bell size={22} className="group-hover:text-brand-purple transition" />
-                  {(userStatus.unreadNotifications > 0 || (notifications?.filter(n => n.userId === user?.id && !n.read).length > 0)) && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-brand-purple rounded-full border-2 border-[#0B0B0F] animate-pulse"></span>
-                  )}
-                </button>
-
-                {showNotifications && (
-                  <div className="absolute right-0 mt-6 w-80 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-white">Notifications</h3>
-                      <button className="text-[10px] text-brand-purple font-bold hover:underline">Mark all read</button>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto">
-                      {loadingNotifs ? (
-                        <div className="p-8 text-center"><Loader className="animate-spin mx-auto text-brand-purple" size={20} /></div>
-                      ) : communityNotifications.length > 0 ? (
-                        communityNotifications.map(n => (
-                          <div
-                            key={n.id}
-                            onClick={async () => { 
-                                if (!n.is_read) {
-                                    await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/user/notifications/read`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ id: n.id })
-                                    });
-                                }
-                                if (n.type === 'follow') window.location.href = `/community/@${n.actor_id}`;
-                                else if (n.target_id) window.location.href = `/community?post=${n.target_id}`;
-                            }}
-                            className={`p-4 border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition ${!n.is_read ? 'bg-brand-purple/5 border-l-2 border-l-brand-purple' : ''}`}
-                          >
-                            <div className="flex gap-3">
-                                <img loading="lazy" src={n.actor_avatar || ''} className="w-8 h-8 rounded-full bg-white/10" alt="" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-white leading-snug">
-                                        <span className="font-bold">{n.actor_name}</span> {n.message}
-                                    </p>
-                                    <span className="text-[10px] text-gray-500">{new Date(n.created_at).toLocaleDateString()}</span>
-                                </div>
-                                <div className={`w-2 h-2 rounded-full mt-1.5 ${n.type === 'like' ? 'bg-red-500' : n.type === 'follow' ? 'bg-blue-500' : 'bg-brand-purple'}`}></div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-8 text-center">
-                          <Bell size={32} className="mx-auto mb-3 opacity-10 text-white" />
-                          <p className="text-xs text-gray-500">No notifications yet</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <Link to="/notifications" className="block text-center p-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
-                      View All Notifications
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              {/* Messages Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => { setShowMessages(!showMessages); setShowNotifications(false); setShowUserMenu(false); }}
-                  className="text-gray-300 hover:text-white transition group relative p-1"
-                >
-                  <MessageCircle size={22} className="group-hover:text-brand-purple transition" />
-                  {userStatus.unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-purple text-white text-[9px] font-black rounded-full border-2 border-[#0B0B0F] flex items-center justify-center animate-bounce">
-                      {userStatus.unreadMessages > 9 ? '9+' : userStatus.unreadMessages}
-                    </span>
-                  )}
-                </button>
-
-                {showMessages && (
-                  <div className="absolute right-0 mt-6 w-80 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-white">Messages</h3>
-                      <button className="text-[10px] text-brand-purple font-bold hover:underline">New Message</button>
-                    </div>
-                    <div className="p-8 text-center text-gray-500">
-                      <MessageCircle size={32} className="mx-auto mb-3 opacity-10" />
-                      <p className="text-xs">Your inbox is empty</p>
-                    </div>
-                    <Link to="/messages" className="block text-center p-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
-                      Go to Messenger
-                    </Link>
-                  </div>
-                )}
-              </div>
 
               <Link to="/cart" className="relative text-gray-300 hover:text-white transition group">
                 <ShoppingCart size={22} className="group-hover:text-brand-purple transition" />
@@ -274,22 +163,11 @@ const Navbar: React.FC = () => {
                   </button>
                   {showUserMenu && (
                     <div className="absolute right-0 mt-6 w-56 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 py-3">
-                      {user?.username && (
-                        <Link to={`/community/@${user.username.toLowerCase()}`} className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-white/5 transition">
-                          <User size={16} /> My Social Profile
-                        </Link>
-                      )}
                       <Link to="/account" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <Settings size={16} /> Account Settings
                       </Link>
                       <Link to="/order-tracking" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <Package size={16} /> Track Order
-                      </Link>
-                      <Link to="/escrow-mngt" className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-500 hover:bg-white/5 transition">
-                        <ShieldCheck size={16} /> Escrow Dashboard
-                      </Link>
-                      <Link to="/notifications" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
-                        <Bell size={16} /> All Notifications
                       </Link>
                       {user?.role === 'admin' && (
                         <Link to="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-brand-purple hover:bg-brand-purple/10 transition">
@@ -323,12 +201,6 @@ const Navbar: React.FC = () => {
 
             {/* Mobile Toggle & Cart */}
             <div className="md:hidden flex items-center gap-4 z-50">
-              <Link to="/notifications" className="text-gray-300">
-                <Bell size={24} />
-              </Link>
-              <Link to="/messages" className="text-gray-300">
-                <MessageCircle size={24} />
-              </Link>
               <Link to="/cart" className="relative text-gray-300" onClick={() => setIsOpen(false)}>
                 <ShoppingCart size={24} />
                 {itemCount > 0 && (

@@ -43,35 +43,11 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
 
 // Lazy load pages to reduce initial bundle size
 const Home = lazyWithRetry(() => import('./pages/Home'));
-const Notifications = lazyWithRetry(() => import('./pages/Notifications'));
-const EscrowManager = lazyWithRetry(() => import('./pages/EscrowManager'));
-const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
-const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));
-const MusicPool = lazyWithRetry(() => import('./pages/MusicPool'));
-const DJLab = lazyWithRetry(() => import('./pages/DJLab'));
-const Community = lazyWithRetry(() => import('./pages/Community'));
 const Store = lazyWithRetry(() => import('./pages/Store'));
-const Marketplace = lazyWithRetry(() => import('./pages/Marketplace'));
-const VendorDashboard = lazyWithRetry(() => import('./pages/VendorDashboard'));
 const ProductDetails = lazyWithRetry(() => import('./pages/ProductDetails'));
 const Cart = lazyWithRetry(() => import('./pages/Cart'));
 const Checkout = lazyWithRetry(() => import('./pages/Checkout'));
 const Success = lazyWithRetry(() => import('./pages/Success'));
-const Bookings = lazyWithRetry(() => import('./pages/Bookings'));
-const RecordingSessions = lazyWithRetry(() => import('./pages/RecordingSessions'));
-const Sessions = lazyWithRetry(() => import('./pages/Sessions'));
-const TipJar = lazyWithRetry(() => import('./pages/TipJar'));
-const Account = lazyWithRetry(() => import('./pages/Account'));
-const Contact = lazyWithRetry(() => import('./pages/Contact'));
-const About = lazyWithRetry(() => import('./pages/About'));
-const Login = lazyWithRetry(() => import('./pages/Login'));
-const Signup = lazyWithRetry(() => import('./pages/Signup'));
-const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
-const VerifyEmail = lazyWithRetry(() => import('./pages/VerifyEmail'));
-const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
-const OrderTracking = lazyWithRetry(() => import('./pages/OrderTracking'));
-const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
-const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 
 
 // Modular Admin Pages
@@ -90,8 +66,10 @@ const AdminAffiliates = lazyWithRetry(() => import('./src/admin/pages/Affiliates
 const AdminInstallments = lazyWithRetry(() => import('./src/admin/pages/Installments'));
 const AdminMarketing = lazyWithRetry(() => import('./src/admin/pages/Marketing'));
 const AdminShipping = lazyWithRetry(() => import('./src/admin/pages/Shipping'));
-const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
-const VideoSession = lazyWithRetry(() => import('./pages/VideoSession'));
+const Community = lazyWithRetry(() => import('./pages/Community'));
+const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
+const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
+const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -123,8 +101,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const AppContent = () => {
+  const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
   
+  // Enforce Identity Setup for all logged-in users who haven't claimed a handle
+  if (isAuthenticated && user?.needsSetup && location.pathname !== '/setup-identity' && !loading) {
+    return <Navigate to="/setup-identity" replace />;
+  }
   return (
     <Layout>
       <PushBanner />
@@ -135,42 +118,17 @@ const AppContent = () => {
             <Route path="/pool" element={<Navigate to="/" replace />} />
             <Route path="/track/:id" element={<Navigate to="/" replace />} />
             <Route path="/mixtapes" element={<Mixtapes />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/escrow-mngt" element={<EscrowManager />} />
             <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
             <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
+            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
-            <Route path="/aura-vision" element={<Navigate to="/dj-lab" replace />} />
-            <Route path="/dj-tools/bpm-tapper" element={<Navigate to="/dj-lab" replace />} />
-            <Route path="/community/:username" element={<PublicProfile />} />
-            <Route path="/:username" element={<Navigate to="/community/:username" replace />} />
-
-            <Route path="/community" element={<Community />} />
 
             <Route path="/store" element={<Store />} />
-            <Route path="/marketplace" element={<Marketplace />} />
-            <Route path="/vendor-dashboard" element={<VendorDashboard />} />
-            <Route path="/store/:slug" element={<ProductDetails />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/success" element={<Success />} />
-            <Route path="/success/:id" element={<Success />} />
-            <Route path="/order-tracking" element={<OrderTracking />} />
-            <Route path="/bookings" element={<Bookings />} />
-            <Route path="/recording-sessions" element={<RecordingSessions />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/sessions/video/:sessionId" element={<ProtectedRoute><VideoSession /></ProtectedRoute>} />
-            <Route path="/tip-jar" element={<TipJar />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/premium" element={<ProtectedRoute subscriberOnly><AccessDenied /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
             {/* Admin Modular Pages */}
             <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/products" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></ErrorBoundary>} />
@@ -187,7 +145,10 @@ const AppContent = () => {
             <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
+            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+            <Route path="/op/:handle" element={<PublicProfile />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>

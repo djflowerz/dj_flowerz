@@ -178,13 +178,17 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  username?: string;
+  handle?: string; // New: @operator handle
   role: 'guest' | 'user' | 'admin';
   isSubscriber: boolean;
-  subscriptionPlan?: 'weekly' | 'monthly' | '3months' | '6months' | 'yearly';
-  subscriptionExpiry?: string; // ISO String
   avatarUrl?: string;
+  bannerUrl?: string; // New: Profile banner
   isAdmin?: boolean;
+  isVerified?: boolean; // New: Verification status
+  primaryRole?: string; // New: DJ, Producer, Collector, etc.
+  auraTier: 'standard' | 'prime' | 'legendary'; // New: Cyber-Minimalist Tier
+  auraPoints: number; // New: Reputation points
+  needsSetup?: boolean; // New: Flag for onboarding
   status?: 'active' | 'suspended';
   lastLogin?: string;
   referralCode?: string;
@@ -192,18 +196,11 @@ export interface User {
   referredBy?: string;
   phoneNumber?: string;
   downloadsToday?: number;
-  lastDownloadDate?: string; // ISO date string YYYY-MM-DD
+  lastDownloadDate?: string;
   balance?: number;
-  auraPoints?: number;
-  auraLevel?: number;
   createdAt?: string;
   updatedAt?: string;
   presenceStatus?: 'online' | 'offline';
-  referralCount?: number;
-  downloadCountTotal?: number;
-  loyaltyPoints?: number;
-  totalSpent?: number;
-  auraTier?: 'Pioneer' | 'Elite' | 'Legend';
   bio?: string;
   location?: string;
 }
