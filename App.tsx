@@ -256,18 +256,18 @@ const App: React.FC = () => {
       <DataProvider>
         <CartProvider>
           <PlayerProvider>
-            <Router>
-              <ScrollToTop />
-              <Toaster position="top-right" richColors closeButton theme="dark" />
-              <FloatingChatWidget />
-              <LiveEventStreamer />
-              </Layout>
-            </Router>
-          </PlayerProvider>
-        </CartProvider>
-      </DataProvider>
-    </AuthProvider>
-  );
-};
+              <Router>
+                <ScrollToTop />
+                <Toaster position="top-right" richColors closeButton theme="dark" />
+                <FloatingChatWidget />
+                <LiveEventStreamer />
+                <AppContent />
+              </Router>
+            </PlayerProvider>
+          </CartProvider>
+        </DataProvider>
+      </AuthProvider>
+    );
+  };
 
 export default App;
