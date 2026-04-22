@@ -596,6 +596,7 @@ const MusicPool: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
 
             {/* Editing Modal */}
             {editingTrack && (
