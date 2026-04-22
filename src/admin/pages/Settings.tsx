@@ -42,6 +42,8 @@ const Settings: React.FC = () => {
             facebook: '',
             instagram: '',
             youtube: '',
+            twitter: '',
+            telegram: '',
             whatsapp: '',
             email: ''
         },
@@ -285,6 +287,30 @@ const Settings: React.FC = () => {
                                                 onChange={e => updateNestedSetting('socials', 'youtube', e.target.value)}
                                                 className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#FF0000]/50 outline-none transition-all placeholder:text-zinc-700"
                                                 placeholder="YouTube URL"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#1DA1F2]/10 border border-[#1DA1F2]/20 flex items-center justify-center text-[#1DA1F2]">
+                                                <Twitter size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.twitter}
+                                                onChange={e => updateNestedSetting('socials', 'twitter', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#1DA1F2]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="Twitter / X URL"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-4 group">
+                                            <div className="w-12 h-12 rounded-xl bg-[#0088cc]/10 border border-[#0088cc]/20 flex items-center justify-center text-[#0088cc]">
+                                                <Youtube size={20} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.socials?.telegram}
+                                                onChange={e => updateNestedSetting('socials', 'telegram', e.target.value)}
+                                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-[#0088cc]/50 outline-none transition-all placeholder:text-zinc-700"
+                                                placeholder="Telegram URL"
                                             />
                                         </div>
                                         <div className="flex items-center gap-4 group">

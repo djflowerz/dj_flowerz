@@ -31,7 +31,11 @@ const Contact: React.FC = () => {
                   <div className="flex justify-between items-center mb-6">
                      <h3 className="text-2xl font-bold text-white">Send us a Message</h3>
                      <button
-                        onClick={() => alert('AI Agent coming soon! Please use the form or WhatsApp for now.')}
+                        onClick={(e) => {
+                           e.preventDefault();
+                           window.dispatchEvent(new Event('open-chat-widget'));
+                        }}
+                        type="button"
                         className="text-[10px] bg-brand-purple/20 text-brand-purple px-3 py-1.5 rounded-full border border-brand-purple/30 font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-brand-purple/30 transition-all"
                      >
                         <RefreshCw size={12} className="animate-spin-slow" /> AI Assistant

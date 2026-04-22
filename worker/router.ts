@@ -422,7 +422,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           await env.DB.prepare(`
             INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
             VALUES (?, ?, ?, 'comment', ?, ?)
-          `).bind(crypto.randomUUID(), parent.author_id, actorId, parent_id, 'sighed on your signal').run();
+          `).bind(crypto.randomUUID(), parent.author_id, actorId, parent_id, 'commented on your post').run();
         }
       }
 
@@ -547,7 +547,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
             actorId, 
             type === 'echo' ? 'echo' : 'reaction', 
             pulseId,
-            type === 'echo' ? 'echoed your signal' : 'liked your signal'
+            type === 'echo' ? 'echoed your post' : 'liked your post'
           ).run();
         }
 
@@ -753,7 +753,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   if ((path === '/api/orders' || path === '/api/checkout') && method === 'POST') {
     try {
       const data = await request.json() as any;
-      const orderId = crypto.randomUUID();
+      const orderId = `ORD-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
       const { items, total_amount, total, customer_email, customer_name, payment_type, installments_count, customer_id, email: fallbackEmail, name: fallbackName, customer } = data;
       
       const finalTotal = total_amount || total || 0;
@@ -778,7 +778,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         body: JSON.stringify({
           email: email,
           amount: Math.round(Number(chargeAmount) * 100),
-          reference: `ORD_${Date.now()}_${orderId.substring(0, 6)}`,
+          reference: orderId,
           metadata: {
             order_id: orderId,
             payment_type: isLipa ? 'installment_deposit' : 'order_payment',
@@ -946,7 +946,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           confirmedRevenue: totalRevenue,
           totalOrders: (stats[1].results?.[0] as any)?.count || 0,
           activeMixtapes: (stats[2].results?.[0] as any)?.count || 0,
-          totalTips: (stats[3].results?.[1] as any)?.count || 0, // Note: index changed
+          totalTips: (stats[3].results?.[0] as any)?.total || 0, // Fix: use index 0 and .total instead of .count
           recentActivity
         });
       } catch (e: any) {
@@ -958,8 +958,36 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // PUT /api/admin/store/settings
     if (path === '/api/admin/store/settings' && method === 'PUT') {
       try {
-        const payload = await request.text();
+        const data = await request.json() as any;
+        const payload = JSON.stringify(data);
+        
+        // 1. Update store settings KV
         await env.KV.put('store_settings', payload);
+
+        // 2. Cross-sync to site_config for shared fields (socials, contacts)
+        const currentSiteConfigStr = await env.KV.get('site_config');
+        const currentSiteConfig = currentSiteConfigStr ? JSON.parse(currentSiteConfigStr) : {};
+
+        const updatedSiteConfig = {
+          ...currentSiteConfig,
+          socials: { ...(currentSiteConfig.socials || {}), ...(data.socials || {}) },
+          contact: { 
+             ...(currentSiteConfig.contact || {}), 
+             email: data.contacts?.email || currentSiteConfig.contact?.email,
+             phone: data.contacts?.phone || currentSiteConfig.contact?.phone,
+             address: data.contacts?.address || currentSiteConfig.contact?.address,
+             whatsapp: data.socials?.whatsapp || currentSiteConfig.contact?.whatsapp
+          },
+          hero: {
+            ...(currentSiteConfig.hero || {}),
+            title: data.heroTitle || currentSiteConfig.hero?.title,
+            subtitle: data.heroSubtitle || currentSiteConfig.hero?.subtitle,
+            bgImage: data.heroImage || currentSiteConfig.hero?.bgImage,
+            ctaText: data.ctaText || currentSiteConfig.hero?.ctaText
+          }
+        };
+        await env.KV.put('site_config', JSON.stringify(updatedSiteConfig));
+
         return json({ success: true, message: 'Settings updated successfully' });
       } catch (e: any) {
         return json({ error: e.message }, 500);
@@ -1309,8 +1337,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json(results);
     }
 
+    // GET /api/admin/profiles (New endpoint for the dashboard)
+    if (path === '/api/admin/profiles' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT id, handle, full_name, email, aura_tier, is_verified, created_at FROM profiles ORDER BY created_at DESC').all();
+      return json(results);
+    }
+
     // POST /api/admin/sync-paystack (Stub)
-    // GET /api/user/status
+  }
+
+  // GET /api/user/status
     if (path === '/api/user/status' && method === 'GET') {
       if (!actorId) return json({ authenticated: false });
       return json({ authenticated: true, userId: actorId });
@@ -1334,13 +1370,171 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json(results || []);
     }
 
+    // POST /api/newsletter/subscribe
+    if (path === '/api/newsletter/subscribe' && method === 'POST') {
+      try {
+        const { email, source = 'Website' } = await request.json() as any;
+        if (!email) return json({ error: 'Email required' }, 400);
+
+        await env.DB.prepare(`
+          INSERT INTO newsletter_subscribers (id, email, source, status, created_at)
+          VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
+          ON CONFLICT(email) DO UPDATE SET status = 'active', updated_at = CURRENT_TIMESTAMP
+        `).bind(crypto.randomUUID(), email, source).run();
+
+        return json({ success: true, message: 'Subscribed successfully' });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
+    }
+
     // POST /api/presence
     if (path === '/api/presence' && method === 'POST') {
       return json({ success: true });
     }
 
+  // ─── Chat Endpoints ───────────────────────────────────────────────────────────
+
+  // Ensure chat tables exist (run on every cold start — idempotent)
+  const ensureChatTables = async () => {
+    await env.DB.batch([
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        visitor_name TEXT,
+        visitor_email TEXT,
+        status TEXT DEFAULT 'bot',
+        ticket_number TEXT,
+        last_message_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        sender TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`),
+    ]);
+  };
+
+  // POST /api/chat/start — create or resume a chat session
+  if (path === '/api/chat/start' && method === 'POST') {
+    try {
+      await ensureChatTables();
+      const { name, email } = await request.json() as any;
+      const sessionId = crypto.randomUUID();
+      const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
+
+      await env.DB.prepare(`
+        INSERT INTO chat_sessions (id, visitor_name, visitor_email, status, ticket_number)
+        VALUES (?, ?, ?, 'bot', ?)
+      `).bind(sessionId, name || 'Visitor', email || null, ticketNumber).run();
+
+      // Insert a welcome message from the bot
+      const welcome = `👋 Hey ${name || 'there'}! Welcome to the **DJ Flowerz Hub**. I'm your AI assistant — here to help with anything from bookings, the Music Pool, store orders, or general questions. What can I help you with today?`;
+      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'bot', ?)`).bind(sessionId, welcome).run();
+
+      return json({ success: true, sessionId, ticketNumber });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
   }
 
+  // GET /api/chat/session/:id — poll for messages
+  if (method === 'GET' && path.startsWith('/api/chat/session/')) {
+    try {
+      await ensureChatTables();
+      const sessionId = path.replace('/api/chat/session/', '').split('?')[0];
+      const url = new URL(request.url);
+      const since = url.searchParams.get('since');
+
+      const session = await env.DB.prepare('SELECT * FROM chat_sessions WHERE id = ?').bind(sessionId).first();
+      if (!session) return json({ error: 'Session not found' }, 404);
+
+      let messagesQuery = since
+        ? env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? AND created_at > ? ORDER BY id ASC').bind(sessionId, since)
+        : env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC').bind(sessionId);
+
+      const { results: messages } = await messagesQuery.all();
+      return json({ session, messages });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/chat/message — send a message and get a bot reply
+  if (path === '/api/chat/message' && method === 'POST') {
+    try {
+      await ensureChatTables();
+      const { sessionId, text } = await request.json() as any;
+      if (!sessionId || !text) return json({ error: 'sessionId and text are required' }, 400);
+
+      // Save the user's message
+      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'user', ?)`).bind(sessionId, text).run();
+
+      // --- AI Bot Response Logic ---
+      const lowerText = text.toLowerCase();
+
+      // Site knowledge base
+      const botReply = (() => {
+        if (lowerText.includes('booking') || lowerText.includes('book') || lowerText.includes('event') || lowerText.includes('gig') || lowerText.includes('hire')) {
+          return `🎤 You can book DJ Flowerz for your event through our **Bookings** page at djflowerz.co.ke/bookings. Fill in the event details, date, and venue, and we'll get back to you within 24 hours. For urgent bookings, email us at **bookings@djflowerz.co.ke**.`;
+        }
+        if (lowerText.includes('music pool') || lowerText.includes('download') || lowerText.includes('dj tracks') || lowerText.includes('pool')) {
+          return `🎵 The **Music Pool** is our exclusive subscription service for DJs — featuring curated, high-quality tracks, edits and tools. Subscribe from your account and get immediate access. Visit **djflowerz.co.ke/music-pool** to learn more. You need an active subscription to download tracks.`;
+        }
+        if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('fee')) {
+          return `💰 Our pricing varies by service:\n\n• **Music Pool Subscription**: Check /music-pool for current tiers\n• **Booking/Events**: Contact us for a quote\n• **Store Merch & Digital**: Browse at /store\n\nFor a custom quote, contact us via this chat or email **admin@djflowerz.co.ke**.`;
+        }
+        if (lowerText.includes('refund') || lowerText.includes('return') || lowerText.includes('cancel')) {
+          return `📋 Our refund policy:\n\n• **Digital downloads**: All sales final once download link is accessed\n• **Physical merchandise**: 14-day return window, unused & original packaging\n• **Subscriptions**: Non-refundable but you can cancel at any time\n\nRead the full policy at **djflowerz.co.ke/refund** or email **admin@djflowerz.co.ke** with your order number.`;
+        }
+        if (lowerText.includes('store') || lowerText.includes('merch') || lowerText.includes('buy') || lowerText.includes('shop') || lowerText.includes('product')) {
+          return `🛍️ Our store carries official **DJ Flowerz merchandise** — from branded apparel to digital products. Visit **djflowerz.co.ke/store** to browse. We support M-Pesa, card payments, and escrow for marketplace transactions.`;
+        }
+        if (lowerText.includes('order') || lowerText.includes('payment') || lowerText.includes('mpesa') || lowerText.includes('checkout')) {
+          return `💳 For order issues or payment questions:\n\n• Your order ID follows the format **ORD-XXXXXXX**\n• For M-Pesa issues, allow up to 2 minutes for confirmation\n• Email **admin@djflowerz.co.ke** with your order number for support`;
+        }
+        if (lowerText.includes('mixtape') || lowerText.includes('mix') || lowerText.includes('set')) {
+          return `🎧 DJ Flowerz drops regular **mixtapes** featuring the hottest Afrobeats, Gengetone, Gospel, Dancehall and more. Stream or download free mixtapes at **djflowerz.co.ke/mixtapes**.`;
+        }
+        if (lowerText.includes('community') || lowerText.includes('post') || lowerText.includes('social') || lowerText.includes('feed')) {
+          return `🌐 Join the **DJ Flowerz Community Hub** to connect with fellow music lovers, share posts, sell/buy gear in the marketplace, and stay updated. Visit **djflowerz.co.ke/community** — sign up or log in to participate!`;
+        }
+        if (lowerText.includes('human') || lowerText.includes('agent') || lowerText.includes('person') || lowerText.includes('support')) {
+          return `🎧 I'll escalate this to a human agent. Our team is available **Mon–Sat, 9am–6pm EAT**. You can also reach us directly:\n\n📧 **admin@djflowerz.co.ke**\n\nYour ticket number is active — an agent will respond as soon as possible.`;
+        }
+        if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey') || lowerText.includes('good')) {
+          return `Hey there! 👋 I'm the **DJ Flowerz AI assistant**. I can help you with bookings, the Music Pool, store orders, mixtapes, subscriptions, and more. What do you need today?`;
+        }
+        if (lowerText.includes('social') || lowerText.includes('instagram') || lowerText.includes('facebook') || lowerText.includes('twitter') || lowerText.includes('tiktok')) {
+          return `📱 Follow DJ Flowerz on all social platforms for the latest drops and updates:\n\n• Instagram: @djflowerz\n• Twitter/X: @djflowerz\n• Facebook: DJ Flowerz\n• TikTok: @djflowerz\n\nStay in the loop! 🔥`;
+        }
+        // Default fallback
+        return `Thanks for your message! I'm the **DJ Flowerz AI assistant**, and I'm here to help with:\n\n• 🎤 Bookings & events\n• 🎵 Music Pool subscription\n• 🛍️ Store & orders\n• 🎧 Mixtapes\n• 🌐 Community Hub\n\nCould you clarify what you need, or type **"human"** to speak with a real agent?`;
+      })();
+
+      // Save bot reply
+      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'bot', ?)`).bind(sessionId, botReply).run();
+
+      return json({ success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/chat/escalate — request human agent
+  if (path === '/api/chat/escalate' && method === 'POST') {
+    try {
+      await ensureChatTables();
+      const { sessionId } = await request.json() as any;
+      await env.DB.prepare(`UPDATE chat_sessions SET status = 'human' WHERE id = ?`).bind(sessionId).run();
+      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'bot', ?)`).bind(sessionId, '🎧 You\'ve been connected to our support team. An agent will be with you shortly. Our support hours are **Mon–Sat, 9am–6pm EAT**.').run();
+      return json({ success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
 
   // ─── 404 ─────────────────────────────────────────────────────────────────────
   return json({ error: `Route ${method} ${path} not found` }, 404);

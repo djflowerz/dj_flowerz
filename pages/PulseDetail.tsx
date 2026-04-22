@@ -105,19 +105,22 @@ export default function PulseDetail() {
 
   const fetchPulse = async () => {
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${id}`, {
-        headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
-      });
+      const headers: HeadersInit = {};
+      if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+          headers['X-Actor-Id'] = user?.id || '';
+      }
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${id}`, { headers });
       if (resp.ok) {
         const data = await resp.json();
         setPulse(data.pulse);
         setReplies(data.replies);
       } else {
-        toast.error("Signal not found");
+        toast.error("Post not found");
         navigate('/community');
       }
     } catch (e) {
-      toast.error("Failed to load signal");
+      toast.error("Failed to load post");
     } finally {
       setLoading(false);
     }
@@ -195,40 +198,13 @@ export default function PulseDetail() {
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-white">
       <div className="max-w-7xl mx-auto flex justify-center">
-        {/* Left Sidebar */}
-        <nav className="hidden md:flex flex-col w-64 h-screen sticky top-0 py-8 gap-8 pr-4">
-          <Link to="/" className="text-2xl font-black tracking-tighter text-brand-purple flex items-center gap-2 mb-4 px-4">
-            <Activity size={32} /> DJF
-          </Link>
-
-          <div className="space-y-2">
-            <Link to="/community" className="flex items-center gap-4 p-4 rounded-full text-white bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <TrendingUp size={20} /> Latest Signals
-            </Link>
-            <Link to="/notifications" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all relative">
-              <Bell size={20} /> Notifications
-              {unreadCount > 0 && (
-                <span className="absolute top-3 left-8 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-[#0B0B0F]">
-                    {unreadCount}
-                </span>
-              )}
-            </Link>
-            <Link to="/marketplace" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <ShoppingBag size={20} /> Marketplace
-            </Link>
-            <Link to={`/op/${user?.handle}`} className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <User size={20} /> My Identity
-            </Link>
-          </div>
-        </nav>
-
-        {/* Thread Feed */}
+        {/* Main Feed */}
         <main className="w-full max-w-[600px] min-h-screen border-x border-white/5">
           <header className="sticky top-0 z-20 backdrop-blur-md bg-[#0B0B0F]/80 border-b border-white/5 p-4 flex items-center gap-6">
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-white/5 rounded-full transition-all">
                 <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl font-black">Signal Thread</h1>
+            <h1 className="text-xl font-black">Post Thread</h1>
           </header>
 
           <div className="p-4 border-b border-white/5">
@@ -281,7 +257,7 @@ export default function PulseDetail() {
 
             <div className="mt-4 py-4 border-y border-white/5 flex items-center gap-6 text-sm text-gray-500">
                 <span><span className="text-white font-bold">{pulse.hearts}</span> Hearts</span>
-                <span><span className="text-white font-bold">{pulse.echoes}</span> Echoes</span>
+                <span><span className="text-white font-bold">{pulse.echoes}</span> Reshares</span>
                 <span><span className="text-white font-bold">{pulse.comments_count}</span> Replies</span>
             </div>
 

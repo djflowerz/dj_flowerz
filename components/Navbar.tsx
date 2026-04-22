@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Menu, X, ShoppingCart, User, LogOut, ShieldCheck, Settings, 
-  Home, Disc, Zap, Monitor, Radio, Calendar, Heart, MessageCircle 
+  Home, Disc, Zap, Monitor, Radio, Calendar, Heart, MessageCircle, Bell 
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +25,6 @@ const Navbar: React.FC = () => {
     { name: 'Mixtapes', path: '/mixtapes', icon: Disc },
     { name: 'Community', path: '/community', icon: Zap },
     { name: 'DJ Lab', path: '/dj-lab', icon: Monitor },
-    { name: 'Sessions', path: '/sessions', icon: Radio },
     { name: 'Bookings', path: '/bookings', icon: Calendar },
     { name: 'Tip Jar', path: '/tip-jar', icon: Heart },
     { name: 'Contact', path: '/contact', icon: MessageCircle },
@@ -69,8 +68,8 @@ const Navbar: React.FC = () => {
             
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 z-50 group">
-              <div className="w-10 h-10 bg-gradient-to-tr from-[#A349F5] to-[#00F5FF] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(163,73,245,0.3)] group-hover:shadow-[0_0_25px_rgba(163,73,245,0.5)] transition-all duration-500">
-                <Zap className="text-black w-6 h-6" fill="black" />
+              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center p-1 border border-white/10 overflow-hidden shadow-[0_0_20px_rgba(163,73,245,0.2)]">
+                <img src="/logo.png" alt="DJ FLOWERZ" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col -space-y-1">
                 <span className="text-xl font-bold tracking-tighter text-white">DJ</span>
@@ -120,6 +119,17 @@ const Navbar: React.FC = () => {
                   <ShoppingCart size={14} className="mr-2" /> STORE
                 </NeonButton>
               </Link>
+
+              {isAuthenticated && (
+                <>
+                  <Link to="/notifications" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
+                    <Bell size={22} className="group-hover:scale-110" />
+                  </Link>
+                  <Link to="/community" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
+                    <MessageCircle size={22} className="group-hover:scale-110" />
+                  </Link>
+                </>
+              )}
 
               <Link to="/cart" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
                 <ShoppingCart size={22} className="group-hover:scale-110" />

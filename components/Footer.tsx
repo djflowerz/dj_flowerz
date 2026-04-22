@@ -37,6 +37,7 @@ const Footer: React.FC = () => {
               <li><Link to="/contact" className="hover:text-brand-cyan transition">Contact Us</Link></li>
               <li><Link to="/terms" className="hover:text-brand-cyan transition">Terms of Service</Link></li>
               <li><Link to="/privacy" className="hover:text-brand-cyan transition">Privacy Policy</Link></li>
+              <li><Link to="/refund" className="hover:text-brand-cyan transition">Refund Policy</Link></li>
               <li><Link to="/tip-jar" className="hover:text-brand-cyan transition">Tip Jar</Link></li>
             </ul>
           </div>

@@ -207,6 +207,17 @@ export function FloatingChatWidget() {
     setHasUnread(false);
   }, [session, startSession]);
 
+  // Global event listener to open the widget
+  useEffect(() => {
+    const handleOpenWidget = () => {
+      setIsOpen(true);
+      setHasUnread(false);
+      if (!session) setTimeout(() => startSession(), 0);
+    };
+    window.addEventListener('open-chat-widget', handleOpenWidget);
+    return () => window.removeEventListener('open-chat-widget', handleOpenWidget);
+  }, [session, startSession]);
+
   // Start polling when session is active
   useEffect(() => {
     if (!session || !isOpen) return;

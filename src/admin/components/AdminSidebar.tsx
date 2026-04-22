@@ -17,8 +17,9 @@ const navItems = [
     { icon: Megaphone, label: 'Marketing', path: '/admin/marketing' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
+    { icon: Users, label: 'Profiles', path: '/admin/profiles' },
     { icon: ShieldAlert, label: 'Command Centre', path: '/admin/command-centre' },
-    { icon: Users, label: 'Governance', path: '/admin/governance' },
+    { icon: Crown, label: 'Governance', path: '/admin/governance' },
 ];
 
 export const AdminSidebar: React.FC = () => {

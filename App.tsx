@@ -16,6 +16,7 @@ import LiveEventStreamer from './components/LiveEventStreamer';
 import { PushBanner } from './src/components/PushBanner';
 
 import AccessDenied from './components/AccessDenied';
+import { Activity } from 'lucide-react';
 
 /**
  * Helper to handle "Failed to fetch dynamically imported module" errors 
@@ -84,10 +85,13 @@ const Login = lazyWithRetry(() => import('./pages/Login'));
 const Signup = lazyWithRetry(() => import('./pages/Signup'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
 const VerifyEmail = lazyWithRetry(() => import('./pages/VerifyEmail'));
-const Sessions = lazyWithRetry(() => import('./pages/Sessions'));
+// const Sessions = lazyWithRetry(() => import('./pages/Sessions'));
 const Bookings = lazyWithRetry(() => import('./pages/Bookings'));
 const TipJar = lazyWithRetry(() => import('./pages/TipJar'));
 const Contact = lazyWithRetry(() => import('./pages/Contact'));
+const Terms = lazyWithRetry(() => import('./pages/Terms'));
+const Privacy = lazyWithRetry(() => import('./pages/Privacy'));
+const Refund = lazyWithRetry(() => import('./pages/Refund'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -143,6 +147,7 @@ const AppContent = () => {
             <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
 
             <Route path="/store" element={<Store />} />
+            <Route path="/store/:slug" element={<ProductDetails />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -168,13 +173,17 @@ const AppContent = () => {
             <Route path="/admin/installments" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminInstallments /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/marketing" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminMarketing /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/profiles" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProfiles /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
 
-            <Route path="/sessions" element={<Sessions />} />
+{/* Sessions removed */}
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/tip-jar" element={<TipJar />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/refund" element={<Refund />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>
@@ -238,6 +247,29 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = React.useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
+
   return (
     <AuthProvider>
       <DataProvider>
@@ -245,6 +277,21 @@ const App: React.FC = () => {
           <PlayerProvider>
               <Router>
                 <ScrollToTop />
+                {showInstallBanner && (
+                  <div className="fixed bottom-24 left-4 right-4 z-[9999] bg-brand-purple p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/20">
+                    <div className="flex items-center gap-3">
+                        <Activity className="text-white" size={24} />
+                        <div>
+                          <p className="text-sm font-black text-white">SIGNAL APP</p>
+                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Marketplace & Hub</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowInstallBanner(false)} className="px-3 py-2 text-white/50 text-[10px] font-black uppercase">Later</button>
+                        <button onClick={handleInstall} className="px-5 py-2 bg-white text-brand-purple rounded-full text-[10px] font-black uppercase shadow-xl">Install</button>
+                    </div>
+                  </div>
+                )}
                 <Toaster position="top-right" richColors closeButton theme="dark" />
                 <FloatingChatWidget />
                 <LiveEventStreamer />

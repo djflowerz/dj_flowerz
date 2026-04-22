@@ -101,7 +101,9 @@ export default function Community() {
   const [isMarketplace, setIsMarketplace] = useState(false);
   const [dealPrice, setDealPrice] = useState('');
   const [dealLocation, setDealLocation] = useState('');
+  const [dealCondition, setDealCondition] = useState('new');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [tab, setTab] = useState<'latest' | 'following' | 'marketplace' | 'profile'>('latest');
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,8 +111,13 @@ export default function Community() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      let url = `${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}`;
+      if (tab === 'marketplace') url += '&marketplace=true';
+      if (tab === 'following' && user?.id) url += `&following_only=true&actor=${user.id}`;
+      else if (user?.id) url += `&actor=${user.id}`;
+
       const [pulseResp, leaderResp] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}` + (user?.handle ? `&actor=${user.id}` : '')),
+        fetch(url),
         fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`)
       ]);
       
@@ -126,7 +133,7 @@ export default function Community() {
   useEffect(() => {
     fetchData();
     if (session) fetchUnread();
-  }, [vector, session]);
+  }, [vector, tab, session]);
 
   const fetchUnread = async () => {
     try {
@@ -199,11 +206,13 @@ export default function Community() {
       setMediaUrls([]);
       setIsMarketplace(false);
       setDealPrice('');
+      setDealLocation('');
+      setDealCondition('new');
       setShowPoll(false);
       setPollOptions(['', '']);
       setIsComposerExpanded(false);
       fetchData();
-      toast.success("Signal broadcasted!");
+      toast.success("Post broadcasted!");
     } catch (e: any) {
       toast.error(e.message || "Failed to post");
     }
@@ -244,15 +253,18 @@ export default function Community() {
   };
 
   const handleDeletePulse = async (pulseId: string) => {
-    if (!window.confirm("Are you sure you want to delete this signal?")) return;
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        headers: { 
+            'Authorization': `Bearer ${session?.access_token}`,
+            'X-Actor-Id': user?.id || ''
+        }
       });
       if (resp.ok) {
         setPulses(prev => prev.filter(p => p.id !== pulseId));
-        toast.success("Signal deleted");
+        toast.success("Post deleted");
       }
     } catch (e) { toast.error("Failed to delete"); }
   };
@@ -263,13 +275,14 @@ export default function Community() {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}` 
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
         },
         body: JSON.stringify({ content })
       });
       if (resp.ok) {
         setPulses(prev => prev.map(p => p.id === pulseId ? { ...p, content } : p));
-        toast.success("Signal updated");
+        toast.success("Post updated");
       }
     } catch (e) { toast.error("Failed to update"); }
   };
@@ -305,41 +318,57 @@ export default function Community() {
 
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-white">
-      <div className="max-w-7xl mx-auto flex justify-center">
-        {/* Left Sidebar (Desktop Only) */}
-        <nav className="hidden md:flex flex-col w-64 h-screen sticky top-0 py-8 gap-8 pr-4">
-          <Link to="/" className="text-2xl font-black tracking-tighter text-brand-purple flex items-center gap-2 mb-4 px-4">
-            <Activity size={32} /> DJF
-          </Link>
+      <div className="max-w-7xl mx-auto flex justify-center pb-20 md:pb-0">
+        
+        {/* Main Feed Container */}
+        <main className="w-full max-w-[600px] min-h-screen border-x border-white/5 bg-[#0B0B0F]">
+          
+          {/* Top Navigation Header */}
+          <header className="sticky top-0 z-30 backdrop-blur-xl bg-[#0B0B0F]/80 border-b border-white/5">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Activity className="text-brand-purple" size={28} />
+                <span className="text-xl font-black tracking-tighter uppercase">Community</span>
+              </div>
+              <div className="flex items-center gap-2">
+                 <Link to="/notifications" className="p-2.5 hover:bg-white/5 rounded-full transition-all relative">
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0B0B0F]" />
+                    )}
+                 </Link>
+                 <Link to={`/op/${user?.handle}`} className="p-1 hover:ring-2 ring-brand-purple rounded-full transition-all">
+                    <UserAvatar src={user?.avatarUrl} name={user?.name} size={8} />
+                 </Link>
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <Link to="/community" className="flex items-center gap-4 p-4 rounded-full text-white bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <TrendingUp size={20} /> Latest Signals
-            </Link>
-            <Link to="/notifications" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all relative">
-              <Bell size={20} /> Notifications
-              {unreadCount > 0 && (
-                <span className="absolute top-3 left-8 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-[#0B0B0F]">
-                    {unreadCount}
-                </span>
-              )}
-            </Link>
-            <Link to="/marketplace" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <ShoppingBag size={20} /> Marketplace
-            </Link>
-            <Link to={`/op/${user?.handle}`} className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
-              <User size={20} /> My Identity
-            </Link>
-          </div>
-        </nav>
-
-        {/* Main Feed */}
-        <main className="w-full max-w-[600px] min-h-screen border-x border-white/5">
-          <header className="sticky top-20 md:top-0 z-20 backdrop-blur-md bg-[#0B0B0F]/80 border-b border-white/5 p-4 flex items-center justify-between">
-            <h1 className="text-xl font-black">Home Feed</h1>
-            <div className="flex bg-white/5 p-1 rounded-full text-xs font-bold">
-               <button onClick={() => setVector('latest')} className={`px-4 py-1.5 rounded-full ${vector === 'latest' ? 'bg-brand-purple text-white' : 'text-gray-500'}`}>For You</button>
-               <button onClick={() => setVector('trending')} className={`px-4 py-1.5 rounded-full ${vector === 'trending' ? 'bg-brand-purple text-white' : 'text-gray-500'}`}>Trending</button>
+            {/* Sub-Nav Tabs */}
+            <div className="flex overflow-x-auto scrollbar-hide border-t border-white/5">
+              {[
+                  { id: 'latest', label: 'Latest', icon: <TrendingUp size={16} /> },
+                  { id: 'notifications', label: 'Alerts', icon: <Bell size={16} />, path: '/notifications' },
+                  { id: 'marketplace', label: 'Market', icon: <ShoppingBag size={16} />, path: '/marketplace' },
+                  { id: 'profile', label: 'Profile', icon: <User size={16} />, path: `/op/${user?.handle}` }
+              ].map((nav) => (
+                <button 
+                  key={nav.id} 
+                  onClick={() => nav.path ? navigate(nav.path) : setTab(nav.id as any)}
+                  className={`flex-1 min-w-[100px] flex flex-col items-center gap-1.5 py-3 transition-all relative group ${
+                    tab === nav.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  <div className={`p-1.5 rounded-xl transition-all flex items-center justify-center ${tab === nav.id ? 'bg-brand-purple/10 text-brand-purple' : 'group-hover:bg-white/5'}`}>
+                    {nav.icon}
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${tab === nav.id ? 'opacity-100' : 'opacity-40'}`}>
+                    {nav.label}
+                  </span>
+                  {tab === nav.id && (
+                    <motion.div layoutId="activeTab" className="absolute bottom-0 left-4 right-4 h-1 bg-brand-purple rounded-t-full shadow-[0_-4px_10px_rgba(124,58,237,0.5)]" />
+                  )}
+                </button>
+              ))}
             </div>
           </header>
 
@@ -352,7 +381,7 @@ export default function Community() {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   onFocus={() => setIsComposerExpanded(true)}
-                  placeholder="What's the signal? Share your update..."
+                  placeholder="What's on your mind? Share an update..."
                   className="w-full bg-transparent border-none text-xl placeholder-gray-600 focus:outline-none resize-none pt-2 min-h-[50px]"
                 />
                 
@@ -370,44 +399,76 @@ export default function Community() {
                 )}
 
                 {showPoll && (
-                   <div className="mb-4 bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                     {pollOptions.map((opt, i) => (
-                       <input 
-                         key={i} 
-                         value={opt} 
-                         onChange={(e) => {
-                           const newOpts = [...pollOptions];
-                           newOpts[i] = e.target.value;
-                           setPollOptions(newOpts);
-                         }}
-                         placeholder={`Option ${i+1}`}
-                         className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-sm focus:border-brand-purple outline-none"
-                       />
-                     ))}
-                     <button onClick={() => setPollOptions([...pollOptions, ''])} className="text-brand-purple text-xs font-bold hover:underline">+ Add Option</button>
+                   <div className="mb-4 bg-white/5 p-5 rounded-3xl border border-white/10 relative">
+                     <button onClick={() => { setShowPoll(false); setPollOptions(['', '']); }} className="absolute -top-2 -right-2 p-1.5 bg-gray-800 text-gray-400 rounded-full border border-white/10 hover:text-white transition-all">
+                        <X size={14} />
+                     </button>
+                     <div className="flex items-center gap-2 mb-3 text-brand-purple">
+                        <BarChart2 size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Public Opinion Poll</span>
+                     </div>
+                     <div className="space-y-2">
+                       {pollOptions.map((opt, i) => (
+                         <input 
+                           key={i} 
+                           value={opt} 
+                           onChange={(e) => {
+                             const newOpts = [...pollOptions];
+                             newOpts[i] = e.target.value;
+                             setPollOptions(newOpts);
+                           }}
+                           placeholder={`Option ${i+1}`}
+                           className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-sm focus:border-brand-purple outline-none transition-all"
+                         />
+                       ))}
+                       {pollOptions.length < 4 && (
+                         <button onClick={() => setPollOptions([...pollOptions, ''])} className="text-brand-purple text-xs font-black hover:underline px-1">+ Add Outcome</button>
+                       )}
+                     </div>
                    </div>
                 )}
 
                 {isMarketplace && (
-                  <div className="mb-4 bg-brand-cyan/5 p-4 rounded-xl border border-brand-cyan/20 grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] uppercase font-black text-brand-cyan mb-1 block">Asking Price (KES)</label>
-                      <input 
-                        type="number" 
-                        value={dealPrice} 
-                        onChange={e => setDealPrice(e.target.value)}
-                        placeholder="5,000"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-white outline-none"
-                      />
+                  <div className="mb-4 bg-brand-cyan/5 p-5 rounded-3xl border border-brand-cyan/20 relative">
+                    <button onClick={() => { setIsMarketplace(false); setDealPrice(''); }} className="absolute -top-2 -right-2 p-1.5 bg-gray-800 text-gray-400 rounded-full border border-white/10 hover:text-white transition-all">
+                        <X size={14} />
+                    </button>
+                    <div className="flex items-center gap-2 mb-4 text-brand-cyan">
+                        <ShoppingBag size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Marketplace Listing</span>
                     </div>
-                    <div>
-                      <label className="text-[10px] uppercase font-black text-brand-cyan mb-1 block">City/Location</label>
-                      <input 
-                        value={dealLocation} 
-                        onChange={e => setDealLocation(e.target.value)}
-                        placeholder="Nairobi"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-white outline-none"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Price (KES)</label>
+                        <input 
+                          type="number" 
+                          value={dealPrice} 
+                          onChange={e => setDealPrice(e.target.value)}
+                          placeholder="Amount"
+                          className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-white outline-none focus:border-brand-cyan transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Condition</label>
+                        <select 
+                          value={dealCondition}
+                          onChange={e => setDealCondition(e.target.value)}
+                          className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-white outline-none focus:border-brand-cyan transition-all appearance-none"
+                        >
+                          <option value="new">Brand New</option>
+                          <option value="used">Used / Good</option>
+                          <option value="refurbished">Refurbished</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Location Sector</label>
+                        <input 
+                          value={dealLocation} 
+                          onChange={e => setDealLocation(e.target.value)}
+                          placeholder="e.g. Westlands, Nairobi"
+                          className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-white outline-none focus:border-brand-cyan transition-all"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -429,13 +490,13 @@ export default function Community() {
                     </button>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-xs font-bold text-gray-500">{content.length}/280</div>
+                    <div className="text-xs font-bold text-gray-500">{content.length}/1500</div>
                     <button 
                       onClick={handlePost}
                       disabled={!content.trim() && mediaUrls.length === 0}
                       className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-purple/20 disabled:opacity-50"
                     >
-                      Post Signal
+                      Post
                     </button>
                   </div>
                 </div>
@@ -498,14 +559,16 @@ export default function Community() {
                       <p className="text-xs text-gray-500 truncate">@{leader.handle}</p>
                     </div>
                   </div>
-                  <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all">Follow</button>
+                  {user?.handle?.replace('@', '') !== leader.handle && (
+                    <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all">Follow</button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
-             <h3 className="text-lg font-black mb-4">Trending Signals</h3>
+             <h3 className="text-lg font-black mb-4">Trending Posts</h3>
              <div className="space-y-4">
                 {[
                     { tag: '#EscrowTrust', signals: '2.4k' },
@@ -515,7 +578,7 @@ export default function Community() {
                 ].map(trend => (
                     <div key={trend.tag} className="hover:bg-white/5 p-2 -mx-2 rounded-xl transition-all cursor-pointer group">
                         <p className="text-brand-purple font-black text-sm">{trend.tag}</p>
-                        <p className="text-[10px] text-gray-500 font-bold">{trend.signals} broadcasts</p>
+                        <p className="text-[10px] text-gray-500 font-bold">{trend.signals} posts</p>
                     </div>
                 ))}
              </div>
@@ -596,13 +659,13 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
                         onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
                         className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-white/5 transition-all flex items-center gap-3"
                       >
-                        Edit Signal
+                        Edit Post
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); onDelete(pulse.id); setShowMenu(false); }}
                         className="w-full px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3"
                       >
-                        Delete Signal
+                        Delete Post
                       </button>
                     </motion.div>
                   </>
@@ -618,7 +681,7 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
                   value={editContent}
                   onChange={e => setEditContent(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-purple outline-none min-h-[100px]"
-                  maxLength={280}
+                  maxLength={1500}
                   autoFocus
                 />
                 <div className="flex justify-end gap-2">
@@ -679,9 +742,16 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
                 </div>
                 <div>
                    <p className="text-[10px] uppercase font-black text-brand-cyan tracking-wider">Verified Seller Deal</p>
-                   <p className="text-lg font-black text-white">KES {Number(dealMeta?.price).toLocaleString()}</p>
+                   <div className="flex items-center gap-3">
+                      <p className="text-lg font-black text-white">KES {Number(dealMeta?.price).toLocaleString()}</p>
+                      {dealMeta?.condition && (
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/20">
+                          {dealMeta.condition}
+                        </span>
+                      )}
+                   </div>
                    {dealMeta?.location && (
-                      <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                      <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-1">
                         <MapPin size={10} />
                         <span>{dealMeta.location}</span>
                       </div>

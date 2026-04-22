@@ -42,8 +42,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
         return <Navigate to="/setup-identity" replace />;
     }
 
-    if (adminOnly && !user.isAdmin) {
-        // Redirect to home if they are not an admin
+    if (adminOnly && (!user || !['ianmuriithiflowerz@gmail.com', 'djflowerz254@gmail.com'].includes(user.email || ''))) {
+        // Redirect to home invisibly if they are not an authorized admin
         return <Navigate to="/" replace />;
     }
 

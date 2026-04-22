@@ -58,10 +58,24 @@ const parseJSON = (str: string | undefined | null | object, fallback: any = {}) 
   }
 };
 
-const parseUTC = (d: string) => {
-  if (!d) return new Date();
-  if (d.includes('Z') || d.includes('+')) return new Date(d);
-  return new Date(d.replace(' ', 'T') + 'Z');
+const parseUTC = (d: any) => {
+  if (!d || typeof d !== 'string' || d === 'undefined' || d === 'null') return new Date();
+  try {
+     return new Date(d);
+  } catch {
+     return new Date();
+  }
+};
+
+const formatDate = (d: any) => {
+    if (!d || d === 'undefined' || d === 'null') return 'Recently';
+    try {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return 'Recently';
+        return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    } catch {
+        return 'Recently';
+    }
 };
 
 const timeAgo = (d: string) => {
@@ -86,7 +100,7 @@ export default function PublicProfile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'posts' | 'likes'>('posts');
+  const [tab, setTab] = useState<'posts' | 'media' | 'likes' | 'marketplace'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -289,7 +303,7 @@ export default function PublicProfile() {
               >
                 Edit Profile
               </button>
-            ) : (
+            ) : isAuthenticated && (
               <button 
                 onClick={toggleFollow} 
                 disabled={followLoading}
@@ -325,7 +339,7 @@ export default function PublicProfile() {
             <span className="flex items-center gap-1.5 text-brand-purple font-black text-xs uppercase tracking-widest bg-brand-purple/10 px-2 py-0.5 rounded-md border border-brand-purple/20">
                 {profile.primary_role || 'Operator'}
             </span>
-            <span className="flex items-center gap-1.5"><Calendar size={14} /> Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+            <span className="flex items-center gap-1.5"><Calendar size={14} /> Joined {formatDate(profile.created_at)}</span>
           </div>
 
           <div className="flex items-center gap-6 text-sm py-2">
@@ -346,39 +360,58 @@ export default function PublicProfile() {
         </div>
 
         <div className="flex border-b border-white/5 mt-6 mb-2">
-          {['posts', 'media', 'likes'].map(t => (
+          {['posts', 'media', 'likes', 'marketplace'].map(t => (
             <button key={t} onClick={() => setTab(t as any)}
               className={`flex-1 py-4 text-sm font-black transition-all capitalize relative ${
                 tab === t ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
               }`}>
               {t}
-              {tab === t && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-brand-purple mx-8 rounded-t-full" />}
+              {tab === t && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-brand-purple mx-8 rounded-t-full shadow-[0_-2px_10px_rgba(124,58,237,0.5)]" />}
             </button>
           ))}
         </div>
 
         {/* Post Feed */}
         <div className="divide-y divide-white/5">
-          {posts.length === 0 ? (
+          {(!Array.isArray(posts) || posts.filter(p => {
+              if (tab === 'media') return p.media_urls && JSON.parse(p.media_urls).length > 0;
+              if (tab === 'marketplace') return p.is_marketplace;
+              return true;
+          }).length === 0) ? (
             <div className="py-20 text-center flex flex-col items-center gap-4">
               <div className="p-6 bg-white/5 rounded-full"><MessageSquare size={32} className="text-gray-700" /></div>
-              <p className="text-gray-500 font-bold">No activity recorded yet.</p>
+              <p className="text-gray-500 font-bold">No {tab} found.</p>
             </div>
           ) : (
-            posts.map((p) => (
-              <div key={p.id} className="py-4 px-2 hover:bg-white/[0.02] transition-all rounded-xl cursor-not-allowed opacity-90">
+            posts.filter(p => {
+                if (tab === 'media') return p.media_urls && JSON.parse(p.media_urls).length > 0;
+                if (tab === 'marketplace') return p.is_marketplace;
+                return true;
+            }).map((p) => (
+              <div key={p.id} className="py-6 px-4 hover:bg-white/[0.01] transition-all group">
                  <div className="flex gap-4">
-                   <Avatar src={profile.avatar_url} name={profile.full_name} size={10} />
+                   <Avatar src={profile.avatar_url} name={profile.full_name} size={10} className="group-hover:ring-2 ring-brand-purple/20" />
                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-sm">{profile.full_name}</span>
-                        <span className="text-gray-500 text-xs text-sm">@{profile.handle} · {timeAgo(p.created_at)}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white group-hover:text-brand-purple transition-colors">{profile.full_name}</span>
+                          <span className="text-gray-500 text-xs text-sm">@{profile.handle} · {timeAgo(p.created_at)}</span>
+                        </div>
                       </div>
-                      <p className="text-gray-200 text-sm leading-relaxed mb-3">{p.content}</p>
-                      <div className="flex items-center gap-6 text-gray-500">
-                         <div className="flex items-center gap-1 text-xs"><MessageSquare size={14} /> {p.comments_count || 0}</div>
-                         <div className="flex items-center gap-1 text-xs"><Repeat size={14} /> {p.echoes}</div>
-                         <div className="flex items-center gap-1 text-xs"><Heart size={14} /> {p.hearts}</div>
+                      <p className="text-gray-200 text-[15px] leading-relaxed mb-4 whitespace-pre-wrap">{p.content}</p>
+                      
+                      {p.media_urls && (
+                        <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl overflow-hidden border border-white/5">
+                           {parseJSON(p.media_urls).slice(0, 4).map((url: string, i: number) => (
+                             <img key={i} src={url} className="w-full h-44 object-cover hover:scale-105 transition-transform duration-500" />
+                           ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-8 text-gray-500">
+                         <div className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors cursor-pointer"><MessageSquare size={16} /> {p.comments_count || 0}</div>
+                         <div className="flex items-center gap-2 text-xs hover:text-green-500 transition-colors cursor-pointer"><Repeat size={16} /> {p.echoes}</div>
+                         <div className="flex items-center gap-2 text-xs hover:text-red-500 transition-colors cursor-pointer"><Heart size={16} /> {p.hearts}</div>
                       </div>
                    </div>
                  </div>
@@ -443,7 +476,7 @@ export default function PublicProfile() {
                    </div>
                    <div>
                      <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Biological Description</label>
-                     <textarea placeholder="Tell your signal story..." value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 min-h-[100px] focus:border-brand-purple outline-none transition-all resize-none" />
+                     <textarea placeholder="Tell your story..." value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 min-h-[100px] focus:border-brand-purple outline-none transition-all resize-none" />
                    </div>
                    <div>
                      <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Geographical Sector</label>

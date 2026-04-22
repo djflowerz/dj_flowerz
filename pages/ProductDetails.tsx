@@ -8,7 +8,7 @@ import {
   Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
   Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import ProductReviews from '../components/ProductReviews';
 
@@ -341,7 +341,7 @@ export default function ProductDetails() {
             </div>
 
             {/* Variant Selectors */}
-            {product.variantGroups?.map((group) => (
+            {Array.isArray(product.variantGroups) && product.variantGroups.map((group) => (
                 <div key={group.name} className="space-y-4">
                     <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{group.name}</h4>
                     <div className="flex flex-wrap gap-2">
