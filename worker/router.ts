@@ -187,6 +187,52 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json(profile);
   }
 
+  // PATCH /api/user/me  (called by Account.tsx profile editor)
+  // PATCH /api/profiles/me  (alias)
+  if ((path === '/api/user/me' || path === '/api/profiles/me') && method === 'PATCH') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const body = await request.json() as any;
+      const { display_name, username, bio, location, avatar_url, banner_url } = body;
+
+      // If a username/handle is being set, check it isn't already taken by someone else
+      if (username) {
+        const cleanHandle = username.toLowerCase().replace(/^@/, '');
+        const conflict = await env.DB.prepare(
+          'SELECT id FROM profiles WHERE handle = ? AND id != ?'
+        ).bind(cleanHandle, actorId).first();
+        if (conflict) return json({ error: 'Handle already taken' }, 409);
+      }
+
+      await env.DB.prepare(`
+        INSERT INTO profiles (id, full_name, handle, bio, location, avatar_url, banner_url, aura_tier, aura_points, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'standard', 0, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          full_name   = COALESCE(EXCLUDED.full_name, full_name),
+          handle      = COALESCE(EXCLUDED.handle, handle),
+          bio         = COALESCE(EXCLUDED.bio, bio),
+          location    = COALESCE(EXCLUDED.location, location),
+          avatar_url  = COALESCE(EXCLUDED.avatar_url, avatar_url),
+          banner_url  = COALESCE(EXCLUDED.banner_url, banner_url),
+          updated_at  = CURRENT_TIMESTAMP
+      `).bind(
+        actorId,
+        display_name || null,
+        username ? username.toLowerCase().replace(/^@/, '') : null,
+        bio || null,
+        location || null,
+        avatar_url || null,
+        banner_url || null
+      ).run();
+
+      const updated = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(actorId).first();
+      return json({ success: true, profile: updated });
+    } catch (e: any) {
+      console.error('[PATCH /api/user/me]', e);
+      return json({ error: e.message || 'Update failed' }, 500);
+    }
+  }
+
   // GET /api/profiles/handle/:handle (Get full profile or availability)
   const handleCheckMatch = path.match(/^\/api\/profiles\/handle\/([^/]+)$/);
   if (handleCheckMatch && method === 'GET') {
