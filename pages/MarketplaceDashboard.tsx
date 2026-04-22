@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { TrustBadge } from '../components/community/TrustBadge';
+import { SellerScorecard } from '../components/community/SellerScorecard';
 
 interface Deal {
   id: string;
@@ -160,12 +162,28 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
                 <div>
                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Item Details</p>
                    <p className="text-sm text-gray-300 italic mb-4 leading-relaxed">"{deal.pulse_content}"</p>
-                   <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+                   <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl group/seller cursor-pointer" onClick={() => window.open(`/op/${deal.seller_handle}`, '_blank')}>
                        <img src={`https://ui-avatars.com/api/?name=${deal.seller_name || 'U'}`} className="w-8 h-8 rounded-full" alt="" />
-                       <div>
-                          <p className="text-xs font-black">{deal.seller_name}</p>
+                       <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-black truncate">{deal.seller_name}</p>
+                            <TrustBadge type="verified" size="xs" showLabel={false} />
+                          </div>
                           <p className="text-[10px] text-gray-500">@{deal.seller_handle}</p>
                        </div>
+                       <ExternalLink size={12} className="text-gray-600 group-hover/seller:text-brand-purple transition-colors" />
+                   </div>
+                   
+                   {/* Hover/Inline trust summary */}
+                   <div className="mt-4 p-4 rounded-2xl bg-brand-cyan/5 border border-brand-cyan/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck size={14} className="text-brand-cyan" />
+                        <span className="text-[10px] font-black text-brand-cyan uppercase tracking-widest">Seller Trust Record</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 leading-relaxed">
+                        This seller uses DJ Flowerz Escrow. Funds are only released when you confirm receipt. 
+                        Check their <Link to={`/op/${deal.seller_handle}`} className="text-brand-cyan underline">Seller Scorecard</Link> for trade history.
+                      </p>
                    </div>
                 </div>
 

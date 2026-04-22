@@ -2,7 +2,7 @@ import React from 'react';
 import {
     LayoutDashboard, ShoppingBag, Package, Music, Users,
     Settings, LogOut, MessageSquare, CreditCard, Crown,
-    Mail, Share2, Wallet, Megaphone, ShieldAlert
+    Mail, Share2, Wallet, Megaphone, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -19,6 +19,7 @@ const navItems = [
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
     { icon: Users, label: 'Profiles', path: '/admin/profiles' },
     { icon: ShieldAlert, label: 'Command Centre', path: '/admin/command-centre' },
+    { icon: ShieldCheck, label: 'Trust Portal', path: '/admin/trust-portal' },
     { icon: Crown, label: 'Governance', path: '/admin/governance' },
 ];
 

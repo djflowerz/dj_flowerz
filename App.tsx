@@ -75,6 +75,8 @@ const PulseDetail = lazy(() => import('./pages/PulseDetail'));
 const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
+const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
+const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/Profiles'));
 
 const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));
@@ -176,6 +178,7 @@ const AppContent = () => {
             <Route path="/admin/profiles" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProfiles /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/admin/trust-portal" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminTrustPortal /></ProtectedRoute></ErrorBoundary>} />
 
 {/* Sessions removed */}
             <Route path="/bookings" element={<Bookings />} />

@@ -204,17 +204,26 @@ export default function ProductDetails() {
     );
   }
 
-  const activePriceVar = currentVariant || product;
-  const tierPriceMap = {
-    local: product.price_local || product.price,
-    air: product.price_air || (product.price_local ? product.price_local * 0.9 : product.price),
-    sea: product.price_sea || (product.price_local ? product.price_local * 0.8 : product.price)
-  };
-  const baseOrVariantPrice = activePriceVar.discountPrice || activePriceVar.price || product.price;
-  const displayPrice = (selectedTier === 'local' ? baseOrVariantPrice : tierPriceMap[selectedTier]) || 0;
-  const originalPrice = activePriceVar.compareAtPrice || (activePriceVar.discountPrice ? activePriceVar.price : product.compareAtPrice);
+  const tierPriceMap = useMemo(() => {
+    if (!product) return { local: 0, air: 0, sea: 0 };
+    const base = Number(product.price) || 0;
+    const local = Number(product.price_local) || base;
+    return {
+      local: local,
+      air: Number(product.price_air) || (local * 0.9),
+      sea: Number(product.price_sea) || (local * 0.8)
+    };
+  }, [product]);
 
-  const formatPrice = (p: any) => p ? Number(p).toLocaleString() : '0';
+  const activePriceVar = currentVariant || product;
+  const baseOrVariantPrice = Number(activePriceVar?.discountPrice || activePriceVar?.price || product.price) || 0;
+  const displayPrice = (selectedTier === 'local' ? baseOrVariantPrice : tierPriceMap[selectedTier]) || 0;
+  const originalPrice = Number(activePriceVar?.compareAtPrice || (activePriceVar?.discountPrice ? activePriceVar?.price : product.compareAtPrice)) || 0;
+
+  const formatPrice = (p: any) => {
+    const num = Number(p);
+    return isNaN(num) ? '0' : num.toLocaleString();
+  };
 
 
   return (

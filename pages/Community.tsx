@@ -23,10 +23,15 @@ import {
   Plus,
   ArrowLeft,
   Bell,
-  User
+  User,
+  Flag,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { SafeTradePopup } from '../components/community/SafeTradePopup';
+import { ReportModal } from '../components/community/ReportModal';
+import { TrustBadge } from '../components/community/TrustBadge';
 
 interface Pulse {
   id: string;
@@ -86,6 +91,11 @@ const UserAvatar = ({ src, name, size = 10, className = "" }: { src?: string; na
     );
 };
 
+// Mask phone numbers in rendered content
+const maskPhoneNumbers = (text: string): string => {
+  return text.replace(/(?:07|01|2547|2541)\d{8}/g, '[📵 Contact via platform]');
+};
+
 export default function Community() {
   const { user, session, isAuthenticated, isProfileComplete } = useAuth();
   const navigate = useNavigate();
@@ -107,6 +117,10 @@ export default function Community() {
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Safe Trade Popup state
+  const [safeTradeTarget, setSafeTradeTarget] = useState<Pulse | null>(null);
+  const [safeTradeOpen, setSafeTradeOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -179,12 +193,30 @@ export default function Community() {
         return;
     }
 
+    // ── Keyword blacklist scan before posting ──
+    const BLACKLIST_QUICK = [
+      'whatsapp', 'watsap', 'inbox me', 'dm me on', 'direct mpesa',
+      'direct m-pesa', 'send to my number', 'tuma kwa hii number',
+      'pay me directly', 'personal mpesa', 'tuma fare',
+      'reverse the money', 'deposit first', 'registration fee',
+      'you have won', 'you are a winner',
+    ];
+    const lowerContent = content.toLowerCase();
+    const triggerWord = BLACKLIST_QUICK.find(w => lowerContent.includes(w));
+    if (triggerWord) {
+      toast.warning(
+        `⚠️ Your post contains "${triggerWord}" which violates our community safety guidelines. Posts asking users to pay off-platform are not allowed.`,
+        { duration: 6000 }
+      );
+      // Still allow user to proceed after warning (flag flagged server-side)
+    }
+
     const payload = {
       content,
       media_urls: mediaUrls,
       type: showPoll ? 'poll' : (mediaUrls.length > 0 ? 'media' : 'text'),
       is_marketplace: isMarketplace ? 1 : 0,
-      deal_metadata: isMarketplace ? { price: dealPrice, location: dealLocation } : null,
+      deal_metadata: isMarketplace ? { price: dealPrice, location: dealLocation, condition: dealCondition } : null,
       poll_data: showPoll ? { options: pollOptions.filter(o => o.trim()), votes: [] } : null
     };
 
@@ -201,6 +233,15 @@ export default function Community() {
       
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
+
+      // If flagged, log it server-side in background
+      if (triggerWord && data.id) {
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/community/flag-content`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ content, post_id: data.id, user_id: user?.id, user_handle: user?.handle })
+        }).catch(() => {});
+      }
 
       setContent('');
       setMediaUrls([]);
@@ -287,13 +328,18 @@ export default function Community() {
     } catch (e) { toast.error("Failed to update"); }
   };
 
-  const initiateEscrow = async (pulse: Pulse) => {
+  // Show safe trade popup first, then proceed with escrow
+  const handleBuyClick = (pulse: Pulse) => {
     if (!isAuthenticated) {
-        toast.error("Sign in to purchase items");
-        return;
+      toast.error("Sign in to purchase items");
+      return;
     }
+    setSafeTradeTarget(pulse);
+    setSafeTradeOpen(true);
+  };
+
+  const initiateEscrow = async (pulse: Pulse) => {
     const metadata = parseJSON(pulse.deal_metadata);
-    
     toast.promise(async () => {
         const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
             method: 'POST',
@@ -535,14 +581,29 @@ export default function Community() {
                     key={p.id} 
                     pulse={p} 
                     onReact={handleInteract} 
-                    onEscrow={initiateEscrow}
+                    onBuy={handleBuyClick}
                     onDelete={handleDeletePulse}
                     onEdit={handleEditPulse}
                     currentUser={user!}
+                    session={session}
+                    maskPhoneNumbers={maskPhoneNumbers}
                 />
               ))}
             </div>
           )}
+
+          {/* Safe Trade Popup */}
+          <SafeTradePopup
+            isOpen={safeTradeOpen}
+            sellerName={safeTradeTarget?.author_handle}
+            amount={parseJSON(safeTradeTarget?.deal_metadata)?.price}
+            onClose={() => { setSafeTradeOpen(false); setSafeTradeTarget(null); }}
+            onConfirm={() => {
+              setSafeTradeOpen(false);
+              if (safeTradeTarget) initiateEscrow(safeTradeTarget);
+              setSafeTradeTarget(null);
+            }}
+          />
         </main>
 
         {/* Right Sidebar (Desktop Only) */}
@@ -599,26 +660,42 @@ export default function Community() {
   );
 }
 
-function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: { 
-  pulse: Pulse, onReact: any, onEscrow: any, currentUser: any, onDelete: any, onEdit: any 
+function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers }: { 
+  pulse: Pulse, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(pulse.content);
   const [showMenu, setShowMenu] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const mediaItems = parseJSON(pulse.media_urls, []);
   const pollData = parseJSON(pulse.poll_data);
   const dealMeta = parseJSON(pulse.deal_metadata);
   const isAuthor = currentUser?.id === pulse.author_id;
+  const isCaution = pulse.author_tier === 'CAUTION';
+  const isSuspended = pulse.author_tier === 'SUSPENDED';
 
   return (
+    <>
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="p-4 hover:bg-white/[0.02] transition-all cursor-pointer group relative"
       onClick={() => !isEditing && navigate(`/pulse/${pulse.id}`)}
     >
+      {/* Caution / Suspended banner on post */}
+      {(isCaution || isSuspended) && (
+        <div className={`mb-3 flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+          isSuspended
+            ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+            : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 animate-pulse'
+        }`}>
+          <AlertTriangle size={12} />
+          {isSuspended ? '🚫 This account is currently suspended' : '⚠️ Caution: This user has multiple reports — use Escrow for transactions'}
+        </div>
+      )}
+
       <div className="flex gap-4">
         <UserAvatar 
             src={pulse.author_avatar} 
@@ -632,6 +709,7 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-bold text-white hover:underline decoration-white/30 truncate" onClick={(e) => { e.stopPropagation(); navigate(`/op/${pulse.author_handle}`); }}>{pulse.author_name}</span>
               {pulse.author_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/10" />}
+              {isCaution && <TrustBadge type="caution" size="xs" showLabel={false} />}
               <span className="text-sm text-gray-500">@{pulse.author_handle}</span>
               <span className="text-sm text-gray-600">·</span>
               <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(pulse.created_at)}</span>
@@ -646,27 +724,39 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
               </button>
               
               <AnimatePresence>
-                {showMenu && isAuthor && (
+                {showMenu && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
                     <motion.div 
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      className="absolute right-0 top-full mt-2 w-48 bg-[#0B0B0F] border border-white/10 rounded-2xl shadow-2xl z-40 overflow-hidden"
+                      className="absolute right-0 top-full mt-2 w-52 bg-[#0B0B0F] border border-white/10 rounded-2xl shadow-2xl z-40 overflow-hidden"
                     >
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
-                        className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-white/5 transition-all flex items-center gap-3"
-                      >
-                        Edit Post
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(pulse.id); setShowMenu(false); }}
-                        className="w-full px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3"
-                      >
-                        Delete Post
-                      </button>
+                      {isAuthor && (
+                        <>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
+                            className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-white/5 transition-all flex items-center gap-3"
+                          >
+                            Edit Post
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onDelete(pulse.id); setShowMenu(false); }}
+                            className="w-full px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3"
+                          >
+                            Delete Post
+                          </button>
+                        </>
+                      )}
+                      {!isAuthor && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setShowReport(true); setShowMenu(false); }}
+                          className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 transition-all flex items-center gap-3"
+                        >
+                          <Flag size={12} /> Report Post
+                        </button>
+                      )}
                     </motion.div>
                   </>
                 )}
@@ -701,7 +791,7 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
               </div>
             ) : (
               <div className="text-[15px] leading-relaxed text-gray-200 whitespace-pre-wrap">
-                {pulse.content}
+                {maskPhoneNumbers(pulse.content)}
               </div>
             )}
           </div>
@@ -760,10 +850,10 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
               </div>
               {!isAuthor && (
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onEscrow(pulse); }}
+                  onClick={(e) => { e.stopPropagation(); onBuy(pulse); }}
                   className="px-6 py-2 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-cyan/20"
                 >
-                  Buy with Escrow
+                  🛡️ Buy Safely
                 </button>
               )}
             </div>
@@ -804,5 +894,18 @@ function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: {
         </div>
       </div>
     </motion.div>
+
+    {/* Report Modal */}
+    {showReport && (
+      <ReportModal
+        isOpen={showReport}
+        onClose={() => setShowReport(false)}
+        reportedUserId={pulse.author_id}
+        reportedHandle={pulse.author_handle}
+        postId={pulse.id}
+        session={session}
+      />
+    )}
+    </>
   );
 }

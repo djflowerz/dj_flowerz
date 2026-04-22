@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { TrustBadge } from '../components/community/TrustBadge';
+import { SellerScorecard } from '../components/community/SellerScorecard';
+import { VerificationJourney } from '../components/community/VerificationJourney';
 
 interface SocialLinks {
   instagram?: string;
@@ -266,7 +269,8 @@ export default function PublicProfile() {
         <div>
           <div className="flex items-center gap-1">
             <p className="font-black text-white text-base leading-tight truncate max-w-[200px]">{profile.full_name}</p>
-            {profile.is_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/20" />}
+            {profile.is_verified && <TrustBadge type="verified" size="xs" showLabel={false} />}
+            {profile.aura_tier === 'CAUTION' && <TrustBadge type="caution" size="xs" showLabel={false} />}
           </div>
           <p className="text-gray-500 text-xs">{posts.length} posts</p>
         </div>
@@ -320,16 +324,37 @@ export default function PublicProfile() {
         </div>
 
         <div className="space-y-4">
+          {/* Identity/Trust Header */}
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-white">{profile.full_name}</h1>
-              {profile.is_verified && <ShieldCheck size={20} className="text-brand-cyan" />}
+              {profile.is_verified && <TrustBadge type="verified" size="sm" />}
+              {profile.aura_tier === 'CAUTION' && <TrustBadge type="caution" size="sm" />}
+              {profile.aura_tier === 'SUSPENDED' && <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase rounded-md">Suspended</div>}
             </div>
             <p className="text-gray-500 font-medium">@{profile.handle}</p>
           </div>
 
+          {/* Verification Journey for Owners */}
+          {isOwnProfile && (
+            <div className="py-2">
+              <VerificationJourney 
+                profile={profile} 
+                session={session} 
+                onRequestVerification={fetchData} 
+              />
+            </div>
+          )}
+
           {profile.bio && (
             <p className="text-white text-[15px] leading-relaxed whitespace-pre-wrap">{profile.bio}</p>
+          )}
+
+          {/* Trust Scorecard */}
+          {!isOwnProfile && (
+            <div className="py-2">
+              <SellerScorecard userId={profile.id} handle={profile.handle} />
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-y-2 gap-x-5 text-gray-500 text-sm">

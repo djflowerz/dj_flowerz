@@ -567,7 +567,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const pulse = await env.DB.prepare('SELECT author_id, deal_metadata FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
       if (!pulse) return json({ error: 'Post not found' }, 404);
 
-      const dealId = crypto.randomUUID();
+      const dealId = `ESC-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
       const fee = Math.floor(amount * 0.07); // 7% platform fee
 
       await env.DB.prepare(`
@@ -1373,14 +1373,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // POST /api/newsletter/subscribe
     if (path === '/api/newsletter/subscribe' && method === 'POST') {
       try {
-        const { email, source = 'Website' } = await request.json() as any;
+        const { email, name = '', source = 'Website' } = await request.json() as any;
         if (!email) return json({ error: 'Email required' }, 400);
 
+        // Standardize email
+        const cleanEmail = email.trim().toLowerCase();
+
         await env.DB.prepare(`
-          INSERT INTO newsletter_subscribers (id, email, source, status, created_at)
-          VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
-          ON CONFLICT(email) DO UPDATE SET status = 'active', updated_at = CURRENT_TIMESTAMP
-        `).bind(crypto.randomUUID(), email, source).run();
+          INSERT INTO newsletter_subscribers (id, email, name, source, status, created_at)
+          VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)
+          ON CONFLICT(email) DO UPDATE SET 
+            status = 'active', 
+            name = COALESCE(NULLIF(?, ''), name),
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(crypto.randomUUID(), cleanEmail, name, source, name).run();
 
         return json({ success: true, message: 'Subscribed successfully' });
       } catch (e: any) {
@@ -1440,88 +1446,107 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
-  // GET /api/chat/session/:id — poll for messages
-  if (method === 'GET' && path.startsWith('/api/chat/session/')) {
-    try {
-      await ensureChatTables();
-      const sessionId = path.replace('/api/chat/session/', '').split('?')[0];
-      const url = new URL(request.url);
-      const since = url.searchParams.get('since');
+    // GET /api/chat/session/:id — poll for messages
+    if (method === 'GET' && path.startsWith('/api/chat/session/')) {
+      try {
+        await ensureChatTables();
+        const sessionId = path.replace('/api/chat/session/', '').split('?')[0];
+        const url = new URL(request.url);
+        const since = url.searchParams.get('since');
 
-      const session = await env.DB.prepare('SELECT * FROM chat_sessions WHERE id = ?').bind(sessionId).first();
-      if (!session) return json({ error: 'Session not found' }, 404);
+        const session = await env.DB.prepare('SELECT * FROM chat_sessions WHERE id = ?').bind(sessionId).first();
+        if (!session) return json({ error: 'Session not found' }, 404);
 
-      let messagesQuery = since
-        ? env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? AND created_at > ? ORDER BY id ASC').bind(sessionId, since)
-        : env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC').bind(sessionId);
+        let messagesQuery = since
+          ? env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? AND created_at > ? ORDER BY id ASC').bind(sessionId, since)
+          : env.DB.prepare('SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC').bind(sessionId);
 
-      const { results: messages } = await messagesQuery.all();
-      return json({ session, messages });
-    } catch (e: any) {
-      return json({ error: e.message }, 500);
+        const { results: messages } = await messagesQuery.all();
+        return json({ session, messages });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
     }
-  }
 
-  // POST /api/chat/message — send a message and get a bot reply
-  if (path === '/api/chat/message' && method === 'POST') {
-    try {
-      await ensureChatTables();
-      const { sessionId, text } = await request.json() as any;
-      if (!sessionId || !text) return json({ error: 'sessionId and text are required' }, 400);
+    // POST /api/chat/message — send a message and get a bot reply
+    if (path === '/api/chat/message' && method === 'POST') {
+      try {
+        await ensureChatTables();
+        const { sessionId, text } = await request.json() as any;
+        if (!sessionId || !text) return json({ error: 'sessionId and text are required' }, 400);
 
-      // Save the user's message
-      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'user', ?)`).bind(sessionId, text).run();
+        // Save the user's message
+        await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'user', ?)`).bind(sessionId, text).run();
 
-      // --- AI Bot Response Logic ---
-      const lowerText = text.toLowerCase();
+        // --- AI Bot Response Logic ---
+        const lowerText = text.toLowerCase();
 
-      // Site knowledge base
-      const botReply = (() => {
-        if (lowerText.includes('booking') || lowerText.includes('book') || lowerText.includes('event') || lowerText.includes('gig') || lowerText.includes('hire')) {
-          return `🎤 You can book DJ Flowerz for your event through our **Bookings** page at djflowerz.co.ke/bookings. Fill in the event details, date, and venue, and we'll get back to you within 24 hours. For urgent bookings, email us at **bookings@djflowerz.co.ke**.`;
-        }
-        if (lowerText.includes('music pool') || lowerText.includes('download') || lowerText.includes('dj tracks') || lowerText.includes('pool')) {
-          return `🎵 The **Music Pool** is our exclusive subscription service for DJs — featuring curated, high-quality tracks, edits and tools. Subscribe from your account and get immediate access. Visit **djflowerz.co.ke/music-pool** to learn more. You need an active subscription to download tracks.`;
-        }
-        if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('fee')) {
-          return `💰 Our pricing varies by service:\n\n• **Music Pool Subscription**: Check /music-pool for current tiers\n• **Booking/Events**: Contact us for a quote\n• **Store Merch & Digital**: Browse at /store\n\nFor a custom quote, contact us via this chat or email **admin@djflowerz.co.ke**.`;
-        }
-        if (lowerText.includes('refund') || lowerText.includes('return') || lowerText.includes('cancel')) {
-          return `📋 Our refund policy:\n\n• **Digital downloads**: All sales final once download link is accessed\n• **Physical merchandise**: 14-day return window, unused & original packaging\n• **Subscriptions**: Non-refundable but you can cancel at any time\n\nRead the full policy at **djflowerz.co.ke/refund** or email **admin@djflowerz.co.ke** with your order number.`;
-        }
-        if (lowerText.includes('store') || lowerText.includes('merch') || lowerText.includes('buy') || lowerText.includes('shop') || lowerText.includes('product')) {
-          return `🛍️ Our store carries official **DJ Flowerz merchandise** — from branded apparel to digital products. Visit **djflowerz.co.ke/store** to browse. We support M-Pesa, card payments, and escrow for marketplace transactions.`;
-        }
-        if (lowerText.includes('order') || lowerText.includes('payment') || lowerText.includes('mpesa') || lowerText.includes('checkout')) {
-          return `💳 For order issues or payment questions:\n\n• Your order ID follows the format **ORD-XXXXXXX**\n• For M-Pesa issues, allow up to 2 minutes for confirmation\n• Email **admin@djflowerz.co.ke** with your order number for support`;
-        }
-        if (lowerText.includes('mixtape') || lowerText.includes('mix') || lowerText.includes('set')) {
-          return `🎧 DJ Flowerz drops regular **mixtapes** featuring the hottest Afrobeats, Gengetone, Gospel, Dancehall and more. Stream or download free mixtapes at **djflowerz.co.ke/mixtapes**.`;
-        }
-        if (lowerText.includes('community') || lowerText.includes('post') || lowerText.includes('social') || lowerText.includes('feed')) {
-          return `🌐 Join the **DJ Flowerz Community Hub** to connect with fellow music lovers, share posts, sell/buy gear in the marketplace, and stay updated. Visit **djflowerz.co.ke/community** — sign up or log in to participate!`;
-        }
-        if (lowerText.includes('human') || lowerText.includes('agent') || lowerText.includes('person') || lowerText.includes('support')) {
-          return `🎧 I'll escalate this to a human agent. Our team is available **Mon–Sat, 9am–6pm EAT**. You can also reach us directly:\n\n📧 **admin@djflowerz.co.ke**\n\nYour ticket number is active — an agent will respond as soon as possible.`;
-        }
-        if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey') || lowerText.includes('good')) {
-          return `Hey there! 👋 I'm the **DJ Flowerz AI assistant**. I can help you with bookings, the Music Pool, store orders, mixtapes, subscriptions, and more. What do you need today?`;
-        }
-        if (lowerText.includes('social') || lowerText.includes('instagram') || lowerText.includes('facebook') || lowerText.includes('twitter') || lowerText.includes('tiktok')) {
-          return `📱 Follow DJ Flowerz on all social platforms for the latest drops and updates:\n\n• Instagram: @djflowerz\n• Twitter/X: @djflowerz\n• Facebook: DJ Flowerz\n• TikTok: @djflowerz\n\nStay in the loop! 🔥`;
-        }
-        // Default fallback
-        return `Thanks for your message! I'm the **DJ Flowerz AI assistant**, and I'm here to help with:\n\n• 🎤 Bookings & events\n• 🎵 Music Pool subscription\n• 🛍️ Store & orders\n• 🎧 Mixtapes\n• 🌐 Community Hub\n\nCould you clarify what you need, or type **"human"** to speak with a real agent?`;
-      })();
+        // Site knowledge base
+        const botReply = (() => {
+          if (lowerText.includes('buy') || lowerText.includes('sell') || lowerText.includes('marketplace') || lowerText.includes('gear') || lowerText.includes('equipment')) {
+            return `🛍️ In the **DJ Flowerz Marketplace**, you can buy and sell DJ gear safely using our **Escrow Protection**. 
 
-      // Save bot reply
-      await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'bot', ?)`).bind(sessionId, botReply).run();
+• **How to Buy**: Click "Buy Now" on any marketplace post. Your payment (M-Pesa/Card) is held by us and only released to the seller after you receive and confirm the item.
+• **Safe Trading**: Look for vendors with the **Verified Member** badge 🛡️. 
+• **Selling**: Post your gear in the Community Hub and toggle "Marketplace Item" to enable secure checkout.
 
-      return json({ success: true });
-    } catch (e: any) {
-      return json({ error: e.message }, 500);
+Visit **djflowerz.co.ke/community** to see what's for sale.`;
+          }
+          if (lowerText.includes('escrow') || lowerText.includes('trust') || lowerText.includes('verify') || lowerText.includes('safe') || lowerText.includes('scam')) {
+            return `🛡️ **Trust & Safety is our priority.** To prevent scams, we use:
+
+• **Escrow**: We hold payments until the trade is completed. Never pay sellers directly via WhatsApp!
+• **Verification Badge**: Sellers can get verified by completing their profile and requesting an admin review.
+• **Strike System**: We monitor reports and keywords. Rule-breakers get strikes or permanent bans.
+• **Seller Scorecard**: View a seller's trade volume and average rating on their profile.
+
+If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.co.ke**.`;
+          }
+          if (lowerText.includes('booking') || lowerText.includes('book') || lowerText.includes('event') || lowerText.includes('gig') || lowerText.includes('hire')) {
+            return `🎤 You can book DJ Flowerz for your event through our **Bookings** page at djflowerz.co.ke/bookings. Fill in the event details, date, and venue, and we'll get back to you within 24 hours. For urgent bookings, email us at **bookings@djflowerz.co.ke**.`;
+          }
+          if (lowerText.includes('music pool') || lowerText.includes('download') || lowerText.includes('dj tracks') || lowerText.includes('pool')) {
+            return `🎵 The **Music Pool** is our exclusive subscription service for DJs — featuring curated, high-quality tracks, edits and tools. Subscribe from your account and get immediate access. Visit **djflowerz.co.ke/music-pool** to learn more. You need an active subscription to download tracks.`;
+          }
+          if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('fee')) {
+            return `💰 Our pricing varies by service:\n\n• **Music Pool Subscription**: Check /music-pool for current tiers\n• **Marketplace Trades**: 5% Escrow Protection fee (covered by seller)\n• **Merch & Digital**: Browse at /store\n\nFor custom quotes, email **admin@djflowerz.co.ke**.`;
+          }
+          if (lowerText.includes('refund') || lowerText.includes('return') || lowerText.includes('cancel')) {
+            return `📋 Our refund policy:\n\n• **Marketplace/Escrow**: Refunds are issued if the seller fails to deliver as described.\n• **Digital downloads**: All sales final once download link is accessed.\n• **Physical merchandise**: 14-day return window.\n\nRead the full policy at **djflowerz.co.ke/refund**.`;
+          }
+          if (lowerText.includes('store') || lowerText.includes('merch') || lowerText.includes('product')) {
+            return `🛍️ Our store carries official **DJ Flowerz merchandise** — from branded apparel to digital products. Visit **djflowerz.co.ke/store** to browse. We support M-Pesa, card payments, and escrow for marketplace transactions.`;
+          }
+          if (lowerText.includes('order') || lowerText.includes('payment') || lowerText.includes('mpesa') || lowerText.includes('checkout')) {
+            return `💳 For order issues or payment questions:\n\n• Your order ID follows the format **ORD-XXXXXXX**\n• For M-Pesa issues, allow up to 2 minutes for confirmation\n• Email **admin@djflowerz.co.ke** with your order number for support`;
+          }
+          if (lowerText.includes('mixtape') || lowerText.includes('mix') || lowerText.includes('set')) {
+            return `🎧 DJ Flowerz drops regular **mixtapes** featuring the hottest Afrobeats, Gengetone, Gospel, Dancehall and more. Stream or download free mixtapes at **djflowerz.co.ke/mixtapes**.`;
+          }
+          if (lowerText.includes('community') || lowerText.includes('post') || lowerText.includes('social') || lowerText.includes('feed')) {
+            return `🌐 Join the **DJ Flowerz Community Hub** to connect with fellow music lovers, share posts, sell/buy gear in the marketplace, and stay updated. Visit **djflowerz.co.ke/community** — sign up or log in to participate!`;
+          }
+          if (lowerText.includes('human') || lowerText.includes('agent') || lowerText.includes('person') || lowerText.includes('support')) {
+            return `🎧 I'll escalate this to a human agent. Our team is available **Mon–Sat, 9am–6pm EAT**. You can also reach us directly:\n\n📧 **admin@djflowerz.co.ke**\n\nYour ticket number is active — an agent will respond as soon as possible.`;
+          }
+          if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey') || lowerText.includes('good')) {
+            return `Hey there! 👋 I'm the **DJ Flowerz AI assistant**. I can help you with bookings, the Music Pool, safe marketplace trading (Escrow), store orders, and more. What do you need today?`;
+          }
+          if (lowerText.includes('social') || lowerText.includes('instagram') || lowerText.includes('facebook') || lowerText.includes('twitter') || lowerText.includes('tiktok')) {
+            return `📱 Follow DJ Flowerz on all social platforms for the latest drops and updates:\n\n• Instagram: @dj_flowerz_creations\n• Twitter/X: @djflowerz\n• Facebook: DJ Flowerz\n• TikTok: @djflowerz\n\nStay in the loop! 🔥`;
+          }
+          // Default fallback
+          return `Thanks for your message! I'm the **DJ Flowerz AI assistant**, and I'm here to help with:\n\n• 🛡️ **Escrow & Safe Trading** in the marketplace\n• 🎤 Bookings & events\n• 🎵 Music Pool subscription\n• 🛍️ Store & orders\n• 🎧 Mixtapes\n\nCould you clarify what you need, or type **"human"** to speak with a real agent?`;
+        })();
+
+        // Save bot reply
+        await env.DB.prepare(`INSERT INTO chat_messages (session_id, sender, text) VALUES (?, 'bot', ?)`).bind(sessionId, botReply).run();
+
+        return json({ success: true });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
     }
-  }
 
   // POST /api/chat/escalate — request human agent
   if (path === '/api/chat/escalate' && method === 'POST') {
@@ -1536,6 +1561,582 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TRUST & BADGE SYSTEM ENDPOINTS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Ensure trust tables exist (idempotent)
+  const ensureTrustTables = async () => {
+    await env.DB.batch([
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS user_reports (
+        id TEXT PRIMARY KEY,
+        reporter_id TEXT NOT NULL,
+        reported_user_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        details TEXT,
+        post_id TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS community_vouches (
+        id TEXT PRIMARY KEY,
+        voucher_id TEXT NOT NULL,
+        vouchee_id TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS flagged_content (
+        id TEXT PRIMARY KEY,
+        post_id TEXT,
+        user_id TEXT,
+        user_handle TEXT,
+        content_snippet TEXT,
+        keyword_triggered TEXT,
+        reason TEXT DEFAULT 'keyword_match',
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS seller_badges (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        badge_type TEXT NOT NULL,
+        awarded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT
+      )`),
+    ]);
+  };
+
+  // ── POST /api/community/report ────────────────────────────────────────────
+  // Report a user. Auto-increments strikes and applies caution/shadow-ban.
+  if (path === '/api/community/report' && method === 'POST') {
+    if (!actorId) return json({ error: 'Authentication required' }, 401);
+    try {
+      await ensureTrustTables();
+      const { reported_user_id, reason, details, post_id } = await request.json() as any;
+      if (!reported_user_id || !reason) return json({ error: 'reported_user_id and reason are required' }, 400);
+      if (reported_user_id === actorId) return json({ error: 'You cannot report yourself' }, 400);
+
+      // Prevent duplicate reports from same user within 30 days
+      const existing = await env.DB.prepare(`
+        SELECT id FROM user_reports 
+        WHERE reporter_id = ? AND reported_user_id = ?
+        AND datetime(created_at) > datetime('now', '-30 days')
+      `).bind(actorId, reported_user_id).first();
+      if (existing) return json({ error: 'You have already reported this user recently' }, 409);
+
+      const reportId = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO user_reports (id, reporter_id, reported_user_id, reason, details, post_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(reportId, actorId, reported_user_id, reason, details || null, post_id || null).run();
+
+      // Count unique reports in last 30 days for this user
+      const { count } = await env.DB.prepare(`
+        SELECT COUNT(*) as count FROM user_reports 
+        WHERE reported_user_id = ? AND datetime(created_at) > datetime('now', '-30 days') AND status != 'dismissed'
+      `).bind(reported_user_id).first() as any;
+
+      let newTier = null;
+      let shadowBanned = 0;
+
+      if (count >= 5) {
+        // Hard shadow-ban
+        await env.DB.prepare(`UPDATE profiles SET is_shadow_banned = 1, strikes = ?, aura_tier = 'SUSPENDED' WHERE id = ?`)
+          .bind(count, reported_user_id).run();
+        shadowBanned = 1;
+        // Remove marketplace listings from visibility
+        await env.DB.prepare(`UPDATE pulses SET is_shadow_banned = 1 WHERE author_id = ? AND is_marketplace = 1`)
+          .bind(reported_user_id).run().catch(() => {});
+
+        await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('AUTO_SHADOW_BAN', ?, 'SYSTEM')`)
+          .bind(`User ${reported_user_id} auto-shadow-banned after ${count} reports`).run();
+      } else if (count >= 3) {
+        // Caution badge
+        await env.DB.prepare(`UPDATE profiles SET strikes = ?, aura_tier = 'CAUTION' WHERE id = ?`)
+          .bind(count, reported_user_id).run();
+        newTier = 'CAUTION';
+        // Award caution badge
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO seller_badges (id, user_id, badge_type, expires_at)
+          VALUES (?, ?, 'caution', datetime('now', '+30 days'))
+        `).bind(crypto.randomUUID(), reported_user_id).run();
+      } else {
+        await env.DB.prepare(`UPDATE profiles SET strikes = ? WHERE id = ?`)
+          .bind(count, reported_user_id).run();
+      }
+
+      return json({ success: true, report_id: reportId, total_reports: count, new_tier: newTier, shadow_banned: shadowBanned });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/community/vouch ─────────────────────────────────────────────
+  // Vouch for another user. Requires 10+ completed_trades.
+  if (path === '/api/community/vouch' && method === 'POST') {
+    if (!actorId) return json({ error: 'Authentication required' }, 401);
+    try {
+      await ensureTrustTables();
+      const { vouchee_id, note } = await request.json() as any;
+      if (!vouchee_id) return json({ error: 'vouchee_id is required' }, 400);
+      if (vouchee_id === actorId) return json({ error: 'Cannot vouch for yourself' }, 400);
+
+      // Check voucher eligibility
+      const voucher = await env.DB.prepare(`SELECT completed_trades FROM profiles WHERE id = ?`).bind(actorId).first() as any;
+      if (!voucher || (voucher.completed_trades || 0) < 5) {
+        return json({ error: 'You need at least 5 completed trades to vouch for others' }, 403);
+      }
+
+      // One vouch per pair ever
+      const existingVouch = await env.DB.prepare(`
+        SELECT id FROM community_vouches WHERE voucher_id = ? AND vouchee_id = ?
+      `).bind(actorId, vouchee_id).first();
+      if (existingVouch) return json({ error: 'You have already vouched for this user' }, 409);
+
+      const vouchId = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO community_vouches (id, voucher_id, vouchee_id, note)
+        VALUES (?, ?, ?, ?)
+      `).bind(vouchId, actorId, vouchee_id, note || null).run();
+
+      return json({ success: true, vouch_id: vouchId });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/profiles/request-verification ───────────────────────────────
+  // User requests email verification — sets status to 'requested'
+  if (path === '/api/profiles/request-verification' && method === 'POST') {
+    if (!actorId) return json({ error: 'Authentication required' }, 401);
+    try {
+      const profile = await env.DB.prepare(`SELECT verification_status FROM profiles WHERE id = ?`).bind(actorId).first() as any;
+      if (!profile) return json({ error: 'Profile not found' }, 404);
+      if (profile.verification_status === 'verified') return json({ error: 'Already verified' }, 409);
+      if (profile.verification_status === 'requested') return json({ error: 'Request already pending admin review' }, 409);
+
+      await env.DB.prepare(`UPDATE profiles SET verification_status = 'requested' WHERE id = ?`).bind(actorId).run();
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('VERIFY_REQUEST', ?, 'SYSTEM')`)
+        .bind(`User ${actorId} (${jwtEmail}) requested email verification`).run();
+
+      return json({ success: true, message: 'Verification request submitted. Our team will review your profile within 24 hours.' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/admin/verify/:userId ───────────────────────────────────────
+  // Admin approves verification request AND generates OTP (or manually verifies)
+  if (method === 'POST' && path.match(/^\/api\/admin\/verify\/[^/]+$/)) {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const targetUserId = path.split('/').pop()!;
+      const body = await request.json() as any;
+      const manual = body?.manual_override === true;
+
+      if (manual) {
+        // Instant verification bypass
+        await env.DB.prepare(`
+          UPDATE profiles SET verification_status = 'verified', is_verified = 1, is_manual_verify = 1, is_eligible = 1 WHERE id = ?
+        `).bind(targetUserId).run();
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO seller_badges (id, user_id, badge_type)
+          VALUES (?, ?, 'verified')
+        `).bind(crypto.randomUUID(), targetUserId).run();
+        await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('MANUAL_VERIFY', ?, ?)`)
+          .bind(`User ${targetUserId} manually verified`, jwtEmail).run();
+        return json({ success: true, type: 'manual', message: 'User manually verified and badge awarded.' });
+      }
+
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      await env.DB.prepare(`
+        UPDATE profiles SET 
+          verification_status = 'approved',
+          is_eligible = 1,
+          otp_code = ?,
+          otp_expiry = ?,
+          verification_attempts = 0
+        WHERE id = ?
+      `).bind(otp, expiry, targetUserId).run();
+
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('VERIFY_APPROVE', ?, ?)`)
+        .bind(`OTP generated for ${targetUserId} — expires ${expiry}`, jwtEmail).run();
+
+      // Return OTP in response (admin can send via WhatsApp)
+      return json({ success: true, otp, expiry, message: `OTP generated: ${otp}. Share with user via WhatsApp. Expires in 24 hours.` });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/admin/verify/:userId/reject ────────────────────────────────
+  if (method === 'POST' && path.match(/^\/api\/admin\/verify\/[^/]+\/reject$/)) {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const parts = path.split('/');
+      const targetUserId = parts[parts.length - 2];
+      await env.DB.prepare(`UPDATE profiles SET verification_status = 'none' WHERE id = ?`).bind(targetUserId).run();
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('VERIFY_REJECT', ?, ?)`)
+        .bind(`Verification rejected for user ${targetUserId}`, jwtEmail).run();
+      return json({ success: true, message: 'Verification request rejected.' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/profiles/verify-otp ────────────────────────────────────────
+  // User submits their 6-digit OTP to complete verification
+  if (path === '/api/profiles/verify-otp' && method === 'POST') {
+    if (!actorId) return json({ error: 'Authentication required' }, 401);
+    try {
+      const { otp_code } = await request.json() as any;
+      if (!otp_code) return json({ error: 'otp_code is required' }, 400);
+
+      const profile = await env.DB.prepare(`
+        SELECT verification_status, is_eligible, otp_code, otp_expiry, verification_attempts
+        FROM profiles WHERE id = ?
+      `).bind(actorId).first() as any;
+
+      if (!profile) return json({ error: 'Profile not found' }, 404);
+      if (profile.verification_status === 'verified') return json({ error: 'Already verified' }, 409);
+      if (!profile.is_eligible) return json({ error: 'Not approved for verification yet' }, 403);
+      if ((profile.verification_attempts || 0) >= 5) return json({ error: 'Too many failed attempts. Contact support.' }, 429);
+
+      const now = new Date().toISOString();
+      if (!profile.otp_expiry || now > profile.otp_expiry) {
+        return json({ error: 'This OTP has expired. Please request a new one from admin.' }, 410);
+      }
+
+      if (String(profile.otp_code) !== String(otp_code)) {
+        await env.DB.prepare(`UPDATE profiles SET verification_attempts = verification_attempts + 1 WHERE id = ?`).bind(actorId).run();
+        return json({ error: 'Incorrect code. Please check your email and try again.' }, 400);
+      }
+
+      // ✅ Verified!
+      await env.DB.prepare(`
+        UPDATE profiles SET 
+          verification_status = 'verified',
+          is_verified = 1,
+          otp_code = NULL,
+          otp_expiry = NULL,
+          verification_attempts = 0
+        WHERE id = ?
+      `).bind(actorId).run();
+
+      // Award verified badge
+      await env.DB.prepare(`
+        INSERT OR REPLACE INTO seller_badges (id, user_id, badge_type)
+        VALUES (?, ?, 'verified')
+      `).bind(crypto.randomUUID(), actorId).run();
+
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('EMAIL_VERIFIED', ?, 'SYSTEM')`)
+        .bind(`User ${actorId} successfully completed email verification`).run();
+
+      return json({ success: true, message: '🎉 Verified! Your Verified Member badge is now active.' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/community/flag-content ─────────────────────────────────────
+  // Check post content against blacklist. Returns { flagged, reason, keyword }
+  if (path === '/api/community/flag-content' && method === 'POST') {
+    try {
+      await ensureTrustTables();
+      const { content, post_id, user_id, user_handle } = await request.json() as any;
+      if (!content) return json({ flagged: false });
+
+      const BLACKLIST = [
+        // Off-platform contact leakage
+        { keyword: 'whatsapp', reason: 'off_platform' },
+        { keyword: 'watsap', reason: 'off_platform' },
+        { keyword: 'inbox me', reason: 'off_platform' },
+        { keyword: 'dm me', reason: 'off_platform' },
+        { keyword: 'call me', reason: 'off_platform' },
+        { keyword: 'direct mpesa', reason: 'off_platform' },
+        { keyword: 'direct m-pesa', reason: 'off_platform' },
+        { keyword: 'send to my number', reason: 'off_platform' },
+        { keyword: 'tuma kwa hii number', reason: 'off_platform' },
+        { keyword: 'pay me directly', reason: 'off_platform' },
+        { keyword: 'personal mpesa', reason: 'off_platform' },
+        // Kenyan scam phrases
+        { keyword: 'tuma fare', reason: 'scam' },
+        { keyword: 'i sent money by mistake', reason: 'scam' },
+        { keyword: 'reverse the money', reason: 'scam' },
+        { keyword: 'deposit first', reason: 'scam' },
+        { keyword: 'registration fee', reason: 'scam' },
+        { keyword: 'send half first', reason: 'scam' },
+        { keyword: 'you have won', reason: 'scam' },
+        { keyword: 'you are a winner', reason: 'scam' },
+        { keyword: 'job opportunity', reason: 'scam' },
+        { keyword: 'work from home', reason: 'scam' },
+        // Too-good-to-be-true pricing
+        { keyword: 'free controller', reason: 'suspicious_pricing' },
+        { keyword: 'xdj for 5k', reason: 'suspicious_pricing' },
+        { keyword: 'cdj for 10k', reason: 'suspicious_pricing' },
+        { keyword: 'cheapest in kenya', reason: 'suspicious_pricing' },
+        { keyword: 'must go today', reason: 'suspicious_pricing' },
+        // Phone numbers pattern handled client-side; also flag server-side
+        { keyword: '0722', reason: 'phone_number_leak' },
+        { keyword: '0712', reason: 'phone_number_leak' },
+        { keyword: '0700', reason: 'phone_number_leak' },
+        { keyword: '0701', reason: 'phone_number_leak' },
+        { keyword: '0711', reason: 'phone_number_leak' },
+        { keyword: '0729', reason: 'phone_number_leak' },
+      ];
+
+      const lowerContent = content.toLowerCase();
+      const hit = BLACKLIST.find(item => lowerContent.includes(item.keyword));
+
+      if (hit) {
+        // Save to flagged_content for admin review
+        const flagId = crypto.randomUUID();
+        const snippet = content.slice(0, 200);
+        await env.DB.prepare(`
+          INSERT INTO flagged_content (id, post_id, user_id, user_handle, content_snippet, keyword_triggered, reason)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(flagId, post_id || null, user_id || null, user_handle || null, snippet, hit.keyword, hit.reason).run();
+
+        return json({ flagged: true, reason: hit.reason, keyword: hit.keyword, flag_id: flagId });
+      }
+
+      return json({ flagged: false });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/profiles/:id/scorecard ──────────────────────────────────────
+  // Fetch trust scorecard data for a user profile
+  if (method === 'GET' && path.match(/^\/api\/profiles\/[^/]+\/scorecard$/)) {
+    try {
+      await ensureTrustTables();
+      const userId = path.split('/')[3];
+
+      const profile = await env.DB.prepare(`
+        SELECT id, completed_trades, cancel_rate, avg_response_hours, 
+               is_verified, strikes, aura_tier, primary_role, location, created_at
+        FROM profiles WHERE id = ?
+      `).bind(userId).first() as any;
+
+      if (!profile) return json({ error: 'Profile not found' }, 404);
+
+      const { results: badges } = await env.DB.prepare(`
+        SELECT badge_type FROM seller_badges 
+        WHERE user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+      `).bind(userId).all();
+
+      const { count: vouchCount } = await env.DB.prepare(`
+        SELECT COUNT(*) as count FROM community_vouches WHERE vouchee_id = ?
+      `).bind(userId).first() as any;
+
+      const createdAt = new Date(profile.created_at || Date.now());
+      const monthsOld = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30));
+
+      // Auto-award established badge if 12+ months and not already awarded
+      if (monthsOld >= 12) {
+        await env.DB.prepare(`
+          INSERT OR IGNORE INTO seller_badges (id, user_id, badge_type)
+          VALUES (?, ?, 'established')
+        `).bind(crypto.randomUUID(), userId).run();
+      }
+
+      return json({
+        completed_trades: profile.completed_trades || 0,
+        cancel_rate: profile.cancel_rate || 0,
+        avg_response_hours: profile.avg_response_hours || 0,
+        vouch_count: vouchCount || 0,
+        badges: badges.map((b: any) => b.badge_type),
+        account_age_months: monthsOld,
+        is_verified: !!profile.is_verified,
+        strikes: profile.strikes || 0,
+        aura_tier: profile.aura_tier || 'Newcomer',
+        primary_role: profile.primary_role,
+        location: profile.location,
+      });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/admin/trust/verification-queue ───────────────────────────────
+  // Admin: List all profiles with verification_status = 'requested'
+  if (path === '/api/admin/trust/verification-queue' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT id, email, full_name, avatar_url, handle, bio, location, social_links,
+               verification_status, created_at, completed_trades, aura_tier,
+               (SELECT COUNT(*) FROM pulses WHERE author_id = profiles.id) as post_count
+        FROM profiles WHERE verification_status = 'requested'
+        ORDER BY created_at DESC
+      `).all();
+      return json({ queue: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/admin/trust/flagged-content ─────────────────────────────────
+  // Admin: List all pending flagged posts
+  if (path === '/api/admin/trust/flagged-content' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT * FROM flagged_content WHERE status = 'pending'
+        ORDER BY created_at DESC LIMIT 100
+      `).all();
+      return json({ flags: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── PATCH /api/admin/trust/flagged-content/:id ────────────────────────────
+  // Admin: Dismiss or action a flagged content item
+  if (method === 'PATCH' && path.match(/^\/api\/admin\/trust\/flagged-content\/[^/]+$/)) {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const flagId = path.split('/').pop()!;
+      const { status, action } = await request.json() as any; // status: 'dismissed'|'actioned'
+
+      await env.DB.prepare(`UPDATE flagged_content SET status = ? WHERE id = ?`).bind(status, flagId).run();
+
+      // If actioned = delete the post
+      if (action === 'delete_post') {
+        const flag = await env.DB.prepare(`SELECT post_id FROM flagged_content WHERE id = ?`).bind(flagId).first() as any;
+        if (flag?.post_id) {
+          await env.DB.prepare(`DELETE FROM pulses WHERE id = ?`).bind(flag.post_id).run();
+        }
+      }
+
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('FLAG_ACTIONED', ?, ?)`)
+        .bind(`Flag ${flagId} marked as ${status}${action ? ` — action: ${action}` : ''}`, jwtEmail).run();
+
+      return json({ success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/admin/trust/strikes ─────────────────────────────────────────
+  // Admin: List users with 1+ strikes
+  if (path === '/api/admin/trust/strikes' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT p.id, p.email, p.full_name, p.handle, p.avatar_url, p.strikes, 
+               p.is_shadow_banned, p.aura_tier, p.completed_trades,
+               COUNT(r.id) as total_reports
+        FROM profiles p
+        LEFT JOIN user_reports r ON r.reported_user_id = p.id AND r.status != 'dismissed'
+        WHERE p.strikes >= 1
+        GROUP BY p.id
+        ORDER BY p.strikes DESC
+      `).all();
+      return json({ users: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/admin/trust/shadow-ban ─────────────────────────────────────
+  // Admin: Toggle shadow-ban for a user
+  if (path === '/api/admin/trust/shadow-ban' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { user_id, shadow_banned } = await request.json() as any;
+      if (!user_id) return json({ error: 'user_id required' }, 400);
+
+      await env.DB.prepare(`UPDATE profiles SET is_shadow_banned = ? WHERE id = ?`).bind(shadow_banned ? 1 : 0, user_id).run();
+
+      if (shadow_banned) {
+        // Hide their marketplace posts
+        await env.DB.prepare(`UPDATE pulses SET is_shadow_banned = 1 WHERE author_id = ?`).bind(user_id).run().catch(() => {});
+      } else {
+        // Restore visibility
+        await env.DB.prepare(`UPDATE pulses SET is_shadow_banned = 0 WHERE author_id = ?`).bind(user_id).run().catch(() => {});
+      }
+
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES (?, ?, ?)`)
+        .bind(shadow_banned ? 'SHADOW_BAN' : 'SHADOW_BAN_LIFT', `User ${user_id} ${shadow_banned ? 'shadow-banned' : 'shadow-ban lifted'}`, jwtEmail).run();
+
+      return json({ success: true, shadow_banned });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── PATCH /api/admin/trust/strikes/:userId ────────────────────────────────
+  // Admin: Manually add or clear strikes
+  if (method === 'PATCH' && path.match(/^\/api\/admin\/trust\/strikes\/[^/]+$/)) {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const targetUserId = path.split('/').pop()!;
+      const { strikes, aura_tier } = await request.json() as any;
+
+      await env.DB.prepare(`UPDATE profiles SET strikes = ?, aura_tier = ? WHERE id = ?`)
+        .bind(strikes ?? 0, aura_tier || 'Newcomer', targetUserId).run();
+
+      if ((strikes ?? 0) < 3) {
+        // Remove caution badge if strikes cleared
+        await env.DB.prepare(`DELETE FROM seller_badges WHERE user_id = ? AND badge_type = 'caution'`)
+          .bind(targetUserId).run();
+      }
+
+      await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('STRIKE_UPDATE', ?, ?)`)
+        .bind(`Strikes for ${targetUserId} updated to ${strikes}`, jwtEmail).run();
+
+      return json({ success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/admin/trust/vouches ─────────────────────────────────────────
+  // Admin: List all vouching relationships
+  if (path === '/api/admin/trust/vouches' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      await ensureTrustTables();
+      const { results } = await env.DB.prepare(`
+        SELECT cv.*, 
+               vr.full_name as voucher_name, vr.handle as voucher_handle,
+               ve.full_name as vouchee_name, ve.handle as vouchee_handle,
+               ve.is_shadow_banned as vouchee_banned
+        FROM community_vouches cv
+        LEFT JOIN profiles vr ON cv.voucher_id = vr.id
+        LEFT JOIN profiles ve ON cv.vouchee_id = ve.id
+        ORDER BY cv.created_at DESC
+      `).all();
+      return json({ vouches: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── GET /api/community/seller-of-month ───────────────────────────────────
+  // Returns the top seller of the month based on completed trades & low strikes
+  if (path === '/api/community/seller-of-month' && method === 'GET') {
+    try {
+      const winner = await env.DB.prepare(`
+        SELECT id, full_name, handle, avatar_url, completed_trades, aura_tier, primary_role, location
+        FROM profiles
+        WHERE is_shadow_banned = 0 AND strikes < 3 AND completed_trades > 0
+        ORDER BY completed_trades DESC
+        LIMIT 1
+      `).first();
+      if (!winner) return json({ winner: null });
+      return json({ winner });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // ─── 404 ─────────────────────────────────────────────────────────────────────
   return json({ error: `Route ${method} ${path} not found` }, 404);
 }
+
