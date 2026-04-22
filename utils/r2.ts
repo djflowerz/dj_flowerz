@@ -5,6 +5,7 @@ import { Track, Genre } from '../types';
  * Utility for fetching and syncing data from Cloudflare R2 via Workers
  */
 export const STORAGE_WORKER_URL = (import.meta.env.VITE_STORAGE_WORKER_URL || '').trim();
+export const REMIX_WORKER_URL = "https://remix-and-mashups-worker.dennismacharia20.workers.dev";
 const VITE_R2_URL = (import.meta.env.VITE_R2_URL || STORAGE_WORKER_URL).trim();
 
 export async function getAuthHeader() {

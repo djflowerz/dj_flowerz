@@ -76,7 +76,7 @@ const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
 const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
-const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/Profiles'));
+const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/AdminProfiles'));
 
 const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));

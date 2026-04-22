@@ -1,96 +1,28 @@
--- 1. Extend user_profiles table (COMPLETED)
--- Note: bio, location, website, is_verified, dj_genre, etc. already exist
--- ALTER TABLE user_profiles ADD COLUMN dj_genre TEXT DEFAULT '';
--- ALTER TABLE user_profiles ADD COLUMN dj_since INTEGER DEFAULT NULL;
--- ALTER TABLE user_profiles ADD COLUMN pinned_post_id TEXT DEFAULT NULL;
--- ALTER TABLE user_profiles ADD COLUMN instagram TEXT DEFAULT '';
--- ALTER TABLE user_profiles ADD COLUMN soundcloud TEXT DEFAULT '';
--- ALTER TABLE user_profiles ADD COLUMN mixcloud TEXT DEFAULT '';
+-- DJ Flowerz Production Migration Delta
+-- Finalizing Trust & Safety Infrastructure
+
+-- 1. Extend profiles table with missing trust signals
+-- Note: full_name, handle, aura_tier, is_verified already exist in production
+-- ALTER TABLE profiles ADD COLUMN strikes INTEGER DEFAULT 0;
+-- ALTER TABLE profiles ADD COLUMN is_shadow_banned INTEGER DEFAULT 0;
+-- ALTER TABLE profiles ADD COLUMN verification_status TEXT DEFAULT 'none';
+-- ALTER TABLE profiles ADD COLUMN is_manual_verify INTEGER DEFAULT 0;
+-- ALTER TABLE profiles ADD COLUMN is_eligible INTEGER DEFAULT 0;
+-- ALTER TABLE profiles ADD COLUMN otp_code TEXT;
+-- ALTER TABLE profiles ADD COLUMN otp_expiry TEXT;
+-- ALTER TABLE profiles ADD COLUMN verification_attempts INTEGER DEFAULT 0;
+-- ALTER TABLE profiles ADD COLUMN completed_trades INTEGER DEFAULT 0;
+
+-- 2. Extend pulses table
+-- ALTER TABLE pulses ADD COLUMN is_shadow_banned INTEGER DEFAULT 0;
+
+-- 3. Extend existing admin/chat tables
+-- ALTER TABLE admin_logs ADD COLUMN admin_user TEXT;
+-- ALTER TABLE chat_sessions ADD COLUMN ticket_number TEXT;
+-- ALTER TABLE chat_sessions ADD COLUMN last_message_at TEXT;
 
 
--- 2. Create social infrastucture
-CREATE TABLE IF NOT EXISTS social_posts (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  author_id TEXT NOT NULL,
-  author_name TEXT NOT NULL,
-  author_avatar TEXT DEFAULT '',
-  author_username TEXT DEFAULT '',
-  author_role TEXT DEFAULT 'user',
-  content TEXT NOT NULL DEFAULT '',
-  image_url TEXT,
-  media_urls TEXT DEFAULT '[]',
-  is_marketplace INTEGER DEFAULT 0,
-  price REAL DEFAULT 0,
-  escrow_status TEXT DEFAULT 'none',
-  likes_count INTEGER DEFAULT 0,
-  comments_count INTEGER DEFAULT 0,
-  reshare_count INTEGER DEFAULT 0,
-  post_type TEXT DEFAULT 'post',
-  reply_to_id TEXT,
-  quote_of_id TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS social_likes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  post_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(post_id, user_id),
-  FOREIGN KEY (post_id) REFERENCES social_posts(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS social_comments (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  post_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  author_name TEXT NOT NULL,
-  author_avatar TEXT DEFAULT '',
-  author_username TEXT DEFAULT '',
-  content TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (post_id) REFERENCES social_posts(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS social_follows (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  follower_id TEXT NOT NULL,
-  following_id TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(follower_id, following_id)
-);
-
-CREATE TABLE IF NOT EXISTS social_reshares (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  post_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(post_id, user_id),
-  FOREIGN KEY (post_id) REFERENCES social_posts(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_social_posts_created ON social_posts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_social_posts_author ON social_posts(author_id);
-CREATE INDEX IF NOT EXISTS idx_social_likes_post ON social_likes(post_id);
-CREATE INDEX IF NOT EXISTS idx_social_follows_follower ON social_follows(follower_id);
-CREATE INDEX IF NOT EXISTS idx_social_follows_following ON social_follows(following_id);
-
-
--- 3. Trust & Safety Infrastructure Extensions
--- Note: Extended columns for profiles table
-ALTER TABLE profiles ADD COLUMN full_name TEXT;
-ALTER TABLE profiles ADD COLUMN handle TEXT;
-ALTER TABLE profiles ADD COLUMN strikes INTEGER DEFAULT 0;
-ALTER TABLE profiles ADD COLUMN aura_tier TEXT DEFAULT 'Newcomer';
-ALTER TABLE profiles ADD COLUMN is_shadow_banned INTEGER DEFAULT 0;
-ALTER TABLE profiles ADD COLUMN verification_status TEXT DEFAULT 'none';
-ALTER TABLE profiles ADD COLUMN is_manual_verify INTEGER DEFAULT 0;
-ALTER TABLE profiles ADD COLUMN is_eligible INTEGER DEFAULT 0;
-ALTER TABLE profiles ADD COLUMN otp_code TEXT;
-ALTER TABLE profiles ADD COLUMN otp_expiry TEXT;
-ALTER TABLE profiles ADD COLUMN verification_attempts INTEGER DEFAULT 0;
-ALTER TABLE profiles ADD COLUMN completed_trades INTEGER DEFAULT 0;
-
+-- 4. Create NEW Trust & Safety Tables
 CREATE TABLE IF NOT EXISTS user_reports (
   id TEXT PRIMARY KEY,
   reporter_id TEXT NOT NULL,
@@ -130,29 +62,25 @@ CREATE TABLE IF NOT EXISTS seller_badges (
   expires_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS admin_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  action TEXT NOT NULL,
-  details TEXT,
-  admin_user TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. Chat & Support
-CREATE TABLE IF NOT EXISTS chat_sessions (
+-- 5. Create Additional Secondary Tables
+CREATE TABLE IF NOT EXISTS wishlist (
   id TEXT PRIMARY KEY,
-  visitor_name TEXT,
-  visitor_email TEXT,
-  status TEXT DEFAULT 'bot',
-  ticket_number TEXT,
-  last_message_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  user_id TEXT NOT NULL REFERENCES profiles(id),
+  target_id TEXT NOT NULL,
+  target_type TEXT NOT NULL, -- 'product', 'mixtape', 'track'
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, target_id)
+);
+
+CREATE TABLE IF NOT EXISTS mixtape_comments (
+  id TEXT PRIMARY KEY,
+  mixtape_id TEXT NOT NULL REFERENCES mixtapes(id),
+  author_id TEXT NOT NULL REFERENCES profiles(id),
+  content TEXT NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS chat_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL,
-  sender TEXT NOT NULL,
-  text TEXT NOT NULL,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+
+-- 6. User Activity & Presence
+-- ALTER TABLE profiles ADD COLUMN presence_status TEXT DEFAULT 'offline';
+-- ALTER TABLE profiles ADD COLUMN last_seen TEXT DEFAULT CURRENT_TIMESTAMP;

@@ -17,7 +17,7 @@ import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabase';
-import { STORAGE_WORKER_URL } from '../utils/r2';
+import { STORAGE_WORKER_URL, REMIX_WORKER_URL } from '../utils/r2';
 import axios from 'axios';
 import { isUserSubscriber } from '../utils/authHelpers';
 
@@ -118,7 +118,7 @@ export default function MusicPool() {
 
   const fetchFilters = useCallback(async () => {
     try {
-      const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
+      const response = await fetch(`${REMIX_WORKER_URL}/api/pool/filters`);
       if (response.ok) {
         const data = await response.json();
         const rawHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
@@ -263,7 +263,7 @@ export default function MusicPool() {
         return;
       }
 
-      fetch(`${STORAGE_WORKER_URL}/api/pool/download`, {
+      fetch(`${REMIX_WORKER_URL}/api/pool/download`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -272,7 +272,7 @@ export default function MusicPool() {
         body: JSON.stringify({ url, versionId })
       }).catch(err => console.error("Tracking error:", err));
 
-      const workerUrl = STORAGE_WORKER_URL.startsWith('http') ? STORAGE_WORKER_URL : 'https://djflowerz.co.ke';
+      const workerUrl = REMIX_WORKER_URL.startsWith('http') ? REMIX_WORKER_URL : 'https://djflowerz.co.ke';
       const downloadApiUrl = `${workerUrl}/api/pool/download?versionId=${encodeURIComponent(versionId || '')}&token=${token}&filename=${encodeURIComponent(fileName)}`;
 
       const iframe = document.createElement('iframe');

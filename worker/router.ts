@@ -262,14 +262,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       // Get follow counts
       const counts = await env.DB.prepare(`
         SELECT 
-          (SELECT COUNT(*) FROM follows WHERE following_id = ?) as followers_count,
+          (SELECT COUNT(*) FROM follows WHERE followed_id = ?) as followers_count,
           (SELECT COUNT(*) FROM follows WHERE follower_id = ?) as following_count
       `).bind(profile.id, profile.id).first() as any;
 
       // Check if current user follows this profile
       let isFollowing = false;
       if (actorId && actorId !== profile.id) {
-        const follow = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?')
+        const follow = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND followed_id = ?')
           .bind(actorId, profile.id).first();
         isFollowing = !!follow;
       }
@@ -488,7 +488,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (actorId === target_id) return json({ error: 'Cannot follow yourself' }, 400);
 
     try {
-      const existing = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?')
+      const existing = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND followed_id = ?')
         .bind(actorId, target_id).first();
 
       if (existing) {
@@ -496,7 +496,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         return json({ success: true, followed: false });
       } else {
         const id = crypto.randomUUID();
-        await env.DB.prepare('INSERT INTO follows (id, follower_id, following_id) VALUES (?, ?, ?)')
+        await env.DB.prepare('INSERT INTO follows (id, follower_id, followed_id) VALUES (?, ?, ?)')
           .bind(id, actorId, target_id).run();
         
         // Notify target
@@ -640,11 +640,144 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // GET /api/notifications/unread
   if (path === '/api/notifications/unread' && method === 'GET') {
-    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    if (!actorId) return json({ unread: 0 });
     const count = await env.DB.prepare(`
       SELECT COUNT(*) as unread FROM notifications WHERE user_id = ? AND is_read = 0
     `).bind(actorId).first() as any;
     return json({ unread: count?.unread || 0 });
+  }
+
+  // ─── SECONDARY FEATURE ENDPOINTS ───────────────────────────────────────────
+
+  // GET /api[/admin]/profiles/:userId/scorecard
+  if (path.match(/^\/api\/(admin\/)?profiles\/[^/]+\/scorecard$/) && method === 'GET') {
+    const segments = path.split('/');
+    const userId = segments[segments.length - 2];
+    const stats = await env.DB.prepare(`
+      SELECT 
+        id, full_name, handle, avatar_url, aura_tier, aura_points, 
+        is_verified, completed_trades, strikes, location, primary_role, created_at,
+        (SELECT COUNT(*) FROM community_vouches WHERE vouchee_id = profiles.id) as vouch_count
+      FROM profiles 
+      WHERE id = ? OR handle = ?
+    `).bind(userId, userId).first() as any;
+
+    if (!stats) return json({ error: 'Profile not found' }, 404);
+
+    const badges = await env.DB.prepare(`
+      SELECT badge_type FROM seller_badges WHERE user_id = ?
+    `).bind(stats.id).all();
+
+    return json({
+      ...stats,
+      badges: (badges.results || []).map((b: any) => b.badge_type),
+      verification_status: stats.is_verified ? 'verified' : 'none'
+    });
+  }
+
+  // GET /api[/admin]/user/wishlist
+  if ((path === '/api/user/wishlist' || path === '/api/admin/user/wishlist') && method === 'GET') {
+    if (!actorId) return json([]);
+    const { results } = await env.DB.prepare(`
+      SELECT * FROM wishlist WHERE user_id = ? ORDER BY created_at DESC
+    `).bind(actorId).all();
+    return json(results || []);
+  }
+
+  // POST /api/wishlist (Toggle)
+  if (path === '/api/wishlist' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { target_id, target_type } = await request.json() as any;
+    const existing = await env.DB.prepare('SELECT id FROM wishlist WHERE user_id = ? AND target_id = ?').bind(actorId, target_id).first();
+    
+    if (existing) {
+      await env.DB.prepare('DELETE FROM wishlist WHERE id = ?').bind(existing.id).run();
+      return json({ success: true, added: false });
+    } else {
+      await env.DB.prepare('INSERT INTO wishlist (id, user_id, target_id, target_type) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), actorId, target_id, target_type).run();
+      return json({ success: true, added: true });
+    }
+  }
+
+  // GET /api[/admin]/mixtape_comments
+  if ((path === '/api/mixtape_comments' || path === '/api/admin/mixtape_comments') && method === 'GET') {
+    const mixtapeId = url.searchParams.get('mixtape_id');
+    let query = `
+      SELECT c.*, p.full_name as author_name, p.avatar_url as author_avatar, p.handle as author_handle
+      FROM mixtape_comments c
+      JOIN profiles p ON c.author_id = p.id
+    `;
+    let params: any[] = [];
+    if (mixtapeId) {
+      query += ' WHERE c.mixtape_id = ?';
+      params.push(mixtapeId);
+    }
+    query += ' ORDER BY c.created_at DESC';
+    
+    const { results } = await env.DB.prepare(query).bind(...params).all();
+    return json(results || []);
+  }
+
+  // POST /api/mixtape_comments
+  if (path === '/api/mixtape_comments' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { mixtape_id, content } = await request.json() as any;
+    await env.DB.prepare('INSERT INTO mixtape_comments (id, mixtape_id, author_id, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), mixtape_id, actorId, content).run();
+    return json({ success: true });
+  }
+
+  // GET /api[/admin]/support/tickets
+  if ((path === '/api/support/tickets' || path === '/api/admin/support/tickets') && method === 'GET') {
+    if (!actorId) return json([]);
+    const isAdmin = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
+    let query = 'SELECT * FROM support_tickets';
+    let params: any[] = [];
+    if (!isAdmin) {
+      query += ' WHERE user_id = ?';
+      params.push(actorId);
+    }
+    query += ' ORDER BY created_at DESC';
+    const { results } = await env.DB.prepare(query).bind(...params).all();
+    return json(results || []);
+  }
+
+  // GET /api[/admin]/installments
+  if ((path === '/api/installments' || path === '/api/admin/installments') && method === 'GET') {
+    if (!actorId) return json([]);
+    const isAdmin = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
+    let query = 'SELECT * FROM installment_plans';
+    let params: any[] = [];
+    if (!isAdmin) {
+      query += ' WHERE user_id = ?';
+      params.push(actorId);
+    }
+    const { results } = await env.DB.prepare(query).bind(...params).all();
+    return json(results || []);
+  }
+
+  // GET /api[/admin]/pool/sync-notifications
+  if ((path === '/api/pool/sync-notifications' || path === '/api/admin/pool/sync-notifications') && method === 'GET') {
+    const { results } = await env.DB.prepare('SELECT * FROM sync_notifications ORDER BY created_at DESC LIMIT 5').all();
+    return json(results || []);
+  }
+
+  // POST /api/profiles/request-verification
+  if (path === '/api/profiles/request-verification' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    await env.DB.prepare(`
+      UPDATE profiles SET 
+        verification_status = 'requested', 
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).bind(actorId).run();
+    return json({ success: true });
+  }
+
+  // ALIAS: GET /api/community/posts -> /api/pulses
+  if (path === '/api/community/posts' || path === '/api/admin/community/posts') {
+    const targetUrl = new URL(request.url);
+    targetUrl.pathname = '/api/pulses';
+    return handleRequest(new Request(targetUrl, request), env, ctx);
   }
 
   // ─── Commerce Routes ──────────────────────────────────────────────────────────
@@ -1339,8 +1472,18 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // GET /api/admin/profiles (New endpoint for the dashboard)
     if (path === '/api/admin/profiles' && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT id, handle, full_name, email, aura_tier, is_verified, created_at FROM profiles ORDER BY created_at DESC').all();
+      const { results } = await env.DB.prepare('SELECT id, handle, full_name, email, avatar_url, aura_tier, is_verified, presence_status, last_seen, created_at FROM profiles ORDER BY created_at DESC').all();
       return json(results);
+    }
+
+    // DELETE /api/admin/profiles/:id
+    if (path.startsWith('/api/admin/profiles/') && method === 'DELETE') {
+      const id = path.split('/').pop();
+      if (!id) return json({ error: 'ID required' }, 400);
+      
+      await env.DB.prepare('DELETE FROM profiles WHERE id = ?').bind(id).run();
+      // Also cleanup associated data if necessary, though D1 CASCADE usually handles it
+      return json({ success: true });
     }
 
     // POST /api/admin/sync-paystack (Stub)
@@ -1396,6 +1539,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // POST /api/presence
     if (path === '/api/presence' && method === 'POST') {
+      if (actorId) {
+        await env.DB.prepare("UPDATE profiles SET last_seen = CURRENT_TIMESTAMP, presence_status = 'online' WHERE id = ?").bind(actorId).run();
+      }
       return json({ success: true });
     }
 

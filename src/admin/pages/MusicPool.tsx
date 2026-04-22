@@ -4,19 +4,26 @@ import { useAdminApi } from '../hooks/useAdminApi';
 import { useAuth } from '@/context/AuthContext';
 import {
     Music, Search, RefreshCw, FolderOpen, Play,
-    Download, Hash, Clock, Layers, ChevronRight, X
+    Download, Hash, Clock, Layers, ChevronRight, X,
+    Users, Activity, DollarSign, UserX, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useData } from '@/context/DataContext';
+import { REMIX_WORKER_URL } from '@/utils/r2';
 
 const MusicPool: React.FC = () => {
     const { request, loading } = useAdminApi();
     const { session } = useAuth();
+    const { 
+        liveSubscriptions, adminStats, subsLoading, 
+        refreshSubscriptions, updateSubscription 
+    } = useData();
     const [tracks, setTracks] = useState<any[]>([]);
     const [folders, setFolders] = useState<string[]>([]);
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [syncing, setSyncing] = useState(false);
-    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'updates'>('tracks');
+    const [poolSubTab, setPoolSubTab] = useState<'tracks' | 'updates' | 'members'>('tracks');
     
     // Scanned Updates state
     const [isManualScanning, setIsManualScanning] = useState(false);
@@ -40,13 +47,18 @@ const MusicPool: React.FC = () => {
 
     const loadPool = async () => {
         try {
-            const data = await request('/api/admin/pool/tracks');
+            const token = session?.access_token || '';
+            const res = await fetch(`${REMIX_WORKER_URL}/api/admin/pool/tracks`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
             const trackList = Array.isArray(data) ? data : (data?.tracks || []);
             setTracks(trackList);
             const uniqueFolders = [...new Set(trackList.map((t: any) => t.collection_hub || 'Main Pool'))] as string[];
             setFolders(uniqueFolders);
         } catch {
-            toast.error('Failed to load music pool');
+            toast.error('Failed to load music pool from Remix Worker');
         }
     };
 
@@ -67,11 +79,17 @@ const MusicPool: React.FC = () => {
     const handleSync = async () => {
         setSyncing(true);
         try {
-            const res = await request('/api/admin/pool/sync', { method: 'POST' });
-            toast.success(`Pool sync complete — ${res.synced || 0} track(s) indexed`);
+            const token = session?.access_token || '';
+            const res = await fetch(`${REMIX_WORKER_URL}/api/admin/pool/sync`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Sync failed');
+            const data = await res.json();
+            toast.success(`Pool sync complete — ${data.synced || 0} track(s) indexed`);
             await loadPool();
         } catch {
-            toast.error('Pool sync failed');
+            toast.error('Pool sync failed on Remix Worker');
         } finally {
             setSyncing(false);
         }
@@ -81,8 +99,14 @@ const MusicPool: React.FC = () => {
         if (!confirm('This will wipe all track data and re-index everything from R2. Proceed?')) return;
         setSyncing(true);
         try {
-            const res = await request('/api/admin/pool/refresh', { method: 'POST' });
-            toast.success(`Full Re-index complete — ${res.count || 0} tracks indexed`);
+            const token = session?.access_token || '';
+            const res = await fetch(`${REMIX_WORKER_URL}/api/admin/pool/refresh`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Refresh failed');
+            const data = await res.json();
+            toast.success(`Full Re-index complete — ${data.count || 0} tracks indexed`);
             await loadPool();
         } catch (e: any) {
             toast.error(e.message || 'Full re-index failed');
@@ -160,6 +184,42 @@ const MusicPool: React.FC = () => {
         }
     };
 
+    const handleSyncSubscription = async (id: string, status: string, expiry: string) => {
+        try {
+            await updateSubscription(id, {
+                status: status as any,
+                expiryDate: expiry
+            });
+        } catch (e: any) {
+            console.error("Sync failed:", e);
+            throw e;
+        }
+    };
+
+    const handleRevokeSubscription = async (userEmail: string) => {
+        if (!userEmail) return;
+        try {
+            const STORAGE_WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
+            const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/revoke-access`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ email: userEmail })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Revoke failed');
+            
+            toast.success("Protocol Terminated: Access revoked for " + userEmail);
+            if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
+        } catch (e: any) {
+            console.error("Revoke failed:", e);
+            toast.error("Operation Failed: " + e.message);
+        }
+    };
+
     const filteredTracks = tracks.filter(t => {
         const matchSearch = searchTerm
             ? (t.title || t.key || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -206,6 +266,12 @@ const MusicPool: React.FC = () => {
                         className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'updates' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                         Scanned Updates
+                    </button>
+                    <button 
+                        onClick={() => setPoolSubTab('members')}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${poolSubTab === 'members' ? 'bg-brand-purple text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                        Members
                     </button>
                 </div>
             </div>
@@ -328,15 +394,16 @@ const MusicPool: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            ) : (
+            ) : poolSubTab === 'updates' ? (
                 <div className="flex flex-col xl:flex-row gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* Left: Calendar / Date Sidebar for Scanned Updates */}
+                    {/* ... Scanned Updates contents ... */}
                     <div className="xl:w-72 flex-shrink-0">
+                        {/* Sidebar */}
                         <div className="bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] p-6 sticky top-12">
                             <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2">
                                 <Clock size={14} className="text-brand-cyan" /> Scan Library
                             </h3>
-                            
+                            {/* Library tree */}
                             <div className="space-y-4">
                                 <button
                                     onClick={() => { setSelectedScanYear(null); setSelectedScanMonth(null); }}
@@ -345,7 +412,6 @@ const MusicPool: React.FC = () => {
                                     <span className="text-[10px] font-black uppercase tracking-widest">All Scans</span>
                                     <span className="text-[9px] font-black">{Math.min(scannedTracks.length, 500)}</span>
                                 </button>
-
                                 {scanYears.map(year => (
                                     <div key={year} className="space-y-1">
                                         <button
@@ -354,7 +420,6 @@ const MusicPool: React.FC = () => {
                                         >
                                             <span className="text-[10px] font-black uppercase tracking-widest">{year}</span>
                                         </button>
-                                        
                                         {(selectedScanYear === year || !selectedScanYear) && (
                                             <div className="grid grid-cols-2 gap-1 pl-4">
                                                 {MONTH_NAMES.map(month => (
@@ -371,7 +436,6 @@ const MusicPool: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
-
                             <button
                                 onClick={handleManualScan}
                                 disabled={isManualScanning}
@@ -381,8 +445,7 @@ const MusicPool: React.FC = () => {
                             </button>
                         </div>
                     </div>
-
-                    {/* Right: Signal Intelligence Queue */}
+                    {/* Signal Intelligence Queue */}
                     <div className="flex-1 space-y-6">
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0B0B0F] border border-white/5 rounded-[2.5rem] p-6 shadow-2xl">
                             <div>
@@ -390,43 +453,16 @@ const MusicPool: React.FC = () => {
                                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">{scannedTracks.length} tracks detected</p>
                             </div>
                             <div className="flex gap-2">
-                                <button 
-                                    onClick={handleCheckDuplicates}
-                                    className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
-                                >
-                                    Check Duplicates
-                                </button>
-                                {selectedScanIds.size > 0 && (
-                                    <button 
-                                        onClick={() => handleApprove(Array.from(selectedScanIds))}
-                                        className="px-6 py-3 bg-brand-purple text-white text-[10px] font-black rounded-xl hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-brand-purple/20"
-                                    >
-                                        Approve Selected ({selectedScanIds.size})
-                                    </button>
-                                )}
-                                {selectedScanYear && selectedScanMonth && (
-                                    <button 
-                                        onClick={() => handleApprove([], { year: selectedScanYear, month: selectedScanMonth })}
-                                        className="px-6 py-3 bg-brand-cyan text-black text-[10px] font-black rounded-xl hover:scale-105 transition-all uppercase tracking-widest"
-                                    >
-                                        Approve All in {selectedScanMonth.slice(0, 3)}
-                                    </button>
-                                )}
+                                <button onClick={handleCheckDuplicates} className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2">Check Duplicates</button>
+                                {selectedScanIds.size > 0 && <button onClick={() => handleApprove(Array.from(selectedScanIds))} className="px-6 py-3 bg-brand-purple text-white text-[10px] font-black rounded-xl hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-brand-purple/20">Approve Selected ({selectedScanIds.size})</button>}
+                                {selectedScanYear && selectedScanMonth && <button onClick={() => handleApprove([], { year: selectedScanYear, month: selectedScanMonth })} className="px-6 py-3 bg-brand-cyan text-black text-[10px] font-black rounded-xl hover:scale-105 transition-all uppercase tracking-widest">Approve All in {selectedScanMonth.slice(0, 3)}</button>}
                             </div>
                         </div>
-
                         <div className="bg-[#0B0B0F] border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
                             <table className="w-full text-left">
                                 <thead className="bg-white/[0.01]">
                                     <tr>
-                                        <th className="px-8 py-6 w-12">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={scannedTracks.length > 0 && selectedScanIds.size === scannedTracks.length}
-                                                onChange={(e) => setSelectedScanIds(e.target.checked ? new Set(scannedTracks.map(t => t.id)) : new Set())}
-                                                className="w-4 h-4 rounded-md border-white/10 bg-white/5 checked:bg-brand-purple transition-colors cursor-pointer"
-                                            />
-                                        </th>
+                                        <th className="px-8 py-6 w-12"><input type="checkbox" checked={scannedTracks.length > 0 && selectedScanIds.size === scannedTracks.length} onChange={(e) => setSelectedScanIds(e.target.checked ? new Set(scannedTracks.map(t => t.id)) : new Set())} className="w-4 h-4 rounded-md border-white/10 bg-white/5 checked:bg-brand-purple transition-colors cursor-pointer" /></th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500 underline decoration-brand-purple decoration-2 underline-offset-8">Track Data</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Metadata</th>
                                         <th className="px-8 py-6 text-right">Actions</th>
@@ -437,57 +473,10 @@ const MusicPool: React.FC = () => {
                                         const isDup = duplicateIds.has(track.id);
                                         return (
                                             <tr key={track.id} className={`hover:bg-white/[0.02] transition-colors group ${isDup ? 'opacity-50' : ''}`}>
-                                                <td className="px-8 py-6">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={selectedScanIds.has(track.id)}
-                                                        onChange={() => {
-                                                            const next = new Set(selectedScanIds);
-                                                            next.has(track.id) ? next.delete(track.id) : next.add(track.id);
-                                                            setSelectedScanIds(next);
-                                                        }}
-                                                        className="w-4 h-4 rounded-md border-white/10 bg-white/5 checked:bg-brand-purple transition-colors cursor-pointer"
-                                                    />
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div>
-                                                            <div className="font-black text-white group-hover:text-brand-purple transition-colors text-sm tracking-tight">{track.title}</div>
-                                                            <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{track.artist}</div>
-                                                        </div>
-                                                        {isDup && (
-                                                            <span className="px-2 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-black uppercase rounded-md border border-red-500/20">Duplicate</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex gap-2">
-                                                        <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400">{track.release_month} {track.release_year}</span>
-                                                        <span className="px-2 py-1 bg-brand-purple/10 border border-brand-purple/20 rounded-lg text-[9px] font-black uppercase tracking-widest text-brand-purple">{track.genre || 'Pool'}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button 
-                                                            onClick={() => setEditingTrack(track)}
-                                                            className="px-3 py-1.5 bg-white/5 text-gray-400 text-[9px] font-black uppercase tracking-widest rounded-lg hover:text-white transition-all"
-                                                        >
-                                                            Edit
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleApprove([track.id])}
-                                                            className="px-3 py-1.5 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-brand-purple hover:text-white transition-all"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleReject(track.id)}
-                                                            className="px-3 py-1.5 bg-white/5 text-gray-600 text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-all"
-                                                        >
-                                                            Dismiss
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                                <td className="px-8 py-6"><input type="checkbox" checked={selectedScanIds.has(track.id)} onChange={() => { const next = new Set(selectedScanIds); next.has(track.id) ? next.delete(track.id) : next.add(track.id); setSelectedScanIds(next); }} className="w-4 h-4 rounded-md border-white/10 bg-white/5 checked:bg-brand-purple transition-colors cursor-pointer" /></td>
+                                                <td className="px-8 py-6"><div className="flex items-center gap-3"><div><div className="font-black text-white group-hover:text-brand-purple transition-colors text-sm tracking-tight">{track.title}</div><div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{track.artist}</div></div>{isDup && <span className="px-2 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-black uppercase rounded-md border border-red-500/20">Duplicate</span>}</div></td>
+                                                <td className="px-8 py-6"><div className="flex gap-2"><span className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400">{track.release_month} {track.release_year}</span><span className="px-2 py-1 bg-brand-purple/10 border border-brand-purple/20 rounded-lg text-[9px] font-black uppercase tracking-widest text-brand-purple">{track.genre || 'Pool'}</span></div></td>
+                                                <td className="px-8 py-6 text-right"><div className="flex justify-end gap-2"><button onClick={() => setEditingTrack(track)} className="px-3 py-1.5 bg-white/5 text-gray-400 text-[9px] font-black uppercase tracking-widest rounded-lg hover:text-white transition-all">Edit</button><button onClick={() => handleApprove([track.id])} className="px-3 py-1.5 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-brand-purple hover:text-white transition-all">Approve</button><button onClick={() => handleReject(track.id)} className="px-3 py-1.5 bg-white/5 text-gray-600 text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-all">Dismiss</button></div></td>
                                             </tr>
                                         );
                                     })}
@@ -496,7 +485,117 @@ const MusicPool: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <StatCard label="Active Wave" value={adminStats?.active_subs || 0} icon={Users} color="brand-cyan" trend="Active" trendUp={true} />
+                        <StatCard label="Monthly Volume" value={adminStats?.monthly_sales_count || 0} icon={Activity} color="brand-purple" trend="MTD" trendUp={true} />
+                        <StatCard label="Revenue Rate" value="98.2%" icon={Activity} color="brand-purple" trend="STABLE" trendUp={true} subtext="System health" />
+                        <StatCard label="Recurrent" value={`KES ${(adminStats?.monthly_sales_amt || 0).toLocaleString()}`} icon={DollarSign} color="brand-purple" trend="LIVE" trendUp={true} subtext="Last 30 days" />
+                    </div>
+
+                    <div className="bg-[#0B0B0F] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left whitespace-nowrap">
+                                <thead className="bg-[#0B0B0F] text-gray-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                                    <tr>
+                                        <th className="px-8 py-6">Identity</th>
+                                        <th className="px-8 py-6">Access Tier</th>
+                                        <th className="px-8 py-6">Investment</th>
+                                        <th className="px-8 py-6">Expiration</th>
+                                        <th className="px-8 py-6">Signal Status</th>
+                                        <th className="px-8 py-6 text-right">Protocol</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/[0.03] text-sm">
+                                    {subsLoading ? (
+                                        <tr><td colSpan={6} className="px-8 py-20 text-center text-gray-500 font-black uppercase tracking-widest animate-pulse">Scanning Registry...</td></tr>
+                                    ) : (liveSubscriptions || []).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-8 py-20 text-center">
+                                                <div className="flex flex-col items-center gap-4 opacity-50">
+                                                    <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center">
+                                                        <Users size={40} className="text-gray-500" />
+                                                    </div>
+                                                    <p className="text-gray-500 font-black tracking-widest uppercase text-xs">No Signal Detected</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        (liveSubscriptions || []).map((sub: any) => {
+                                            const expiry = sub.expiryDate ? new Date(sub.expiryDate) : null;
+                                            const isExpired = !expiry || new Date() > expiry;
+                                            const now = new Date();
+                                            const diffTime = expiry ? expiry.getTime() - now.getTime() : 0;
+                                            const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+                                            return (
+                                                <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                    <td className="px-8 py-6">
+                                                        <div className="font-black text-white group-hover:text-brand-cyan transition-colors">{sub.userName}</div>
+                                                        <div className="text-[11px] text-gray-500 font-medium">{sub.userEmail}</div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{sub.planId}</span>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <div className="text-white font-black">KES {sub.amount?.toLocaleString() || '0'}</div>
+                                                    </td>
+                                                    <td className="px-8 py-6 font-black font-display text-xs tracking-wider text-gray-400">
+                                                        {expiry && expiry.getTime() > 0 ? expiry.toLocaleDateString() : 'N/A'}
+                                                        {expiry && !isExpired && (
+                                                            <div className="text-[9px] text-brand-cyan mt-1 uppercase tracking-widest">{diffDays} days left</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border shadow-sm ${!isExpired && sub.status === 'active'
+                                                            ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20'
+                                                            : 'bg-red-500/5 text-red-500 border-red-500/20'
+                                                            }`}>
+                                                            {!isExpired && sub.status === 'active' ? 'Signal Locked' : 'Frequency Lost'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex justify-end gap-3">
+                                                            {(sub.status === 'active' || sub.status === 'past_due') && (
+                                                                <>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            toast.promise(handleSyncSubscription(sub.id, sub.status, sub.expiryDate), {
+                                                                                loading: 'Resynchronizing signal...',
+                                                                                success: 'Signal restored',
+                                                                                error: 'Sync failed'
+                                                                            });
+                                                                        }} 
+                                                                        className="p-3 text-brand-cyan hover:bg-brand-cyan/5 rounded-[1.25rem] border border-white/5 transition-all flex items-center gap-2 group-hover:scale-110"
+                                                                        title="Sync with D1"
+                                                                    >
+                                                                        <RefreshCw size={18} />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            if (confirm(`Revoke access for ${sub.userEmail}?`)) {
+                                                                                handleRevokeSubscription(sub.userEmail);
+                                                                            }
+                                                                        }} 
+                                                                        className="p-3 text-red-500 hover:bg-red-500/10 rounded-[1.25rem] border border-white/5 transition-all"
+                                                                        title="Terminate Protocol"
+                                                                    >
+                                                                        <UserX size={18} />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
             {/* Editing Modal */}
             {editingTrack && (
@@ -538,5 +637,37 @@ const MusicPool: React.FC = () => {
         </AdminLayout>
     );
 };
+
+const StatCard: React.FC<{
+    label: string;
+    value: string | number;
+    icon: any;
+    color?: string;
+    trend?: string;
+    trendUp?: boolean;
+    subtext?: string;
+}> = ({ label, value, icon: Icon, color = 'brand-purple', trend, trendUp = true, subtext }) => (
+    <div className="bg-[#0B0B0F] p-8 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group transition-all duration-500 hover:-translate-y-2 hover:border-white/10">
+        <div className={`absolute top-0 right-0 w-32 h-32 bg-${color.replace('text-', '')}/10 blur-[80px] rounded-full -mr-16 -mt-16 group-hover:bg-${color.replace('text-', '')}/20 transition-all duration-700`} />
+        <div className="flex justify-between items-start mb-6 relative z-10">
+            <div className={`w-14 h-14 rounded-2xl bg-${color.replace('text-', '')}/10 border border-${color.replace('text-', '')}/20 flex items-center justify-center text-${color}/100 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+                <Icon size={28} className={`text-${color.replace('text-', '')}`} />
+            </div>
+            {trend && (
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${trendUp ? 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                    {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {trend}
+                </div>
+            )}
+        </div>
+        <div className="relative z-10">
+            <p className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-1 group-hover:text-gray-400 transition-colors">{label}</p>
+            <div className="flex items-baseline gap-2">
+                <h4 className="text-4xl font-black text-white tracking-tighter group-hover:text-shadow-glow transition-all">{value}</h4>
+            </div>
+            {subtext && <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-2 opacity-60 group-hover:opacity-100 transition-opacity">{subtext}</p>}
+        </div>
+    </div>
+);
 
 export default MusicPool;

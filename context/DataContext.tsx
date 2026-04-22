@@ -4,7 +4,7 @@ import { Product, Mixtape, Booking, Track, SessionType, SiteConfig, Video, Teleg
 import { PRODUCTS, FEATURED_MIXTAPES, POOL_TRACKS, YOUTUBE_VIDEOS, INITIAL_STUDIO_EQUIPMENT, INITIAL_SHIPPING_ZONES, INITIAL_GENRES } from '../constants';
 import { useAuth } from './AuthContext';
 import { useR2Collection } from '../hooks/useR2Collection';
-import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader as getR2AuthHeader, STORAGE_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
+import { fetchFromR2, saveToR2, addR2Item, updateR2Item, removeR2Item, addBatchR2Items, removeBatchR2Items, saveToD1, getAuthHeader as getR2AuthHeader, STORAGE_WORKER_URL, REMIX_WORKER_URL, syncPoolTrackToD1, deletePoolTrackFromD1, syncGenresToD1 } from '../utils/r2';
 import { supabase } from '../utils/supabase';
 import { 
   withTimeout, cleanLabel, getYoutubeId, safeJsonParse, 
@@ -691,7 +691,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (filters.camelotKey && filters.camelotKey !== 'All Keys') params.append('camelotKey', filters.camelotKey);
 
       const qs = params.toString();
-      const url = `${STORAGE_WORKER_URL}/api/pool/tracks${qs ? '?' + qs : ''}`;
+      const url = `${REMIX_WORKER_URL}/api/pool/tracks${qs ? '?' + qs : ''}`;
 
       const response = await fetch(url, {
         headers: authHeader,
