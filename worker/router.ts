@@ -204,9 +204,12 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         if (conflict) return json({ error: 'Handle already taken' }, 409);
       }
 
+      // email comes from the decoded JWT — required by the NOT NULL constraint
+      const emailForInsert = jwtEmail || `${actorId}@unknown.local`;
+
       await env.DB.prepare(`
-        INSERT INTO profiles (id, full_name, handle, bio, location, avatar_url, banner_url, aura_tier, aura_points, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'standard', 0, CURRENT_TIMESTAMP)
+        INSERT INTO profiles (id, email, full_name, handle, bio, location, avatar_url, banner_url, aura_tier, aura_points, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'standard', 0, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
           full_name   = COALESCE(EXCLUDED.full_name, full_name),
           handle      = COALESCE(EXCLUDED.handle, handle),
@@ -217,6 +220,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           updated_at  = CURRENT_TIMESTAMP
       `).bind(
         actorId,
+        emailForInsert,
         display_name || null,
         username ? username.toLowerCase().replace(/^@/, '') : null,
         bio || null,

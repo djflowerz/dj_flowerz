@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star, FileText, Heart } from 'lucide-react';
+import { User as UserIcon, Settings, LogOut, CreditCard, Download, Shield, Clock, Edit2, X, Save, AlertOctagon, Mail, Trash2, Users, Copy, Gift, Share2, DollarSign, TrendingUp, UserPlus, CheckCircle, Package, ShieldCheck, Zap, Star, FileText, Heart, Camera } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Link, Navigate } from 'react-router-dom';
@@ -13,6 +13,7 @@ import ReauthModal from '../components/ReauthModal';
 import SubscriptionTimer from '../components/SubscriptionTimer';
 import UserInstallments from '../components/user/UserInstallments';
 import { toast } from 'sonner';
+import { uploadFileToR2 } from '../utils/r2';
 
 const generateOrderPDF = (order: any) => {
   const doc = new jsPDF();
@@ -140,6 +141,7 @@ const Account: React.FC = () => {
   const [editBio, setEditBio] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loyaltyHistory, setLoyaltyHistory] = useState<any[]>([]);
   const [loadingLoyalty, setLoadingLoyalty] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -421,42 +423,106 @@ const Account: React.FC = () => {
                           />
                         </div>
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Location</label>
                         <input
                           id="editLocation"
                           name="editLocation"
                           type="text"
+                          list="location-suggestions"
                           value={editLocation}
                           onChange={(e) => setEditLocation(e.target.value)}
                           placeholder="e.g. Nairobi, Kenya"
                           className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
                         />
+                        <datalist id="location-suggestions">
+                          <option value="Nairobi, Kenya" />
+                          <option value="Mombasa, Kenya" />
+                          <option value="Kisumu, Kenya" />
+                          <option value="Nakuru, Kenya" />
+                          <option value="Eldoret, Kenya" />
+                          <option value="Thika, Kenya" />
+                          <option value="Machakos, Kenya" />
+                          <option value="Malindi, Kenya" />
+                          <option value="Nyeri, Kenya" />
+                          <option value="Meru, Kenya" />
+                          <option value="Kampala, Uganda" />
+                          <option value="Dar es Salaam, Tanzania" />
+                          <option value="Kigali, Rwanda" />
+                          <option value="Addis Ababa, Ethiopia" />
+                          <option value="Lagos, Nigeria" />
+                          <option value="Accra, Ghana" />
+                          <option value="Johannesburg, South Africa" />
+                          <option value="London, UK" />
+                          <option value="Dubai, UAE" />
+                          <option value="Remote / Online" />
+                        </datalist>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Bio / Artist Description</label>
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">About Me</label>
                         <textarea
                           id="editBio"
                           name="editBio"
                           rows={3}
                           value={editBio}
                           onChange={(e) => setEditBio(e.target.value)}
-                          placeholder="Tell the community about your sound..."
+                          placeholder="Tell the community about yourself..."
                           className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all resize-none"
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Profile Picture URL (Optional)</label>
-                        <input
-                          id="editAvatar"
-                          name="editAvatar"
-                          type="url"
-                          value={editAvatar}
-                          onChange={(e) => setEditAvatar(e.target.value)}
-                          placeholder="https://example.com/avatar.jpg"
-                          className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Enter a URL to your profile picture</p>
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-2 block">Profile Picture</label>
+                        <div className="flex items-center gap-4">
+                          <div className="relative group">
+                            <img
+                              src={editAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || 'U')}&background=7C3AED&color=fff`}
+                              className="w-20 h-20 rounded-full object-cover border-2 border-white/10"
+                              alt="Preview"
+                            />
+                            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Camera size={20} className="text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 space-y-2">
+                            <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-bold cursor-pointer transition-all ${
+                              avatarUploading
+                                ? 'border-white/5 text-gray-600 cursor-not-allowed'
+                                : 'border-brand-purple/30 text-brand-purple hover:bg-brand-purple/10'
+                            }`}>
+                              <Camera size={16} />
+                              {avatarUploading ? 'Uploading...' : 'Upload Photo'}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={avatarUploading}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  if (file.size > 5 * 1024 * 1024) {
+                                    toast.error('Image must be under 5MB');
+                                    return;
+                                  }
+                                  setAvatarUploading(true);
+                                  try {
+                                    const result = await uploadFileToR2(file, 'avatars');
+                                    if (result?.url) {
+                                      setEditAvatar(result.url);
+                                      toast.success('Photo uploaded!');
+                                    } else {
+                                      toast.error('Upload failed. Try again.');
+                                    }
+                                  } catch {
+                                    toast.error('Upload failed. Try again.');
+                                  } finally {
+                                    setAvatarUploading(false);
+                                  }
+                                }}
+                              />
+                            </label>
+                            <p className="text-xs text-gray-500">JPG, PNG or GIF · Max 5MB</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
