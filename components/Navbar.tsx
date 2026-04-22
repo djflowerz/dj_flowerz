@@ -69,7 +69,7 @@ const Navbar: React.FC = () => {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 z-50 group">
               <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center p-1 border border-white/10 overflow-hidden shadow-[0_0_20px_rgba(163,73,245,0.2)]">
-                <img src="/logo.png" alt="DJ FLOWERZ" className="w-full h-full object-contain" />
+                <img src="/logo.png?v=2" alt="DJ FLOWERZ" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col -space-y-1">
                 <span className="text-xl font-bold tracking-tighter text-white">DJ</span>
@@ -201,7 +201,7 @@ const Navbar: React.FC = () => {
               ) : (
                 <Link to="/login" className="hidden sm:block">
                   <button className="px-6 py-2 rounded-full text-xs font-bold text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all uppercase tracking-widest">
-                    Enter
+                    Login
                   </button>
                 </Link>
               )}

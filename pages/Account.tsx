@@ -140,6 +140,8 @@ const Account: React.FC = () => {
   const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editLocation, setEditLocation] = useState('');
+  const [editPrimaryRole, setEditPrimaryRole] = useState('');
+  const [editSocialLinks, setEditSocialLinks] = useState({ instagram: '', twitter: '', soundcloud: '', mixcloud: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [loyaltyHistory, setLoyaltyHistory] = useState<any[]>([]);
@@ -219,6 +221,12 @@ const Account: React.FC = () => {
       setEditUsername(user.username || '');
       setEditBio(user.bio || '');
       setEditLocation(user.location || '');
+      setEditPrimaryRole(user.primaryRole || user.primary_role || 'Collector');
+      
+      const socials = typeof user.socialLinks === 'string' 
+        ? JSON.parse(user.socialLinks) 
+        : (user.socialLinks || user.social_links || {});
+      setEditSocialLinks({ instagram: '', twitter: '', soundcloud: '', mixcloud: '', ...socials });
 
       // Get Downloads (Orders) from context
       if (orders.length > 0) {
@@ -294,7 +302,9 @@ const Account: React.FC = () => {
           display_name: editName,
           bio: editBio,
           location: editLocation,
-          avatar_url: editAvatar || user?.avatarUrl || ''
+          avatar_url: editAvatar || user?.avatarUrl || '',
+          primary_role: editPrimaryRole,
+          social_links: editSocialLinks
         })
       });
 
@@ -469,6 +479,61 @@ const Account: React.FC = () => {
                           placeholder="Tell the community about yourself..."
                           className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all resize-none"
                         />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Primary Role</label>
+                        <select
+                          value={editPrimaryRole}
+                          onChange={(e) => setEditPrimaryRole(e.target.value)}
+                          className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                        >
+                          <option value="Enthusiast">Enthusiast</option>
+                          <option value="Creator">Creator</option>
+                          <option value="Operator">Operator</option>
+                          <option value="Collector">Collector</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Instagram URL</label>
+                          <input 
+                            type="url" 
+                            placeholder="https://instagram.com/..." 
+                            value={editSocialLinks.instagram} 
+                            onChange={(e) => setEditSocialLinks({...editSocialLinks, instagram: e.target.value})}
+                            className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">X (Twitter) URL</label>
+                          <input 
+                            type="url" 
+                            placeholder="https://x.com/..." 
+                            value={editSocialLinks.twitter} 
+                            onChange={(e) => setEditSocialLinks({...editSocialLinks, twitter: e.target.value})}
+                            className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">SoundCloud URL</label>
+                          <input 
+                            type="url" 
+                            placeholder="https://soundcloud.com/..." 
+                            value={editSocialLinks.soundcloud} 
+                            onChange={(e) => setEditSocialLinks({...editSocialLinks, soundcloud: e.target.value})}
+                            className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-xs uppercase font-bold mb-1 block">Mixcloud URL</label>
+                          <input 
+                            type="url" 
+                            placeholder="https://mixcloud.com/..." 
+                            value={editSocialLinks.mixcloud} 
+                            onChange={(e) => setEditSocialLinks({...editSocialLinks, mixcloud: e.target.value})}
+                            className="w-full bg-[#0B0B0F] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-all"
+                          />
+                        </div>
                       </div>
                       <div className="md:col-span-2">
                         <label className="text-gray-400 text-xs uppercase font-bold mb-2 block">Profile Picture</label>

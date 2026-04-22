@@ -780,6 +780,75 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return handleRequest(new Request(targetUrl, request), env, ctx);
   }
 
+  // ─── Scraped Tracks (Music Pool Intake) ───────────────────────────────────────
+  
+  // GET /api/admin/scraped-tracks
+  if (path === '/api/admin/scraped-tracks' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    const { results } = await env.DB.prepare("SELECT * FROM scraped_tracks WHERE status != 'approved' ORDER BY scraped_at DESC").all();
+    return json(results || []);
+  }
+
+  // POST /api/admin/scraped-tracks/scan
+  if (path === '/api/admin/scraped-tracks/scan' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    // Stub
+    return json({ success: true, new_tracks: 0 });
+  }
+
+  // POST /api/admin/scraped-tracks/check-duplicates
+  if (path === '/api/admin/scraped-tracks/check-duplicates' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    return json({ success: true, duplicates: [] });
+  }
+
+  // POST /api/admin/scraped-tracks/approve
+  if (path === '/api/admin/scraped-tracks/approve' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const { ids } = await request.json() as any;
+      if (!ids || !ids.length) return json({ error: 'No IDs provided' }, 400);
+
+      const stmt = env.DB.prepare("UPDATE scraped_tracks SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?");
+      const batch = ids.map((id: string) => stmt.bind(id));
+      await env.DB.batch(batch);
+      
+      return json({ success: true, approved: ids.length });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // PATCH /api/admin/scraped-tracks/:id
+  const scrapedTracksPatchMatch = path.match(/^\/api\/admin\/scraped-tracks\/([^/]+)$/);
+  if (scrapedTracksPatchMatch && method === 'PATCH') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    const id = scrapedTracksPatchMatch[1];
+    
+    try {
+      const data = await request.json() as any;
+      const fields = ['title', 'artist', 'genre', 'bpm', 'key_signature', 'duration', 'status'].filter(k => data[k] !== undefined);
+      if (!fields.length) return json({ success: true });
+
+      const setClauses = fields.map(k => `${k} = ?`).join(', ');
+      const values = fields.map(k => data[k]);
+      values.push(id);
+
+      await env.DB.prepare(`UPDATE scraped_tracks SET ${setClauses} WHERE id = ?`).bind(...values).run();
+      return json({ success: true });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // DELETE /api/admin/scraped-tracks/:id
+  if (scrapedTracksPatchMatch && method === 'DELETE') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    const id = scrapedTracksPatchMatch[1];
+    await env.DB.prepare('DELETE FROM scraped_tracks WHERE id = ?').bind(id).run();
+    return json({ success: true });
+  }
+
   // ─── Commerce Routes ──────────────────────────────────────────────────────────
 
   if ((path === '/api/products' || path === '/api/v1/products') && method === 'GET') {

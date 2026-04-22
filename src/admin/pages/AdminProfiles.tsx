@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
-import { Users, ShieldCheck, CheckCircle2, Search, Filter, Trash2, ExternalLink, Activity, Globe, X } from 'lucide-react';
+import { Users, ShieldCheck, CheckCircle2, Search, Filter, Trash2, ExternalLink, Activity, Globe, X, Zap } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { useAuth } from '@/context/AuthContext';
 import { StatCard } from '../components/StatCard';
@@ -17,6 +17,7 @@ interface Profile {
     presence_status?: string;
     last_seen?: string;
     created_at: string;
+    aura_points?: number;
 }
 
 const AdminProfiles: React.FC = () => {
@@ -63,7 +64,7 @@ const AdminProfiles: React.FC = () => {
                 (p.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                 (p.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
             
-            const matchesTab = activeTab === 'registry' || (p.handle || p.avatar_url);
+            const matchesTab = activeTab === 'registry' ? true : !!p.handle;
             
             return matchesSearch && matchesTab;
         });
@@ -207,13 +208,19 @@ const AdminProfiles: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${
-                                                p.aura_tier === 'legendary' ? 'bg-brand-yellow/10 border-brand-yellow/20 text-brand-yellow' :
-                                                p.aura_tier === 'elite' ? 'bg-brand-purple/10 border-brand-purple/20 text-brand-purple' :
-                                                'bg-white/5 border-white/5 text-gray-500'
-                                            }`}>
-                                                {p.aura_tier || 'standard'}
-                                            </span>
+                                            <div className="flex flex-col gap-2">
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm w-fit ${
+                                                    p.aura_tier === 'legendary' ? 'bg-brand-yellow/10 border-brand-yellow/20 text-brand-yellow' :
+                                                    p.aura_tier === 'elite' ? 'bg-brand-purple/10 border-brand-purple/20 text-brand-purple' :
+                                                    'bg-white/5 border-white/5 text-gray-500'
+                                                }`}>
+                                                    {p.aura_tier || 'standard'}
+                                                </span>
+                                                <div className="flex items-center gap-1 text-gray-400">
+                                                    <Zap size={12} className="text-brand-purple fill-brand-purple/20" />
+                                                    <span className="text-[10px] font-bold">{p.aura_points || 0} pts</span>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="px-8 py-6">
                                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">{new Date(p.created_at).toLocaleDateString()}</p>

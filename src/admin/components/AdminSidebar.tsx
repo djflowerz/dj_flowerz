@@ -18,6 +18,7 @@ const navItems = [
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
     { icon: Music, label: 'Music Pool', path: '/admin/pool' },
     { icon: Users, label: 'Profiles', path: '/admin/profiles' },
+    { icon: Crown, label: 'Subscribers', path: '/admin/subscriptions' },
     { icon: ShieldAlert, label: 'Command Centre', path: '/admin/command-centre' },
     { icon: ShieldCheck, label: 'Trust Portal', path: '/admin/trust-portal' },
     { icon: Crown, label: 'Governance', path: '/admin/governance' },
