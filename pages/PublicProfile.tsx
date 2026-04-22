@@ -76,7 +76,7 @@ const Avatar = ({ src, name, size = 20, className = "" }: { src?: string; name?:
   const fb = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
   return (
     <img src={src || fb} onError={e => { (e.target as HTMLImageElement).src = fb; }}
-      className={`rounded-full object-cover border-4 border-[#0B0B0F] ${className}`} style={{ width: size === 24 ? '96px' : '80px', height: size === 24 ? '96px' : '80px' }} alt={name} />
+      className={`rounded-full object-cover border-4 border-[#0B0B0F] shadow-2xl ${className}`} style={{ width: size === 24 ? '128px' : '96px', height: size === 24 ? '128px' : '96px' }} alt={name} />
   );
 };
 
@@ -259,10 +259,11 @@ export default function PublicProfile() {
       </div>
 
       {/* Banner */}
-      <div className="h-48 md:h-64 w-full relative group overflow-hidden bg-gradient-to-r from-brand-purple/20 via-[#0B0B0F] to-brand-cyan/20">
+      <div className="h-48 md:h-72 w-full relative group overflow-hidden bg-gradient-to-r from-brand-purple/20 via-[#0B0B0F] to-brand-cyan/20">
         {(profile.banner_url || editData.banner_url) && (
-          <img src={profile.banner_url || editData.banner_url} className="w-full h-full object-cover" alt="Banner" />
+          <img src={profile.banner_url || editData.banner_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt="Banner" />
         )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0B0B0F]/60" />
       </div>
 
       {/* Profile Section */}
@@ -401,61 +402,76 @@ export default function PublicProfile() {
               <div className="p-6 border-b border-white/5 flex items-center justify-between sticky top-0 bg-[#0B0B0F] z-10">
                 <div className="flex items-center gap-4">
                     <button onClick={() => setIsEditModalOpen(false)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><X size={20} /></button>
-                    <h2 className="text-xl font-black">Edit Profile</h2>
+                    <h2 className="text-xl font-black">Refine Identity</h2>
                 </div>
-                <button onClick={handleSaveProfile} className="px-6 py-2 bg-white text-black rounded-full font-black text-sm hover:bg-gray-200">Save</button>
+                <button onClick={handleSaveProfile} className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 transition-all">Update</button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-0 scrollbar-hide py-4">
                 {/* Banner Edit */}
-                <div className="relative h-44 bg-white/5 group mb-12">
+                <div className="relative h-44 bg-white/5 group mb-16">
                    {editData.banner_url && <img src={editData.banner_url} className={`w-full h-full object-cover ${uploading === 'banner' ? 'opacity-30' : ''}`} />}
-                   <button 
-                     onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.onchange = (e:any) => handleMediaUpload('banner', e.target.files[0]); input.click(); }}
-                     className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button 
+                        onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.onchange = (e:any) => handleMediaUpload('banner', e.target.files[0]); input.click(); }}
+                        className="p-4 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-all"
                     >
-                        <Camera size={32} className="text-white bg-black/40 p-3 rounded-full" />
-                   </button>
+                        <Camera size={24} />
+                    </button>
+                   </div>
+                   
                    {/* Avatar Edit Overlay */}
-                   <div className="absolute -bottom-10 left-6 relative">
-                      <Avatar src={editData.avatar_url} name={editData.full_name} size={24} className={uploading === 'avatar' ? 'opacity-30' : ''} />
-                      <button 
-                         onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.onchange = (e:any) => handleMediaUpload('avatar', e.target.files[0]); input.click(); }}
-                         className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20 opacity-0 hover:opacity-100 transition-opacity translate-y-[-16px]"
-                       >
-                           <Camera size={24} className="text-white bg-black/40 p-2 rounded-full" />
-                      </button>
+                   <div className="absolute -bottom-12 left-6">
+                      <div className="relative group/avatar">
+                        <Avatar src={editData.avatar_url} name={editData.full_name} size={24} className={`${uploading === 'avatar' ? 'opacity-30' : ''} ring-4 ring-[#0B0B0F] shadow-2xl`} />
+                        <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+                            <button 
+                                onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.onchange = (e:any) => handleMediaUpload('avatar', e.target.files[0]); input.click(); }}
+                                className="p-3 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-all"
+                            >
+                                <Camera size={20} />
+                            </button>
+                        </div>
+                      </div>
                    </div>
                 </div>
 
                 <div className="px-6 space-y-6 pt-4 pb-12">
                    <div>
-                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block">Name</label>
-                     <input value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="w-full bg-transparent border border-white/10 rounded-xl p-4 focus:border-brand-purple outline-none transition-all" />
+                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Display Name</label>
+                     <input placeholder="Global ID" value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
                    </div>
                    <div>
-                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block">Bio</label>
-                     <textarea value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} className="w-full bg-transparent border border-white/10 rounded-xl p-4 min-h-[100px] focus:border-brand-purple outline-none transition-all resize-none" />
+                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Biological Description</label>
+                     <textarea placeholder="Tell your signal story..." value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 min-h-[100px] focus:border-brand-purple outline-none transition-all resize-none" />
                    </div>
                    <div>
-                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block">Location</label>
-                     <input value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} className="w-full bg-transparent border border-white/10 rounded-xl p-4 focus:border-brand-purple outline-none transition-all" />
+                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Geographical Sector</label>
+                     <input placeholder="e.g. Sector-7, Nairobi" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
                    </div>
                    
-                   <div className="pt-4 border-t border-white/5">
-                      <h3 className="font-black text-gray-400 text-sm mb-4">SOCIAL CONNECT</h3>
+                   <div className="pt-6 border-t border-white/5">
+                      <h3 className="font-black text-gray-400 text-xs uppercase tracking-[0.2em] mb-6">Social Integration</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {['Instagram', 'TikTok', 'Facebook', 'Twitter', 'Website'].map(s => (
-                           <div key={s}>
-                              <label className="text-[10px] uppercase font-black text-gray-600 mb-2 block">{s}</label>
+                        {[
+                            { name: 'Instagram', icon: <Instagram size={16} /> },
+                            { name: 'TikTok', icon: <Globe size={16} /> },
+                            { name: 'Facebook', icon: <Facebook size={16} /> },
+                            { name: 'Twitter', icon: <ExternalLink size={16} /> },
+                            { name: 'Website', icon: <Globe size={16} /> }
+                        ].map(s => (
+                           <div key={s.name}>
+                              <label className="text-[10px] uppercase font-black text-gray-600 mb-2 block">{s.name}</label>
                               <div className="relative">
                                  <input 
-                                   value={editData.social_links?.[s.toLowerCase()] || ''} 
-                                   onChange={e => setEditData({...editData, social_links: {...editData.social_links, [s.toLowerCase()]: e.target.value}})}
-                                   placeholder={`https://${s.toLowerCase()}.com/you`}
-                                   className="w-full bg-black/20 border border-white/5 rounded-xl p-3 pl-10 text-sm focus:border-brand-cyan outline-none transition-all" 
+                                   value={editData.social_links?.[s.name.toLowerCase()] || ''} 
+                                   onChange={e => setEditData({...editData, social_links: {...editData.social_links, [s.name.toLowerCase()]: e.target.value}})}
+                                   placeholder={`@username`}
+                                   className="w-full bg-white/5 border border-white/5 rounded-xl p-3 pl-10 text-sm focus:border-brand-cyan outline-none transition-all" 
                                  />
-                                 <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600">
+                                    {s.icon}
+                                 </div>
                               </div>
                            </div>
                         ))}

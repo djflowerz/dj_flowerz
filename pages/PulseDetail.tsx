@@ -251,6 +251,34 @@ export default function PulseDetail() {
                 {pulse.content}
             </div>
 
+            {/* Media Rendering */}
+            {parseJSON(pulse.media_urls, []).length > 0 && (
+              <div className={`mt-4 grid gap-2 ${parseJSON(pulse.media_urls).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {parseJSON(pulse.media_urls).map((url: string, i: number) => (
+                  <div key={url} className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                    <img src={url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" alt="" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Marketplace Metadata */}
+            {pulse.is_marketplace && (
+                <div className="mt-4 p-6 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center justify-between group">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <ShoppingBag className="text-brand-cyan" size={20} />
+                            <span className="font-black text-brand-cyan uppercase text-xs tracking-widest">Marketplace Item</span>
+                        </div>
+                        <p className="text-2xl font-black text-white">KES {parseJSON(pulse.deal_metadata)?.price || 'Negotiable'}</p>
+                        <div className="flex items-center gap-2 text-gray-500 text-sm mt-1">
+                            <MapPin size={14} />
+                            <span>{parseJSON(pulse.deal_metadata)?.location || 'Kenya'}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="mt-4 py-4 border-y border-white/5 flex items-center gap-6 text-sm text-gray-500">
                 <span><span className="text-white font-bold">{pulse.hearts}</span> Hearts</span>
                 <span><span className="text-white font-bold">{pulse.echoes}</span> Echoes</span>

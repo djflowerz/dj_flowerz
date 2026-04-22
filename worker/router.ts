@@ -252,7 +252,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         SELECT p.*, 
         (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'heart') as hearts,
         (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
-        (SELECT COUNT(*) FROM pulse_comments WHERE pulse_id = p.id) as comments_count
+        (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count
         FROM pulses p 
         WHERE author_id = ? 
         ORDER BY created_at DESC 
@@ -332,7 +332,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       SELECT p.*, pr.handle as author_handle, pr.full_name as author_name, pr.avatar_url as author_avatar, pr.aura_tier as author_tier, pr.is_verified as author_verified,
       (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'heart') as hearts,
       (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
-      (SELECT COUNT(*) FROM pulse_comments WHERE pulse_id = p.id) as comments_count,
+      (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count,
       (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'heart') as has_hearted,
       (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed
       FROM pulses p
@@ -420,9 +420,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         const parent = await env.DB.prepare('SELECT author_id FROM pulses WHERE id = ?').bind(parent_id).first() as any;
         if (parent && parent.author_id !== actorId) {
           await env.DB.prepare(`
-            INSERT INTO notifications (id, user_id, actor_id, type, target_id)
-            VALUES (?, ?, ?, 'comment', ?)
-          `).bind(crypto.randomUUID(), parent.author_id, actorId, parent_id).run();
+            INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+            VALUES (?, ?, ?, 'comment', ?, ?)
+          `).bind(crypto.randomUUID(), parent.author_id, actorId, parent_id, 'sighed on your signal').run();
         }
       }
 
@@ -480,19 +480,6 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ success: true });
   }
 
-  // GET /api/notifications
-  if (path === '/api/notifications' && method === 'GET') {
-    if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const { results } = await env.DB.prepare(`
-      SELECT n.*, p.handle as actor_handle, p.avatar_url as actor_avatar, p.full_name as actor_name
-      FROM notifications n
-      JOIN profiles p ON n.actor_id = p.id
-      WHERE n.user_id = ?
-      ORDER BY n.created_at DESC
-      LIMIT 50
-    `).bind(actorId).all();
-    return json(results || []);
-  }
 
   // POST /api/profiles/follow
   if (path === '/api/profiles/follow' && method === 'POST') {
@@ -514,9 +501,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         
         // Notify target
         await env.DB.prepare(`
-          INSERT INTO notifications (id, user_id, actor_id, type, target_id)
-          VALUES (?, ?, ?, 'follow', ?)
-        `).bind(crypto.randomUUID(), target_id, actorId, target_id).run();
+          INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+          VALUES (?, ?, ?, 'follow', ?, ?)
+        `).bind(crypto.randomUUID(), target_id, actorId, target_id, 'followed your channel').run();
 
         return json({ success: true, followed: true });
       }
@@ -552,14 +539,15 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         const pulse = await env.DB.prepare('SELECT author_id, content FROM pulses WHERE id = ?').bind(pulseId).first() as any;
         if (pulse && pulse.author_id !== actorId) {
           await env.DB.prepare(`
-            INSERT INTO notifications (id, user_id, actor_id, type, target_id)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+            VALUES (?, ?, ?, ?, ?, ?)
           `).bind(
             crypto.randomUUID(), 
             pulse.author_id, 
             actorId, 
             type === 'echo' ? 'echo' : 'reaction', 
-            pulseId
+            pulseId,
+            type === 'echo' ? 'echoed your signal' : 'liked your signal'
           ).run();
         }
 
@@ -589,7 +577,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
       // Notify seller
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, actor_id, type, reference_id, content)
+        INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
         VALUES (?, ?, ?, 'escrow_update', ?, ?)
       `).bind(crypto.randomUUID(), pulse.author_id, actorId, dealId, 'initiated a purchase for your item').run();
 
@@ -630,7 +618,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     const targetId = (actorId === deal.buyer_id) ? deal.seller_id : deal.buyer_id;
     await env.DB.prepare(`
-      INSERT INTO notifications (id, user_id, actor_id, type, reference_id, content)
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
       VALUES (?, ?, ?, 'escrow_update', ?, ?)
     `).bind(crypto.randomUUID(), targetId, actorId, dealId, `Deal status updated to ${status}`).run();
 

@@ -21,7 +21,9 @@ import {
   ShieldCheck,
   AlertCircle,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  Bell,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -189,20 +191,21 @@ export default function Community() {
         },
         body: JSON.stringify(payload)
       });
+      
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
 
-      if (resp.ok) {
-        setContent('');
-        setMediaUrls([]);
-        setIsMarketplace(false);
-        setDealPrice('');
-        setShowPoll(false);
-        setPollOptions(['', '']);
-        setIsComposerExpanded(false);
-        fetchData();
-        toast.success("Signal broadcasted!");
-      }
-    } catch (e) {
-      toast.error("Failed to post");
+      setContent('');
+      setMediaUrls([]);
+      setIsMarketplace(false);
+      setDealPrice('');
+      setShowPoll(false);
+      setPollOptions(['', '']);
+      setIsComposerExpanded(false);
+      fetchData();
+      toast.success("Signal broadcasted!");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to post");
     }
   };
 
@@ -349,7 +352,7 @@ export default function Community() {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   onFocus={() => setIsComposerExpanded(true)}
-                  placeholder="What's the signal?"
+                  placeholder="What's the signal? Share your update..."
                   className="w-full bg-transparent border-none text-xl placeholder-gray-600 focus:outline-none resize-none pt-2 min-h-[50px]"
                 />
                 
@@ -432,13 +435,32 @@ export default function Community() {
                       disabled={!content.trim() && mediaUrls.length === 0}
                       className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-purple/20 disabled:opacity-50"
                     >
-                      Post
+                      Post Signal
                     </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Identity Nudge for new users */}
+          {isAuthenticated && !user?.handle && (
+            <motion.div 
+               initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+               className="mb-8 p-8 bg-gradient-to-r from-brand-purple/20 via-brand-cyan/10 to-brand-purple/20 rounded-[2.5rem] border border-white/10 relative overflow-hidden group"
+            >
+               <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/20 blur-[60px] animate-pulse" />
+               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                 <div>
+                    <h3 className="text-xl font-black text-white tracking-tighter mb-2">COMPLETE YOUR IDENTITY</h3>
+                    <p className="text-sm text-gray-400 font-medium">You're currently broadcasting as a guest. Claim your handle to start building Aura and following other operators.</p>
+                 </div>
+                 <Link to="/setup-profile" className="px-8 py-4 bg-white text-black rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl whitespace-nowrap">
+                   Claim Handle
+                 </Link>
+               </div>
+            </motion.div>
+          )}
 
           {/* Post Feed */}
           {loading ? (
@@ -469,17 +491,34 @@ export default function Community() {
             <div className="space-y-4">
               {leaders.slice(0, 5).map((leader) => (
                 <div key={leader.handle} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3" onClick={() => navigate(`/op/${leader.handle}`)}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/op/${leader.handle}`)}>
                     <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
-                    <div className="min-w-0 cursor-pointer">
+                    <div className="min-w-0">
                       <p className="text-sm font-bold truncate group-hover:text-brand-purple transition-colors">{leader.full_name}</p>
                       <p className="text-xs text-gray-500 truncate">@{leader.handle}</p>
                     </div>
                   </div>
-                  <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg">Follow</button>
+                  <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all">Follow</button>
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
+             <h3 className="text-lg font-black mb-4">Trending Signals</h3>
+             <div className="space-y-4">
+                {[
+                    { tag: '#EscrowTrust', signals: '2.4k' },
+                    { tag: '#NairobiBeats', signals: '1.8k' },
+                    { tag: '#Sector7Status', signals: '840' },
+                    { tag: '#SignalBoost', signals: '420' }
+                ].map(trend => (
+                    <div key={trend.tag} className="hover:bg-white/5 p-2 -mx-2 rounded-xl transition-all cursor-pointer group">
+                        <p className="text-brand-purple font-black text-sm">{trend.tag}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">{trend.signals} broadcasts</p>
+                    </div>
+                ))}
+             </div>
           </div>
 
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-brand-purple/5 to-transparent">
