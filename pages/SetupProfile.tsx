@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GlassCard } from '../components/ui/GlassCard';
 import { NeonButton } from '../components/ui/NeonButton';
-import { Shield, AtSign, Briefcase, Zap, CheckCircle2 } from 'lucide-react';
+import { Shield, AtSign, Briefcase, Zap, CheckCircle2, Globe, Instagram, Facebook, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ROLES = [
@@ -20,6 +20,13 @@ export default function SetupProfile() {
   const [handle, setHandle] = useState('');
   const [fullName, setFullName] = useState(user?.name || '');
   const [role, setRole] = useState('collector');
+  const [bio, setBio] = useState('');
+  const [socialLinks, setSocialLinks] = useState({
+      instagram: '',
+      tiktok: '',
+      facebook: '',
+      website: ''
+  });
   const [isCheckingHandle, setIsCheckingHandle] = useState(false);
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,15 +70,16 @@ export default function SetupProfile() {
         body: JSON.stringify({
           handle,
           fullName,
-          role
+          role,
+          bio,
+          social_links: socialLinks
         })
       });
       const data = await resp.json();
       if (data.success) {
-        // Refresh profile in context so needsSetup becomes false
         await refreshUserProfile();
-        setStep(3);
-        setTimeout(() => navigate('/community'), 2500);
+        setStep(4);
+        setTimeout(() => navigate('/community'), 3000);
       } else {
         setError(data.error || 'Failed to claim handle');
       }
@@ -151,7 +159,7 @@ export default function SetupProfile() {
           {step === 2 && (
             <div className="space-y-8">
               <div className="text-center">
-                <h1 className="text-4xl font-heading mb-2">Define Your Role</h1>
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Professional Role</h1>
                 <p className="text-white/40">How do you interact with the ecosystem?</p>
               </div>
 
@@ -173,25 +181,71 @@ export default function SetupProfile() {
               </div>
 
               <div className="space-y-4 pt-4">
-                {error && <p className="text-center text-red-500 text-sm">{error}</p>}
                 <button 
-                  onClick={handleClaim}
-                  disabled={loading}
-                  className="w-full bg-[#00F5FF] hover:bg-[#33F7FF] text-[#050505] font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] flex items-center justify-center space-x-2"
+                  onClick={() => setStep(3)}
+                  className="w-full bg-[#00F5FF] hover:bg-[#33F7FF] text-[#050505] font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)]"
                 >
-                  {loading ? <div className="w-5 h-5 border-2 border-[#050505]/20 border-t-[#050505] rounded-full animate-spin"></div> : 'Initialize Identity'}
+                  Next: Bio & Socials
                 </button>
-                <button 
-                  onClick={() => setStep(1)}
-                  className="w-full text-white/40 hover:text-white transition-colors text-sm"
-                >
-                  Back to identity
-                </button>
+                <button onClick={() => setStep(1)} className="w-full text-white/40 hover:text-white transition-colors text-sm">Back to identity</button>
               </div>
             </div>
           )}
 
           {step === 3 && (
+            <div className="space-y-8">
+               <div className="text-center">
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Connect Others</h1>
+                <p className="text-white/40">Add your bio and social media presence.</p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-xl space-y-6">
+                <div>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">BIO / OPERATOR LOG</label>
+                  <textarea 
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#A349F5] outline-none transition-all resize-none h-24"
+                    placeholder="Tell us what you do..."
+                  />
+                </div>
+
+                <div className="space-y-4">
+                   <div className="relative">
+                      <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                      <input 
+                        value={socialLinks.instagram}
+                        onChange={e => setSocialLinks({...socialLinks, instagram: e.target.value})}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:border-[#A349F5] outline-none" 
+                        placeholder="Instagram Link"
+                      />
+                   </div>
+                   <div className="relative">
+                      <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                      <input 
+                        value={socialLinks.tiktok}
+                        onChange={e => setSocialLinks({...socialLinks, tiktok: e.target.value})}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:border-[#A349F5] outline-none" 
+                        placeholder="TikTok / Website"
+                      />
+                   </div>
+                </div>
+
+                {error && <p className="text-center text-red-500 text-sm">{error}</p>}
+
+                <button 
+                  onClick={handleClaim}
+                  disabled={loading}
+                  className="w-full bg-brand-purple text-white font-black py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(163,73,245,0.3)] flex items-center justify-center space-x-2"
+                >
+                  {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Initialize Identity'}
+                </button>
+                <button onClick={() => setStep(2)} className="w-full text-white/40 hover:text-white transition-colors text-sm">Back to role</button>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="text-center space-y-6">
               <div className="w-24 h-24 bg-[#00F5FF]/20 rounded-full flex items-center justify-center mx-auto mb-8 border border-[#00F5FF]/50 shadow-[0_0_50px_rgba(0,245,255,0.2)]">
                 <CheckCircle2 className="w-12 h-12 text-[#00F5FF]" />
@@ -199,7 +253,7 @@ export default function SetupProfile() {
               <h1 className="text-5xl font-heading animate-pulse">Welcome, @{handle}</h1>
               <p className="text-white/40">Broadcasting your identity to the Pulse...</p>
               <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-12">
-                <div className="bg-gradient-to-r from-[#A349F5] to-[#00F5FF] h-full animate-[loading_2s_ease-in-out_forwards]"></div>
+                <div className="bg-gradient-to-r from-[#A349F5] to-[#00F5FF] h-full animate-[loading_3s_ease-in-out_forwards]"></div>
               </div>
             </div>
           )}

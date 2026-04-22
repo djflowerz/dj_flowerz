@@ -18,6 +18,8 @@ export const AdjudicationGuard: React.FC<AdjudicationGuardProps> = ({
     const [pin, setPin] = useState('');
     const [error, setError] = useState(false);
     
+    if (!isOpen) return null;
+
     const handleVerify = () => {
         if (pin.length === 6) {
             onConfirm(pin);

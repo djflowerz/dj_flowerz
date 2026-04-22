@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Avatar } from '../components/ui/Avatar'; // Assume we'll inline it or it's somewhere. Wait, I will inline Avatar.
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Activity, 
   MessageSquare, 
@@ -12,9 +11,20 @@ import {
   ShoppingBag,
   Send,
   MoreHorizontal,
-  Image as ImageIcon
+  Image as ImageIcon,
+  BarChart2,
+  Smile,
+  Calendar,
+  MapPin,
+  X,
+  CheckCircle2,
+  ShieldCheck,
+  AlertCircle,
+  Plus,
+  ArrowLeft
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface Pulse {
   id: string;
@@ -23,14 +33,30 @@ interface Pulse {
   author_name: string;
   author_avatar: string;
   author_tier: string;
+  author_verified: boolean;
   content: string;
-  media_url?: string;
-  type: 'text' | 'media' | 'deal';
-  deal_price?: number;
+  media_urls?: string; // JSON string
+  poll_data?: string; // JSON string
+  type: 'text' | 'media' | 'deal' | 'poll';
+  is_marketplace: boolean;
+  deal_metadata?: string; // JSON string
+  parent_id?: string;
   hearts: number;
   echoes: number;
+  comments_count: number;
+  has_hearted?: string;
+  has_echoed?: string;
   created_at: string;
 }
+
+const parseJSON = (str: string | undefined, fallback: any = null) => {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    return fallback;
+  }
+};
 
 const parseUTC = (dateStr: string) => {
     if (!dateStr) return new Date();
@@ -40,7 +66,7 @@ const parseUTC = (dateStr: string) => {
 
 const timeAgo = (dateStr: string) => {
     const seconds = Math.floor((Date.now() - parseUTC(dateStr).getTime()) / 1000);
-    if (seconds < 5) return 'just now';
+    if (seconds < 5) return 'now';
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
@@ -52,39 +78,42 @@ const UserAvatar = ({ src, name, size = 10, className = "" }: { src?: string; na
     return (
         <img loading="lazy" src={src || fallback}
             onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
-            className={`w-${size} h-${size} rounded-full object-cover border border-white/10 flex-shrink-0 ${className}`}
+            className={`w-${size} h-${size} rounded-full object-cover ring-1 ring-white/10 flex-shrink-0 ${className}`}
             alt={name}
         />
     );
 };
 
 export default function Community() {
-  const { user, session } = useAuth();
+  const { user, session, isAuthenticated, isProfileComplete } = useAuth();
+  const navigate = useNavigate();
   const [pulses, setPulses] = useState<Pulse[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
-  const [marketEchoes, setMarketEchoes] = useState<Pulse[]>([]);
   const [vector, setVector] = useState('latest');
   const [loading, setLoading] = useState(true);
-  const [newPulseContent, setNewPulseContent] = useState('');
+  
+  // Composer State
+  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
+  const [content, setContent] = useState('');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [isMarketplace, setIsMarketplace] = useState(false);
+  const [dealPrice, setDealPrice] = useState('');
+  const [dealLocation, setDealLocation] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [pulseResp, leaderResp, marketResp] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}`),
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`),
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=marketplace`)
+      const [pulseResp, leaderResp] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}` + (user?.handle ? `&actor=${user.id}` : '')),
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`)
       ]);
       
-      const [pulseData, leaderData, marketData] = await Promise.all([
-        pulseResp.json(),
-        leaderResp.json(),
-        marketResp.json()
-      ]);
-
-      setPulses(pulseData);
-      setLeaders(leaderData);
-      setMarketEchoes(marketData);
+      setPulses(await pulseResp.json());
+      setLeaders(await leaderResp.json());
     } catch (e) {
       console.error('Fetch error:', e);
     } finally {
@@ -92,19 +121,64 @@ export default function Community() {
     }
   };
 
-  const fetchPulses = async () => {
+  useEffect(() => {
+    fetchData();
+    if (session) fetchUnread();
+  }, [vector, session]);
+
+  const fetchUnread = async () => {
     try {
-      const pulseResp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}`);
-      setPulses(await pulseResp.json());
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/notifications/unread`, {
+            headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
+        const data = await resp.json();
+        setUnreadCount(data.unread || 0);
     } catch (e) {}
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [vector]);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    const fileName = `${Date.now()}_${file.name}`;
+    
+    toast.promise(async () => {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-file-name': fileName,
+          'x-folder': 'pulse-media'
+        },
+        body: await file.arrayBuffer()
+      });
+      const data = await resp.json();
+      if (data.url) setMediaUrls(prev => [...prev, data.url].slice(0, 4));
+      return data;
+    }, {
+      loading: 'Uploading media...',
+      success: 'Media attached',
+      error: 'Upload failed'
+    });
+  };
 
   const handlePost = async () => {
-    if (!newPulseContent.trim()) return;
+    if (!content.trim() && mediaUrls.length === 0) return;
+    if (!isAuthenticated) {
+        toast.error("Please sign in to post");
+        return;
+    }
+
+    const payload = {
+      content,
+      media_urls: mediaUrls,
+      type: showPoll ? 'poll' : (mediaUrls.length > 0 ? 'media' : 'text'),
+      is_marketplace: isMarketplace ? 1 : 0,
+      deal_metadata: isMarketplace ? { price: dealPrice, location: dealLocation } : null,
+      poll_data: showPoll ? { options: pollOptions.filter(o => o.trim()), votes: [] } : null
+    };
+
     try {
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses`, {
         method: 'POST',
@@ -113,23 +187,33 @@ export default function Community() {
           'Authorization': `Bearer ${session?.access_token}`,
           'X-Actor-Id': user?.id || ''
         },
-        body: JSON.stringify({
-          content: newPulseContent,
-          type: 'text'
-        })
+        body: JSON.stringify(payload)
       });
+
       if (resp.ok) {
-        setNewPulseContent('');
-        fetchPulses();
+        setContent('');
+        setMediaUrls([]);
+        setIsMarketplace(false);
+        setDealPrice('');
+        setShowPoll(false);
+        setPollOptions(['', '']);
+        setIsComposerExpanded(false);
+        fetchData();
+        toast.success("Signal broadcasted!");
       }
     } catch (e) {
-      console.error('Post error:', e);
+      toast.error("Failed to post");
     }
   };
 
-  const reactToPulse = async (id: string, type: 'heart' | 'echo') => {
+  const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
+    if (!isAuthenticated) {
+      toast.error("Sign in to interact with pulses");
+      return;
+    }
+
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${id}/react`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}/react`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,230 +222,478 @@ export default function Community() {
         },
         body: JSON.stringify({ type })
       });
-      fetchPulses();
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        setPulses(prev => prev.map(p => {
+          if (p.id === pulseId) {
+            const isAdding = data.reacted;
+            return {
+              ...p,
+              [type === 'heart' ? 'hearts' : 'echoes']: p[type === 'heart' ? 'hearts' : 'echoes'] + (isAdding ? 1 : -1),
+              [type === 'heart' ? 'has_hearted' : 'has_echoed']: isAdding ? 'yes' : null
+            };
+          }
+          return p;
+        }));
+      }
     } catch (e) {}
   };
 
+  const handleDeletePulse = async (pulseId: string) => {
+    if (!window.confirm("Are you sure you want to delete this signal?")) return;
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
+      if (resp.ok) {
+        setPulses(prev => prev.filter(p => p.id !== pulseId));
+        toast.success("Signal deleted");
+      }
+    } catch (e) { toast.error("Failed to delete"); }
+  };
+
+  const handleEditPulse = async (pulseId: string, content: string) => {
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}` 
+        },
+        body: JSON.stringify({ content })
+      });
+      if (resp.ok) {
+        setPulses(prev => prev.map(p => p.id === pulseId ? { ...p, content } : p));
+        toast.success("Signal updated");
+      }
+    } catch (e) { toast.error("Failed to update"); }
+  };
+
+  const initiateEscrow = async (pulse: Pulse) => {
+    if (!isAuthenticated) {
+        toast.error("Sign in to purchase items");
+        return;
+    }
+    const metadata = parseJSON(pulse.deal_metadata);
+    
+    toast.promise(async () => {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({
+                pulse_id: pulse.id,
+                amount: metadata?.price || 0
+            })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error);
+        return data;
+    }, {
+        loading: 'Initiating secure escrow...',
+        success: (data) => `Secure deal #${data.dealId.slice(0,8)} created! Check your dashboard for payment instructions.`,
+        error: (err) => `Escrow failed: ${err.message}`
+    });
+  };
+
   return (
-    <div className="pt-24 pb-12 min-h-screen">
-      {/* Background layer exactly like old UI */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-purple/5 blur-[120px] rounded-full" />
-          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-brand-cyan/5 blur-[120px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-[#0B0B0F] text-white">
+      <div className="max-w-7xl mx-auto flex justify-center">
+        {/* Left Sidebar (Desktop Only) */}
+        <nav className="hidden md:flex flex-col w-64 h-screen sticky top-0 py-8 gap-8 pr-4">
+          <Link to="/" className="text-2xl font-black tracking-tighter text-brand-purple flex items-center gap-2 mb-4 px-4">
+            <Activity size={32} /> DJF
+          </Link>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans">
-        
-        {/* Old Header Layout */}
-        <div className="mb-12">
-            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-4">
-                Community <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple to-brand-cyan">Hub</span>
-            </h1>
-            <p className="text-gray-400 text-lg max-w-2xl">Share updates, talk music, buy & sell with the DJ Flowerz community.</p>
-        </div>
-
-        {/* Old Feed Tabs Layout */}
-        <div className="flex border-b border-white/10 mb-8 overflow-x-auto custom-scrollbar">
-            {[
-              { id: 'latest', label: 'Latest Posts', icon: Activity },
-              { id: 'trending', label: 'Trending', icon: TrendingUp },
-              { id: 'marketplace', label: 'Buy & Sell', icon: ShoppingBag }
-            ].map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setVector(v.id)}
-                className={`flex items-center space-x-2 px-8 py-4 whitespace-nowrap border-b-2 font-bold text-sm transition-all ${
-                  vector === v.id ? 'border-brand-purple text-brand-purple' : 'border-transparent text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                <v.icon className="w-4 h-4" />
-                <span>{v.label}</span>
-              </button>
-            ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Old Left Sidebar */}
-          <div className="hidden lg:block lg:col-span-3 space-y-6 lg:sticky lg:top-24 h-fit">
-            <div className="glass-panel p-6 rounded-3xl border border-white/5 relative overflow-hidden group bg-[#0A0A0A]/50 backdrop-blur-xl shadow-2xl">
-                <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-brand-purple/20 to-brand-cyan/20" />
-                <div className="relative flex flex-col items-center mt-8">
-                    <UserAvatar src={user?.avatarUrl} name={user?.name} size={24} className="border-4 border-[#0B0B0F] mb-4 shadow-xl" />
-                    <h3 className="text-lg font-black text-white">{user?.name}</h3>
-                    <p className="text-gray-500 text-sm mb-4">@{user?.handle?.replace('@', '')}</p>
-                    
-                    <div className="w-full flex justify-center gap-4 pt-4 border-t border-white/5 text-center mt-2 group-hover:border-brand-cyan/20 transition-colors">
-                        <div className="flex-1">
-                            <p className="font-black text-white">Level</p>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest">{user?.auraTier || 'Member'}</p>
-                        </div>
-                        <div className="w-px h-8 bg-white/5" />
-                        <div className="flex-1">
-                            <p className="font-black text-white">Points</p>
-                            <p className="text-xs text-brand-cyan uppercase tracking-widest">{user?.auraPoints || 0}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl shadow-2xl">
-                <h4 className="font-black text-white mb-4 flex items-center gap-2">
-                    <Activity size={18} className="text-brand-purple" />
-                    Top Members
-                </h4>
-                <div className="space-y-4">
-                  {leaders.slice(0, 5).map((leader, i) => (
-                      <Link to={`/op/${leader.handle}`} key={leader.handle} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors group">
-                          <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
-                          <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-white truncate group-hover:text-brand-cyan transition-colors">{leader.full_name}</p>
-                              <p className="text-xs text-gray-500 truncate">@{leader.handle}</p>
-                          </div>
-                      </Link>
-                  ))}
-                </div>
-            </div>
+          <div className="space-y-2">
+            <Link to="/community" className="flex items-center gap-4 p-4 rounded-full text-white bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
+              <TrendingUp size={20} /> Latest Signals
+            </Link>
+            <Link to="/notifications" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all relative">
+              <Bell size={20} /> Notifications
+              {unreadCount > 0 && (
+                <span className="absolute top-3 left-8 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-[#0B0B0F]">
+                    {unreadCount}
+                </span>
+              )}
+            </Link>
+            <Link to="/marketplace" className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
+              <ShoppingBag size={20} /> Marketplace
+            </Link>
+            <Link to={`/op/${user?.handle}`} className="flex items-center gap-4 p-4 rounded-full text-gray-500 hover:text-white hover:bg-white/5 font-black text-sm uppercase tracking-widest transition-all">
+              <User size={20} /> My Identity
+            </Link>
           </div>
+        </nav>
 
-          {/* Center Feed */}
-          <div className="lg:col-span-6 space-y-6">
-            
-            {/* Old Composer Layout */}
-            <div className="glass-card rounded-[2rem] border border-white/5 p-5 mb-8 relative overflow-hidden group shadow-2xl bg-[#0A0A0A]/50 backdrop-blur-xl">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 blur-[50px] rounded-full group-focus-within:bg-brand-purple/15 transition-all" />
-                <div className="flex gap-4 relative z-10">
-                    <UserAvatar src={user?.avatarUrl} name={user?.name} size={11} className="mt-1" />
-                    <div className="flex-1">
-                        <textarea
-                            value={newPulseContent}
-                            onChange={e => setNewPulseContent(e.target.value)}
-                            placeholder="What's on your mind? Share something with the community..."
-                            className="w-full bg-transparent border-none text-white text-lg placeholder-gray-500 focus:outline-none resize-none pt-2 min-h-[80px]"
-                            rows={3}
-                        />
-                        <div className="flex items-center justify-between mt-4 border-t border-white/[0.06] pt-4">
-                            <div className="flex items-center gap-1">
-                                <button className="p-2.5 text-brand-purple hover:bg-brand-purple/10 rounded-full transition-all" title="Add a photo">
-                                    <ImageIcon size={20} />
-                                </button>
-                                <button className="p-2.5 text-brand-cyan hover:bg-brand-cyan/10 rounded-full transition-all" title="List something for sale">
-                                    <ShoppingBag size={20} />
-                                </button>
-                            </div>
-                            <button
-                                onClick={handlePost}
-                                disabled={!newPulseContent.trim()}
-                                className="bg-brand-purple text-white px-8 py-2.5 rounded-full font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-purple/20 disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
-                            >
-                                <Send size={18} /> Post
-                            </button>
-                        </div>
-                    </div>
-                </div>
+        {/* Main Feed */}
+        <main className="w-full max-w-[600px] min-h-screen border-x border-white/5">
+          <header className="sticky top-20 md:top-0 z-20 backdrop-blur-md bg-[#0B0B0F]/80 border-b border-white/5 p-4 flex items-center justify-between">
+            <h1 className="text-xl font-black">Home Feed</h1>
+            <div className="flex bg-white/5 p-1 rounded-full text-xs font-bold">
+               <button onClick={() => setVector('latest')} className={`px-4 py-1.5 rounded-full ${vector === 'latest' ? 'bg-brand-purple text-white' : 'text-gray-500'}`}>For You</button>
+               <button onClick={() => setVector('trending')} className={`px-4 py-1.5 rounded-full ${vector === 'trending' ? 'bg-brand-purple text-white' : 'text-gray-500'}`}>Trending</button>
             </div>
+          </header>
 
-            {/* Posts Loop with Old PostCard Styling */}
-            {loading ? (
-                <div className="flex justify-center p-12">
-                   <div className="w-12 h-12 border-4 border-[#A349F5]/20 border-t-[#A349F5] rounded-full animate-spin" />
-                </div>
-            ) : pulses.map((p) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass-card rounded-2xl border border-white/5 hover:border-brand-purple/20 transition-all duration-300 overflow-hidden group mb-6 shadow-2xl bg-[#0A0A0A]/50 backdrop-blur-xl"
-                >
-                    <div className="flex items-start justify-between p-5 pb-3">
-                        <div className="flex items-center gap-3">
-                            <UserAvatar src={p.author_avatar} name={p.author_name} size={11} />
-                            <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <Link to={`/op/${p.author_handle?.replace('@', '')}`} className="font-bold text-white text-sm hover:text-brand-purple transition">{p.author_name}</Link>
-                                    {p.author_tier !== 'none' && (
-                                        <div className="bg-brand-purple/10 text-brand-purple text-[8px] px-2 py-0.5 rounded-full font-black tracking-widest uppercase border border-brand-purple/20">
-                                            {p.author_tier}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                                    <span>@{p.author_handle?.replace('@', '')}</span>
-                                    <span>•</span>
-                                    <span>{timeAgo(p.created_at)}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button className="text-gray-500 hover:text-white p-1 rounded-lg transition-colors">
-                            <MoreHorizontal size={20} />
+          {/* Composer */}
+          <div className="p-4 border-b border-white/5">
+            <div className="flex gap-4">
+              <UserAvatar src={user?.avatarUrl} name={user?.name} size={11} />
+              <div className="flex-1">
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  onFocus={() => setIsComposerExpanded(true)}
+                  placeholder="What's the signal?"
+                  className="w-full bg-transparent border-none text-xl placeholder-gray-600 focus:outline-none resize-none pt-2 min-h-[50px]"
+                />
+                
+                {mediaUrls.length > 0 && (
+                  <div className={`grid gap-2 mb-4 ${mediaUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    {mediaUrls.map((url, i) => (
+                      <div key={i} className="relative aspect-video rounded-xl overflow-hidden border border-white/10">
+                        <img src={url} className="w-full h-full object-cover" alt="" />
+                        <button onClick={() => setMediaUrls(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/80 rounded-full text-white">
+                          <X size={16} />
                         </button>
-                    </div>
-
-                    {p.content && (
-                        <div className="px-5 pb-4 text-gray-100 text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
-                            {p.content}
-                        </div>
-                    )}
-
-                    {p.media_url && (
-                        <div className="px-5 pb-4">
-                            <img src={p.media_url} className="w-full rounded-2xl object-cover border border-white/5 shadow-inner max-h-[500px]" alt="media" loading="lazy" />
-                        </div>
-                    )}
-
-                    <div className="px-4 py-3 border-t border-white/5 flex items-center gap-2 bg-white/[0.01]">
-                        <button onClick={() => reactToPulse(p.id, 'heart')} title="Like" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-red-400 hover:bg-red-400/5 transition">
-                            <Heart size={18} className={p.hearts > 0 ? "fill-red-400" : ""} />
-                            <span>{p.hearts} Likes</span>
-                        </button>
-                        <button title="Comment" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
-                            <MessageSquare size={18} />
-                            <span>{Math.floor(p.echoes / 2)} Comments</span>
-                        </button>
-                        <button onClick={() => reactToPulse(p.id, 'echo')} title="Repost" className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-green-400 hover:bg-green-400/5 transition">
-                            <Repeat size={18} />
-                            <span>{p.echoes} Reposts</span>
-                        </button>
-                        <button title="Share" className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
-                            <Share2 size={18} />
-                        </button>
-                    </div>
-                </motion.div>
-            ))}
-          </div>
-
-          {/* Old Right Sidebar */}
-          <div className="hidden lg:block lg:col-span-3 space-y-6">
-            <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl shadow-2xl">
-                <h4 className="font-black text-white mb-4 flex items-center gap-2">
-                    <TrendingUp size={18} className="text-brand-cyan" />
-                    Items for Sale
-                </h4>
-                <div className="space-y-4">
-                  {marketEchoes.length === 0 ? (
-                      <p className="text-xs text-gray-500 italic">Nothing listed for sale yet.</p>
-                  ) : marketEchoes.slice(0, 4).map(echo => (
-                      <div key={echo.id} className="p-3 bg-white/5 rounded-xl border border-white/5 hover:border-brand-cyan/20 transition-all cursor-pointer">
-                          <p className="text-xs text-gray-300 line-clamp-2 mb-2">{echo.content}</p>
-                          <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-gray-500">@{echo.author_handle?.replace('@', '')}</span>
-                              <span className="text-[10px] font-bold text-brand-cyan">FOR SALE</span>
-                          </div>
                       </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+
+                {showPoll && (
+                   <div className="mb-4 bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
+                     {pollOptions.map((opt, i) => (
+                       <input 
+                         key={i} 
+                         value={opt} 
+                         onChange={(e) => {
+                           const newOpts = [...pollOptions];
+                           newOpts[i] = e.target.value;
+                           setPollOptions(newOpts);
+                         }}
+                         placeholder={`Option ${i+1}`}
+                         className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-sm focus:border-brand-purple outline-none"
+                       />
+                     ))}
+                     <button onClick={() => setPollOptions([...pollOptions, ''])} className="text-brand-purple text-xs font-bold hover:underline">+ Add Option</button>
+                   </div>
+                )}
+
+                {isMarketplace && (
+                  <div className="mb-4 bg-brand-cyan/5 p-4 rounded-xl border border-brand-cyan/20 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] uppercase font-black text-brand-cyan mb-1 block">Asking Price (KES)</label>
+                      <input 
+                        type="number" 
+                        value={dealPrice} 
+                        onChange={e => setDealPrice(e.target.value)}
+                        placeholder="5,000"
+                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-white outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-black text-brand-cyan mb-1 block">City/Location</label>
+                      <input 
+                        value={dealLocation} 
+                        onChange={e => setDealLocation(e.target.value)}
+                        placeholder="Nairobi"
+                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-white outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className={`flex items-center justify-between border-t border-white/5 pt-4 ${isComposerExpanded ? 'opacity-100' : 'opacity-0 h-0 hidden'}`}>
+                  <div className="flex items-center text-brand-purple">
+                    <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-brand-purple/10 rounded-full transition-all">
+                      <ImageIcon size={20} />
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                    <button onClick={() => setShowPoll(!showPoll)} className={`p-2 hover:bg-brand-purple/10 rounded-full transition-all ${showPoll ? 'text-brand-cyan' : ''}`}>
+                      <BarChart2 size={20} />
+                    </button>
+                    <button onClick={() => setIsMarketplace(!isMarketplace)} className={`p-2 hover:bg-brand-purple/10 rounded-full transition-all ${isMarketplace ? 'text-brand-cyan' : ''}`}>
+                      <ShoppingBag size={20} />
+                    </button>
+                    <button className="p-2 hover:bg-brand-purple/10 rounded-full transition-all">
+                      <MapPin size={20} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-xs font-bold text-gray-500">{content.length}/280</div>
+                    <button 
+                      onClick={handlePost}
+                      disabled={!content.trim() && mediaUrls.length === 0}
+                      className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-purple/20 disabled:opacity-50"
+                    >
+                      Post
+                    </button>
+                  </div>
                 </div>
-            </div>
-            
-            <div className="glass-card p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-brand-purple/10 to-transparent">
-              <h3 className="font-black text-white mb-2">Need Help?</h3>
-              <p className="text-xs text-gray-400 mb-4">Having an issue with a purchase, a post, or another member? We're here to help.</p>
-              <button className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors">
-                  Contact Support
-              </button>
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Post Feed */}
+          {loading ? (
+            <div className="flex justify-center p-12">
+               <div className="w-12 h-12 border-4 border-brand-purple/20 border-t-brand-purple rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {pulses.map((p) => (
+                <PostCard 
+                    key={p.id} 
+                    pulse={p} 
+                    onReact={handleInteract} 
+                    onEscrow={initiateEscrow}
+                    onDelete={handleDeletePulse}
+                    onEdit={handleEditPulse}
+                    currentUser={user!}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* Right Sidebar (Desktop Only) */}
+        <aside className="hidden lg:flex flex-col w-80 h-screen sticky top-0 py-8 gap-6 pl-4">
+          <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
+            <h3 className="text-lg font-black mb-4">Top Operators</h3>
+            <div className="space-y-4">
+              {leaders.slice(0, 5).map((leader) => (
+                <div key={leader.handle} className="flex items-center justify-between group">
+                  <div className="flex items-center gap-3" onClick={() => navigate(`/op/${leader.handle}`)}>
+                    <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
+                    <div className="min-w-0 cursor-pointer">
+                      <p className="text-sm font-bold truncate group-hover:text-brand-purple transition-colors">{leader.full_name}</p>
+                      <p className="text-xs text-gray-500 truncate">@{leader.handle}</p>
+                    </div>
+                  </div>
+                  <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg">Follow</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-brand-purple/5 to-transparent">
+             <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="text-brand-cyan" size={18} />
+                <h4 className="font-black text-brand-cyan uppercase text-xs tracking-widest">Escrow Protected</h4>
+             </div>
+             <p className="text-sm text-gray-400 mb-4">Marketplace deals are held in a secure pool until you confirm receipt. Zero risk for buyers.</p>
+             <Link to="/governance" className="text-xs font-bold text-gray-300 hover:text-white underline">Learn more about our trust framework</Link>
+          </div>
+        </aside>
+
       </div>
     </div>
+  );
+}
+
+function PostCard({ pulse, onReact, onEscrow, currentUser, onDelete, onEdit }: { 
+  pulse: Pulse, onReact: any, onEscrow: any, currentUser: any, onDelete: any, onEdit: any 
+}) {
+  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(pulse.content);
+  const [showMenu, setShowMenu] = useState(false);
+
+  const mediaItems = parseJSON(pulse.media_urls, []);
+  const pollData = parseJSON(pulse.poll_data);
+  const dealMeta = parseJSON(pulse.deal_metadata);
+  const isAuthor = currentUser?.id === pulse.author_id;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="p-4 hover:bg-white/[0.02] transition-all cursor-pointer group relative"
+      onClick={() => !isEditing && navigate(`/pulse/${pulse.id}`)}
+    >
+      <div className="flex gap-4">
+        <UserAvatar 
+            src={pulse.author_avatar} 
+            name={pulse.author_name} 
+            size={11} 
+            className="hover:scale-105 transition-transform" 
+            onClick={(e) => { e.stopPropagation(); navigate(`/op/${pulse.author_handle}`); }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-white hover:underline decoration-white/30 truncate" onClick={(e) => { e.stopPropagation(); navigate(`/op/${pulse.author_handle}`); }}>{pulse.author_name}</span>
+              {pulse.author_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/10" />}
+              <span className="text-sm text-gray-500">@{pulse.author_handle}</span>
+              <span className="text-sm text-gray-600">·</span>
+              <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(pulse.created_at)}</span>
+            </div>
+            
+            <div className="relative">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                className="text-gray-600 hover:text-brand-purple p-1 rounded-full hover:bg-brand-purple/10 transition-all"
+              >
+                  <MoreHorizontal size={18} />
+              </button>
+              
+              <AnimatePresence>
+                {showMenu && isAuthor && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="absolute right-0 top-full mt-2 w-48 bg-[#0B0B0F] border border-white/10 rounded-2xl shadow-2xl z-40 overflow-hidden"
+                    >
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
+                        className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-white/5 transition-all flex items-center gap-3"
+                      >
+                        Edit Signal
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(pulse.id); setShowMenu(false); }}
+                        className="w-full px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3"
+                      >
+                        Delete Signal
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <div className="mt-1">
+            {isEditing ? (
+              <div className="space-y-3 mt-2" onClick={e => e.stopPropagation()}>
+                <textarea 
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-purple outline-none min-h-[100px]"
+                  maxLength={280}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => { onEdit(pulse.id, editContent); setIsEditing(false); }}
+                    className="px-4 py-2 bg-brand-purple rounded-full text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-[15px] leading-relaxed text-gray-200 whitespace-pre-wrap">
+                {pulse.content}
+              </div>
+            )}
+          </div>
+
+          {/* Media Grid */}
+          {mediaItems.length > 0 && !isEditing && (
+            <div className={`mt-3 grid gap-2 rounded-2xl overflow-hidden border border-white/5 ${mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {mediaItems.map((url: string, idx: number) => (
+                <img 
+                    key={idx} 
+                    src={url} 
+                    loading="lazy"
+                    className="w-full h-full object-cover aspect-video hover:opacity-90 transition-opacity" 
+                    alt="" 
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Poll Display */}
+          {pollData && !isEditing && (
+             <div className="mt-3 space-y-2">
+                {pollData.options.map((opt: string, i: number) => (
+                   <div key={i} className="relative h-10 w-full bg-white/5 rounded-lg border border-white/10 flex items-center px-4 group/opt overflow-hidden">
+                      <div className="absolute left-0 top-0 bottom-0 bg-brand-purple/20 w-0 group-hover/opt:w-[10%] transition-all" />
+                      <span className="relative z-10 font-bold text-sm">{opt}</span>
+                   </div>
+                ))}
+             </div>
+          )}
+
+          {/* Marketplace Banner */}
+          {pulse.is_marketplace && !isEditing && (
+            <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between group/deal">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-brand-cyan/10 rounded-xl">
+                  <ShoppingBag className="text-brand-cyan" size={24} />
+                </div>
+                <div>
+                   <p className="text-[10px] uppercase font-black text-brand-cyan tracking-wider">Verified Seller Deal</p>
+                   <p className="text-lg font-black text-white">KES {Number(dealMeta?.price).toLocaleString()}</p>
+                   {dealMeta?.location && (
+                      <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                        <MapPin size={10} />
+                        <span>{dealMeta.location}</span>
+                      </div>
+                   )}
+                </div>
+              </div>
+              {!isAuthor && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onEscrow(pulse); }}
+                  className="px-6 py-2 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-cyan/20"
+                >
+                  Buy with Escrow
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Interaction Bar */}
+          {!isEditing && (
+            <div className="mt-4 flex items-center justify-between max-w-md text-gray-500">
+              <button 
+                  onClick={(e) => { e.stopPropagation(); navigate(`/pulse/${pulse.id}`); }}
+                  className="flex items-center gap-2 hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10"
+              >
+                <MessageSquare size={18} />
+                <span className="text-xs font-bold">{pulse.comments_count || 0}</span>
+              </button>
+              
+              <button 
+                  onClick={(e) => { e.stopPropagation(); onReact(pulse.id, 'echo'); }}
+                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${pulse.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
+              >
+                <Repeat size={18} />
+                <span className="text-xs font-bold">{pulse.echoes || 0}</span>
+              </button>
+
+              <button 
+                  onClick={(e) => { e.stopPropagation(); onReact(pulse.id, 'heart'); }}
+                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${pulse.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
+              >
+                <Heart size={18} className={pulse.has_hearted ? "fill-current" : ""} />
+                <span className="text-xs font-bold">{pulse.hearts || 0}</span>
+              </button>
+
+              <button className="flex items-center gap-2 hover:text-brand-cyan transition-colors p-2 rounded-full hover:bg-brand-cyan/10">
+                <Share2 size={18} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }

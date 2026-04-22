@@ -67,8 +67,11 @@ const AdminInstallments = lazyWithRetry(() => import('./src/admin/pages/Installm
 const AdminMarketing = lazyWithRetry(() => import('./src/admin/pages/Marketing'));
 const AdminShipping = lazyWithRetry(() => import('./src/admin/pages/Shipping'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
-const PublicProfile = lazyWithRetry(() => import('./pages/PublicProfile'));
-const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const SetupProfile = lazy(() => import('./pages/SetupProfile'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const PulseDetail = lazy(() => import('./pages/PulseDetail'));
+const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
 
@@ -116,8 +119,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const AppContent = () => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading, needsSetup } = useAuth();
   const location = useLocation();
+
+  // Redirect if profile setup is required
+  if (isAuthenticated && !loading && needsSetup && location.pathname !== '/setup-identity') {
+    return <Navigate to="/setup-identity" replace />;
+  }
   
   return (
     <Layout>
@@ -126,12 +134,12 @@ const AppContent = () => {
         <Suspense key={location.pathname} fallback={<LoadingSpinner />}>
           <Routes location={location}>
             <Route path="/" element={<Home />} />
-            <Route path="/pool" element={<Navigate to="/" replace />} />
-            <Route path="/track/:id" element={<Navigate to="/" replace />} />
             <Route path="/mixtapes" element={<Mixtapes />} />
             <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
             <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
-            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/pulse/:id" element={<Suspense fallback={<LoadingSpinner />}><PulseDetail /></Suspense>} />
+            <Route path="/op/:handle" element={<PublicProfile />} />
             <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
 
             <Route path="/store" element={<Store />} />
@@ -140,6 +148,10 @@ const AppContent = () => {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+            <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><MarketplaceDashboard /></ProtectedRoute>} />
+
             {/* Admin Modular Pages */}
             <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/products" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminProducts /></ProtectedRoute></ErrorBoundary>} />
@@ -158,8 +170,7 @@ const AppContent = () => {
             <Route path="/admin/shipping" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminShipping /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/governance" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminGovernance /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/admin/command-centre" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminCommandCentre /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
-            <Route path="/op/:handle" element={<PublicProfile />} />
+
             <Route path="/sessions" element={<Sessions />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/tip-jar" element={<TipJar />} />
