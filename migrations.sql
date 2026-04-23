@@ -84,3 +84,24 @@ CREATE TABLE IF NOT EXISTS mixtape_comments (
 -- 6. User Activity & Presence
 -- ALTER TABLE profiles ADD COLUMN presence_status TEXT DEFAULT 'offline';
 -- ALTER TABLE profiles ADD COLUMN last_seen TEXT DEFAULT CURRENT_TIMESTAMP;
+
+-- 7. Subscription Tables
+CREATE TABLE IF NOT EXISTS "active-subscribers" (
+  id TEXT PRIMARY KEY,
+  user_email TEXT,
+  status TEXT DEFAULT 'active',
+  expiry_date TEXT,
+  plan_id TEXT DEFAULT 'Premium',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "subscription-plans" (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  price REAL DEFAULT 0,
+  period TEXT DEFAULT 'monthly',
+  features TEXT, -- JSON string
+  active INTEGER DEFAULT 1,
+  slug TEXT UNIQUE,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
