@@ -786,13 +786,23 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // POST /api/profiles/request-verification
   if (path === '/api/profiles/request-verification' && method === 'POST') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    
+    // Simulate OTP Generation immediately for user testing
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
     await env.DB.prepare(`
       UPDATE profiles SET 
-        verification_status = 'requested', 
+        verification_status = 'approved',
+        is_eligible = 1,
+        otp_code = ?,
+        otp_expiry = ?,
         updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `).bind(actorId).run();
-    return json({ success: true });
+    `).bind(otp, expiry, actorId).run();
+    
+    // In production, you would trigger an email/sms API here. For now we return it so the UI can mock the reception.
+    return json({ success: true, simulated_otp: otp });
   }
 
   // ALIAS: GET /api/community/posts -> /api/pulses

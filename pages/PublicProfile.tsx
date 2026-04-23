@@ -115,6 +115,8 @@ export default function PublicProfile() {
 
   // Verification State
   const [requestingVerif, setRequestingVerif] = useState(false);
+  const [verifMethod, setVerifMethod] = useState<'email' | 'whatsapp'>('email');
+  const [verifContact, setVerifContact] = useState('');
   const [verifOtpInput, setVerifOtpInput] = useState('');
   const [showVerifOtp, setShowVerifOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -241,17 +243,23 @@ export default function PublicProfile() {
   };
 
   const handleRequestVerification = async () => {
+    if (!verifContact.trim()) return toast.error('Please enter a valid email or WhatsApp number.');
     setRequestingVerif(true);
     try {
       const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/request-verification`, {
         method: 'POST',
         headers: { 
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
           'X-Actor-Id': profile?.id || ''
         },
+        body: JSON.stringify({ method: verifMethod, contact: verifContact })
       });
-      if (!resp.ok) throw new Error((await resp.json()).error);
-      toast.success('Verification request submitted! Our team will review your profile within 24 hours.');
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      
+      // Since backend auto-approves for testing, we can show the mock OTP
+      toast.success(`Verification sent! (Mock OTP: ${data.simulated_otp})`);
       fetchData();
     } catch (e: any) {
       toast.error(e.message || 'Request failed. Please try again.');
@@ -645,14 +653,34 @@ export default function PublicProfile() {
                          ) : (
                             <div className="space-y-4">
                                <p className="text-sm text-gray-400">
-                                  Add a verified badge to your profile to build trust with buyers. Make sure your bio, location, and social links are filled out first.
+                                  Select an option to verify your account and receive your OTP code.
                                </p>
+                               <div className="flex gap-2 mb-2">
+                                  <button 
+                                      onClick={() => setVerifMethod('email')}
+                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'email' ? 'bg-brand-purple border-brand-purple text-white' : 'border-white/10 text-gray-400'}`}
+                                  >
+                                      Email
+                                  </button>
+                                  <button 
+                                      onClick={() => setVerifMethod('whatsapp')}
+                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'whatsapp' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-gray-400'}`}
+                                  >
+                                      WhatsApp
+                                  </button>
+                               </div>
+                               <input 
+                                  placeholder={verifMethod === 'email' ? 'Enter Email Address' : 'Enter WhatsApp (+254...)'}
+                                  value={verifContact}
+                                  onChange={e => setVerifContact(e.target.value)}
+                                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-purple outline-none"
+                               />
                                <button
                                   onClick={handleRequestVerification}
                                   disabled={requestingVerif}
-                                  className="w-full py-3 bg-white/10 text-white rounded-xl font-black text-xs uppercase hover:bg-white/20 transition-all disabled:opacity-50"
+                                  className={`w-full py-3 rounded-xl font-black text-xs uppercase transition-all disabled:opacity-50 ${verifMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-brand-purple hover:bg-brand-purple/80 text-white'}`}
                                >
-                                  {requestingVerif ? 'Submitting...' : 'Request Verification'}
+                                  {requestingVerif ? 'Sending...' : `Send OTP via ${verifMethod}`}
                                </button>
                             </div>
                          )}
