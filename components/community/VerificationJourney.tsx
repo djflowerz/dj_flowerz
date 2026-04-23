@@ -340,14 +340,30 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                 </div>
               ))}
 
-              {!hasBadge && (
-                <div className="mt-6 p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
-                  <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mb-3">
-                    {isContactVerified ? '🛡️ Badge Application' : '🛡️ Reachability Verification'}
-                  </p>
-                  
-                  {!isContactVerified && (
-                    <>
+          {/* Reachability & Badge Verification */}
+          <div className="p-5 relative border-t border-white/5">
+            <div className="flex items-center gap-4 mb-4">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                isContactVerified ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-purple/20 text-brand-purple'
+              }`}>
+                {isContactVerified ? <CheckCircle2 size={16} /> : <Shield size={16} />}
+              </div>
+              <div>
+                <p className={`text-[12px] font-black ${isContactVerified ? 'text-emerald-400 opacity-60' : 'text-white'}`}>
+                  Phase 2: Contact Verification
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Verify your reachability</p>
+              </div>
+            </div>
+
+            {!hasBadge && (
+              <div className="mt-4 p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
+                <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mb-3">
+                  {isContactVerified ? '🛡️ Badge Application' : '🛡️ Reachability Verification'}
+                </p>
+                
+                {!isContactVerified && (
+                  <>
                       <div className="flex gap-2 mb-4">
                         {['email', 'phone', 'whatsapp'].map((m) => (
                           <button

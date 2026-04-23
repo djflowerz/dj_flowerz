@@ -128,7 +128,10 @@ export default function PublicProfile() {
     setNotFound(false);
     try {
       const cleanHandle = handle?.replace(/^@/, '');
-      const authHeader = session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+      const authHeader: any = session?.access_token ? { 
+        'Authorization': `Bearer ${session.access_token}`,
+        'X-Actor-Id': user?.id || ''
+      } : {};
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/handle/${cleanHandle}`, {
         headers: authHeader
       });
@@ -672,105 +675,11 @@ export default function PublicProfile() {
                       <h3 className="font-black text-gray-400 text-xs uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                          <ShieldCheck size={16} className="text-brand-purple" /> Member Safety & Trust
                       </h3>
-                      <div className="p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
-                         {profile?.is_verified || profile?.verification_status === 'verified' ? (
-                            <div className="flex flex-col items-center justify-center text-center py-4">
-                               <TrustBadge type="verified" size="lg" />
-                               <h4 className="mt-3 font-black text-emerald-400">Fully Verified</h4>
-                               <p className="text-xs text-gray-400 mt-1">Your account identity has been confirmed.</p>
-                            </div>
-                         ) : profile?.verification_status === 'requested' ? (
-                            <div className="flex flex-col items-center justify-center text-center py-4">
-                               <div className="w-12 h-12 rounded-full bg-brand-cyan/20 flex items-center justify-center mb-3">
-                                  <ShieldCheck size={24} className="text-brand-cyan animate-pulse" />
-                               </div>
-                               <h4 className="font-black text-brand-cyan">Pending Review</h4>
-                               <p className="text-xs text-gray-400 mt-1">Our exact team is reviewing your details.</p>
-                            </div>
-                         ) : profile?.verification_status === 'approved' ? (
-                            <div className="space-y-4">
-                               <div className="flex items-center gap-3 text-brand-cyan mb-2">
-                                  <Mail size={20} />
-                                  <p className="text-sm font-black">Verification Approved! Check your email.</p>
-                               </div>
-                               {showVerifOtp ? (
-                                  <div className="flex gap-2">
-                                     <input
-                                        type="text"
-                                        maxLength={6}
-                                        value={verifOtpInput}
-                                        onChange={(e) => setVerifOtpInput(e.target.value.replace(/\D/g, ''))}
-                                        placeholder="000000"
-                                        className="flex-1 text-center bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-2xl font-black tracking-[0.5em] text-white focus:border-brand-cyan outline-none"
-                                     />
-                                     <button
-                                        onClick={handleSubmitOtp}
-                                        disabled={verifyingOtp}
-                                        className="px-6 bg-brand-cyan text-black rounded-xl font-black text-xs uppercase hover:bg-brand-cyan/80 transition-all disabled:opacity-50"
-                                     >
-                                        {verifyingOtp ? '...' : 'Verify'}
-                                     </button>
-                                  </div>
-                               ) : (
-                                  <button
-                                     onClick={() => setShowVerifOtp(true)}
-                                     className="w-full py-3 bg-brand-cyan text-black rounded-xl font-black text-xs uppercase hover:bg-brand-cyan/80 transition-all"
-                                  >
-                                     Enter OTP Code
-                                  </button>
-                               )}
-                            </div>
-                         ) : (
-                            <div className="space-y-4">
-                               <p className="text-sm text-gray-400">
-                                  Select an option to verify your account and receive your OTP code.
-                               </p>
-                               <div className="flex gap-2 mb-2">
-                                  <button 
-                                      onClick={() => setVerifMethod('email')}
-                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'email' ? 'bg-brand-purple border-brand-purple text-white' : 'border-white/10 text-gray-400'}`}
-                                  >
-                                      Email
-                                  </button>
-                                  <button 
-                                      onClick={() => setVerifMethod('phone')}
-                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'phone' ? 'bg-brand-cyan border-brand-cyan text-black' : 'border-white/10 text-gray-400'}`}
-                                  >
-                                      Phone
-                                  </button>
-                                  <button 
-                                      onClick={() => setVerifMethod('whatsapp')}
-                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'whatsapp' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-gray-400'}`}
-                                  >
-                                      WhatsApp
-                                  </button>
-                               </div>
-                               <input 
-                                  placeholder={verifMethod === 'email' ? 'Enter Email Address' : verifMethod === 'phone' ? 'Enter Phone Number (+254...)' : 'Enter WhatsApp (+254...)'}
-                                  value={verifContact}
-                                  onChange={e => setVerifContact(e.target.value)}
-                                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-purple outline-none"
-                               />
-                               <button
-                                  onClick={handleSendContactOtp}
-                                  disabled={requestingVerif}
-                                  className={`w-full py-3 rounded-xl font-black text-xs uppercase transition-all disabled:opacity-50 ${verifMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : verifMethod === 'phone' ? 'bg-brand-cyan hover:bg-brand-cyan/80 text-black' : 'bg-brand-purple hover:bg-brand-purple/80 text-white'}`}
-                                >
-                                  {requestingVerif ? 'Sending...' : `Send OTP via ${verifMethod}`}
-                                </button>
-
-                                {profile?.bio && profile?.handle && profile?.full_name && (
-                                  <div className="pt-4 mt-4 border-t border-white/5">
-                                    <button
-                                      onClick={handleRequestBadge}
-                                      className="w-full py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-brand-purple/20"
-                                    >
-                                      Apply for Verified Badge
-                                    </button>
-                                  </div>
-                                )}
-                            </div>
-                         )}
+                      <div className="p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15 text-center">
+                         <p className="text-sm text-gray-400 mb-4">Complete your verification journey directly from your profile page.</p>
+                         <button onClick={() => setIsEditModalOpen(false)} className="px-6 py-3 bg-brand-purple text-white rounded-xl font-black text-xs uppercase">
+                            View Profile Journey
+                         </button>
                       </div>
                    </div>
                 </div>
