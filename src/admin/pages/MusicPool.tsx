@@ -58,7 +58,7 @@ const MusicPool: React.FC = () => {
             const uniqueFolders = [...new Set(trackList.map((t: any) => t.collection_hub || 'Main Pool'))] as string[];
             setFolders(uniqueFolders);
         } catch {
-            toast.error('Failed to load music pool from Remix Worker');
+            toast.error('Failed to load music pool');
         }
     };
 
@@ -89,7 +89,7 @@ const MusicPool: React.FC = () => {
             toast.success(`Pool sync complete — ${data.synced || 0} track(s) indexed`);
             await loadPool();
         } catch {
-            toast.error('Pool sync failed on Remix Worker');
+            toast.error('Pool sync failed');
         } finally {
             setSyncing(false);
         }
