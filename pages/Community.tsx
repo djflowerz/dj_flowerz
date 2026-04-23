@@ -97,7 +97,7 @@ const maskPhoneNumbers = (text: string): string => {
 };
 
 export default function Community() {
-  const { user, session, isAuthenticated, isProfileComplete } = useAuth();
+  const { user, session, isAuthenticated, isProfileComplete, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [pulses, setPulses] = useState<Pulse[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
@@ -555,7 +555,7 @@ export default function Community() {
           </div>
 
           {/* Identity Nudge for new users */}
-          {isAuthenticated && !user?.handle && (
+          {isAuthenticated && !authLoading && !user?.handle && user?.needsSetup === true && (
             <motion.div 
                initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
                className="mb-8 p-8 bg-gradient-to-r from-brand-purple/20 via-brand-cyan/10 to-brand-purple/20 rounded-[2.5rem] border border-white/10 relative overflow-hidden group"
@@ -624,7 +624,7 @@ export default function Community() {
                       <p className="text-xs text-gray-500 truncate">@{leader.handle}</p>
                     </div>
                   </div>
-                  {user?.handle?.replace('@', '') !== leader.handle && (
+                  {user?.id !== leader.id && user?.handle?.replace(/^@/, '') !== leader.handle?.replace(/^@/, '') && (
                     <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all">Follow</button>
                   )}
                 </div>

@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="lg:hidden w-full mb-4">
         <button
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="w-full flex items-center justify-between px-6 py-4 bg-zinc-900/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl hover:border-brand-purple/30 transition-all active:scale-[0.98]"
+          className="w-full flex items-center justify-between px-6 py-4 bg-black/60 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl hover:border-brand-purple/30 transition-all active:scale-[0.98]"
         >
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-purple/20 text-brand-purple shadow-lg shadow-brand-purple/10">
@@ -84,9 +84,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-140px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
+      <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-[#0A0A0B]/80 backdrop-blur-2xl border border-white/5 flex flex-col lg:h-[calc(100vh-140px)] lg:sticky lg:top-28 rounded-[2rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 animate-in fade-in slide-in-from-left-4 lg:animate-none pb-4 lg:pb-0 z-30`}>
       {/* Search & Folder Selectors */}
-      <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-20 space-y-4">
+      <div className="p-6 border-b border-white/5 bg-black/40 sticky top-0 z-20 space-y-4">
 
         <div className="relative group pt-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-brand-purple transition-colors" size={16} />
@@ -244,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
       
       {/* Footer Branding */}
-      <div className="p-6 border-t border-white/5 bg-zinc-900/80 mt-auto">
+      <div className="p-6 border-t border-white/5 bg-black/40 mt-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-zinc-600">
             <Layers size={14} />

@@ -121,7 +121,13 @@ export default function PublicProfile() {
   const [showVerifOtp, setShowVerifOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
-  const isOwnProfile = user?.handle?.replace('@', '') === handle?.replace('@', '');
+  const cleanHandle = handle?.replace(/^@/, '').toLowerCase();
+  const userHandle = user?.handle?.replace(/^@/, '').toLowerCase();
+  // Own profile: match by handle OR by D1 profile id matching the auth user id
+  const isOwnProfile = !!user && (
+    (userHandle && userHandle === cleanHandle) ||
+    (profile?.id && user.id && profile.id === user.id)
+  );
 
   const fetchData = async () => {
     setLoading(true);
