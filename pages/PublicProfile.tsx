@@ -113,6 +113,12 @@ export default function PublicProfile() {
   const [editData, setEditData] = useState<any>({});
   const [uploading, setUploading] = useState<'avatar' | 'banner' | null>(null);
 
+  // Verification State
+  const [requestingVerif, setRequestingVerif] = useState(false);
+  const [verifOtpInput, setVerifOtpInput] = useState('');
+  const [showVerifOtp, setShowVerifOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
   const isOwnProfile = user?.handle?.replace('@', '') === handle?.replace('@', '');
 
   const fetchData = async () => {
@@ -232,6 +238,53 @@ export default function PublicProfile() {
         success: 'Profile updated successfully!',
         error: (err) => `Failed: ${err.message}`
     });
+  };
+
+  const handleRequestVerification = async () => {
+    setRequestingVerif(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/request-verification`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        },
+      });
+      if (!resp.ok) throw new Error((await resp.json()).error);
+      toast.success('Verification request submitted! Our team will review your profile within 24 hours.');
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || 'Request failed. Please try again.');
+    } finally {
+      setRequestingVerif(false);
+    }
+  };
+
+  const handleSubmitOtp = async () => {
+    if (verifOtpInput.length !== 6) {
+      toast.error('Please enter the full 6-digit code.');
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        },
+        body: JSON.stringify({ otp_code: verifOtpInput }),
+      });
+      if (!resp.ok) throw new Error((await resp.json()).error);
+      toast.success('🎉 Email verified! Your badge is now active.');
+      setShowVerifOtp(false);
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || 'Invalid or expired code.');
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   if (loading) {
@@ -534,6 +587,75 @@ export default function PublicProfile() {
                               </div>
                            </div>
                         ))}
+                      </div>
+                   </div>
+
+                   <div className="pt-6 border-t border-white/5">
+                      <h3 className="font-black text-gray-400 text-xs uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                         <ShieldCheck size={16} className="text-emerald-400" /> Identity Verification
+                      </h3>
+                      <div className="p-5 rounded-2xl bg-white/5 border border-white/10">
+                         {profile?.is_verified || profile?.verification_status === 'verified' ? (
+                            <div className="flex flex-col items-center justify-center text-center py-4">
+                               <TrustBadge type="verified" size="lg" />
+                               <h4 className="mt-3 font-black text-emerald-400">Fully Verified</h4>
+                               <p className="text-xs text-gray-400 mt-1">Your account identity has been confirmed.</p>
+                            </div>
+                         ) : profile?.verification_status === 'requested' ? (
+                            <div className="flex flex-col items-center justify-center text-center py-4">
+                               <div className="w-12 h-12 rounded-full bg-brand-cyan/20 flex items-center justify-center mb-3">
+                                  <ShieldCheck size={24} className="text-brand-cyan animate-pulse" />
+                               </div>
+                               <h4 className="font-black text-brand-cyan">Pending Review</h4>
+                               <p className="text-xs text-gray-400 mt-1">Our exact team is reviewing your details.</p>
+                            </div>
+                         ) : profile?.verification_status === 'approved' ? (
+                            <div className="space-y-4">
+                               <div className="flex items-center gap-3 text-brand-cyan mb-2">
+                                  <Mail size={20} />
+                                  <p className="text-sm font-black">Verification Approved! Check your email.</p>
+                               </div>
+                               {showVerifOtp ? (
+                                  <div className="flex gap-2">
+                                     <input
+                                        type="text"
+                                        maxLength={6}
+                                        value={verifOtpInput}
+                                        onChange={(e) => setVerifOtpInput(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="000000"
+                                        className="flex-1 text-center bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-2xl font-black tracking-[0.5em] text-white focus:border-brand-cyan outline-none"
+                                     />
+                                     <button
+                                        onClick={handleSubmitOtp}
+                                        disabled={verifyingOtp}
+                                        className="px-6 bg-brand-cyan text-black rounded-xl font-black text-xs uppercase hover:bg-brand-cyan/80 transition-all disabled:opacity-50"
+                                     >
+                                        {verifyingOtp ? '...' : 'Verify'}
+                                     </button>
+                                  </div>
+                               ) : (
+                                  <button
+                                     onClick={() => setShowVerifOtp(true)}
+                                     className="w-full py-3 bg-brand-cyan text-black rounded-xl font-black text-xs uppercase hover:bg-brand-cyan/80 transition-all"
+                                  >
+                                     Enter OTP Code
+                                  </button>
+                               )}
+                            </div>
+                         ) : (
+                            <div className="space-y-4">
+                               <p className="text-sm text-gray-400">
+                                  Add a verified badge to your profile to build trust with buyers. Make sure your bio, location, and social links are filled out first.
+                               </p>
+                               <button
+                                  onClick={handleRequestVerification}
+                                  disabled={requestingVerif}
+                                  className="w-full py-3 bg-white/10 text-white rounded-xl font-black text-xs uppercase hover:bg-white/20 transition-all disabled:opacity-50"
+                               >
+                                  {requestingVerif ? 'Submitting...' : 'Request Verification'}
+                               </button>
+                            </div>
+                         )}
                       </div>
                    </div>
                 </div>
