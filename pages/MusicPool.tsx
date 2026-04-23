@@ -118,7 +118,7 @@ export default function MusicPool() {
 
   const fetchFilters = useCallback(async () => {
     try {
-      const response = await fetch(`${REMIX_WORKER_URL}/api/pool/filters`);
+      const response = await fetch(`${STORAGE_WORKER_URL}/api/pool/filters`);
       if (response.ok) {
         const data = await response.json();
         const rawHubs = Array.isArray(data?.hubsWithGenres) ? data.hubsWithGenres : [];
