@@ -342,6 +342,7 @@ export default function PublicProfile() {
                 profile={profile} 
                 session={session} 
                 onRequestVerification={fetchData} 
+                onEditProfile={() => setIsEditModalOpen(true)}
               />
             </div>
           )}

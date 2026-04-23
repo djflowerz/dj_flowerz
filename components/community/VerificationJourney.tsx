@@ -24,6 +24,7 @@ interface VerificationJourneyProps {
   profile: any; // ProfileData
   session: any;
   onRequestVerification?: () => void;
+  onEditProfile?: () => void;
 }
 
 const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke';
@@ -32,6 +33,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
   profile,
   session,
   onRequestVerification,
+  onEditProfile,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -129,7 +131,10 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
     try {
       const resp = await fetch(`${WORKER_URL}/api/profiles/request-verification`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        headers: { 
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        },
       });
       if (!resp.ok) throw new Error((await resp.json()).error);
       toast.success('Verification request submitted! Our team will review your profile within 24 hours.');
@@ -153,6 +158,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
         },
         body: JSON.stringify({ otp_code: otpInput }),
       });
@@ -233,15 +239,22 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                     {phaseLabels[phase]}
                   </p>
                   <div className="space-y-2">
-                    {steps.filter(s => s.phase === phase).map((step) => (
-                      <div
-                        key={step.id}
-                        className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                          step.completed
-                            ? 'bg-emerald-500/5 border-emerald-500/15'
-                            : 'bg-white/[0.02] border-white/5'
-                        }`}
-                      >
+                    {steps.filter(s => s.phase === phase).map((step) => {
+                      const isEditableStep = ['photo', 'bio', 'location', 'social_link'].includes(step.id) && !step.completed;
+                      return (
+                        <div
+                          key={step.id}
+                          onClick={() => {
+                            if (isEditableStep && onEditProfile) onEditProfile();
+                          }}
+                          className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                            step.completed
+                              ? 'bg-emerald-500/5 border-emerald-500/15'
+                              : isEditableStep
+                              ? 'bg-white/[0.02] border-white/5 hover:border-brand-purple/50 cursor-pointer hover:bg-white/[0.04]'
+                              : 'bg-white/[0.02] border-white/5'
+                          }`}
+                        >
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
                           step.completed
                             ? 'bg-emerald-500/20 text-emerald-400'
@@ -265,7 +278,8 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                           {step.completed ? '✓ Done' : step.reward}
                         </span>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
                 </div>
               ))}
