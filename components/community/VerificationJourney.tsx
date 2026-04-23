@@ -41,14 +41,20 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  // Derived states
+  const isContactVerified = profile?.verification_status === 'contact_verified' || profile?.verification_status === 'approved' || profile?.verification_status === 'verified' || profile?.is_verified;
+  const isBadgeRequested = profile?.verification_status === 'requested';
+  const isBadgeApproved = profile?.verification_status === 'approved';
+  const hasBadge = profile?.verification_status === 'verified';
+
   // Derive completed steps from profile data
   const steps: JourneyStep[] = [
-    // Phase 1
+    // Phase 1: Build Your Identity
     {
       id: 'photo',
       phase: 1,
       label: 'Profile Photo',
-      description: 'Upload a clear photo of yourself or your business logo',
+      description: 'Upload a clear photo or logo',
       icon: <Camera size={16} />,
       reward: '+5 Trust Points',
       completed: !!profile?.avatar_url && !profile.avatar_url.includes('ui-avatars'),
@@ -57,90 +63,140 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
       id: 'bio',
       phase: 1,
       label: 'Write a Bio',
-      description: 'Briefly describe your expertise (e.g. "DJ with 5 years experience")',
+      description: 'Description of your expertise',
       icon: <FileText size={16} />,
       reward: '+5 Trust Points',
-      completed: !!(profile?.bio && profile.bio.trim().length > 5),
+      completed: !!(profile?.bio && profile.bio.trim().length > 0),
     },
     {
       id: 'location',
       phase: 1,
       label: 'Add Your Location',
-      description: 'Tell buyers which city/county you are based in',
+      description: 'Specify your city or county',
       icon: <MapPin size={16} />,
       reward: '+5 Trust Points',
       completed: !!(profile?.location && profile.location.trim()),
     },
-    // Phase 2
+    // Phase 2: Trust Baseline
     {
-      id: 'email_verify',
+      id: 'contact_verify',
       phase: 2,
-      label: 'Verify Your Email',
-      description: 'Request admin review and confirm your 6-digit OTP',
+      label: 'Verify Reachability',
+      description: 'Verify your Email, Phone or WhatsApp via OTP',
       icon: <Mail size={16} />,
-      reward: 'Verified Badge 🛡️',
-      completed: profile?.verification_status === 'verified' || profile?.is_verified,
+      reward: '+10 Trust Points',
+      completed: isContactVerified,
     },
     {
       id: 'social_link',
       phase: 2,
-      label: 'Link a Social Profile',
-      description: 'Connect your Instagram, TikTok, or SoundCloud to prove your identity',
+      label: 'Link Social Profile',
+      description: 'Connect Instagram, TikTok, etc.',
       icon: <Link2 size={16} />,
       reward: '+10 Trust Points',
       completed: (() => {
         try {
-          const s = typeof profile?.social_links === 'string'
-            ? JSON.parse(profile.social_links)
-            : profile?.social_links || {};
+          const s = typeof profile?.social_links === 'string' ? JSON.parse(profile.social_links) : profile?.social_links || {};
           return Object.values(s).some((v: any) => v && v.trim());
         } catch { return false; }
       })(),
     },
-    // Phase 3
+    // Phase 3: The Crown
     {
-      id: 'first_listing',
+      id: 'badge',
       phase: 3,
-      label: 'Post Your First Listing',
-      description: 'List a product or service with at least 3 high-quality photos',
-      icon: <ShoppingBag size={16} />,
-      reward: '+15 Trust Points',
-      completed: (profile?.completed_trades || 0) > 0,
-    },
-    {
-      id: 'vouch_peer',
-      phase: 3,
-      label: 'Vouch for a Community Member',
-      description: 'Engage with the community by endorsing someone you have worked with',
-      icon: <Users size={16} />,
-      reward: '+10 Trust Points',
-      completed: false, // would need API check — default false
+      label: 'Verified Badge 🛡️',
+      description: 'Official community Trust Badge application',
+      icon: <Shield size={16} />,
+      reward: 'Verified Badge 🛡️',
+      completed: hasBadge,
     },
   ];
 
+  const completedStepsCount = steps.filter(s => s.completed).length;
   const totalSteps = steps.length;
-  const completedSteps = steps.filter(s => s.completed).length;
-  const completionPercent = Math.round((completedSteps / totalSteps) * 100);
+  const completionPercent = Math.round((completedStepsCount / totalSteps) * 100);
 
-  const isVerificationPending = profile?.verification_status === 'requested';
-  const isVerificationApproved = profile?.verification_status === 'approved';
-  const isVerified = profile?.verification_status === 'verified' || profile?.is_verified;
+  const eligibilitySteps = steps.filter(s => s.id !== 'badge');
+  const eligibleCount = eligibilitySteps.filter(s => s.completed).length;
+  const isEligibleForBadge = eligibleCount === eligibilitySteps.length;
 
-  const handleRequestVerification = async () => {
+  const isVerified = hasBadge || profile?.is_verified;
+
+  const [verifMethod, setVerifMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
+  const [verifContact, setVerifContact] = useState('');
+
+  const handleSendContactOtp = async () => {
+    if (!verifContact.trim()) {
+      toast.error(`Please enter your ${verifMethod}.`);
+      return;
+    }
     setRequesting(true);
     try {
-      const resp = await fetch(`${WORKER_URL}/api/profiles/request-verification`, {
+      const resp = await fetch(`${WORKER_URL}/api/profiles/contact/send-otp`, {
         method: 'POST',
         headers: { 
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
           'X-Actor-Id': profile?.id || ''
         },
+        body: JSON.stringify({ method: verifMethod, contact: verifContact })
       });
-      if (!resp.ok) throw new Error((await resp.json()).error);
-      toast.success('Verification request submitted! Our team will review your profile within 24 hours.');
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      toast.success(`OTP sent to ${verifMethod}! (Simulated: ${data.simulated_otp})`);
+      setShowOtpInput(true);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to send OTP');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handleVerifyContact = async () => {
+    if (otpInput.length !== 6) {
+      toast.error('Enter the 6-digit code');
+      return;
+    }
+    setVerifying(true);
+    try {
+      const resp = await fetch(`${WORKER_URL}/api/profiles/contact/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        },
+        body: JSON.stringify({ otp_code: otpInput }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      toast.success('Reachability verified! You are closer to your badge.');
+      setShowOtpInput(false);
       if (onRequestVerification) onRequestVerification();
     } catch (e: any) {
-      toast.error(e.message || 'Request failed. Please try again.');
+      toast.error(e.message || 'Invalid code');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleRequestBadge = async () => {
+    setRequesting(true);
+    try {
+      const resp = await fetch(`${WORKER_URL}/api/profiles/request-badge`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        }
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      toast.success('Badge request submitted! Admin will notify you once approved.');
+      if (onRequestVerification) onRequestVerification();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to request badge');
     } finally {
       setRequesting(false);
     }
@@ -284,80 +340,107 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                 </div>
               ))}
 
-              {/* Verification CTA */}
-              {!isVerified && (
+              {!hasBadge && (
                 <div className="mt-6 p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
-                  <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mb-1">
-                    🛡️ Email Verification
+                  <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mb-3">
+                    {isContactVerified ? '🛡️ Badge Application' : '🛡️ Reachability Verification'}
                   </p>
-                  <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
-                    Our team manually reviews every verification request to keep the community safe. Complete your profile above first for the best chance of approval.
-                  </p>
-
-                  {isVerified && (
-                    <div className="flex items-center gap-2 text-emerald-400 text-[11px] font-black">
-                      <CheckCircle2 size={14} />
-                      Verified! Your badge is now active.
-                    </div>
-                  )}
-
-                  {isVerificationPending && (
-                    <div className="flex items-center gap-2 text-amber-400 text-[11px] font-black animate-pulse">
-                      <Zap size={14} />
-                      Pending Admin Review — we'll email you within 24 hours.
-                    </div>
-                  )}
-
-                  {isVerificationApproved && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-brand-cyan text-[11px] font-black">
-                        <Mail size={14} />
-                        ✅ Admin approved! Check your email for your 6-digit OTP.
+                  
+                  {!isContactVerified && (
+                    <>
+                      <div className="flex gap-2 mb-4">
+                        {['email', 'phone', 'whatsapp'].map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setVerifMethod(m as any)}
+                            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl border transition-all ${
+                              verifMethod === m
+                                ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-brand-purple/20'
+                                : 'border-white/10 text-gray-500 hover:border-white/20'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
                       </div>
-                      {showOtpInput ? (
-                        <div className="flex gap-2">
+
+                      {!showOtpInput ? (
+                        <div className="space-y-3">
                           <input
                             type="text"
-                            inputMode="numeric"
-                            maxLength={6}
-                            value={otpInput}
-                            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
-                            placeholder="000000"
-                            className="flex-1 text-center bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-2xl font-black tracking-[0.5em] text-white focus:border-brand-cyan focus:outline-none"
+                            value={verifContact}
+                            onChange={(e) => setVerifContact(e.target.value)}
+                            placeholder={`Enter ${verifMethod}`}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-purple outline-none"
                           />
                           <button
-                            onClick={handleSubmitOtp}
-                            disabled={verifying}
-                            className="px-5 py-3 bg-brand-cyan text-black rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-cyan/80 transition-all disabled:opacity-40"
+                            onClick={handleSendContactOtp}
+                            disabled={requesting}
+                            className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-xs uppercase"
                           >
-                            {verifying ? '...' : 'Verify'}
+                            {requesting ? '...' : `Send OTP via ${verifMethod}`}
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => setShowOtpInput(true)}
-                          className="w-full py-3 bg-brand-cyan text-black rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-cyan/80 transition-all"
-                        >
-                          Enter My OTP Code
-                        </button>
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={otpInput}
+                            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit OTP"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-2xl text-center font-black"
+                          />
+                          <button
+                            onClick={handleVerifyContact}
+                            disabled={verifying}
+                            className="w-full py-4 bg-brand-cyan text-black rounded-2xl font-black text-xs uppercase"
+                          >
+                            {verifying ? '...' : 'Verify OTP'}
+                          </button>
+                          <button onClick={() => setShowOtpInput(false)} className="w-full text-[10px] uppercase font-black text-gray-500 mt-2">Back</button>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {isContactVerified && !hasBadge && (
+                    <div className="space-y-4">
+                      {isBadgeRequested ? (
+                        <div className="flex items-center gap-2 text-amber-400 text-[11px] font-black animate-pulse bg-amber-400/5 p-4 rounded-xl border border-amber-400/10">
+                          <Zap size={14} />
+                          Reviewing Eligibility — Expected update in 24h.
+                        </div>
+                      ) : isBadgeApproved ? (
+                         <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                            <p className="text-emerald-400 font-black text-xs uppercase">Badge Eligibility Confirmed!</p>
+                            <p className="text-[10px] text-gray-400 mt-1">Check your settings or contact admin to finalize badge display.</p>
+                         </div>
+                      ) : (
+                        <>
+                          <p className="text-[11px] text-gray-400 leading-relaxed">
+                            {isEligibleForBadge 
+                              ? "Excellent! Your profile is 100% complete and reachability is verified. You are now eligible for the official Verified Membership Badge." 
+                              : "Build your trust level. Complete all Profile and Trust steps to become eligible for the official Badge."}
+                          </p>
+                          <button
+                            onClick={handleRequestBadge}
+                            disabled={requesting || !isEligibleForBadge}
+                            className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
+                              isEligibleForBadge 
+                                ? 'bg-brand-purple text-white shadow-xl shadow-brand-purple/20' 
+                                : 'bg-white/5 text-gray-600 grayscale cursor-not-allowed border border-white/5'
+                            }`}
+                          >
+                            {requesting ? '...' : isEligibleForBadge ? '🏆 Apply for Verified Badge' : `Locked: (${eligibleCount}/${eligibilitySteps.length} steps done)`}
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
-
-                  {!isVerificationPending && !isVerificationApproved && (
-                    <button
-                      onClick={handleRequestVerification}
-                      disabled={requesting || completionPercent < 30}
-                      className="w-full py-3 bg-brand-purple text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-purple/80 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {requesting ? '⏳ Submitting...' :
-                        completionPercent < 30
-                          ? `Complete your profile first (${completionPercent}% done)`
-                          : '🚀 Request Email Verification'}
-                    </button>
-                  )}
                 </div>
               )}
+
 
               {isVerified && (
                 <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 text-center">

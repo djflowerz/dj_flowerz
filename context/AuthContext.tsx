@@ -58,6 +58,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const data = await resp.json();
       if (data.needsSetup) {
         needsSetup = true;
+        // Keep partial data (subscription info) even if profile needs setup
+        d1Profile = data; 
       } else {
         d1Profile = data;
       }
@@ -66,6 +68,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // 2. Merge Identity
+    const isSubActive = (() => {
+      if (isAdminEmail) return true;
+      if (!d1Profile?.is_subscriber) return false;
+      if (!d1Profile?.subscription_expiry) return false;
+      try {
+        return new Date(d1Profile.subscription_expiry) > new Date();
+      } catch {
+        return false;
+      }
+    })();
+
     const userData: User = {
       id: sbUser.id,
       name: d1Profile?.full_name || sbUser.user_metadata?.full_name || 'User',
@@ -73,7 +86,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       handle: d1Profile?.handle ? `@${d1Profile.handle}` : undefined,
       role: isAdminEmail ? 'admin' : 'user',
       isAdmin: isAdminEmail,
-      isSubscriber: isAdminEmail || d1Profile?.aura_tier === 'legendary',
+      isSubscriber: isSubActive,
+      subscriptionExpiry: d1Profile?.subscription_expiry || undefined,
+      subscriptionPlan: d1Profile?.subscription_plan || undefined,
       avatarUrl: d1Profile?.avatar_url || sbUser.user_metadata?.avatar_url || '',
       bannerUrl: d1Profile?.banner_url || '',
       auraTier: d1Profile?.aura_tier || 'standard',

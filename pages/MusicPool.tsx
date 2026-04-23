@@ -62,7 +62,7 @@ interface DynamicFilters {
 }
 
 export default function MusicPool() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart } = useCart();
@@ -163,11 +163,12 @@ export default function MusicPool() {
 
   // Access Control Redirect
   useEffect(() => {
-    if (!poolLoading && !isSubscriber && !isAdmin) {
+    // Only redirect if auth is loaded and user is confirmed NOT a subscriber or admin
+    if (!authLoading && !isSubscriber && !isAdmin) {
       console.log("[MusicPool] Unauthorized access detected.");
       navigate('/', { replace: true });
     }
-  }, [poolLoading, isSubscriber, isAdmin, navigate]);
+  }, [authLoading, isSubscriber, isAdmin, navigate]);
 
   // Sync refresh on filter change
   useEffect(() => {

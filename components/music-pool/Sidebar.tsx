@@ -87,45 +87,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside className={`${isMobileOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-80 flex-shrink-0 bg-zinc-900/50 backdrop-blur-xl border border-white/5 flex flex-col lg:h-[calc(100vh-140px)] lg:sticky lg:top-24 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 lg:animate-none pb-4 lg:pb-0`}>
       {/* Search & Folder Selectors */}
       <div className="p-6 border-b border-white/5 bg-zinc-900/80 sticky top-0 z-20 space-y-4">
-        {/* Dropdowns from Reference Image */}
-        <div className="space-y-3">
-          <div className="relative group">
-            <select
-              id="sidebar-folder-select"
-              value={activeHub === 'all' || activeHub === 'All Hubs' ? '' : activeHub}
-              onChange={(e) => {
-                const hub = e.target.value || 'all';
-                onHubSelect(hub);
-                onGenreSelect('All');
-              }}
-              className="w-full bg-white text-black font-black py-3.5 px-5 rounded-2xl appearance-none cursor-pointer focus:ring-4 focus:ring-brand-purple/20 transition-all text-[13px] uppercase tracking-widest shadow-xl shadow-black/20"
-            >
-              <option value="" disabled>Select Folder</option>
-              <option value="all">All Folders</option>
-              {hubsWithGenres.map(h => (
-                <option key={h.hub} value={h.hub}>{h.hub}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-black/50 group-hover:text-black transition-colors" size={16} />
-          </div>
-
-          <div className="relative group">
-            <select
-              id="sidebar-subfolder-select"
-              value={(activeGenre === 'All' || !activeGenre) ? '' : activeGenre}
-              onChange={(e) => onGenreSelect(e.target.value)}
-              disabled={activeHub === 'all' || !activeHub || activeHub === 'All Hubs'}
-              className="w-full bg-[#121216] text-white font-black py-3.5 px-5 rounded-2xl appearance-none cursor-pointer focus:ring-4 focus:ring-white/5 transition-all text-[13px] uppercase tracking-widest border border-white/5 shadow-inner disabled:opacity-30"
-            >
-              <option value="" disabled>Select Subfolder</option>
-              <option value="All">View All</option>
-              {activeHub !== 'all' && activeHub !== 'All Hubs' && hubsWithGenres.find(h => h.hub === activeHub)?.genres.map(g => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 group-hover:text-white/40 transition-colors" size={16} />
-          </div>
-        </div>
 
         <div className="relative group pt-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-brand-purple transition-colors" size={16} />

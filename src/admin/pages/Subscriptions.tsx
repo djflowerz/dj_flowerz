@@ -128,9 +128,9 @@ const Subscriptions: React.FC = () => {
     const handleRevoke = async (email: string, name: string) => {
         if (!window.confirm(`REVOKE ACCESS for ${name || email}?`)) return;
         try {
-            const res = await request('/api/admin/revoke-access', {
+            const res = await request('/api/admin/subscriptions/manage', {
                 method: 'POST',
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, action: 'revoke' }),
             });
             if (res.success) {
                 toast.success('Access revoked');

@@ -203,6 +203,8 @@ export interface User {
   presenceStatus?: 'online' | 'offline';
   bio?: string;
   location?: string;
+  subscriptionExpiry?: string;
+  subscriptionPlan?: string;
 }
 
 export interface LoyaltyRecord {

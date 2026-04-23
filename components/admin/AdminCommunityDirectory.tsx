@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Shield, ShieldCheck, ShieldOff, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Users, Search, Shield, ShieldCheck, ShieldOff, RefreshCw, AlertTriangle, ExternalLink, Crown, Trash2, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -17,6 +17,9 @@ interface Profile {
   aura_points: number;
   is_verified: number;
   verification_status: string;
+  is_subscriber?: number;
+  subscription_expiry?: string;
+  subscription_plan?: string;
   created_at: string;
   otp_code?: string;
 }
@@ -62,6 +65,48 @@ export default function AdminCommunityDirectory() {
       fetchProfiles();
     } catch (e: any) {
       toast.error(e.message || 'Verification failed');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const handleGrantSubscription = async (profile: Profile) => {
+    const days = prompt(`Grant Music Pool access to ${profile.email} for how many days?`, '30');
+    if (!days) return;
+    
+    setVerifyingId(profile.id);
+    try {
+      const resp = await fetch(`${WORKER_URL}/api/admin/subscriptions/grant`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ email: profile.email, days: parseInt(days) })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      toast.success(`Subscription granted until ${new Date(data.expiry).toLocaleDateString()}`);
+      fetchProfiles();
+    } catch (e: any) {
+      toast.error(e.message || 'Grant failed');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const handleRevokeSubscription = async (profile: Profile) => {
+    if (!confirm(`Revoke Music Pool access for ${profile.email}?`)) return;
+    
+    setVerifyingId(profile.id);
+    try {
+      const resp = await fetch(`${WORKER_URL}/api/admin/subscriptions/revoke`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ email: profile.email })
+      });
+      if (!resp.ok) throw new Error((await resp.json()).error);
+      toast.success(`Subscription revoked for ${profile.email}`);
+      fetchProfiles();
+    } catch (e: any) {
+      toast.error(e.message || 'Revoke failed');
     } finally {
       setVerifyingId(null);
     }
@@ -113,10 +158,23 @@ export default function AdminCommunityDirectory() {
   );
 
   const statusBadge = (p: Profile) => {
-    if (p.is_verified) return <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Verified</span>;
-    if (p.verification_status === 'requested') return <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">⏳ Pending</span>;
-    if (p.verification_status === 'approved') return <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30">📨 OTP Sent</span>;
-    return <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/5 text-gray-500 border border-white/10">Unverified</span>;
+    return (
+      <div className="flex gap-2">
+        {p.is_verified === 1 ? (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Verified</span>
+        ) : (
+          <>
+            {p.verification_status === 'requested' && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">⏳ Pending</span>}
+            {p.verification_status === 'approved' && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30">📨 OTP Sent</span>}
+          </>
+        )}
+        {p.is_subscriber === 1 && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-brand-purple/20 text-brand-purple border border-brand-purple/30 flex items-center gap-1">
+            <Crown size={8} /> Subscribed
+          </span>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -152,58 +210,94 @@ export default function AdminCommunityDirectory() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(p => (
-            <div key={p.id} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-white/10 transition-all group">
-              <img
-                src={p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name || p.handle || 'U')}&background=7C3AED&color=fff`}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                alt={p.full_name}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-sm text-white">{p.full_name || 'Anonymous'}</span>
-                  <span className="text-gray-500 text-xs">@{p.handle}</span>
-                  {statusBadge(p)}
+          {filtered.map(p => {
+             const isSubscribed = p.is_subscriber === 1;
+             const expiryDate = p.subscription_expiry ? new Date(p.subscription_expiry) : null;
+             const isExpired = expiryDate && expiryDate < new Date();
+
+             return (
+              <div key={p.id} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-white/10 transition-all group">
+                <img
+                  src={p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name || p.handle || 'U')}&background=7C3AED&color=fff`}
+                  className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                  alt={p.full_name}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-sm text-white">{p.full_name || 'Anonymous'}</span>
+                    <span className="text-gray-500 text-xs">@{p.handle}</span>
+                    {statusBadge(p)}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <p className="text-[11px] text-gray-600 truncate">{p.email}</p>
+                    {isSubscribed && expiryDate && (
+                      <span className={`text-[10px] flex items-center gap-1 ${isExpired ? 'text-red-400' : 'text-brand-purple'}`}>
+                        <Clock size={10} /> {isExpired ? 'Expired' : 'Expires'}: {expiryDate.toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[11px] text-gray-600 truncate">{p.email}</p>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Subscription Actions */}
+                  <button
+                    onClick={() => handleGrantSubscription(p)}
+                    disabled={verifyingId === p.id}
+                    title={isSubscribed ? "Extend Subscription" : "Grant Subscription"}
+                    className="p-2 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple rounded-xl hover:bg-brand-purple/20 transition-all disabled:opacity-50"
+                  >
+                    <Crown size={14} />
+                  </button>
+                  {isSubscribed && (
+                    <button
+                      onClick={() => handleRevokeSubscription(p)}
+                      disabled={verifyingId === p.id}
+                      title="Revoke Subscription"
+                      className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl hover:bg-red-500/20 transition-all disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+
+                  <div className="w-px h-8 bg-white/5 mx-1" />
+
+                  {/* Verification Actions */}
+                  {p.verification_status === 'requested' && p.is_verified !== 1 && (
+                    <button
+                      onClick={() => handleApproveAndSendOtp(p)}
+                      disabled={verifyingId === p.id}
+                      title="Approve & generate OTP"
+                      className="p-2 bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan rounded-xl hover:bg-brand-cyan/20 transition-all disabled:opacity-50"
+                    >
+                      <Shield size={14} />
+                    </button>
+                  )}
+                  {p.is_verified !== 1 && (
+                    <button
+                      onClick={() => handleManualVerify(p)}
+                      disabled={verifyingId === p.id}
+                      title="Manually verify (no OTP)"
+                      className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                    >
+                      <ShieldCheck size={14} />
+                    </button>
+                  )}
+                  {p.is_verified === 1 && (
+                    <button
+                      onClick={() => handleRevoke(p)}
+                      disabled={verifyingId === p.id}
+                      title="Revoke verification"
+                      className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl hover:bg-red-500/20 transition-all disabled:opacity-50"
+                    >
+                      <ShieldOff size={14} />
+                    </button>
+                  )}
+                  <a href={`/op/${p.handle}`} target="_blank" rel="noreferrer" className="p-2 bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-white transition-all">
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
               </div>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                {p.verification_status === 'requested' && !p.is_verified && (
-                  <button
-                    onClick={() => handleApproveAndSendOtp(p)}
-                    disabled={verifyingId === p.id}
-                    title="Approve & generate OTP"
-                    className="p-2 bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan rounded-xl hover:bg-brand-cyan/20 transition-all disabled:opacity-50"
-                  >
-                    <Shield size={14} />
-                  </button>
-                )}
-                {!p.is_verified && (
-                  <button
-                    onClick={() => handleManualVerify(p)}
-                    disabled={verifyingId === p.id}
-                    title="Manually verify (no OTP)"
-                    className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all disabled:opacity-50"
-                  >
-                    <ShieldCheck size={14} />
-                  </button>
-                )}
-                {!!p.is_verified && (
-                  <button
-                    onClick={() => handleRevoke(p)}
-                    disabled={verifyingId === p.id}
-                    title="Revoke verification"
-                    className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl hover:bg-red-500/20 transition-all disabled:opacity-50"
-                  >
-                    <ShieldOff size={14} />
-                  </button>
-                )}
-                <a href={`/op/${p.handle}`} target="_blank" rel="noreferrer" className="p-2 bg-white/5 border border-white/10 text-gray-400 rounded-xl hover:text-white transition-all">
-                  <ExternalLink size={14} />
-                </a>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

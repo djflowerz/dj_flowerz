@@ -130,8 +130,9 @@ export default function Community() {
       if (tab === 'following' && user?.id) url += `&following_only=true&actor=${user.id}`;
       else if (user?.id) url += `&actor=${user.id}`;
 
+      const authHeader = session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {};
       const [pulseResp, leaderResp] = await Promise.all([
-        fetch(url),
+        fetch(url, { headers: authHeader }),
         fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`)
       ]);
       

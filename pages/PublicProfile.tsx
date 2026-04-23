@@ -128,7 +128,10 @@ export default function PublicProfile() {
     setNotFound(false);
     try {
       const cleanHandle = handle?.replace(/^@/, '');
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/handle/${cleanHandle}`);
+      const authHeader = session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/handle/${cleanHandle}`, {
+        headers: authHeader
+      });
       const data = await resp.json();
       if (data && !data.available) {
         setProfile(data);
@@ -242,11 +245,11 @@ export default function PublicProfile() {
     });
   };
 
-  const handleRequestVerification = async () => {
-    if (!verifContact.trim()) return toast.error('Please enter a valid email or WhatsApp number.');
+  const handleSendContactOtp = async () => {
+    if (!verifContact.trim()) return toast.error(`Please enter your ${verifMethod}.`);
     setRequestingVerif(true);
     try {
-      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/request-verification`, {
+      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/contact/send-otp`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -258,14 +261,58 @@ export default function PublicProfile() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
       
-      // Since backend auto-approves for testing, we can show the mock OTP
-      toast.success(`Verification sent! (Mock OTP: ${data.simulated_otp})`);
-      fetchData();
+      toast.success(`OTP sent via ${verifMethod}! (Simulated: ${data.simulated_otp})`);
+      setShowVerifOtp(true);
     } catch (e: any) {
-      toast.error(e.message || 'Request failed. Please try again.');
+      toast.error(e.message || 'Failed to send OTP');
     } finally {
       setRequestingVerif(false);
     }
+  };
+
+  const handleSubmitOtp = async () => {
+    if (verifOtpInput.length !== 6) return toast.error('Enter 6-digit OTP');
+    setVerifyingOtp(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/contact/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': profile?.id || ''
+        },
+        body: JSON.stringify({ otp_code: verifOtpInput }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      toast.success('Reachability verified!');
+      setShowVerifOtp(false);
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || 'Invalid code');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleRequestBadge = async () => {
+     try {
+       const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/request-badge`, {
+         method: 'POST',
+         headers: {
+           'Authorization': `Bearer ${session?.access_token}`,
+           'X-Actor-Id': profile?.id || ''
+         }
+       });
+       if (!resp.ok) {
+         const d = await resp.json();
+         throw new Error(d.error);
+       }
+       toast.success('Badge request submitted!');
+       fetchData();
+     } catch (e: any) {
+       toast.error(e.message);
+     }
   };
 
   const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
@@ -302,32 +349,6 @@ export default function PublicProfile() {
     } catch (e) {}
   };
 
-  const handleSubmitOtp = async () => {
-    if (verifOtpInput.length !== 6) {
-      toast.error('Please enter the full 6-digit code.');
-      return;
-    }
-    setVerifyingOtp(true);
-    try {
-      const resp = await fetch(`${import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz.co.ke'}/api/profiles/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'X-Actor-Id': profile?.id || ''
-        },
-        body: JSON.stringify({ otp_code: verifOtpInput }),
-      });
-      if (!resp.ok) throw new Error((await resp.json()).error);
-      toast.success('🎉 Email verified! Your badge is now active.');
-      setShowVerifOtp(false);
-      fetchData();
-    } catch (e: any) {
-      toast.error(e.message || 'Invalid or expired code.');
-    } finally {
-      setVerifyingOtp(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -649,9 +670,9 @@ export default function PublicProfile() {
 
                    <div className="pt-6 border-t border-white/5">
                       <h3 className="font-black text-gray-400 text-xs uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                         <ShieldCheck size={16} className="text-emerald-400" /> Identity Verification
+                         <ShieldCheck size={16} className="text-brand-purple" /> Member Safety & Trust
                       </h3>
-                      <div className="p-5 rounded-2xl bg-white/5 border border-white/10">
+                      <div className="p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
                          {profile?.is_verified || profile?.verification_status === 'verified' ? (
                             <div className="flex flex-col items-center justify-center text-center py-4">
                                <TrustBadge type="verified" size="lg" />
@@ -712,6 +733,12 @@ export default function PublicProfile() {
                                       Email
                                   </button>
                                   <button 
+                                      onClick={() => setVerifMethod('phone')}
+                                      className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'phone' ? 'bg-brand-cyan border-brand-cyan text-black' : 'border-white/10 text-gray-400'}`}
+                                  >
+                                      Phone
+                                  </button>
+                                  <button 
                                       onClick={() => setVerifMethod('whatsapp')}
                                       className={`flex-1 py-2 text-xs font-black uppercase rounded-xl border ${verifMethod === 'whatsapp' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/10 text-gray-400'}`}
                                   >
@@ -719,18 +746,29 @@ export default function PublicProfile() {
                                   </button>
                                </div>
                                <input 
-                                  placeholder={verifMethod === 'email' ? 'Enter Email Address' : 'Enter WhatsApp (+254...)'}
+                                  placeholder={verifMethod === 'email' ? 'Enter Email Address' : verifMethod === 'phone' ? 'Enter Phone Number (+254...)' : 'Enter WhatsApp (+254...)'}
                                   value={verifContact}
                                   onChange={e => setVerifContact(e.target.value)}
                                   className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:border-brand-purple outline-none"
                                />
                                <button
-                                  onClick={handleRequestVerification}
+                                  onClick={handleSendContactOtp}
                                   disabled={requestingVerif}
-                                  className={`w-full py-3 rounded-xl font-black text-xs uppercase transition-all disabled:opacity-50 ${verifMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-brand-purple hover:bg-brand-purple/80 text-white'}`}
-                               >
+                                  className={`w-full py-3 rounded-xl font-black text-xs uppercase transition-all disabled:opacity-50 ${verifMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : verifMethod === 'phone' ? 'bg-brand-cyan hover:bg-brand-cyan/80 text-black' : 'bg-brand-purple hover:bg-brand-purple/80 text-white'}`}
+                                >
                                   {requestingVerif ? 'Sending...' : `Send OTP via ${verifMethod}`}
-                               </button>
+                                </button>
+
+                                {profile?.bio && profile?.handle && profile?.full_name && (
+                                  <div className="pt-4 mt-4 border-t border-white/5">
+                                    <button
+                                      onClick={handleRequestBadge}
+                                      className="w-full py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-brand-purple/20"
+                                    >
+                                      Apply for Verified Badge
+                                    </button>
+                                  </div>
+                                )}
                             </div>
                          )}
                       </div>

@@ -156,12 +156,15 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const { url: fileUrl, fileName, trackId, type, orderId } = await request.json() as any;
       if (!fileUrl) return json({ error: 'URL is required' }, 400);
       
-      const isSub = await env.DB.prepare('SELECT status FROM "active-subscribers" WHERE id = ?').bind(actorId).first();
+      const sub = await env.DB.prepare('SELECT status, expiry_date FROM "active-subscribers" WHERE user_email = ? OR id = ?').bind(jwtEmail.toLowerCase(), actorId).first() as any;
+      const isExpired = sub && sub.expiry_date && new Date(sub.expiry_date) < new Date();
+      const isActiveSub = sub && sub.status === 'active' && !isExpired;
+      const isAdmin = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
+
       // Require subscription unless it's an order or a public mixtape
-      if (!isSub && !orderId && type !== 'mixtape_audio' && type !== 'mixtape_video') {
-         // Allow if admin
-         if (!jwtEmail || jwtEmail !== adminEmail) {
-             return json({ error: 'Active subscription required' }, 403);
+      if (!isActiveSub && !orderId && type !== 'mixtape_audio' && type !== 'mixtape_video') {
+         if (!isAdmin) {
+             return json({ error: isExpired ? 'Your subscription has expired' : 'Active subscription required' }, 403);
          }
       }
 
@@ -202,11 +205,38 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   }
 
   // GET /api/profiles/me
+  // Fetches current user profile + subscription state
   if (path === '/api/profiles/me' && method === 'GET') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const profile = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(actorId).first();
-    if (!profile) return json({ needsSetup: true });
-    return json(profile);
+    
+    // 1. Fetch profile
+    const profile = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(actorId).first() as any;
+    
+    // 2. Fetch subscription status from the source of truth (active-subscribers table)
+    // We check by either actorId OR jwtEmail to be safe
+    let subInfo = null;
+    if (jwtEmail) {
+      subInfo = await env.DB.prepare('SELECT * FROM "active-subscribers" WHERE user_email = ? OR id = ?').bind(jwtEmail.toLowerCase(), actorId).first() as any;
+    } else {
+      subInfo = await env.DB.prepare('SELECT * FROM "active-subscribers" WHERE id = ?').bind(actorId).first() as any;
+    }
+
+    // 3. Return merged data
+    if (!profile) {
+      return json({ 
+        needsSetup: true,
+        is_subscriber: subInfo ? 1 : 0,
+        subscription_expiry: subInfo?.expiry_date || null,
+        subscription_plan: subInfo?.plan_id || null
+      });
+    }
+
+    return json({
+      ...profile,
+      is_subscriber: subInfo ? 1 : (profile.is_subscriber || 0),
+      subscription_expiry: subInfo?.expiry_date || profile.subscription_expiry,
+      subscription_plan: subInfo?.plan_id || profile.subscription_plan
+    });
   }
 
   // PATCH /api/user/me  (called by Account.tsx profile editor)
@@ -274,12 +304,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         SELECT p.*, 
         (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'heart') as hearts,
         (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
-        (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count
+        (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count,
+        (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'heart') as has_hearted,
+        (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed
         FROM pulses p 
         WHERE author_id = ? 
         ORDER BY created_at DESC 
         LIMIT 20
-      `).bind(profile.id).all();
+      `).bind(actorId || '', actorId || '', profile.id).all();
 
       // Get follow counts
       const counts = await env.DB.prepare(`
@@ -783,26 +815,71 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json(results || []);
   }
 
-  // POST /api/profiles/request-verification
-  if (path === '/api/profiles/request-verification' && method === 'POST') {
+  // POST /api/profiles/contact/send-otp (Instant OTP for Email/Phone/WhatsApp)
+  if (path === '/api/profiles/contact/send-otp' && method === 'POST') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    
-    // Simulate OTP Generation immediately for user testing
+    const { method: contactMethod, contact } = await request.json() as any;
+    if (!contactMethod || !contact) return json({ error: 'Method and contact required' }, 400);
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
 
     await env.DB.prepare(`
       UPDATE profiles SET 
-        verification_status = 'approved',
-        is_eligible = 1,
         otp_code = ?,
         otp_expiry = ?,
         updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `).bind(otp, expiry, actorId).run();
+
+    return json({ success: true, simulated_otp: otp, message: `OTP sent to your ${contactMethod}.` });
+  }
+
+  // POST /api/profiles/contact/verify-otp
+  if (path === '/api/profiles/contact/verify-otp' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { otp_code } = await request.json() as any;
     
-    // In production, you would trigger an email/sms API here. For now we return it so the UI can mock the reception.
-    return json({ success: true, simulated_otp: otp });
+    const profile = await env.DB.prepare('SELECT otp_code, otp_expiry FROM profiles WHERE id = ?').bind(actorId).first() as any;
+    if (!profile) return json({ error: 'Profile not found' }, 404);
+    
+    const now = new Date().toISOString();
+    if (!profile.otp_expiry || now > profile.otp_expiry) return json({ error: 'OTP expired' }, 410);
+    if (String(profile.otp_code) !== String(otp_code)) return json({ error: 'Invalid code' }, 400);
+
+    // Mark contact as verified (we'll use a specific status for this)
+    await env.DB.prepare(`
+      UPDATE profiles SET 
+        verification_status = 'contact_verified',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(actorId).run();
+
+    return json({ success: true, message: 'Contact details verified!' });
+  }
+
+  // POST /api/profiles/request-badge (Only once eligible)
+  if (path === '/api/profiles/request-badge' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    
+    const profile = await env.DB.prepare('SELECT verification_status, bio, avatar_url, location, is_verified FROM profiles WHERE id = ?').bind(actorId).first() as any;
+    
+    if (profile.verification_status !== 'contact_verified' && !profile.is_verified) {
+      return json({ error: 'Verify your contact details first' }, 403);
+    }
+    
+    if (!profile.bio || !profile.location || !profile.avatar_url) {
+      return json({ error: 'Complete your profile details first' }, 403);
+    }
+
+    await env.DB.prepare(`
+      UPDATE profiles SET 
+        verification_status = 'requested',
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).bind(actorId).run();
+    
+    return json({ success: true, message: 'Identity badge request submitted.' });
   }
 
   // ALIAS: GET /api/community/posts -> /api/pulses
@@ -887,10 +964,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   if (path === '/api/pool/filters' && method === 'GET') {
     try {
       const db_results = await env.DB.batch([
-        env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub'"),
-        env.DB.prepare("SELECT DISTINCT genre FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND genre IS NOT NULL"),
-        env.DB.prepare("SELECT DISTINCT release_year FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND release_year IS NOT NULL ORDER BY release_year DESC"),
-        env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND release_month IS NOT NULL")
+        env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1"),
+        env.DB.prepare("SELECT DISTINCT genre FROM tracks WHERE is_active = 1 AND genre IS NOT NULL"),
+        env.DB.prepare("SELECT DISTINCT release_year FROM tracks WHERE is_active = 1 AND release_year IS NOT NULL ORDER BY release_year DESC"),
+        env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND release_month IS NOT NULL")
       ]);
 
       const hubs = (db_results[0].results as any[]).map(r => r.collection_hub).filter(Boolean);
@@ -927,10 +1004,15 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     try {
       // 1. Subscription check (Gated content)
       let isAuthorized = false;
-      if (actorId) {
-        const sub = await env.DB.prepare('SELECT status FROM "active-subscribers" WHERE id = ?').bind(actorId).first();
-        const isAdm = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
-        if (sub || isAdm) {
+      const safeEmail = (jwtEmail || '').toLowerCase();
+      
+      if (actorId || safeEmail) {
+        const sub = await env.DB.prepare('SELECT status, expiry_date FROM "active-subscribers" WHERE user_email = ? OR id = ?').bind(safeEmail, actorId).first() as any;
+        const isExpired = sub && sub.expiry_date && new Date(sub.expiry_date) < new Date();
+        const isActiveSub = sub && sub.status === 'active' && !isExpired;
+        const isAdm = safeEmail && ADMIN_EMAILS.includes(safeEmail);
+        
+        if (isActiveSub || isAdm) {
           isAuthorized = true;
         }
       }
@@ -946,7 +1028,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const month = url.searchParams.get('month');
       const search = url.searchParams.get('search');
 
-      let baseCriteria = "WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub'";
+      let baseCriteria = "WHERE is_active = 1";
       const params: any[] = [];
 
       if (hub && hub !== 'all') { baseCriteria += " AND collection_hub = ?"; params.push(hub); }
@@ -972,7 +1054,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
             'version_name', version_name,
             'file_url', file_url,
             'file_size', file_size,
-            'preview_url', preview_url
+            'preview_url', file_url
           )) as versions
           FROM track_versions
           GROUP BY track_id
@@ -994,6 +1076,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         versions: typeof t.versions === 'string' ? JSON.parse(t.versions) : (t.versions || [])
       }));
 
+      if (!isAuthorized) {
+        return json({ 
+          error: 'Forbidden: Subscription required', 
+          isAuthorized: false,
+          tracks: [] 
+        }, 403);
+      }
+
       return json({
         tracks,
         pagination: {
@@ -1002,7 +1092,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           totalRecords,
           totalPages: Math.ceil(totalRecords / limit)
         },
-        isAuthorized
+        isAuthorized: true
       });
     } catch (e: any) {
       return json({ error: e.message, stack: e.stack }, 500);
@@ -2557,6 +2647,85 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }
+  }
+
+  // GET /api/admin/active-subscribers
+  if (path === '/api/admin/active-subscribers' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT s.*, p.full_name, p.avatar_url 
+        FROM "active-subscribers" s
+        LEFT JOIN profiles p ON s.id = p.id
+        ORDER BY s.expiry_date DESC
+      `).all();
+      return json(results || []);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/admin/subscriptions/manage (Unified Handler for Subscriptions.tsx)
+  if (path === '/api/admin/subscriptions/manage' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const body = await request.json() as any;
+      const { action, email, days, plan } = body;
+
+      if (action === 'grant') {
+        const targetEmail = (email || '').toLowerCase();
+        const grantDays = days || 30; // default 30 days
+        const expiry = new Date(Date.now() + grantDays * 24 * 60 * 60 * 1000).toISOString();
+        
+        // Try to find profile, but proceed even if not found
+        const targetProfile = await env.DB.prepare('SELECT id FROM profiles WHERE email = ?').bind(targetEmail).first() as any;
+        const targetId = targetProfile ? targetProfile.id : targetEmail; // Fallback to email as ID if no profile
+
+        await env.DB.batch([
+          env.DB.prepare('INSERT OR REPLACE INTO "active-subscribers" (id, user_email, status, expiry_date, plan_id) VALUES (?, ?, ?, ?, ?)')
+            .bind(targetId, targetEmail, 'active', expiry, plan || 'Premium'),
+          targetProfile ? env.DB.prepare('UPDATE profiles SET is_subscriber = 1, subscription_expiry = ? WHERE id = ?').bind(expiry, targetId) : 
+          env.DB.prepare('SELECT 1') // no-op if no profile
+        ]);
+
+        return json({ success: true, expiry });
+      }
+
+      if (action === 'revoke') {
+        const targetEmail = (email || '').toLowerCase();
+        await env.DB.batch([
+          env.DB.prepare('DELETE FROM "active-subscribers" WHERE user_email = ?').bind(targetEmail),
+          env.DB.prepare('UPDATE profiles SET is_subscriber = 0, subscription_expiry = NULL WHERE email = ?').bind(targetEmail)
+        ]);
+        return json({ success: true });
+      }
+
+      return json({ error: 'Unknown action' }, 400);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── Music Pool Subscription Management (Legacy Endpoints) ──────────
+  if (method === 'POST' && path === '/api/admin/subscriptions/grant') {
+    // Redir to unified manage endpoint logic or keep for compat
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+       const body = await request.json() as any;
+       const expiry = new Date(Date.now() + body.days * 24 * 60 * 60 * 1000).toISOString();
+       const email = body.email.toLowerCase();
+       const targetProfile = await env.DB.prepare('SELECT id FROM profiles WHERE email = ?').bind(email).first() as any;
+       const targetId = targetProfile ? targetProfile.id : email;
+
+       await env.DB.prepare('INSERT OR REPLACE INTO "active-subscribers" (id, user_email, status, expiry_date, plan_id) VALUES (?, ?, ?, ?, ?)')
+         .bind(targetId, email, 'active', expiry, 'Premium').run();
+       
+       if (targetProfile) {
+         await env.DB.prepare('UPDATE profiles SET is_subscriber = 1, subscription_expiry = ? WHERE id = ?').bind(expiry, targetId).run();
+       }
+
+       return json({ success: true, expiry });
+    } catch (e: any) { return json({ error: e.message }, 500); }
   }
 
   // ─── 404 ─────────────────────────────────────────────────────────────────────

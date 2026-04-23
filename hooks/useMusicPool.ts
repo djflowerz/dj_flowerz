@@ -123,8 +123,8 @@ export function useMusicPool() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
 
-      setTracks(d.results || []);
-      setPagination(d.pagination || { page: 1, limit: 50, total: 0, totalPages: 0 });
+      setTracks(d.tracks || []);
+      setPagination(d.pagination || { page: 1, limit: 50, totalRecords: 0, totalPages: 0 });
     } catch (err: any) {
       setError(err.message);
     } finally {

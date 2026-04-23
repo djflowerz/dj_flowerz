@@ -23,7 +23,8 @@ const Navbar: React.FC = () => {
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Mixtapes', path: '/mixtapes', icon: Disc },
-    { name: 'Community', path: '/community', icon: Zap },
+    { name: 'Music Pool', path: '/music-pool', icon: Zap },
+    { name: 'Community', path: '/community', icon: MessageCircle },
     { name: 'DJ Lab', path: '/dj-lab', icon: Monitor },
     { name: 'Bookings', path: '/bookings', icon: Calendar },
     { name: 'Tip Jar', path: '/tip-jar', icon: Heart },
