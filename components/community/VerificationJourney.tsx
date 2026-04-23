@@ -468,6 +468,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                 </div>
               )}
             </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

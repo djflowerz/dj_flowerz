@@ -35,7 +35,7 @@
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "firebase-admin": "^13.7.0",
-    "framer-motion": "^12.34.2",
+    "framer-motion": "^11.18.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
