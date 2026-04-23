@@ -849,7 +849,146 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ success: true });
   }
 
+  // ─── Music Pool (Standard & External Hubs) ───────────────────────────────────
+
+  // GET /api/musicpool/filters
+  if (path === '/api/musicpool/filters' && method === 'GET') {
+    try {
+      const db_results = await env.DB.batch([
+        env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1 AND collection_hub IS NOT NULL"),
+        env.DB.prepare("SELECT DISTINCT genre FROM tracks WHERE is_active = 1 AND genre IS NOT NULL"),
+        env.DB.prepare("SELECT DISTINCT release_year FROM tracks WHERE is_active = 1 AND release_year IS NOT NULL ORDER BY release_year DESC"),
+        env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND release_month IS NOT NULL")
+      ]);
+
+      return json({
+        hubs: (db_results[0].results as any[]).map(r => r.collection_hub),
+        genres: (db_results[1].results as any[]).map(r => r.genre),
+        years: (db_results[2].results as any[]).map(r => r.release_year),
+        months: (db_results[3].results as any[]).map(r => r.release_month)
+      });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // GET /api/pool/tracks
+  if (path === '/api/pool/tracks' && method === 'GET') {
+    // 1. Subscription check (Gated content)
+    let isAuthorized = false;
+    if (actorId) {
+      const sub = await env.DB.prepare('SELECT status FROM "active-subscribers" WHERE id = ?').bind(actorId).first();
+      if (sub || (jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase()))) {
+        isAuthorized = true;
+      }
+    }
+
+    // 2. Query construction
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const offset = (page - 1) * limit;
+
+    const hub = url.searchParams.get('hub');
+    const genre = url.searchParams.get('genre');
+    const year = url.searchParams.get('year');
+    const month = url.searchParams.get('month');
+    const search = url.searchParams.get('search');
+
+    let baseCriteria = `WHERE is_active = 1`;
+    const params: any[] = [];
+
+    if (hub) { baseCriteria += " AND collection_hub = ?"; params.push(hub); }
+    if (genre) { baseCriteria += " AND genre = ?"; params.push(genre); }
+    if (year) { baseCriteria += " AND release_year = ?"; params.push(parseInt(year)); }
+    if (month) { baseCriteria += " AND release_month = ?"; params.push(month); }
+    if (search) {
+      baseCriteria += " AND (title LIKE ? OR artist LIKE ?)";
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    // Get total count for pagination
+    const totalResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM tracks ${baseCriteria}`).bind(...params).first() as any;
+    const totalRecords = totalResult?.total || 0;
+
+    // Apply limit/offset and Join
+    const dataQuery = `
+      SELECT t.*, v.versions
+      FROM tracks t
+      LEFT JOIN (
+        SELECT track_id, json_group_array(json_object(
+          'id', id,
+          'version_name', version_name,
+          'file_url', file_url,
+          'file_size', file_size,
+          'preview_url', preview_url
+        )) as versions
+        FROM track_versions
+        GROUP BY track_id
+      ) v ON t.id = v.track_id
+      WHERE t.id IN (
+        SELECT id FROM tracks
+        ${baseCriteria}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      )
+      ORDER BY t.created_at DESC
+    `;
+    
+    // We need to re-add the params for the subquery AND add limit/offset
+    const dataParams = [...params, limit, offset];
+
+    const { results } = await env.DB.prepare(dataQuery).bind(...dataParams).all();
+
+    // Map results to parse JSON strings
+    const tracks = (results || []).map((t: any) => ({
+      ...t,
+      versions: typeof t.versions === 'string' ? JSON.parse(t.versions) : (t.versions || [])
+    }));
+
+    return json({
+      tracks,
+      pagination: {
+        page,
+        limit,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit)
+      },
+      isAuthorized
+    });
+  }
+
+  // GET /api/admin/pool/tracks (Admin restricted)
+  if (path === '/api/admin/pool/tracks' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Unauthorized' }, 401);
+    
+    const { results } = await env.DB.prepare(`
+      SELECT t.*, v.versions
+      FROM tracks t
+      LEFT JOIN (
+        SELECT track_id, json_group_array(json_object(
+          'id', id,
+          'version_name', version_name,
+          'file_url', file_url,
+          'file_size', file_size,
+          'preview_url', preview_url
+        )) as versions
+        FROM track_versions
+        GROUP BY track_id
+      ) v ON t.id = v.track_id
+      ORDER BY t.created_at DESC
+      LIMIT 1000
+    `).all();
+
+    const tracks = (results || []).map((t: any) => ({
+      ...t,
+      versions: typeof t.versions === 'string' ? JSON.parse(t.versions) : (t.versions || [])
+    }));
+
+    return json(tracks);
+  }
+
   // ─── Commerce Routes ──────────────────────────────────────────────────────────
+
 
   if ((path === '/api/products' || path === '/api/v1/products') && method === 'GET') {
     const { results } = await env.DB.prepare(
