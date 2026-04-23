@@ -268,6 +268,40 @@ export default function PublicProfile() {
     }
   };
 
+  const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
+    if (!session) {
+      toast.error("Sign in to interact with pulses");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}/react`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        },
+        body: JSON.stringify({ type })
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        setPosts(prev => prev.map((p: any) => {
+          if (p.id === pulseId) {
+            const isAdding = data.reacted;
+            return {
+              ...p,
+              [type === 'heart' ? 'hearts' : 'echoes']: p[type === 'heart' ? 'hearts' : 'echoes'] + (isAdding ? 1 : -1),
+              [type === 'heart' ? 'has_hearted' : 'has_echoed']: isAdding ? 'yes' : null
+            };
+          }
+          return p;
+        }));
+      }
+    } catch (e) {}
+  };
+
   const handleSubmitOtp = async () => {
     if (verifOtpInput.length !== 6) {
       toast.error('Please enter the full 6-digit code.');
@@ -495,10 +529,25 @@ export default function PublicProfile() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-8 text-gray-500">
-                         <div className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors cursor-pointer"><MessageSquare size={16} /> {p.comments_count || 0}</div>
-                         <div className="flex items-center gap-2 text-xs hover:text-green-500 transition-colors cursor-pointer"><Repeat size={16} /> {p.echoes}</div>
-                         <div className="flex items-center gap-2 text-xs hover:text-red-500 transition-colors cursor-pointer"><Heart size={16} /> {p.hearts}</div>
+                      <div className="flex items-center gap-6 text-gray-500 mt-2">
+                         <button className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10">
+                            <MessageSquare size={16} /> 
+                            <span className="font-bold">{p.comments_count || 0}</span>
+                         </button>
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'echo'); }}
+                            className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
+                         >
+                            <Repeat size={16} /> 
+                            <span className="font-bold">{p.echoes || 0}</span>
+                         </button>
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'heart'); }}
+                            className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
+                         >
+                            <Heart size={16} className={p.has_hearted ? "fill-current" : ""} /> 
+                            <span className="font-bold">{p.hearts || 0}</span>
+                         </button>
                       </div>
                    </div>
                  </div>
