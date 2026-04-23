@@ -71,8 +71,30 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // ─── CORE INFRASTRUCTURE ──────────────────────────────────────────────────
   
-  // GET /api/files/* (Serves files from R2)
+  // GET /api/files/* (Serves files from R2 or proxies from external hubs)
   if (method === 'GET' && path.startsWith('/api/files/')) {
+    const origin = url.searchParams.get('origin');
+    
+    // Proxy to remix worker if requested
+    if (origin === 'remix') {
+      const targetUrl = new URL(`https://remix-and-mashups-worker.dennismacharia20.workers.dev`);
+      targetUrl.pathname = path.replace('/api/files/', '');
+      url.searchParams.forEach((v, k) => {
+        if (k !== 'origin') targetUrl.searchParams.set(k, v);
+      });
+
+      console.log(`[Proxy] Fetching from remix worker: ${targetUrl.toString()}`);
+      
+      const response = await fetch(targetUrl.toString(), {
+        headers: { 'Accept': 'application/json, application/octet-stream' }
+      });
+      
+      // Mirror the response
+      const newResponse = new Response(response.body, response);
+      newResponse.headers.set('Access-Control-Allow-Origin', '*');
+      return newResponse;
+    }
+
     const rawKey = path.replace('/api/files/', '');
     const key = decodeURIComponent(rawKey);
     const object = await env.R2_BUCKET.get(key);
@@ -851,8 +873,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // ─── Music Pool (Standard & External Hubs) ───────────────────────────────────
 
-  // GET /api/musicpool/filters
-  if (path === '/api/musicpool/filters' && method === 'GET') {
+  // GET /api/pool/filters
+  if (path === '/api/pool/filters' && method === 'GET') {
     try {
       const db_results = await env.DB.batch([
         env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1 AND collection_hub IS NOT NULL"),
@@ -861,11 +883,29 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND release_month IS NOT NULL")
       ]);
 
+      const hubs = (db_results[0].results as any[]).map(r => r.collection_hub).filter(Boolean);
+      const genres = (db_results[1].results as any[]).map(r => r.genre).filter(Boolean);
+      const years = (db_results[2].results as any[]).map(r => r.release_year).filter(Boolean);
+      const months = (db_results[3].results as any[]).map(r => r.release_month).filter(Boolean);
+
+      // Construct hubsWithGenres (Simple mapping for now)
+      const hubsWithGenres = hubs.map(h => ({
+        hub: h,
+        genres: genres // For now return all genres for each hub, or refine if needed
+      }));
+
+      // Group years with months
+      const yearsWithMonths = years.map(y => ({
+        year: y,
+        months: months
+      }));
+
       return json({
-        hubs: (db_results[0].results as any[]).map(r => r.collection_hub).filter(Boolean),
-        genres: (db_results[1].results as any[]).map(r => r.genre).filter(Boolean),
-        years: (db_results[2].results as any[]).map(r => r.release_year).filter(Boolean),
-        months: (db_results[3].results as any[]).map(r => r.release_month).filter(Boolean)
+        hubsWithGenres,
+        years: yearsWithMonths,
+        genres,
+        hubs,
+        months
       });
     } catch (e: any) {
       return json({ error: e.message, stack: e.stack }, 500);

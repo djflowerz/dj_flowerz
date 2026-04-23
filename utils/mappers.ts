@@ -102,8 +102,22 @@ export const mapR2Track = (t: any): Track => {
   const seenUrls = new Set();
   versions = versions.filter((v: any) => {
     const url = v.download_url || v.preview_url || '';
-    const normalized = url.split('?')[0].replace(/\(\d+\)\.[^.]+$/, (m) => m.split('.').pop() || '');
-    if (!normalized || seenUrls.has(normalized)) return false;
+    if (!url) return false;
+    
+    // For remix worker tokens, the uniqueness is in the 'key' param
+    let normalized = url.split('?')[0];
+    if (url.includes('api/token') || url.includes('origin=remix')) {
+      const keyMatch = url.match(/[?&]key=([^&]+)/);
+      if (keyMatch) {
+         normalized += `?key=${keyMatch[1]}`;
+      } else {
+         normalized = url; // Fallback to full URL if key param missing
+      }
+    } else {
+      normalized = normalized.replace(/\(\d+\)\.[^.]+$/, (m) => m.split('.').pop() || '');
+    }
+
+    if (seenUrls.has(normalized)) return false;
     seenUrls.add(normalized);
     return true;
   });
