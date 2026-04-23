@@ -99,7 +99,7 @@ const Avatar = ({ src, name, size = 20, className = "" }: { src?: string; name?:
 
 export default function PublicProfile() {
   const { handle } = useParams();
-  const { user, session, updateProfile } = useAuth();
+  const { user, session, updateProfile, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);

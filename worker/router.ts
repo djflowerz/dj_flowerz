@@ -1732,8 +1732,25 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // GET /api/admin/profiles (New endpoint for the dashboard)
     if (path === '/api/admin/profiles' && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT id, handle, full_name, email, avatar_url, aura_tier, is_verified, presence_status, last_seen, created_at FROM profiles ORDER BY created_at DESC').all();
+      const { results } = await env.DB.prepare('SELECT id, handle, full_name, email, avatar_url, bio, location, aura_tier, aura_points, is_verified, verification_status, otp_code, presence_status, last_seen, created_at FROM profiles ORDER BY created_at DESC').all();
       return json(results);
+    }
+
+    // POST /api/admin/profiles/:id/revoke-verification
+    const revokeMatch = path.match(/^\/api\/admin\/profiles\/([^/]+)\/revoke-verification$/);
+    if (revokeMatch && method === 'POST') {
+      if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+      const targetId = revokeMatch[1];
+      await env.DB.prepare(`
+        UPDATE profiles SET 
+          is_verified = 0,
+          verification_status = NULL,
+          otp_code = NULL,
+          otp_expiry = NULL,
+          is_eligible = 0
+        WHERE id = ?
+      `).bind(targetId).run();
+      return json({ success: true });
     }
 
     // DELETE /api/admin/profiles/:id

@@ -291,7 +291,7 @@ const Settings: React.FC = () => {
                                         </div>
                                         <div className="flex items-center gap-4 group">
                                             <div className="w-12 h-12 rounded-xl bg-[#1DA1F2]/10 border border-[#1DA1F2]/20 flex items-center justify-center text-[#1DA1F2]">
-                                                <Twitter size={20} />
+                                                <Share2 size={20} />
                                             </div>
                                             <input
                                                 type="text"
