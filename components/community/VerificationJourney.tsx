@@ -60,7 +60,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
       description: 'Briefly describe your expertise (e.g. "DJ with 5 years experience")',
       icon: <FileText size={16} />,
       reward: '+5 Trust Points',
-      completed: !!(profile?.bio && profile.bio.trim().length > 20),
+      completed: !!(profile?.bio && profile.bio.trim().length > 5),
     },
     {
       id: 'location',
