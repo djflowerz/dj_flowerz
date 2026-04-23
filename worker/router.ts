@@ -877,10 +877,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   if (path === '/api/pool/filters' && method === 'GET') {
     try {
       const db_results = await env.DB.batch([
-        env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1 AND collection_hub IS NOT NULL"),
-        env.DB.prepare("SELECT DISTINCT genre FROM tracks WHERE is_active = 1 AND genre IS NOT NULL"),
-        env.DB.prepare("SELECT DISTINCT release_year FROM tracks WHERE is_active = 1 AND release_year IS NOT NULL ORDER BY release_year DESC"),
-        env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND release_month IS NOT NULL")
+        env.DB.prepare("SELECT DISTINCT collection_hub FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub'"),
+        env.DB.prepare("SELECT DISTINCT genre FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND genre IS NOT NULL"),
+        env.DB.prepare("SELECT DISTINCT release_year FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND release_year IS NOT NULL ORDER BY release_year DESC"),
+        env.DB.prepare("SELECT DISTINCT release_month FROM tracks WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub' AND release_month IS NOT NULL")
       ]);
 
       const hubs = (db_results[0].results as any[]).map(r => r.collection_hub).filter(Boolean);
@@ -936,7 +936,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const month = url.searchParams.get('month');
       const search = url.searchParams.get('search');
 
-      let baseCriteria = "WHERE is_active = 1";
+      let baseCriteria = "WHERE is_active = 1 AND collection_hub = 'Remix & Mashups Hub'";
       const params: any[] = [];
 
       if (hub && hub !== 'all') { baseCriteria += " AND collection_hub = ?"; params.push(hub); }
