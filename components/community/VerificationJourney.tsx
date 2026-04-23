@@ -144,7 +144,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
-      toast.success(`OTP sent to ${verifMethod}! (Simulated: ${data.simulated_otp})`);
+      toast.success(`Verification code sent to your ${verifMethod}! Enter it below.`);
       setShowOtpInput(true);
     } catch (e: any) {
       toast.error(e.message || 'Failed to send OTP');

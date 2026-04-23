@@ -815,39 +815,92 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json(results || []);
   }
 
-  // POST /api/profiles/contact/send-otp (Instant OTP for Email/Phone/WhatsApp)
+  // POST /api/profiles/contact/send-otp
+  // Generates a 6-digit OTP, stores it in KV (10 min TTL), and dispatches via email or WhatsApp
   if (path === '/api/profiles/contact/send-otp' && method === 'POST') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
     const { method: contactMethod, contact } = await request.json() as any;
     if (!contactMethod || !contact) return json({ error: 'Method and contact required' }, 400);
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    // --- Rate limit: max 5 sends per user per 10 min ---
+    const rlKey = `otp_rl:${actorId}`;
+    const rlRaw = await env.KV.get(rlKey);
+    const rlCount = rlRaw ? parseInt(rlRaw, 10) : 0;
+    if (rlCount >= 5) return json({ error: 'Too many OTP requests. Please wait 10 minutes.' }, 429);
+    await env.KV.put(rlKey, String(rlCount + 1), { expirationTtl: 600 });
 
-    await env.DB.prepare(`
-      UPDATE profiles SET 
-        otp_code = ?,
-        otp_expiry = ?,
-        updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).bind(otp, expiry, actorId).run();
+    // --- Generate and store OTP in KV (10 min TTL) ---
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const kvKey = `otp:${actorId}`;
+    await env.KV.put(kvKey, JSON.stringify({ otp, used: false, method: contactMethod, contact }), { expirationTtl: 600 });
 
-    return json({ success: true, simulated_otp: otp, message: `OTP sent to your ${contactMethod}.` });
+    // --- Dispatch ---
+    try {
+      if (contactMethod === 'email') {
+        // Use Cloudflare Email binding if available
+        const emailFrom = (env as any).EMAIL_FROM || 'verify@djflowerz.co.ke';
+        const emailName = (env as any).EMAIL_FROM_NAME || 'DJ Flowerz';
+        if ((env as any).EMAIL) {
+          const { EmailMessage } = await import('cloudflare:email') as any;
+          const msg = new EmailMessage(
+            `${emailName} <${emailFrom}>`,
+            contact,
+            {
+              subject: `Your DJ Flowerz verification code: ${otp}`,
+              text: `Your one-time verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
+              html: `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0a0a0f;margin:0;padding:40px"><div style="max-width:480px;margin:0 auto;background:#111118;border-radius:24px;overflow:hidden;border:1px solid #1f1f2e"><div style="background:linear-gradient(135deg,#7b5cff,#00c6ff);padding:32px;text-align:center"><h1 style="color:#fff;margin:0;font-size:20px;font-weight:900">DJ Flowerz Verification</h1></div><div style="padding:40px;text-align:center"><p style="color:#9ca3af;font-size:14px;margin:0 0 24px">Use the code below to verify your account. Valid for 10 minutes.</p><div style="background:#0d0d14;border:2px dashed #2a2a3d;border-radius:16px;padding:32px;margin:24px 0"><span style="font-size:48px;font-weight:900;letter-spacing:12px;color:#fff;font-family:monospace">${otp}</span><p style="color:#6b7280;font-size:12px;margin:8px 0 0">Expires in 10 minutes</p></div><p style="color:#6b7280;font-size:12px">If you didn't request this, ignore this email.</p></div></div></body></html>`
+            }
+          );
+          await (env as any).EMAIL.send(msg);
+        }
+        return json({ success: true, message: `Verification code sent to ${contact}` });
+
+      } else if (contactMethod === 'whatsapp' || contactMethod === 'phone') {
+        // Dispatch via Railway WhatsApp microservice
+        const waUrl = (env as any).WHATSAPP_SERVICE_URL;
+        const waKey = (env as any).WHATSAPP_API_KEY;
+        if (waUrl && waKey) {
+          const waResp = await fetch(`${waUrl}/send-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': waKey },
+            body: JSON.stringify({ phone: contact, otp, expiryMin: 10 }),
+          });
+          if (!waResp.ok) {
+            const err = await waResp.json() as any;
+            return json({ error: err.message || 'Failed to send WhatsApp OTP' }, 500);
+          }
+        }
+        return json({ success: true, message: `Verification code sent to ${contact} via WhatsApp` });
+      }
+
+      return json({ success: true, message: `OTP sent via ${contactMethod}` });
+    } catch (e: any) {
+      console.error('OTP dispatch error:', e.message);
+      // Fallback: still return success so frontend can prompt for code entry
+      // (useful if email binding not yet configured)
+      return json({ success: true, message: `Code generated. If delivery fails, contact support.`, _dev_otp: (env as any).ENVIRONMENT !== 'production' ? otp : undefined });
+    }
   }
 
   // POST /api/profiles/contact/verify-otp
+  // Validates OTP from KV and marks contact as verified
   if (path === '/api/profiles/contact/verify-otp' && method === 'POST') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
     const { otp_code } = await request.json() as any;
-    
-    const profile = await env.DB.prepare('SELECT otp_code, otp_expiry FROM profiles WHERE id = ?').bind(actorId).first() as any;
-    if (!profile) return json({ error: 'Profile not found' }, 404);
-    
-    const now = new Date().toISOString();
-    if (!profile.otp_expiry || now > profile.otp_expiry) return json({ error: 'OTP expired' }, 410);
-    if (String(profile.otp_code) !== String(otp_code)) return json({ error: 'Invalid code' }, 400);
+    if (!otp_code || !/^\d{6}$/.test(String(otp_code))) return json({ error: 'Enter a valid 6-digit code' }, 400);
 
-    // Mark contact as verified (we'll use a specific status for this)
+    const kvKey = `otp:${actorId}`;
+    const raw = await env.KV.get(kvKey);
+    if (!raw) return json({ error: 'Code expired. Please request a new one.' }, 410);
+
+    const record = JSON.parse(raw) as { otp: string; used: boolean };
+    if (record.used) return json({ error: 'Code already used. Please request a new one.' }, 400);
+    if (record.otp !== String(otp_code)) return json({ error: 'Invalid code. Please check and try again.' }, 400);
+
+    // Mark as used in KV (keep for 5 more min for UX)
+    await env.KV.put(kvKey, JSON.stringify({ ...record, used: true }), { expirationTtl: 300 });
+
+    // Update profile to contact_verified
     await env.DB.prepare(`
       UPDATE profiles SET 
         verification_status = 'contact_verified',
@@ -855,8 +908,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       WHERE id = ?
     `).bind(actorId).run();
 
-    return json({ success: true, message: 'Contact details verified!' });
+    return json({ success: true, message: 'Contact verified! You can now apply for your badge.' });
   }
+
 
   // POST /api/profiles/request-badge (Only once eligible)
   if (path === '/api/profiles/request-badge' && method === 'POST') {

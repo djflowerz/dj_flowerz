@@ -61,8 +61,17 @@
   "vars": {
     "PUBLIC_R2_DOMAIN": "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev",
     "VITE_ADMIN_EMAIL": "",
-    "VITE_APP_URL": "https://www.djflowerz.co.ke"
+    "VITE_APP_URL": "https://www.djflowerz.co.ke",
+    "EMAIL_FROM": "verify@djflowerz.co.ke",
+    "EMAIL_FROM_NAME": "DJ Flowerz",
+    "WHATSAPP_SERVICE_URL": "",
+    "WHATSAPP_API_KEY": ""
   },
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
   "triggers": {
     "crons": [
       "0 0 * * *"
@@ -80,8 +89,17 @@
         "PUBLIC_R2_DOMAIN": "pub-8ce7dd1a0bfc42fb9e3a130e1f5f5aae.r2.dev",
         "VITE_ADMIN_EMAIL": "",
         "VITE_APP_URL": "https://www.djflowerz.co.ke",
-        "ENVIRONMENT": "production"
+        "ENVIRONMENT": "production",
+        "EMAIL_FROM": "verify@djflowerz.co.ke",
+        "EMAIL_FROM_NAME": "DJ Flowerz",
+        "WHATSAPP_SERVICE_URL": "",
+        "WHATSAPP_API_KEY": ""
       },
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
       "kv_namespaces": [
         {
           "binding": "KV",
