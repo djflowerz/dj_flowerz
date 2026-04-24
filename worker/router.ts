@@ -78,20 +78,26 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // Proxy to remix worker if requested
     if (origin === 'remix') {
       const targetUrl = new URL(`https://remix-and-mashups-worker.dennismacharia20.workers.dev`);
-      targetUrl.pathname = path.replace('/api/files/', '');
+      const key = path.replace('/api/files/', '');
+      targetUrl.pathname = '/' + key;
+      
       url.searchParams.forEach((v, k) => {
         if (k !== 'origin') targetUrl.searchParams.set(k, v);
       });
 
-      console.log(`[Proxy] Fetching from remix worker: ${targetUrl.toString()}`);
+      console.log(`[Proxy] Streaming from remix worker: ${targetUrl.toString()}`);
       
       const response = await fetch(targetUrl.toString(), {
-        headers: { 'Accept': 'application/json, application/octet-stream' }
+        headers: { 
+          'Accept': 'application/json, application/octet-stream',
+          'Range': request.headers.get('Range') || ''
+        }
       });
       
-      // Mirror the response
+      // Mirror the response with proper streaming headers
       const newResponse = new Response(response.body, response);
       newResponse.headers.set('Access-Control-Allow-Origin', '*');
+      newResponse.headers.set('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
       return newResponse;
     }
 
@@ -149,30 +155,63 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
-  // POST /api/pool/download (Proxy asset download)
-  if (path === '/api/pool/download' && method === 'POST') {
-    if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    try {
-      const { url: fileUrl, fileName, trackId, type, orderId } = await request.json() as any;
-      if (!fileUrl) return json({ error: 'URL is required' }, 400);
-      
-      const sub = await env.DB.prepare('SELECT status, expiry_date FROM "active-subscribers" WHERE user_email = ? OR id = ?').bind(jwtEmail.toLowerCase(), actorId).first() as any;
-      const isExpired = sub && sub.expiry_date && new Date(sub.expiry_date) < new Date();
-      const isActiveSub = sub && sub.status === 'active' && !isExpired;
-      const isAdmin = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
+  // API Pool Download (GET & POST)
+  if (path === '/api/pool/download') {
+    const isGet = method === 'GET';
+    const isPost = method === 'POST';
+    
+    if (isGet || isPost) {
+      try {
+        let referenceToken = token;
+        let fileUrl, fileName, versionId;
 
-      // Require subscription unless it's an order or a public mixtape
-      if (!isActiveSub && !orderId && type !== 'mixtape_audio' && type !== 'mixtape_video') {
-         if (!isAdmin) {
-             return json({ error: isExpired ? 'Your subscription has expired' : 'Active subscription required' }, 403);
-         }
+        if (isGet) {
+          fileUrl = url.searchParams.get('url');
+          fileName = url.searchParams.get('filename');
+          versionId = url.searchParams.get('versionId');
+          referenceToken = url.searchParams.get('token') || token;
+        } else {
+          const body = await request.json() as any;
+          fileUrl = body.url;
+          fileName = body.fileName;
+          versionId = body.versionId;
+        }
+
+        if (!actorId && !referenceToken) return json({ error: 'Unauthorized' }, 401);
+
+        // Verify session/token if needed
+        let userEmail = jwtEmail || '';
+        if (!userEmail && referenceToken) {
+           // Decode token to find email if possible, or assume valid for now if passed
+           // This is a simplified check.
+        }
+
+        const sub = await env.DB.prepare('SELECT status, expiry_date FROM "active-subscribers" WHERE user_email = ? OR id = ?').bind(userEmail.toLowerCase(), actorId || '').first() as any;
+        const isExpired = sub && sub.expiry_date && new Date(sub.expiry_date) < new Date();
+        const isActiveSub = sub && sub.status === 'active' && !isExpired;
+        const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase());
+
+        if (!isActiveSub && !isAdmin) {
+          return json({ error: isExpired ? 'Subscription expired' : 'Subscription required' }, 403);
+        }
+
+        if (isGet) {
+          // For GET, we actually want to serve the file or redirect to it
+          // Masking with our proxy
+          const masked = maskMediaUrl(fileUrl || '');
+          if (masked.startsWith('/api/files/')) {
+             // Internal redirect logic
+             const redirectUrl = new URL(request.url);
+             redirectUrl.pathname = masked;
+             return Response.redirect(redirectUrl.toString(), 302);
+          }
+          return Response.redirect(fileUrl || '', 302);
+        }
+
+        return json({ success: true, redirectUrl: fileUrl, fileName });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
       }
-
-      // Simple implementation: return the redirect URL directly to the frontend
-      // In a strict setup, we would generate a signed URL or proxy the stream.
-      return json({ success: true, redirectUrl: fileUrl, fileName });
-    } catch (e: any) {
-      return json({ error: e.message }, 500);
     }
   }
 
@@ -542,6 +581,21 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (actorId === target_id) return json({ error: 'Cannot follow yourself' }, 400);
 
     try {
+      // Ensure actor has a profile to satisfy FK constraints
+      const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
+      if (!actorProfile) {
+        await env.DB.prepare(`
+          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          actorId, 
+          `anon-${actorId.slice(0, 6)}`, 
+          'Anonymous Operator', 
+          `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
+          'Operator initialization in progress...'
+        ).run();
+      }
+
       const existing = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND followed_id = ?')
         .bind(actorId, target_id).first();
 
@@ -575,6 +629,21 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const id = crypto.randomUUID();
 
     try {
+      // Ensure actor has a profile to satisfy FK constraints
+      const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
+      if (!actorProfile) {
+        await env.DB.prepare(`
+          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          actorId, 
+          `anon-${actorId.slice(0, 6)}`, 
+          'Anonymous Operator', 
+          `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
+          'Operator initialization in progress...'
+        ).run();
+      }
+
       const existing = await env.DB.prepare(`
         SELECT id FROM pulse_reactions WHERE pulse_id = ? AND user_id = ? AND type = ?
       `).bind(pulseId, actorId, type).first();
@@ -618,6 +687,21 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     const { pulse_id, amount } = await request.json() as any;
 
     try {
+      // Ensure actor has a profile to satisfy FK constraints (Buyer)
+      const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
+      if (!actorProfile) {
+        await env.DB.prepare(`
+          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          actorId, 
+          `anon-${actorId.slice(0, 6)}`, 
+          'Anonymous Operator', 
+          `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
+          'Operator initialization in progress...'
+        ).run();
+      }
+
       const pulse = await env.DB.prepare('SELECT author_id, deal_metadata FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
       if (!pulse) return json({ error: 'Post not found' }, 404);
 
@@ -1025,21 +1109,30 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const years = (db_results[2].results as any[]).map(r => r.release_year).filter(Boolean);
       const months = (db_results[3].results as any[]).map(r => r.release_month).filter(Boolean);
 
-      // Construct hubsWithGenres (Simple mapping for now)
-      const hubsWithGenres = hubs.map(h => ({
-        hub: h,
-        genres: genres // For now return all genres for each hub, or refine if needed
-      }));
+      // User requested only "Remix" should be visible in the sidebar.
+      const hubsWithGenres = [
+        {
+          hub: 'Remix Hub',
+          genres: [
+            "Afro Beats (Audio) Remixes",
+            "DaPhonk (Audio) Remixes",
+            "DaPhonk (Video) Remixes",
+            "Made In Kenya (DJ Dandana Refixes)",
+            "Made In Kenya (DJ Dandana Refixes)(Videos)",
+            "Raggaetone (Videos) Remixes",
+            "Redrums Video Remixes"
+          ]
+        }
+      ];
 
-      // Group years with months
-      const yearsWithMonths = years.map(y => ({
-        year: y,
-        months: months
-      }));
-
+      // Keep original hubs and genres in the background for mapping but return requested ones for UI
       return json({
         hubsWithGenres,
-        years: yearsWithMonths,
+        years: years.map(y => ({ year: y, months })),
+        genres,
+        hubs,
+        months
+      });
         genres,
         hubs,
         months
@@ -1440,7 +1533,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (path === '/api/admin/dashboard' && method === 'GET') {
       try {
         const stats = await env.DB.batch([
-          env.DB.prepare('SELECT SUM(amount_kes) as total FROM payments WHERE status = "success" OR status = "paid"'),
+          env.DB.prepare('SELECT SUM(amount) as total FROM payments WHERE status = "success" OR status = "paid"'),
           env.DB.prepare('SELECT COUNT(*) as count FROM orders'),
           env.DB.prepare('SELECT COUNT(*) as count FROM mixtapes WHERE status = "published"'),
           env.DB.prepare('SELECT SUM(amount) as total FROM tips WHERE status = "success" OR status = "completed"'),
@@ -1802,11 +1895,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const stats = await env.DB.batch([
         env.DB.prepare('SELECT SUM(amount) as total FROM payments WHERE status = "success" OR status = "paid"'),
         env.DB.prepare('SELECT COUNT(*) as count FROM orders WHERE created_at > DATETIME("now", "-30 days")'),
-        env.DB.prepare('SELECT SUM(total) as total FROM orders WHERE status = "completed" OR status = "shipped"')
+        env.DB.prepare('SELECT SUM(total_amount) as total FROM orders WHERE status = "completed" OR status = "shipped"'),
+        env.DB.prepare('SELECT COUNT(*) as count FROM "active-subscribers" WHERE expiry_date > DATETIME("now")'),
+        env.DB.prepare('SELECT SUM(total_amount) as total FROM orders WHERE created_at > DATETIME("now", "-30 days") AND (status = "completed" OR status = "shipped")')
       ]);
+
+      const totalRevenue = ((stats[0].results?.[0] as any)?.total || 0) + ((stats[2].results?.[0] as any)?.total || 0);
+      const monthlySalesAmt = (stats[4].results?.[0] as any)?.total || 0;
+
       return json({
-        total_revenue: ((stats[0].results?.[0] as any)?.total || 0) + ((stats[2].results?.[0] as any)?.total || 0),
-        monthly_sales_count: (stats[1].results?.[0] as any)?.count || 0
+        total_revenue: totalRevenue,
+        active_subs: (stats[3].results?.[0] as any)?.count || 0,
+        monthly_sales_count: (stats[1].results?.[0] as any)?.count || 0,
+        monthly_sales_amt: monthlySalesAmt,
+        currency: 'KES'
       });
     }
 
@@ -1920,7 +2022,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // GET /api/plans
     if (path === '/api/plans' && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT * FROM subscription_plans WHERE is_active = 1').all();
+      const { results } = await env.DB.prepare('SELECT * FROM "subscription-plans" WHERE active = 1').all();
       return json(results || []);
     }
 
@@ -2704,12 +2806,59 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
     if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
     try {
       const { results } = await env.DB.prepare(`
-        SELECT s.*, p.full_name, p.avatar_url 
+        SELECT 
+          s.id, 
+          s.user_email as email, 
+          s.status as is_subscriber, 
+          s.plan_id as subscription_plan, 
+          s.expiry_date as subscription_expiry,
+          p.full_name, 
+          p.avatar_url 
         FROM "active-subscribers" s
-        LEFT JOIN profiles p ON s.id = p.id
+        LEFT JOIN profiles p ON s.id = p.id OR s.user_email = p.email
         ORDER BY s.expiry_date DESC
       `).all();
       return json(results || []);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // GET /api/admin/plans
+  if (path === '/api/admin/plans' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare('SELECT * FROM "subscription-plans" ORDER BY price ASC').all();
+      return json(results || []);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/admin/plans/manage
+  if (path === '/api/admin/plans/manage' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const body = await request.json() as any;
+      const { action, plan } = body;
+      
+      if (action === 'save') {
+        const { id, name, price, period, features, active } = plan;
+        await env.DB.prepare(`
+          INSERT INTO "subscription-plans" (id, name, price, period, features, active)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            price = excluded.price,
+            period = excluded.period,
+            features = excluded.features,
+            active = excluded.active
+        `).bind(id || crypto.randomUUID(), name, price, period, JSON.stringify(features), active ? 1 : 0).run();
+      } else if (action === 'delete') {
+        await env.DB.prepare('DELETE FROM "subscription-plans" WHERE id = ?').bind(plan.id).run();
+      }
+      
+      return json({ success: true });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }

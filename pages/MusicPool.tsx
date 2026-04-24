@@ -178,7 +178,7 @@ export default function MusicPool() {
       refreshPoolTracks({
         page: 1,
         limit: poolPagination?.limit || 50,
-        hub: (activeHub === 'all' || activeHub === 'All Hubs') ? undefined : activeHub,
+        hub: (activeHub === 'all' || activeHub === 'All Hubs' || activeHub === 'VIDEO POOL') ? 'REMIX HUB' : activeHub,
         genre: (activeGenre === 'All' || activeGenre === 'All Genres') ? undefined : activeGenre,
         year: activeYear === 'All Years' ? undefined : activeYear,
         month: mappedMonth,
@@ -215,12 +215,31 @@ export default function MusicPool() {
 
   const handlePlay = useCallback((url: string, title: string, type: 'audio' | 'video', trackId?: string) => {
     const isActuallyVideo = type === 'video' || url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm');
+    const maskedUrl = maskMediaUrl(url);
+
+    if (player.url === maskedUrl && player.isPlaying) {
+      // Toggle Pause
+      setPlayer(prev => ({ ...prev, isPlaying: false }));
+      if (audioRef.current) audioRef.current.pause();
+      return;
+    }
+
+    setPlayer({ 
+      url: maskedUrl, 
+      title, 
+      type: isActuallyVideo ? 'video' : 'audio', 
+      isPlaying: true, 
+      id: trackId 
+    });
     
-    setPlayer({ url: maskMediaUrl(url), title, type: isActuallyVideo ? 'video' : 'audio', isPlaying: true, id: trackId });
     if (trackId) setExpandedTrackId(trackId);
     
-    if (audioRef.current) audioRef.current.pause();
-  }, []);
+    // Auto-scroll to playing track if requested
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  }, [player.url, player.isPlaying]);
 
   const handleSkip = useCallback((direction: 'next' | 'prev') => {
     if (!poolTracks.length || !expandedTrackId) return;
@@ -349,9 +368,9 @@ export default function MusicPool() {
               </div>
               <div>
                 <h1 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
-                  DJ FLOWERZ <span className="text-blue-500">VIDEOPOOL</span>
+                  DJ FLOWERZ <span className="text-blue-500">REMIX HUB</span>
                 </h1>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-1">Version 4.0 // 92,000+ Tracks</p>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-1">Version 4.5 // 92,000+ Tracks</p>
               </div>
             </motion.div>
           </div>

@@ -35,29 +35,32 @@ export default function ProductDetails() {
 
     const foundProduct = products.find(p => p.slug === slug || p.id === slug);
     if (foundProduct) {
-      setProduct(foundProduct);
-      setSelectedImage(foundProduct.image || foundProduct.image_url);
+      // ONLY update if it's actually a different product to avoid #310 loops
+      if (product?.id !== foundProduct.id) {
+        setProduct(foundProduct);
+        setSelectedImage(foundProduct.image || foundProduct.image_url);
 
-      // Initialize variant selection
-      if (foundProduct?.variantGroups && Array.isArray(foundProduct.variantGroups)) {
-        const initialVariants: Record<string, string> = {};
-        foundProduct.variantGroups.forEach(group => {
-          if (group?.name) {
-            const options = group.options || (group.variants || []).map(v => v.name);
-            if (options.length > 0) {
-              initialVariants[group.name] = options[0];
+        // Initialize variant selection
+        if (foundProduct?.variantGroups && Array.isArray(foundProduct.variantGroups)) {
+          const initialVariants: Record<string, string> = {};
+          foundProduct.variantGroups.forEach(group => {
+            if (group?.name) {
+              const options = group.options || (group.variants || []).map(v => v.name);
+              if (options.length > 0) {
+                initialVariants[group.name] = options[0];
+              }
             }
-          }
-        });
-        setSelectedVariantOptions(initialVariants);
+          });
+          setSelectedVariantOptions(initialVariants);
+        }
       }
-    } else {
+    } else if (product !== null) {
       setProduct(null);
     }
 
     const filtered = products.filter(p => (p.slug !== slug && p.id !== slug));
     setRelatedProducts(filtered.slice(0, 4));
-  }, [slug, products, productsLoading]);
+  }, [slug, products, productsLoading, product?.id]);
 
   // Update current variant based on selection
   useEffect(() => {

@@ -69,7 +69,7 @@ const AdminMarketing = lazyWithRetry(() => import('./src/admin/pages/Marketing')
 const AdminShipping = lazyWithRetry(() => import('./src/admin/pages/Shipping'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
-const SetupProfile = lazy(() => import('./pages/SetupProfile'));
+const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const PulseDetail = lazy(() => import('./pages/PulseDetail'));
 const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));

@@ -67,6 +67,17 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 }) => {
   const { toggleWishlist, isInWishlist } = useData();
   const isWishlisted = isInWishlist(id);
+  const mediaRef = React.useRef<HTMLAudioElement | HTMLVideoElement | null>(null);
+
+  // Sync playback state
+  React.useEffect(() => {
+    if (!mediaRef.current) return;
+    if (isPlaying) {
+      mediaRef.current.play().catch(() => {});
+    } else {
+      mediaRef.current.pause();
+    }
+  }, [isPlaying]);
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -317,6 +328,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <X size={18} />
               </button>
               <video
+                ref={mediaRef as React.RefObject<HTMLVideoElement>}
                 src={maskMediaUrl(playingUrl)}
                 className="w-full h-full object-contain"
                 autoPlay={isPlaying}
@@ -361,6 +373,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                   Now Previewing: {title}
                 </div>
                 <audio
+                  ref={mediaRef as React.RefObject<HTMLAudioElement>}
                   src={maskMediaUrl(playingUrl)}
                   autoPlay={isPlaying}
                   controls

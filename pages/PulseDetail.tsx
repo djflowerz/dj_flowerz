@@ -79,7 +79,7 @@ const UserAvatar = ({ src, name, size = 10, className = "", onClick }: { src?: s
 export default function PulseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, session, isAuthenticated } = useAuth();
+  const { user, session, isAuthenticated, isProfileComplete } = useAuth();
   
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [replies, setReplies] = useState<Pulse[]>([]);
@@ -127,8 +127,9 @@ export default function PulseDetail() {
   };
 
   const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
-    if (!isAuthenticated) {
-      toast.error("Sign in to interact");
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to interact");
+      navigate('/setup-identity');
       return;
     }
 
@@ -164,6 +165,15 @@ export default function PulseDetail() {
   };
 
   const postReply = async () => {
+    if (!isAuthenticated) {
+      toast.error("Sign in to reply");
+      return;
+    }
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to reply");
+      navigate('/setup-identity');
+      return;
+    }
     if (!replyContent.trim() || isPosting) return;
     setIsPosting(true);
 

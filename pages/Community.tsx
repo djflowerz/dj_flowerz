@@ -116,6 +116,7 @@ export default function Community() {
   const [tab, setTab] = useState<'latest' | 'following' | 'marketplace' | 'profile'>('latest');
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Safe Trade Popup state
@@ -145,6 +146,38 @@ export default function Community() {
       console.error('Fetch error:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFollow = async (targetId: string, targetHandle: string) => {
+    if (!isAuthenticated) {
+      toast.error("Please sign in to follow others");
+      return;
+    }
+    if (!isProfileComplete) {
+      toast.error("Please complete your profile to follow others");
+      navigate('/setup-identity');
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        },
+        body: JSON.stringify({ target_id: targetId })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        toast.success(data.followed ? `Following @${targetHandle}` : `Unfollowed @${targetHandle}`);
+        // Optionally refresh leaders or pulses if needed
+        fetchData();
+      }
+    } catch (e) {
+      toast.error("Failed to update follow status");
     }
   };
 
@@ -194,6 +227,11 @@ export default function Community() {
     if (!content.trim() && mediaUrls.length === 0) return;
     if (!isAuthenticated) {
         toast.error("Please sign in to post");
+        return;
+    }
+    if (!isProfileComplete) {
+        toast.error("Complete your profile to post");
+        navigate('/setup-identity');
         return;
     }
 
@@ -268,6 +306,11 @@ export default function Community() {
       toast.error("Sign in to interact with pulses");
       return;
     }
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to interact");
+      navigate('/setup-identity');
+      return;
+    }
 
     try {
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}/react`, {
@@ -336,6 +379,11 @@ export default function Community() {
   const handleBuyClick = (pulse: Pulse) => {
     if (!isAuthenticated) {
       toast.error("Sign in to purchase items");
+      return;
+    }
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to purchase items");
+      navigate('/setup-identity');
       return;
     }
     setSafeTradeTarget(pulse);
@@ -591,6 +639,7 @@ export default function Community() {
                     currentUser={user!}
                     session={session}
                     maskPhoneNumbers={maskPhoneNumbers}
+                    onViewImage={setSelectedImageUrl}
                 />
               ))}
             </div>
@@ -608,6 +657,28 @@ export default function Community() {
               setSafeTradeTarget(null);
             }}
           />
+
+          {/* Simple Image Lightbox */}
+          <AnimatePresence>
+            {selectedImageUrl && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 md:p-12 cursor-pointer"
+                onClick={() => setSelectedImageUrl(null)}
+              >
+                <button className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors">
+                  <X size={32} />
+                </button>
+                <motion.img 
+                  initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                  src={selectedImageUrl} 
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" 
+                  alt="Full view"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
 
         {/* Right Sidebar (Desktop Only) */}
@@ -625,7 +696,12 @@ export default function Community() {
                     </div>
                   </div>
                   {user?.id !== leader.id && user?.handle?.replace(/^@/, '') !== leader.handle?.replace(/^@/, '') && (
-                    <button className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all">Follow</button>
+                    <button 
+                      onClick={() => handleFollow(leader.id, leader.handle)}
+                      className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all"
+                    >
+                      Follow
+                    </button>
                   )}
                 </div>
               ))}
@@ -664,8 +740,8 @@ export default function Community() {
   );
 }
 
-function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers }: { 
-  pulse: Pulse, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string
+function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage }: { 
+  pulse: Pulse, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -804,13 +880,15 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
           {mediaItems.length > 0 && !isEditing && (
             <div className={`mt-3 grid gap-2 rounded-2xl overflow-hidden border border-white/5 ${mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {mediaItems.map((url: string, idx: number) => (
-                <img 
-                    key={idx} 
-                    src={url} 
-                    loading="lazy"
-                    className="w-full h-full object-cover aspect-video hover:opacity-90 transition-opacity" 
-                    alt="" 
-                />
+                <div key={idx} className="relative group/img overflow-hidden cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onViewImage(url); }}>
+                  <img 
+                      src={url} 
+                      loading="lazy"
+                      className="w-full h-auto object-contain max-h-[600px] bg-black/20 hover:opacity-90 transition-opacity" 
+                      alt="" 
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
+                </div>
               ))}
             </div>
           )}
