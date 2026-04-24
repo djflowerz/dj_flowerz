@@ -1133,10 +1133,6 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         hubs,
         months
       });
-        genres,
-        hubs,
-        months
-      });
     } catch (e: any) {
       return json({ error: e.message, stack: e.stack }, 500);
     }
