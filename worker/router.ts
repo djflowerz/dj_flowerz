@@ -392,9 +392,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     try {
       await env.DB.prepare(`
-        INSERT INTO profiles (id, handle, full_name, primary_role, bio, social_links, aura_tier, aura_points, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'standard', 100, CURRENT_TIMESTAMP)
+        INSERT INTO profiles (id, email, handle, full_name, primary_role, bio, social_links, aura_tier, aura_points, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'standard', 100, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
+          email = EXCLUDED.email,
           handle = EXCLUDED.handle,
           full_name = EXCLUDED.full_name,
           primary_role = EXCLUDED.primary_role,
@@ -404,7 +405,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           aura_points = 100,
           updated_at = CURRENT_TIMESTAMP
       `).bind(
-        actorId, 
+        actorId,
+        jwtEmail || '',
         cleanHandle, 
         fullName || '', 
         role || 'Collector',
@@ -585,10 +587,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
       if (!actorProfile) {
         await env.DB.prepare(`
-          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO profiles (id, email, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
-          actorId, 
+          actorId,
+          jwtEmail || '',
           `anon-${actorId.slice(0, 6)}`, 
           'Anonymous Operator', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
@@ -633,10 +636,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
       if (!actorProfile) {
         await env.DB.prepare(`
-          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO profiles (id, email, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
-          actorId, 
+          actorId,
+          jwtEmail || '',
           `anon-${actorId.slice(0, 6)}`, 
           'Anonymous Operator', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
@@ -691,10 +695,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
       if (!actorProfile) {
         await env.DB.prepare(`
-          INSERT INTO profiles (id, handle, full_name, avatar_url, bio, role, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO profiles (id, email, handle, full_name, avatar_url, bio, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
-          actorId, 
+          actorId,
+          jwtEmail || '',
           `anon-${actorId.slice(0, 6)}`, 
           'Anonymous Operator', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
