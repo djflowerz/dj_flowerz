@@ -837,21 +837,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // --- Dispatch ---
     try {
       if (contactMethod === 'email') {
-        // Use Cloudflare Email binding if available
-        const emailFrom = (env as any).EMAIL_FROM || 'verify@djflowerz.co.ke';
-        const emailName = (env as any).EMAIL_FROM_NAME || 'DJ Flowerz';
-        if ((env as any).EMAIL) {
-          const { EmailMessage } = await import('cloudflare:email') as any;
-          const msg = new EmailMessage(
-            `${emailName} <${emailFrom}>`,
-            contact,
-            {
-              subject: `Your DJ Flowerz verification code: ${otp}`,
-              text: `Your one-time verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
-              html: `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0a0a0f;margin:0;padding:40px"><div style="max-width:480px;margin:0 auto;background:#111118;border-radius:24px;overflow:hidden;border:1px solid #1f1f2e"><div style="background:linear-gradient(135deg,#7b5cff,#00c6ff);padding:32px;text-align:center"><h1 style="color:#fff;margin:0;font-size:20px;font-weight:900">DJ Flowerz Verification</h1></div><div style="padding:40px;text-align:center"><p style="color:#9ca3af;font-size:14px;margin:0 0 24px">Use the code below to verify your account. Valid for 10 minutes.</p><div style="background:#0d0d14;border:2px dashed #2a2a3d;border-radius:16px;padding:32px;margin:24px 0"><span style="font-size:48px;font-weight:900;letter-spacing:12px;color:#fff;font-family:monospace">${otp}</span><p style="color:#6b7280;font-size:12px;margin:8px 0 0">Expires in 10 minutes</p></div><p style="color:#6b7280;font-size:12px">If you didn't request this, ignore this email.</p></div></div></body></html>`
-            }
-          );
-          await (env as any).EMAIL.send(msg);
+        // Dispatch via Netlify Function (Gmail SMTP)
+        const netlifyUrl = (env as any).VITE_APP_URL || 'https://www.djflowerz.co.ke';
+        const smtpResp = await fetch(`${netlifyUrl}/.netlify/functions/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact, otp })
+        });
+        
+        if (!smtpResp.ok) {
+           const err = await smtpResp.json() as any;
+           return json({ error: err.error || 'Failed to manually dispatch via Gmail SMTP.' }, 500);
         }
         return json({ success: true, message: `Verification code sent to ${contact}` });
 
@@ -869,16 +865,16 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
             const err = await waResp.json() as any;
             return json({ error: err.message || 'Failed to send WhatsApp OTP' }, 500);
           }
+          return json({ success: true, message: `Verification code sent to ${contact} via WhatsApp` });
+        } else {
+          return json({ error: 'WhatsApp service is not currently configured.' }, 500);
         }
-        return json({ success: true, message: `Verification code sent to ${contact} via WhatsApp` });
       }
 
-      return json({ success: true, message: `OTP sent via ${contactMethod}` });
+      return json({ error: `Unsupported contact method: ${contactMethod}` }, 400);
     } catch (e: any) {
       console.error('OTP dispatch error:', e.message);
-      // Fallback: still return success so frontend can prompt for code entry
-      // (useful if email binding not yet configured)
-      return json({ success: true, message: `Code generated. If delivery fails, contact support.`, _dev_otp: (env as any).ENVIRONMENT !== 'production' ? otp : undefined });
+      return json({ error: `Failed to deliver OTP: ${e.message}` }, 500);
     }
   }
 
