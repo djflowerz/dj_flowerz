@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  ShieldCheck, MapPin, Calendar, Heart, MessageSquare,
-  Repeat, Share2, MoreHorizontal, UserPlus, UserCheck, ArrowLeft,
-  Instagram, Facebook, Mail, ExternalLink, Camera, X, Globe,
-  CheckCircle2
+  CheckCircle2, ShoppingBag, Repeat, MessageSquare, Heart, Share2, MoreHorizontal, UserPlus, UserCheck, ArrowLeft,
+  X, Instagram, Facebook, Camera, Globe, ShieldCheck, ExternalLink, MapPin, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -49,6 +47,10 @@ interface Post {
   hearts: number;
   echoes: number;
   comments_count: number;
+  is_marketplace: boolean;
+  deal_metadata?: string;
+  has_hearted?: string;
+  has_echoed?: string;
 }
 
 const parseJSON = (str: string | undefined | null | object, fallback: any = {}) => {
@@ -99,7 +101,8 @@ const Avatar = ({ src, name, size = 20, className = "" }: { src?: string; name?:
 
 export default function PublicProfile() {
   const { handle } = useParams();
-  const { user, session, updateProfile, isAuthenticated } = useAuth();
+  const { user, session, updateProfile, isAuthenticated, isProfileComplete } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,6 +123,7 @@ export default function PublicProfile() {
   const [verifOtpInput, setVerifOtpInput] = useState('');
   const [showVerifOtp, setShowVerifOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   const cleanHandle = handle?.replace(/^@/, '').toLowerCase();
   const userHandle = user?.handle?.replace(/^@/, '').toLowerCase();
@@ -355,7 +359,45 @@ export default function PublicProfile() {
           return p;
         }));
       }
-    } catch (e) {}
+  const handleBuy = async (pulse: any) => {
+    if (!isAuthenticated) {
+      toast.error("Sign in to initiate escrow");
+      return;
+    }
+    
+    // Redirect to escrow flow
+    const dealMeta = parseJSON(pulse.deal_metadata);
+    const amount = Number(dealMeta?.price) || 0;
+    
+    toast.loading("Initiating secure deal...");
+    
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        },
+        body: JSON.stringify({
+          pulse_id: pulse.id,
+          amount: amount,
+          seller_id: pulse.author_id || profile?.id
+        })
+      });
+      
+      const resData = await resp.json();
+      if (resp.ok) {
+        toast.dismiss();
+        toast.success("Deal initiated! Redirecting to dashboard...");
+        setTimeout(() => navigate(`/marketplace/deals/${resData.deal_id}`), 1500);
+      } else {
+        toast.dismiss();
+        throw new Error(resData.error || "Failed up initiate escrow");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
   };
 
 
@@ -534,55 +576,82 @@ export default function PublicProfile() {
               <p className="text-gray-500 font-bold">No {tab} found.</p>
             </div>
           ) : (
-            posts.filter(p => {
-                if (tab === 'media') return p.media_urls && JSON.parse(p.media_urls).length > 0;
-                if (tab === 'marketplace') return p.is_marketplace;
-                return true;
-            }).map((p) => (
-              <div key={p.id} className="py-6 px-4 hover:bg-white/[0.01] transition-all group">
-                 <div className="flex gap-4">
-                   <Avatar src={profile.avatar_url} name={profile.full_name} size={10} className="group-hover:ring-2 ring-brand-purple/20" />
-                   <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white group-hover:text-brand-purple transition-colors">{profile.full_name}</span>
-                          <span className="text-gray-500 text-xs text-sm">@{profile.handle} · {timeAgo(p.created_at)}</span>
+              posts.filter(p => {
+                  if (tab === 'media') return p.media_urls && parseJSON(p.media_urls, []).length > 0;
+                  if (tab === 'marketplace') return p.is_marketplace;
+                  return true;
+              }).map((p) => {
+                const mediaItems = parseJSON(p.media_urls, []);
+                const dealMeta = parseJSON(p.deal_metadata, {});
+                
+                return (
+                <div key={p.id} className="py-6 px-4 hover:bg-white/[0.01] transition-all group">
+                   <div className="flex gap-4">
+                     <Avatar src={profile.avatar_url} name={profile.full_name} size={10} className="group-hover:ring-2 ring-brand-purple/20" />
+                     <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white group-hover:text-brand-purple transition-colors">{profile.full_name}</span>
+                            <span className="text-gray-500 text-xs">@{profile.handle} · {timeAgo(p.created_at)}</span>
+                          </div>
                         </div>
-                      </div>
-                      <p className="text-gray-200 text-[15px] leading-relaxed mb-4 whitespace-pre-wrap">{p.content}</p>
-                      
-                      {p.media_urls && (
-                        <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl overflow-hidden border border-white/5">
-                           {parseJSON(p.media_urls).slice(0, 4).map((url: string, i: number) => (
-                             <img key={i} src={url} className="w-full h-44 object-cover hover:scale-105 transition-transform duration-500" />
-                           ))}
-                        </div>
-                      )}
+                        <p className="text-gray-200 text-[15px] leading-relaxed mb-4 whitespace-pre-wrap">{p.content}</p>
+                        
+                        {mediaItems.length > 0 && (
+                          <div className={`mb-4 grid gap-2 rounded-2xl overflow-hidden border border-white/5 ${mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                             {mediaItems.slice(0, 4).map((url: string, i: number) => (
+                               <div key={i} className="relative cursor-zoom-in" onClick={() => setViewingImage(url)}>
+                                 <img src={url} className="w-full h-auto object-contain max-h-[500px] bg-black/20 hover:opacity-90 transition-opacity" />
+                               </div>
+                             ))}
+                          </div>
+                        )}
 
-                      <div className="flex items-center gap-6 text-gray-500 mt-2">
-                         <button className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10">
-                            <MessageSquare size={16} /> 
-                            <span className="font-bold">{p.comments_count || 0}</span>
-                         </button>
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'echo'); }}
-                            className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
-                         >
-                            <Repeat size={16} /> 
-                            <span className="font-bold">{p.echoes || 0}</span>
-                         </button>
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'heart'); }}
-                            className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
-                         >
-                            <Heart size={16} className={p.has_hearted ? "fill-current" : ""} /> 
-                            <span className="font-bold">{p.hearts || 0}</span>
-                         </button>
-                      </div>
+                        {p.is_marketplace && (
+                          <div className="mb-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <ShieldCheck className="text-brand-cyan" size={20} />
+                              <div>
+                                <p className="text-lg font-black text-white">KES {Number(dealMeta?.price || 0).toLocaleString()}</p>
+                                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">{dealMeta?.location || 'Direct Deal'}</p>
+                              </div>
+                            </div>
+                            {!isOwnProfile && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleBuy(p); }}
+                                className="px-5 py-1.5 bg-brand-cyan text-black rounded-full font-black text-xs hover:scale-105 active:scale-95 transition-all"
+                              >
+                                Buy Safely
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-6 text-gray-500 mt-2">
+                           <button onClick={() => navigate(`/pulse/${p.id}`)} className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10">
+                              <MessageSquare size={16} /> 
+                              <span className="font-bold">{p.comments_count || 0}</span>
+                           </button>
+                           <button 
+                              onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'echo'); }}
+                              className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
+                           >
+                              <Repeat size={16} /> 
+                              <span className="font-bold">{p.echoes || 0}</span>
+                           </button>
+                           <button 
+                              onClick={(e) => { e.stopPropagation(); handleInteract(p.id, 'heart'); }}
+                              className={`flex items-center gap-2 text-xs transition-colors p-2 rounded-full ${p.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
+                           >
+                              <Heart size={16} className={p.has_hearted ? "fill-current" : ""} /> 
+                              <span className="font-bold">{p.hearts || 0}</span>
+                           </button>
+                        </div>
+                     </div>
                    </div>
-                 </div>
-              </div>
-            ))
+                </div>
+                );
+              })
           )}
         </div>
       </div>
@@ -691,6 +760,27 @@ export default function PublicProfile() {
                 </div>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Lightbox */}
+      <AnimatePresence>
+        {viewingImage && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setViewingImage(null)}
+            className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
+          >
+            <button className="absolute top-8 right-8 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all text-white">
+                <X size={24} />
+            </button>
+            <motion.img 
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              src={viewingImage} 
+              className="max-w-full max-h-full object-contain shadow-2xl rounded-lg" 
+              alt="Full view"
+            />
           </motion.div>
         )}
       </AnimatePresence>
