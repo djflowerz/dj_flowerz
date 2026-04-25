@@ -113,7 +113,7 @@ export default function Community() {
   const [dealLocation, setDealLocation] = useState('');
   const [dealCondition, setDealCondition] = useState('new');
   const [unreadCount, setUnreadCount] = useState(0);
-  const [tab, setTab] = useState<'latest' | 'following' | 'marketplace' | 'profile'>('latest');
+  const [tab, setTab] = useState<'latest' | 'following' | 'trending' | 'marketplace'>('latest');
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export default function Community() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let url = `${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${vector}`;
+      let url = `${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${tab === 'trending' ? 'trending' : vector}`;
       if (tab === 'marketplace') url += '&marketplace=true';
       if (tab === 'following' && user?.id) url += `&following_only=true&actor=${user.id}`;
       else if (user?.id) url += `&actor=${user.id}`;
@@ -325,9 +325,14 @@ export default function Community() {
       
       if (resp.ok) {
         const data = await resp.json();
+        const isAdding = data.reacted;
+        
+        if (isAdding) {
+          toast.success(type === 'heart' ? 'Liked pulse' : 'Pulse echoed to your profile!');
+        }
+
         setPulses(prev => prev.map(p => {
           if (p.id === pulseId) {
-            const isAdding = data.reacted;
             return {
               ...p,
               [type === 'heart' ? 'hearts' : 'echoes']: p[type === 'heart' ? 'hearts' : 'echoes'] + (isAdding ? 1 : -1),
@@ -337,7 +342,9 @@ export default function Community() {
           return p;
         }));
       }
-    } catch (e) {}
+    } catch (e) {
+      toast.error("Interaction failed");
+    }
   };
 
   const handleDeletePulse = async (pulseId: string) => {
@@ -409,7 +416,13 @@ export default function Community() {
         return data;
     }, {
         loading: 'Initiating secure escrow...',
-        success: (data) => `Secure deal #${data.dealId.slice(0,8)} created! Check your dashboard for payment instructions.`,
+        success: (data) => {
+          if (data.authorizationUrl) {
+            setTimeout(() => window.location.href = data.authorizationUrl, 1500);
+            return `Deal #${data.dealId.slice(0,8)} created! Redirecting to Paystack...`;
+          }
+          return `Secure deal #${data.dealId.slice(0,8)} created! Check your dashboard for payment instructions.`;
+        },
         error: (err) => `Escrow failed: ${err.message}`
     });
   };
@@ -445,9 +458,9 @@ export default function Community() {
             <div className="flex overflow-x-auto scrollbar-hide border-t border-white/5">
               {[
                   { id: 'latest', label: 'Latest', icon: <TrendingUp size={16} /> },
-                  { id: 'notifications', label: 'Alerts', icon: <Bell size={16} />, path: '/notifications' },
-                  { id: 'marketplace', label: 'Market', icon: <ShoppingBag size={16} />, path: '/marketplace' },
-                  { id: 'profile', label: 'Profile', icon: <User size={16} />, path: `/op/${user?.handle}` }
+                  { id: 'following', label: 'Following', icon: <Activity size={16} /> },
+                  { id: 'trending', label: 'Trending', icon: <BarChart2 size={16} /> },
+                  { id: 'marketplace', label: 'Marketplace', icon: <ShoppingBag size={16} /> }
               ].map((nav) => (
                 <button 
                   key={nav.id} 
@@ -621,10 +634,96 @@ export default function Community() {
             </motion.div>
           )}
 
-          {/* Post Feed */}
-          {loading ? (
+          {/* Post Feed or Leaderboard based on active tab */}
+          {tab === 'trending' ? (
+            <div className="divide-y divide-white/5">
+              <div className="px-4 py-5 border-b border-white/5">
+                <div className="flex items-center gap-2 text-brand-cyan mb-1">
+                  <BarChart2 size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Aura Leaderboard</span>
+                </div>
+                <h2 className="text-xl font-black text-white uppercase tracking-tight">Top Operators</h2>
+                <p className="text-gray-500 text-xs mt-1">Ranked by overall Aura score — earned through posts, trades, and community trust.</p>
+              </div>
+              {loading ? (
+                <div className="flex justify-center p-12">
+                  <div className="w-12 h-12 border-4 border-brand-cyan/20 border-t-brand-cyan rounded-full animate-spin" />
+                </div>
+              ) : leaders.length === 0 ? (
+                <div className="py-20 text-center text-gray-600">
+                  <BarChart2 size={48} className="mx-auto mb-4 opacity-30" />
+                  <p className="font-bold">Leaderboard is loading...</p>
+                </div>
+              ) : leaders.map((leader, i) => (
+                <motion.div
+                  key={leader.id || leader.handle}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="flex items-center gap-4 px-4 py-4 hover:bg-white/[0.02] transition-all group cursor-pointer"
+                  onClick={() => navigate(`/op/${leader.handle}`)}
+                >
+                  {/* Rank Badge */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs flex-shrink-0 ${
+                    i === 0 ? 'bg-amber-400/20 text-amber-400 shadow-lg shadow-amber-400/20 border border-amber-400/30' :
+                    i === 1 ? 'bg-gray-300/10 text-gray-300 border border-gray-300/20' :
+                    i === 2 ? 'bg-orange-700/20 text-orange-400 border border-orange-400/20' :
+                    'bg-white/5 text-gray-500 border border-white/5'
+                  }`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                  </div>
+
+                  {/* Avatar */}
+                  <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-white text-sm truncate group-hover:text-brand-purple transition-colors">{leader.full_name}</p>
+                      {leader.is_verified && <CheckCircle2 size={12} className="text-brand-cyan flex-shrink-0" />}
+                    </div>
+                    <p className="text-[11px] text-gray-500 truncate">@{leader.handle}</p>
+                    {leader.primary_role && (
+                      <span className="text-[9px] font-black uppercase tracking-widest text-brand-purple bg-brand-purple/10 px-2 py-0.5 rounded-md border border-brand-purple/20 mt-1 inline-block">
+                        {leader.primary_role}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Aura Score */}
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-lg font-black text-brand-purple">{(leader.aura_points || 0).toLocaleString()}</p>
+                    <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">{leader.aura_tier || 'NOVICE'}</p>
+                  </div>
+
+                  {/* Follow Button */}
+                  {user?.id && user.id !== leader.id && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleFollow(leader.id, leader.handle); }}
+                      className={`ml-2 px-4 py-1.5 rounded-full text-xs font-black shadow-lg transition-all flex-shrink-0 ${
+                        leader.isFollowing
+                          ? 'border border-white/20 text-white hover:border-red-500/50 hover:text-red-400'
+                          : 'bg-white text-black hover:scale-105'
+                      }`}
+                    >
+                      {leader.isFollowing ? 'Following' : (leader.followsViewer ? 'Follow Back' : 'Follow')}
+                    </button>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          ) : loading ? (
             <div className="flex justify-center p-12">
                <div className="w-12 h-12 border-4 border-brand-purple/20 border-t-brand-purple rounded-full animate-spin" />
+            </div>
+          ) : tab === 'following' && pulses.length === 0 ? (
+            <div className="py-20 text-center px-8">
+              <Activity size={48} className="mx-auto text-gray-800 mb-4" />
+              <h3 className="text-xl font-bold text-white">Your feed is quiet</h3>
+              <p className="text-gray-500 text-sm mt-2 mb-6">Follow other operators to see their pulses here.</p>
+              <button onClick={() => setTab('trending')} className="px-6 py-3 bg-brand-purple text-white rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all">
+                Discover Top Operators
+              </button>
             </div>
           ) : (
             <div className="divide-y divide-white/5">
@@ -644,6 +743,7 @@ export default function Community() {
               ))}
             </div>
           )}
+
 
           {/* Safe Trade Popup */}
           <SafeTradePopup
@@ -698,9 +798,13 @@ export default function Community() {
                   {user?.id !== leader.id && user?.handle?.replace(/^@/, '') !== leader.handle?.replace(/^@/, '') && (
                     <button 
                       onClick={() => handleFollow(leader.id, leader.handle)}
-                      className="px-4 py-1.5 bg-white text-black rounded-full text-xs font-black shadow-lg hover:scale-105 transition-all"
+                      className={`px-4 py-1.5 rounded-full text-xs font-black shadow-lg transition-all ${
+                        leader.isFollowing 
+                          ? 'border border-white/20 text-white hover:border-red-500/50 hover:text-red-400' 
+                          : 'bg-white text-black hover:scale-105'
+                      }`}
                     >
-                      Follow
+                      {leader.isFollowing ? 'Following' : (leader.followsViewer ? 'Follow Back' : 'Follow')}
                     </button>
                   )}
                 </div>
@@ -749,6 +853,31 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
   const [showMenu, setShowMenu] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/pulse/${pulse.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied to clipboard");
+      
+      if (navigator.share) {
+        const shareData = {
+          title: `Pulse from @${pulse.author_handle}`,
+          text: pulse.content.substring(0, 100),
+          url: shareUrl,
+        };
+        try {
+          await navigator.share(shareData);
+        } catch (sErr) {
+          // Ignore abort errors
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const mediaItems = parseJSON(pulse.media_urls, []);
   const pollData = parseJSON(pulse.poll_data);
   const dealMeta = parseJSON(pulse.deal_metadata);
@@ -795,23 +924,22 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
               <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(pulse.created_at)}</span>
             </div>
             
-            <div className="relative">
+            <div className="relative z-20">
               <button 
                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                className="text-gray-600 hover:text-brand-purple p-1 rounded-full hover:bg-brand-purple/10 transition-all"
+                className={`p-1 rounded-full transition-all relative z-30 ${showMenu ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-600 hover:text-brand-purple hover:bg-brand-purple/10'}`}
               >
                   <MoreHorizontal size={18} />
               </button>
-              
               <AnimatePresence>
                 {showMenu && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+                   <>
+                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
                     <motion.div 
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      className="absolute right-0 top-full mt-2 w-52 bg-[#0B0B0F] border border-white/10 rounded-2xl shadow-2xl z-40 overflow-hidden"
+                      className="absolute right-0 top-full mt-2 w-52 bg-[#0B0B0F] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
                     >
                       {isAuthor && (
                         <>
@@ -906,7 +1034,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
           )}
 
           {/* Marketplace Banner */}
-          {pulse.is_marketplace && !isEditing && (
+          {(pulse.is_marketplace || pulse.type === 'marketplace' || pulse.deal_metadata) && !isEditing && (
             <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between group/deal">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-brand-cyan/10 rounded-xl">
@@ -968,7 +1096,10 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
                 <span className="text-xs font-bold">{pulse.hearts || 0}</span>
               </button>
 
-              <button className="flex items-center gap-2 hover:text-brand-cyan transition-colors p-2 rounded-full hover:bg-brand-cyan/10">
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-2 hover:text-brand-cyan transition-colors p-2 rounded-full hover:bg-brand-cyan/10"
+              >
                 <Share2 size={18} />
               </button>
             </div>

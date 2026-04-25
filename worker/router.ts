@@ -69,8 +69,6 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return url;
   };
 
-  // ─── CORE INFRASTRUCTURE ──────────────────────────────────────────────────
-  
   // GET /api/files/* (Serves files from R2 or proxies from external hubs)
   if (method === 'GET' && path.startsWith('/api/files/')) {
     const origin = url.searchParams.get('origin');
@@ -359,12 +357,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           (SELECT COUNT(*) FROM follows WHERE follower_id = ?) as following_count
       `).bind(profile.id, profile.id).first() as any;
 
-      // Check if current user follows this profile
+      // Check follow status
       let isFollowing = false;
+      let followsViewer = false;
       if (actorId && actorId !== profile.id) {
         const follow = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND followed_id = ?')
           .bind(actorId, profile.id).first();
         isFollowing = !!follow;
+
+        const reciprocal = await env.DB.prepare('SELECT id FROM follows WHERE follower_id = ? AND followed_id = ?')
+          .bind(profile.id, actorId).first();
+        followsViewer = !!reciprocal;
       }
 
       return json({ 
@@ -374,6 +377,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         followers_count: counts?.followers_count || 0,
         following_count: counts?.following_count || 0,
         isFollowing,
+        followsViewer,
         social_links: typeof profile.social_links === 'string' ? JSON.parse(profile.social_links) : (profile.social_links || {})
       });
     }
@@ -692,27 +696,58 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     try {
       // Ensure actor has a profile to satisfy FK constraints (Buyer)
-      const actorProfile = await env.DB.prepare('SELECT id FROM profiles WHERE id = ?').bind(actorId).first();
+      const actorProfile = await env.DB.prepare('SELECT id, email FROM profiles WHERE id = ?').bind(actorId).first() as any;
+      
+      const buyerEmail = actorProfile?.email || jwtEmail || '';
+      
       if (!actorProfile) {
         await env.DB.prepare(`
           INSERT INTO profiles (id, email, handle, full_name, avatar_url, bio, role, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, 'collector', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
           actorId,
-          jwtEmail || '',
-          `anon-${actorId.slice(0, 6)}`, 
+          buyerEmail,
+          `anon-${actorId.slice(0, 6).toLowerCase()}`, 
           'Anonymous Operator', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
           'Operator initialization in progress...'
         ).run();
+      } else if (!actorProfile.email && buyerEmail) {
+        // Repair profile if email is missing (for NOT NULL constraint safety)
+        await env.DB.prepare('UPDATE profiles SET email = ? WHERE id = ?').bind(buyerEmail, actorId).run();
       }
 
-      const pulse = await env.DB.prepare('SELECT author_id, deal_metadata FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
+      const pulse = await env.DB.prepare('SELECT author_id, author_handle, content, deal_metadata FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
       if (!pulse) return json({ error: 'Post not found' }, 404);
 
       const dealId = `ESC-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-      const fee = Math.floor(amount * 0.07); // 7% platform fee
+      
+      // Initialize Paystack Transaction
+      const appUrl = (env.VITE_APP_URL || 'https://djflowerz.co.ke').replace(/\/$/, '');
+      const paystackResp = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: buyerEmail,
+          amount: Math.round(Number(amount) * 100),
+          reference: dealId,
+          metadata: {
+             deal_id: dealId,
+             payment_type: 'escrow_payment',
+             buyer_id: actorId,
+             seller_id: pulse.author_id
+          },
+          callback_url: `${appUrl}/marketplace/dashboard`
+        })
+      });
 
+      const psData = await paystackResp.json() as any;
+      const authorizationUrl = psData.status ? psData.data.authorization_url : null;
+
+      // INSERT INTO escrow_deals
       await env.DB.prepare(`
         INSERT INTO escrow_deals (id, pulse_id, seller_id, buyer_id, amount, status, created_at)
         VALUES (?, ?, ?, ?, ?, 'pending_payment', CURRENT_TIMESTAMP)
@@ -722,9 +757,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       await env.DB.prepare(`
         INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
         VALUES (?, ?, ?, 'escrow_update', ?, ?)
-      `).bind(crypto.randomUUID(), pulse.author_id, actorId, dealId, 'initiated a purchase for your item').run();
+      `).bind(crypto.randomUUID(), pulse.author_id, actorId, dealId, `initiated a purchase for "${pulse.content?.slice(0, 30)}..."`).run();
 
-      return json({ success: true, dealId });
+      return json({ 
+        success: true, 
+        dealId,
+        authorizationUrl,
+        instructions: "Secure deal # " + dealId + " created! Complete payment via Paystack to proceed."
+      });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }
@@ -741,6 +781,56 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       ORDER BY d.created_at DESC
     `).bind(actorId, actorId).all();
     return json(deals.results || []);
+  }
+
+  // POST /api/escrow/deals/:id/initialize-payment
+  const initPaymentMatch = path.match(/^\/api\/escrow\/deals\/([^/]+)\/initialize-payment$/);
+  if (initPaymentMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const dealId = initPaymentMatch[1];
+    
+    try {
+      const deal = await env.DB.prepare(`
+        SELECT d.*, p.buyer_email 
+        FROM escrow_deals d
+        LEFT JOIN (SELECT id, email as buyer_email FROM profiles) p ON d.buyer_id = p.id
+        WHERE d.id = ? AND d.buyer_id = ?
+      `).bind(dealId, actorId).first() as any;
+
+      if (!deal) return json({ error: 'Deal not found or unauthorized' }, 404);
+      if (deal.status !== 'pending_payment') return json({ error: 'Deal is already paid or cancelled' }, 400);
+
+      const appUrl = (env.VITE_APP_URL || 'https://djflowerz.co.ke').replace(/\/$/, '');
+      const paystackResp = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: deal.buyer_email || jwtEmail || '',
+          amount: Math.round(Number(deal.amount) * 100),
+          reference: dealId,
+          metadata: {
+             deal_id: deal.id,
+             payment_type: 'escrow_payment',
+             buyer_id: actorId,
+             seller_id: deal.seller_id
+          },
+          callback_url: `${appUrl}/marketplace/dashboard`
+        })
+      });
+
+      const psData = await paystackResp.json() as any;
+      if (!psData.status) throw new Error(psData.message || 'Paystack initialization failed');
+
+      return json({ 
+        success: true, 
+        authorizationUrl: psData.data.authorization_url 
+      });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
   }
 
   // PATCH /api/escrow/deals/:id
@@ -766,6 +856,43 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     `).bind(crypto.randomUUID(), targetId, actorId, dealId, `Deal status updated to ${status}`).run();
 
     return json({ success: true, status });
+  }
+
+  // POST /api/escrow/deals/:id/dispute
+  const disputeMatch = path.match(/^\/api\/escrow\/deals\/([^/]+)\/dispute$/);
+  if (disputeMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const dealId = disputeMatch[1];
+    const { reason } = await request.json() as any;
+
+    const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
+    if (!deal) return json({ error: 'Deal not found' }, 404);
+    if (deal.buyer_id !== actorId && deal.seller_id !== actorId) return json({ error: 'Not a party to this deal' }, 403);
+    if (deal.status === 'completed') return json({ error: 'Cannot dispute a completed deal' }, 400);
+    if (deal.status === 'disputed') return json({ error: 'Dispute already raised' }, 400);
+
+    await env.DB.prepare(
+      'UPDATE escrow_deals SET status = \'disputed\', dispute_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(reason || 'No reason provided', dealId).run();
+
+    // Notify the other party
+    const otherId = actorId === deal.buyer_id ? deal.seller_id : deal.buyer_id;
+    const disputeNotifId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+      VALUES (?, ?, ?, 'dispute_raised', ?, ?)
+    `).bind(disputeNotifId, otherId, actorId, dealId, `A dispute has been raised on deal #${dealId.slice(0, 8)}. Admin has been notified.`).run();
+
+    // Notify admin
+    const adminProfile = await env.DB.prepare('SELECT id FROM profiles WHERE email = ?').bind(env.ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').first() as any;
+    if (adminProfile?.id) {
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+        VALUES (?, ?, ?, 'admin_dispute', ?, ?)
+      `).bind(crypto.randomUUID(), adminProfile.id, actorId, dealId, `🚨 Dispute raised on deal #${dealId.slice(0, 8)} — Reason: ${reason || 'Not specified'}`).run();
+    }
+
+    return json({ success: true, message: 'Dispute raised. Admin has been notified.' });
   }
 
   // GET /api/notifications
@@ -1362,14 +1489,32 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
-  // POST /api/payments/verify
-  if (path === '/api/payments/verify' && method === 'POST') {
+  // POST or GET /api/payments/verify (Handles Paystack callbacks)
+  if (path === '/api/payments/verify' && (method === 'POST' || method === 'GET')) {
     try {
-      const { reference } = await request.json() as any;
+      let reference: string | null = null;
+      if (method === 'POST') {
+        const body = await request.json() as any;
+        reference = body.reference;
+      } else {
+        const url = new URL(request.url);
+        reference = url.searchParams.get('reference');
+      }
+
+      if (!reference) return json({ error: 'Missing reference' }, 400);
+
       const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
         headers: { 'Authorization': `Bearer ${env.PAYSTACK_SECRET_KEY}` }
       });
       const resData = await response.json() as any;
+      
+      // If this was a GET (browser redirect), we might want to redirect to a success page
+      if (method === 'GET') {
+        const appUrl = env.APP_URL || 'https://djflowerz.co.ke';
+        const status = resData.data?.status === 'success' ? 'success' : 'failed';
+        return Response.redirect(`${appUrl}/success?reference=${reference}&status=${status}`, 302);
+      }
+
       return json(resData.data);
     } catch (e: any) {
       return json({ error: e.message }, 500);
@@ -1459,8 +1604,30 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   // POST /api/paystack/webhook
   if (path === '/api/paystack/webhook' && method === 'POST') {
-    // Basic verification logic would go here
-    const event = await request.json() as any;
+    const signature = request.headers.get('x-paystack-signature');
+    const secretKey = env.PAYSTACK_SECRET_KEY;
+    const bodyText = await request.text();
+    
+    if (signature && secretKey) {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(secretKey),
+        { name: 'HMAC', hash: 'SHA-512' },
+        false,
+        ['sign']
+      );
+      
+      const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyText));
+      const hashArray = Array.from(new Uint8Array(signatureBuffer));
+      const expectedSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      if (expectedSignature !== signature) {
+        return json({ error: 'Invalid signature' }, 401);
+      }
+    }
+    
+    const event = JSON.parse(bodyText) as any;
     if (event.event === 'charge.success') {
       const { reference, metadata } = event.data;
       if (metadata.payment_type === 'subscription') {
@@ -1474,6 +1641,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           VALUES (?, ?, 'active', ?)
           ON CONFLICT(id) DO UPDATE SET status='active', expires_at=?, plan_id=?
         `).bind(userId, planId, expiry.toISOString(), expiry.toISOString(), planId).run();
+      } else if (metadata.payment_type === 'escrow_payment') {
+        const dealId = metadata.deal_id;
+        await env.DB.prepare(`
+          UPDATE escrow_deals SET status = 'deposited', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+        `).bind(dealId).run();
+        
+        // Log payment
+        await env.DB.prepare(`
+          INSERT INTO payments (id, amount, status, type, reference, user_id, created_at)
+          VALUES (?, ?, 'success', 'escrow_deposit', ?, ?, CURRENT_TIMESTAMP)
+        `).bind(crypto.randomUUID(), event.data.amount / 100, dealId, metadata.buyer_id).run();
       }
     }
     return json({ received: true });
@@ -2646,6 +2824,27 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
     }
   }
 
+  // ── GET /api/admin/escrow/deals ──────────────────────────────────────────
+  // Admin: List all marketplace deals for monitoring
+  if (path === '/api/admin/escrow/deals' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT d.*, p.content as pulse_content, 
+               pr_s.handle as seller_handle, pr_s.full_name as seller_name,
+               pr_b.handle as buyer_handle, pr_b.full_name as buyer_name
+        FROM escrow_deals d
+        JOIN pulses p ON d.pulse_id = p.id
+        JOIN profiles pr_s ON d.seller_id = pr_s.id
+        JOIN profiles pr_b ON d.buyer_id = pr_b.id
+        ORDER BY d.created_at DESC
+      `).all();
+      return json({ deals: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // ── GET /api/admin/trust/flagged-content ─────────────────────────────────
   // Admin: List all pending flagged posts
   if (path === '/api/admin/trust/flagged-content' && method === 'GET') {
@@ -2929,6 +3128,14 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
   }
 
   // ─── 404 ─────────────────────────────────────────────────────────────────────
-  return json({ error: `Route ${method} ${path} not found` }, 404);
+  return json({ 
+    error: `Route ${method} ${path} not found`,
+    details: {
+      path,
+      method,
+      hostname: url.hostname,
+      availableRoutes: ['/api/payments/verify', '/api/upload', '/api/pool/download'] // Add more for debugging
+    }
+  }, 404);
 }
 

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   ShoppingBag, ShieldCheck, Clock, CheckCircle2, 
   ArrowLeft, ExternalLink, Package, Truck, 
-  AlertCircle, MessageCircle
+  AlertCircle, MessageCircle, CreditCard, AlertTriangle, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -36,7 +36,7 @@ export default function MarketplaceDashboard() {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const data = await resp.json();
-      setDeals(data);
+      setDeals(Array.isArray(data) ? data : []);
     } catch (e) {
       toast.error("Failed to sync marketplace deals");
     } finally {
@@ -113,7 +113,7 @@ export default function MarketplaceDashboard() {
               ) : (
                 <div className="space-y-4">
                    {deals.map(deal => (
-                      <DealCard key={deal.id} deal={deal} onUpdate={updateStatus} currentUser={user!} />
+                      <DealCard key={deal.id} deal={deal} onUpdate={updateStatus} currentUser={user!} session={session} />
                    ))}
                 </div>
               )}
@@ -124,7 +124,7 @@ export default function MarketplaceDashboard() {
   );
 }
 
-function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, currentUser: any }) {
+function DealCard({ deal, onUpdate, currentUser, session }: { deal: Deal, onUpdate: any, currentUser: any, session: any }) {
     const isBuyer = deal.buyer_id === currentUser.id;
     const roleLabel = isBuyer ? 'PURCHASE' : 'SALE';
     const statusColor = {
@@ -135,8 +135,133 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
         disputed: 'text-red-400 border-red-400/20'
     }[deal.status];
 
+    const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const [disputeReason, setDisputeReason] = useState('');
+    const [disputeLoading, setDisputeLoading] = useState(false);
+
+    const handlePaystackPayment = async () => {
+       toast.loading("Initializing secure checkout...");
+       try {
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/deals/${deal.id}/initialize-payment`, {
+             method: 'POST',
+             headers: {
+                'Authorization': `Bearer ${session?.access_token}`
+             }
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error);
+          
+          if (data.authorizationUrl) {
+             window.location.href = data.authorizationUrl;
+          } else {
+             throw new Error("Missing authorization URL");
+          }
+       } catch (err: any) {
+          toast.dismiss();
+          toast.error(`Payment failed: ${err.message}`);
+       }
+    };
+
+    const handleRaiseDispute = async () => {
+        if (!disputeReason.trim()) {
+            toast.error('Please describe the issue before raising a dispute.');
+            return;
+        }
+        setDisputeLoading(true);
+        try {
+            const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/deals/${deal.id}/dispute`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ reason: disputeReason })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error);
+            toast.success('Dispute raised. Our team has been notified and will review within 24h.');
+            setShowDisputeModal(false);
+            setDisputeReason('');
+            onUpdate(deal.id, 'disputed'); // optimistic update
+        } catch (err: any) {
+            toast.error(`Failed to raise dispute: ${err.message}`);
+        } finally {
+            setDisputeLoading(false);
+        }
+    };
+
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-[#0B0B0F] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
+
+            {/* Dispute Modal */}
+            <AnimatePresence>
+            {showDisputeModal && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowDisputeModal(false); }}
+                >
+                    <motion.div
+                        initial={{ scale: 0.92, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.92, opacity: 0 }}
+                        className="w-full max-w-md bg-[#0F0F13] border border-red-500/20 rounded-3xl p-8 shadow-2xl"
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-red-500/10 text-red-400">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="font-black text-white uppercase tracking-tight">Raise Dispute</h2>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Deal #{deal.id.slice(0,8)}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowDisputeModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-amber-400/5 border border-amber-400/10 mb-6">
+                            <p className="text-[11px] text-amber-400/80 leading-relaxed font-medium">
+                                <span className="font-black text-amber-400">Important:</span> Raising a dispute will freeze this transaction and notify our admin team. Only raise a dispute if there is a genuine issue — misuse may result in account restrictions.
+                            </p>
+                        </div>
+
+                        <div className="mb-5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">What went wrong?</label>
+                            <textarea
+                                value={disputeReason}
+                                onChange={(e) => setDisputeReason(e.target.value)}
+                                placeholder="Describe the issue clearly — e.g. item not received, item not as described, seller unresponsive..."
+                                rows={5}
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-red-400/50 focus:outline-none resize-none transition-all"
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDisputeModal(false)}
+                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRaiseDispute}
+                                disabled={disputeLoading || !disputeReason.trim()}
+                                className="flex-1 py-3 bg-red-500/80 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                <AlertTriangle size={14} />
+                                {disputeLoading ? 'Submitting...' : 'Confirm Dispute'}
+                            </button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+            </AnimatePresence>
+
             <div className="p-6 flex flex-wrap items-center justify-between gap-6 border-b border-white/5 bg-white/[0.01]">
                 <div className="flex items-center gap-4">
                     <div className={`p-3 rounded-2xl bg-white/5 border ${statusColor}`}>
@@ -181,7 +306,7 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
                         <span className="text-[10px] font-black text-brand-cyan uppercase tracking-widest">Seller Trust Record</span>
                       </div>
                       <p className="text-[10px] text-gray-400 leading-relaxed">
-                        This seller uses DJ Flowerz Escrow. Funds are only released when you confirm receipt. 
+                        This seller uses DJ Flowerz Escrow via Paystack. Funds are only released when you confirm receipt. 
                         Check their <Link to={`/op/${deal.seller_handle}`} className="text-brand-cyan underline">Seller Scorecard</Link> for trade history.
                       </p>
                    </div>
@@ -189,12 +314,23 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
 
                 <div className="flex flex-col justify-end gap-3">
                    {deal.status === 'pending_payment' && isBuyer && (
-                      <button 
-                        onClick={() => onUpdate(deal.id, 'deposited')}
-                        className="w-full py-4 bg-brand-cyan text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-cyan/20"
-                      >
-                         <CheckCircle2 size={16} /> Mark as Paid (M-Pesa)
-                      </button>
+                      <div className="space-y-4">
+                         <div className="p-5 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl">
+                            <p className="text-[10px] font-black text-brand-cyan uppercase tracking-widest mb-2 flex items-center gap-2">
+                               <ShieldCheck size={14} /> Paystack Secure Escrow
+                            </p>
+                            <div className="space-y-2 text-[11px] font-bold text-gray-300">
+                               <p>1. Pay <span className="text-white font-black text-sm">KES {Number(deal.amount).toLocaleString()}</span> into escrow.</p>
+                               <p className="text-[9px] text-gray-500 leading-tight">Your funds will be held by DJ Flowerz until you confirm the item is received and exactly as described.</p>
+                            </div>
+                         </div>
+                         <button 
+                           onClick={handlePaystackPayment}
+                           className="w-full py-4 bg-brand-cyan text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-cyan/20"
+                         >
+                            <CreditCard size={16} /> Pay Securely via Paystack
+                         </button>
+                      </div>
                    )}
 
                    {deal.status === 'deposited' && !isBuyer && (
@@ -215,9 +351,19 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
                       </button>
                    )}
 
-                   {deal.status !== 'completed' && (
-                     <button className="w-full py-3 bg-white/5 hover:bg-red-500/10 hover:text-red-400 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all mt-2">
-                        Raise Dispute
+                   {deal.status === 'disputed' && (
+                      <div className="w-full py-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                          <p className="text-red-400 font-black text-xs uppercase tracking-widest">⚠ Dispute Under Review</p>
+                          <p className="text-[10px] text-gray-500 mt-1">Admin will resolve this within 24–48h.</p>
+                      </div>
+                   )}
+
+                   {!['completed', 'disputed'].includes(deal.status) && (
+                     <button 
+                        onClick={() => setShowDisputeModal(true)}
+                        className="w-full py-3 bg-white/5 hover:bg-red-500/10 hover:text-red-400 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all mt-2 flex items-center justify-center gap-2"
+                     >
+                        <AlertTriangle size={12} /> Raise Dispute
                      </button>
                    )}
 
@@ -231,3 +377,4 @@ function DealCard({ deal, onUpdate, currentUser }: { deal: Deal, onUpdate: any, 
         </motion.div>
     );
 }
+
