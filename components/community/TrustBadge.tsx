@@ -32,20 +32,20 @@ interface BadgeConfig {
 const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   verified: {
     icon: <ShieldCheck size={11} />,
-    label: 'Aura Identity',
+    label: 'Verified Identity',
     color: 'text-[#4cd7f6]',
     bg: 'bg-[#4cd7f6]/10',
     border: 'border-[#4cd7f6]/20',
-    tooltip: 'Identity verified through the Aura Matrix. Secure trading enabled.',
+    tooltip: 'Identity verified through our system. Secure trading enabled.',
     glow: 'shadow-[0_0_10px_rgba(76,215,246,0.2)]',
   },
   aura_elite: {
     icon: <Star size={11} />,
-    label: 'Elite Operator',
+    label: 'Top Member',
     color: 'text-[#7c3aed]',
     bg: 'bg-[#7c3aed]/10',
     border: 'border-[#7c3aed]/20',
-    tooltip: 'Distinguished Elite status within the Nocturnal Pulse network.',
+    tooltip: 'Distinguished top status within the community.',
     glow: 'shadow-[0_0_10px_rgba(124,58,237,0.2)]',
   },
   aura_legendary: {
@@ -63,15 +63,15 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/20',
-    tooltip: '⚠️ Caution: Potential trust variance detected. Shield Escrow mandatory.',
+    tooltip: '⚠️ Caution: Potential trust variance detected. Secure payment mandatory.',
   },
   fast_responder: {
     icon: <Zap size={11} />,
-    label: 'Neural Sync',
+    label: 'Fast Response',
     color: 'text-yellow-400',
     bg: 'bg-yellow-500/10',
     border: 'border-yellow-500/20',
-    tooltip: 'Ultra-fast response time (Neural Sync active).',
+    tooltip: 'Ultra-fast response time (Active responder).',
   },
   quick_shipper: {
     icon: <Package size={11} />,
@@ -83,7 +83,7 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   },
   elite_performer: {
     icon: <Trophy size={11} />,
-    label: 'Top Pulse',
+    label: 'Top Posts',
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
@@ -103,7 +103,7 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
     color: 'text-green-400',
     bg: 'bg-green-500/10',
     border: 'border-green-500/20',
-    tooltip: 'Has been an active member of the Nocturnal Pulse for over 12 months.',
+    tooltip: 'Has been an active member of the community for over 12 months.',
   },
   repeat_clients: {
     icon: <Repeat2 size={11} />,

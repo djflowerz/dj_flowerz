@@ -53,38 +53,38 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
     {
       id: 'photo',
       phase: 1,
-      label: 'Avatar Initialization',
-      description: 'Upload a high-fidelity profile signature',
+      label: 'Profile Picture',
+      description: 'Upload a clear profile picture',
       icon: <Camera size={16} />,
-      reward: '+5 Aura Points',
+      reward: '+5 Reputation',
       completed: !!profile?.avatar_url && !profile.avatar_url.includes('ui-avatars'),
     },
     {
       id: 'bio',
       phase: 1,
-      label: 'Operator Dossier',
-      description: 'Describe your nocturnal expertise',
+      label: 'Profile Bio',
+      description: 'Describe yourself to the community',
       icon: <FileText size={16} />,
-      reward: '+5 Aura Points',
+      reward: '+5 Reputation',
       completed: !!(profile?.bio && profile.bio.trim().length > 0),
     },
     {
       id: 'location',
       phase: 1,
-      label: 'Regional Grid',
-      description: 'Specify your operational sector',
+      label: 'Location',
+      description: 'Specify where you are located',
       icon: <MapPin size={16} />,
-      reward: '+5 Aura Points',
+      reward: '+5 Reputation',
       completed: !!(profile?.location && profile.location.trim()),
     },
     // Phase 2: Trust Baseline
     {
       id: 'contact_verify',
       phase: 2,
-      label: 'Neural Verification',
-      description: 'Validate reachability via encrypted OTP',
+      label: 'Contact Verification',
+      description: 'Verify your email or phone number',
       icon: <Zap size={16} />,
-      reward: '+10 Aura Points',
+      reward: '+10 Reputation',
       completed: isContactVerified,
     },
     {
@@ -105,8 +105,8 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
     {
       id: 'badge',
       phase: 3,
-      label: 'Aura Elite Status 🛡️',
-      description: 'Official Nocturnal Pulse Trust Accreditation',
+      label: 'Verified Member Status 🛡️',
+      description: 'Official community verification badge',
       icon: <Shield size={16} />,
       reward: 'Verified Badge 🛡️',
       completed: hasBadge,
@@ -230,9 +230,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
   };
 
   const phaseLabels: Record<number, string> = {
-    1: 'Phase 1: Digital Presence',
-    2: 'Phase 2: Trust Matrix',
-    3: 'Phase 3: Aura Ascension',
+    1: 'Phase 1: Profile Setup',
+    2: 'Phase 2: Security Verification',
+    3: 'Phase 3: Community Badge',
   };
 
   const barColor = completionPercent >= 80
@@ -254,9 +254,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
-              <p className="text-[11px] font-black uppercase tracking-widest text-white">Aura Identity Progress</p>
+              <p className="text-[11px] font-black uppercase tracking-widest text-white">Verification Progress</p>
               {isVerified && (
-                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">ASCENDED</span>
+                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">VERIFIED</span>
               )}
             </div>
             {/* Progress Bar */}
@@ -351,16 +351,16 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
               </div>
               <div>
                 <p className={`text-[12px] font-black ${isContactVerified ? 'text-emerald-400 opacity-60' : 'text-white'}`}>
-                  Phase 2: Trust Matrix Neural Sync
+                  Phase 2: Security Verification
                 </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Validate your operational reachability</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Verify your contact details</p>
               </div>
             </div>
 
             {!hasBadge && (
               <div className="mt-4 p-5 rounded-2xl bg-brand-purple/5 border border-brand-purple/15">
                 <p className="text-[11px] font-black text-brand-purple uppercase tracking-widest mb-3">
-                  {isContactVerified ? '🛡️ Badge Application' : '🛡️ Reachability Verification'}
+                  {isContactVerified ? '🛡️ Badge Application' : '🛡️ Contact Verification'}
                 </p>
                 
                 {!isContactVerified && (
@@ -426,7 +426,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                       {isBadgeRequested ? (
                         <div className="flex items-center gap-2 text-amber-400 text-[11px] font-black animate-pulse bg-amber-400/5 p-4 rounded-xl border border-amber-400/10">
                           <Zap size={14} />
-                          Analyzing Aura Signature — Review in progress.
+                          Review in progress...
                         </div>
                       ) : isBadgeApproved ? (
                          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
@@ -449,7 +449,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                                 : 'bg-white/5 text-gray-600 grayscale cursor-not-allowed border border-white/5'
                             }`}
                           >
-                            {requesting ? '...' : isEligibleForBadge ? '🏆 Claim Elite Aura Status' : `Locked: (${eligibleCount}/${eligibilitySteps.length} matrix keys synced)`}
+                            {requesting ? '...' : isEligibleForBadge ? '🏆 Request Verification Badge' : `Locked: (${eligibleCount}/${eligibilitySteps.length} steps completed)`}
                           </button>
                         </>
                       )}
@@ -462,9 +462,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
               {isVerified && (
                 <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 text-center">
                   <p className="text-2xl mb-2">🏆</p>
-                  <h3 className="font-black text-emerald-400 uppercase tracking-tighter">Ascended to Elite Status</h3>
+                  <h3 className="font-black text-emerald-400 uppercase tracking-tighter">You are Verified</h3>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Your identity matrix is 100% verified. You are now protected by Shield Escrow as a trusted operator.
+                    Your identity is 100% verified. You are now a trusted member of the community.
                   </p>
                 </div>
               )}

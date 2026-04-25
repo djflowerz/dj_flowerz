@@ -218,13 +218,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   // GET /api/profiles/leaders (Top Aura Users)
   if (path === '/api/profiles/leaders' && method === 'GET') {
     const { results } = await env.DB.prepare(`
-      SELECT handle, full_name, avatar_url, aura_tier, aura_points 
-      FROM profiles 
-      WHERE handle IS NOT NULL 
-      ORDER BY aura_points DESC 
+      SELECT 
+        p.id, p.handle, p.full_name, p.avatar_url, p.aura_tier, p.aura_points,
+        (SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.id) as isFollowing,
+        (SELECT 1 FROM follows WHERE follower_id = p.id AND followed_id = ?) as followsViewer
+      FROM profiles p
+      WHERE p.handle IS NOT NULL 
+      ORDER BY p.aura_points DESC 
       LIMIT 10
-    `).all();
-    return json(results || []);
+    `).bind(actorId || '', actorId || '').all();
+    return json(results?.map((r: any) => ({
+      ...r,
+      isFollowing: !!r.isFollowing,
+      followsViewer: !!r.followsViewer
+    })) || []);
   }
 
   // GET /api/community/stats
@@ -435,7 +442,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
             is_manual_verify = 1 
         WHERE id = ?
       `).bind(actorId).run();
-      return json({ success: true, message: 'Neural Sync request submitted' });
+      return json({ success: true, message: 'Identity Verification request submitted' });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }
@@ -468,7 +475,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         VALUES (?, ?, 'verified')
       `).bind(badgeId, actorId).run();
 
-      return json({ success: true, message: 'Neural Sync successful' });
+      return json({ success: true, message: 'Identity Verification successful' });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }
@@ -608,7 +615,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         }
       }
 
-      // Award Aura for activity
+      // Award Reputation for activity
       await env.DB.prepare('UPDATE profiles SET aura_points = aura_points + 5 WHERE id = ?').bind(actorId).run();
 
       return json({ success: true, id });
@@ -680,9 +687,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           actorId,
           jwtEmail || '',
           `anon-${actorId.slice(0, 6)}`, 
-          'Anonymous Operator', 
+          'Anonymous Member', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
-          'Operator initialization in progress...'
+          'Member profile initialization in progress...'
         ).run();
       }
 
@@ -729,9 +736,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           actorId,
           jwtEmail || '',
           `anon-${actorId.slice(0, 6)}`, 
-          'Anonymous Operator', 
+          'Anonymous Member', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
-          'Operator initialization in progress...'
+          'Member profile initialization in progress...'
         ).run();
       }
 
@@ -791,9 +798,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           actorId,
           buyerEmail,
           `anon-${actorId.slice(0, 6).toLowerCase()}`, 
-          'Anonymous Operator', 
+          'Anonymous Member', 
           `https://ui-avatars.com/api/?name=A&background=7C3AED&color=fff`,
-          'Operator initialization in progress...'
+          'Member profile initialization in progress...'
         ).run();
       } else if (!actorProfile.email && buyerEmail) {
         // Repair profile if email is missing (for NOT NULL constraint safety)
@@ -1772,7 +1779,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json(results || []);
     }
 
-    // PATCH /api/admin/governance/operators/:id (Modulate Operator)
+    // PATCH /api/admin/governance/operators/:id (Update Member)
     const operatorMatch = path.match(/^\/api\/admin\/governance\/operators\/([^/]+)$/);
     if (operatorMatch && method === 'PATCH') {
       const id = operatorMatch[1];
@@ -2880,7 +2887,7 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
         account_age_months: monthsOld,
         is_verified: !!profile.is_verified,
         strikes: profile.strikes || 0,
-        aura_tier: profile.aura_tier || 'Newcomer',
+        member_tier: profile.aura_tier || 'Newcomer',
         primary_role: profile.primary_role,
         location: profile.location,
       });

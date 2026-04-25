@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Activity, 
   MessageSquare, 
@@ -33,7 +33,7 @@ import { SafeTradePopup } from '../components/community/SafeTradePopup';
 import { ReportModal } from '../components/community/ReportModal';
 import { TrustBadge } from '../components/community/TrustBadge';
 
-interface Pulse {
+interface Post {
   id: string;
   author_id: string;
   author_handle: string;
@@ -99,7 +99,8 @@ const maskPhoneNumbers = (text: string): string => {
 export default function Community() {
   const { user, session, isAuthenticated, isProfileComplete, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [pulses, setPulses] = useState<Pulse[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [posts, setPosts] = useState<Post[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
   const [vector, setVector] = useState('latest');
   const [loading, setLoading] = useState(true);
@@ -113,14 +114,16 @@ export default function Community() {
   const [dealLocation, setDealLocation] = useState('');
   const [dealCondition, setDealCondition] = useState('new');
   const [unreadCount, setUnreadCount] = useState(0);
-  const [tab, setTab] = useState<'latest' | 'following' | 'trending' | 'marketplace'>('latest');
+  // Read initial tab from URL query param (e.g. ?tab=marketplace from /marketplace redirect)
+  const initialTab = (searchParams.get('tab') as 'latest' | 'following' | 'trending' | 'marketplace') || 'latest';
+  const [tab, setTab] = useState<'latest' | 'following' | 'trending' | 'marketplace'>(initialTab);
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Safe Trade Popup state
-  const [safeTradeTarget, setSafeTradeTarget] = useState<Pulse | null>(null);
+  const [safeTradeTarget, setSafeTradeTarget] = useState<Post | null>(null);
   const [safeTradeOpen, setSafeTradeOpen] = useState(false);
 
   const fetchData = async () => {
@@ -135,12 +138,12 @@ export default function Community() {
         'Authorization': `Bearer ${session.access_token}`,
         'X-Actor-Id': user?.id || ''
       } : {};
-      const [pulseResp, leaderResp] = await Promise.all([
+      const [postResp, leaderResp] = await Promise.all([
         fetch(url, { headers: authHeader }),
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`)
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`, { headers: authHeader })
       ]);
       
-      setPulses(await pulseResp.json());
+      setPosts(await postResp.json());
       setLeaders(await leaderResp.json());
     } catch (e) {
       console.error('Fetch error:', e);
@@ -156,7 +159,7 @@ export default function Community() {
     }
     if (!isProfileComplete) {
       toast.error("Please complete your profile to follow others");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
 
@@ -231,7 +234,7 @@ export default function Community() {
     }
     if (!isProfileComplete) {
         toast.error("Complete your profile to post");
-        navigate('/setup-identity');
+        navigate('/setup-profile');
         return;
     }
 
@@ -295,25 +298,25 @@ export default function Community() {
       setPollOptions(['', '']);
       setIsComposerExpanded(false);
       fetchData();
-      toast.success("Post broadcasted!");
+      toast.success("Post shared!");
     } catch (e: any) {
       toast.error(e.message || "Failed to post");
     }
   };
 
-  const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
+  const handleInteract = async (postId: string, type: 'heart' | 'echo') => {
     if (!isAuthenticated) {
-      toast.error("Sign in to interact with pulses");
+      toast.error("Sign in to interact with posts");
       return;
     }
     if (!isProfileComplete) {
       toast.error("Complete your profile to interact");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
 
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}/react`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${postId}/react`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -328,11 +331,11 @@ export default function Community() {
         const isAdding = data.reacted;
         
         if (isAdding) {
-          toast.success(type === 'heart' ? 'Liked pulse' : 'Pulse echoed to your profile!');
+          toast.success(type === 'heart' ? 'Liked post' : 'Post shared to your profile!');
         }
 
-        setPulses(prev => prev.map(p => {
-          if (p.id === pulseId) {
+        setPosts(prev => prev.map(p => {
+          if (p.id === postId) {
             return {
               ...p,
               [type === 'heart' ? 'hearts' : 'echoes']: p[type === 'heart' ? 'hearts' : 'echoes'] + (isAdding ? 1 : -1),
@@ -347,10 +350,10 @@ export default function Community() {
     }
   };
 
-  const handleDeletePulse = async (pulseId: string) => {
+  const handleDeletePost = async (postId: string) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${postId}`, {
         method: 'DELETE',
         headers: { 
             'Authorization': `Bearer ${session?.access_token}`,
@@ -358,15 +361,15 @@ export default function Community() {
         }
       });
       if (resp.ok) {
-        setPulses(prev => prev.filter(p => p.id !== pulseId));
+        setPosts(prev => prev.filter(p => p.id !== postId));
         toast.success("Post deleted");
       }
     } catch (e) { toast.error("Failed to delete"); }
   };
 
-  const handleEditPulse = async (pulseId: string, content: string) => {
+  const handleEditPost = async (postId: string, content: string) => {
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${postId}`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
@@ -376,29 +379,29 @@ export default function Community() {
         body: JSON.stringify({ content })
       });
       if (resp.ok) {
-        setPulses(prev => prev.map(p => p.id === pulseId ? { ...p, content } : p));
+        setPosts(prev => prev.map(p => p.id === pulseId ? { ...p, content } : p));
         toast.success("Post updated");
       }
     } catch (e) { toast.error("Failed to update"); }
   };
 
   // Show safe trade popup first, then proceed with escrow
-  const handleBuyClick = (pulse: Pulse) => {
+  const handleBuyClick = (post: Post) => {
     if (!isAuthenticated) {
       toast.error("Sign in to purchase items");
       return;
     }
     if (!isProfileComplete) {
       toast.error("Complete your profile to purchase items");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
-    setSafeTradeTarget(pulse);
+    setSafeTradeTarget(post);
     setSafeTradeOpen(true);
   };
 
-  const initiateEscrow = async (pulse: Pulse) => {
-    const metadata = parseJSON(pulse.deal_metadata);
+  const initiateEscrow = async (post: Post) => {
+    const metadata = parseJSON(post.deal_metadata);
     toast.promise(async () => {
         const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
             method: 'POST',
@@ -407,7 +410,7 @@ export default function Community() {
                 'Authorization': `Bearer ${session?.access_token}`
             },
             body: JSON.stringify({
-                pulse_id: pulse.id,
+                pulse_id: post.id,
                 amount: metadata?.price || 0
             })
         });
@@ -448,7 +451,7 @@ export default function Community() {
                       <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0B0B0F]" />
                     )}
                  </Link>
-                 <Link to={`/op/${user?.handle}`} className="p-1 hover:ring-2 ring-brand-purple rounded-full transition-all">
+                 <Link to={`/member/${user?.handle}`} className="p-1 hover:ring-2 ring-brand-purple rounded-full transition-all">
                     <UserAvatar src={user?.avatarUrl} name={user?.name} size={8} />
                  </Link>
               </div>
@@ -572,7 +575,7 @@ export default function Community() {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Location Sector</label>
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Location</label>
                         <input 
                           value={dealLocation} 
                           onChange={e => setDealLocation(e.target.value)}
@@ -625,7 +628,7 @@ export default function Community() {
                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
                  <div>
                     <h3 className="text-xl font-black text-white tracking-tighter mb-2">COMPLETE YOUR IDENTITY</h3>
-                    <p className="text-sm text-gray-400 font-medium">You're currently broadcasting as a guest. Claim your handle to start building Aura and following other operators.</p>
+                    <p className="text-sm text-gray-400 font-medium">You're currently broadcasting as a guest. Claim your handle to start building Reputation and following other members.</p>
                  </div>
                  <Link to="/setup-profile" className="px-8 py-4 bg-white text-black rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl whitespace-nowrap">
                    Claim Handle
@@ -640,10 +643,10 @@ export default function Community() {
               <div className="px-4 py-5 border-b border-white/5">
                 <div className="flex items-center gap-2 text-brand-cyan mb-1">
                   <BarChart2 size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Aura Leaderboard</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Top Members</span>
                 </div>
-                <h2 className="text-xl font-black text-white uppercase tracking-tight">Top Operators</h2>
-                <p className="text-gray-500 text-xs mt-1">Ranked by overall Aura score — earned through posts, trades, and community trust.</p>
+                <h2 className="text-xl font-black text-white uppercase tracking-tight">Top Members</h2>
+                <p className="text-gray-500 text-xs mt-1">Ranked by overall Reputation score — earned through posts, deals, and community trust.</p>
               </div>
               {loading ? (
                 <div className="flex justify-center p-12">
@@ -661,7 +664,7 @@ export default function Community() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
                   className="flex items-center gap-4 px-4 py-4 hover:bg-white/[0.02] transition-all group cursor-pointer"
-                  onClick={() => navigate(`/op/${leader.handle}`)}
+                  onClick={() => navigate(`/member/${leader.handle}`)}
                 >
                   {/* Rank Badge */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs flex-shrink-0 ${
@@ -716,25 +719,25 @@ export default function Community() {
             <div className="flex justify-center p-12">
                <div className="w-12 h-12 border-4 border-brand-purple/20 border-t-brand-purple rounded-full animate-spin" />
             </div>
-          ) : tab === 'following' && pulses.length === 0 ? (
+          ) : tab === 'following' && posts.length === 0 ? (
             <div className="py-20 text-center px-8">
               <Activity size={48} className="mx-auto text-gray-800 mb-4" />
               <h3 className="text-xl font-bold text-white">Your feed is quiet</h3>
-              <p className="text-gray-500 text-sm mt-2 mb-6">Follow other operators to see their pulses here.</p>
+              <p className="text-gray-500 text-sm mt-2 mb-6">Follow other people to see their posts here.</p>
               <button onClick={() => setTab('trending')} className="px-6 py-3 bg-brand-purple text-white rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all">
-                Discover Top Operators
+                Discover Top Members
               </button>
             </div>
           ) : (
             <div className="divide-y divide-white/5">
-              {pulses.map((p) => (
+              {posts.map((p) => (
                 <PostCard 
                     key={p.id} 
-                    pulse={p} 
+                    post={p} 
                     onReact={handleInteract} 
                     onBuy={handleBuyClick}
-                    onDelete={handleDeletePulse}
-                    onEdit={handleEditPulse}
+                    onDelete={handleDeletePost}
+                    onEdit={handleEditPost}
                     currentUser={user!}
                     session={session}
                     maskPhoneNumbers={maskPhoneNumbers}
@@ -784,11 +787,11 @@ export default function Community() {
         {/* Right Sidebar (Desktop Only) */}
         <aside className="hidden lg:flex flex-col w-80 h-screen sticky top-0 py-8 gap-6 pl-4">
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
-            <h3 className="text-lg font-black mb-4">Top Operators</h3>
+            <h3 className="text-lg font-black mb-4">Top Members</h3>
             <div className="space-y-4">
               {leaders.slice(0, 5).map((leader) => (
                 <div key={leader.handle} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/op/${leader.handle}`)}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/member/${leader.handle}`)}>
                     <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
                     <div className="min-w-0">
                       <p className="text-sm font-bold truncate group-hover:text-brand-purple transition-colors">{leader.full_name}</p>
@@ -844,18 +847,18 @@ export default function Community() {
   );
 }
 
-function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage }: { 
-  pulse: Pulse, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void
+function PostCard({ post, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage }: { 
+  post: Post, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(pulse.content);
+  const [editContent, setEditContent] = useState(post.content);
   const [showMenu, setShowMenu] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareUrl = `${window.location.origin}/pulse/${pulse.id}`;
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
     
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -863,8 +866,8 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
       
       if (navigator.share) {
         const shareData = {
-          title: `Pulse from @${pulse.author_handle}`,
-          text: pulse.content.substring(0, 100),
+          title: `Post from @${post.author_handle}`,
+          text: post.content.substring(0, 100),
           url: shareUrl,
         };
         try {
@@ -878,12 +881,12 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
     }
   };
 
-  const mediaItems = parseJSON(pulse.media_urls, []);
-  const pollData = parseJSON(pulse.poll_data);
-  const dealMeta = parseJSON(pulse.deal_metadata);
-  const isAuthor = currentUser?.id === pulse.author_id;
-  const isCaution = pulse.author_tier === 'CAUTION';
-  const isSuspended = pulse.author_tier === 'SUSPENDED';
+  const mediaItems = parseJSON(post.media_urls, []);
+  const pollData = parseJSON(post.poll_data);
+  const dealMeta = parseJSON(post.deal_metadata);
+  const isAuthor = currentUser?.id === post.author_id;
+  const isCaution = post.author_tier === 'CAUTION';
+  const isSuspended = post.author_tier === 'SUSPENDED';
 
   return (
     <>
@@ -891,7 +894,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="p-4 hover:bg-white/[0.02] transition-all cursor-pointer group relative"
-      onClick={() => !isEditing && navigate(`/pulse/${pulse.id}`)}
+      onClick={() => !isEditing && navigate(`/post/${post.id}`)}
     >
       {/* Caution / Suspended banner on post */}
       {(isCaution || isSuspended) && (
@@ -907,21 +910,21 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
 
       <div className="flex gap-4">
         <UserAvatar 
-            src={pulse.author_avatar} 
-            name={pulse.author_name} 
+            src={post.author_avatar} 
+            name={post.author_name} 
             size={11} 
             className="hover:scale-105 transition-transform" 
-            onClick={(e) => { e.stopPropagation(); navigate(`/op/${pulse.author_handle}`); }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/member/${post.author_handle}`); }}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-bold text-white hover:underline decoration-white/30 truncate" onClick={(e) => { e.stopPropagation(); navigate(`/op/${pulse.author_handle}`); }}>{pulse.author_name}</span>
-              {pulse.author_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/10" />}
+              <span className="font-bold text-white hover:underline decoration-white/30 truncate" onClick={(e) => { e.stopPropagation(); navigate(`/member/${post.author_handle}`); }}>{post.author_name}</span>
+              {post.author_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/10" />}
               {isCaution && <TrustBadge type="caution" size="xs" showLabel={false} />}
-              <span className="text-sm text-gray-500">@{pulse.author_handle}</span>
+              <span className="text-sm text-gray-500">@{post.author_handle}</span>
               <span className="text-sm text-gray-600">·</span>
-              <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(pulse.created_at)}</span>
+              <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(post.created_at)}</span>
             </div>
             
             <div className="relative z-20">
@@ -950,7 +953,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
                             Edit Post
                           </button>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); onDelete(pulse.id); setShowMenu(false); }}
+                            onClick={(e) => { e.stopPropagation(); onDelete(post.id); setShowMenu(false); }}
                             className="w-full px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3"
                           >
                             Delete Post
@@ -990,7 +993,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
                     Cancel
                   </button>
                   <button 
-                    onClick={() => { onEdit(pulse.id, editContent); setIsEditing(false); }}
+                    onClick={() => { onEdit(post.id, editContent); setIsEditing(false); }}
                     className="px-4 py-2 bg-brand-purple rounded-full text-[10px] font-black uppercase tracking-widest"
                   >
                     Save Changes
@@ -999,7 +1002,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
               </div>
             ) : (
               <div className="text-[15px] leading-relaxed text-gray-200 whitespace-pre-wrap">
-                {maskPhoneNumbers(pulse.content)}
+                {maskPhoneNumbers(post.content)}
               </div>
             )}
           </div>
@@ -1034,7 +1037,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
           )}
 
           {/* Marketplace Banner */}
-          {(pulse.is_marketplace || pulse.type === 'marketplace' || pulse.deal_metadata) && !isEditing && (
+          {(post.is_marketplace || post.type === 'marketplace' || post.deal_metadata) && !isEditing && (
             <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between group/deal">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-brand-cyan/10 rounded-xl">
@@ -1060,7 +1063,7 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
               </div>
               {!isAuthor && (
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onBuy(pulse); }}
+                  onClick={(e) => { e.stopPropagation(); onBuy(post); }}
                   className="px-6 py-2 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-cyan/20"
                 >
                   🛡️ Buy Safely
@@ -1073,27 +1076,27 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
           {!isEditing && (
             <div className="mt-4 flex items-center justify-between max-w-md text-gray-500">
               <button 
-                  onClick={(e) => { e.stopPropagation(); navigate(`/pulse/${pulse.id}`); }}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/post/${post.id}`); }}
                   className="flex items-center gap-2 hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10"
               >
                 <MessageSquare size={18} />
-                <span className="text-xs font-bold">{pulse.comments_count || 0}</span>
+                <span className="text-xs font-bold">{post.comments_count || 0}</span>
               </button>
               
               <button 
-                  onClick={(e) => { e.stopPropagation(); onReact(pulse.id, 'echo'); }}
-                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${pulse.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
+                  onClick={(e) => { e.stopPropagation(); onReact(post.id, 'echo'); }}
+                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${post.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
               >
                 <Repeat size={18} />
-                <span className="text-xs font-bold">{pulse.echoes || 0}</span>
+                <span className="text-xs font-bold">{post.echoes || 0}</span>
               </button>
 
               <button 
-                  onClick={(e) => { e.stopPropagation(); onReact(pulse.id, 'heart'); }}
-                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${pulse.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
+                  onClick={(e) => { e.stopPropagation(); onReact(post.id, 'heart'); }}
+                  className={`flex items-center gap-2 transition-colors p-2 rounded-full ${post.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
               >
-                <Heart size={18} className={pulse.has_hearted ? "fill-current" : ""} />
-                <span className="text-xs font-bold">{pulse.hearts || 0}</span>
+                <Heart size={18} className={post.has_hearted ? "fill-current" : ""} />
+                <span className="text-xs font-bold">{post.hearts || 0}</span>
               </button>
 
               <button 
@@ -1113,9 +1116,9 @@ function PostCard({ pulse, onReact, onBuy, currentUser, onDelete, onEdit, sessio
       <ReportModal
         isOpen={showReport}
         onClose={() => setShowReport(false)}
-        reportedUserId={pulse.author_id}
-        reportedHandle={pulse.author_handle}
-        postId={pulse.id}
+        reportedUserId={post.author_id}
+        reportedHandle={post.author_handle}
+        postId={post.id}
         session={session}
       />
     )}

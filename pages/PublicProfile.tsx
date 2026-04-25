@@ -133,7 +133,7 @@ export default function PublicProfile() {
 
   const handleShare = async (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareUrl = `${window.location.origin}/pulse/${p.id}`;
+    const shareUrl = `${window.location.origin}/post/${p.id}`;
     
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -141,7 +141,7 @@ export default function PublicProfile() {
       
       if (navigator.share) {
         const shareData = {
-          title: `Pulse from @${profile?.handle}`,
+          title: `Post from @${profile?.handle}`,
           text: p.content.substring(0, 100),
           url: shareUrl,
         };
@@ -179,7 +179,7 @@ export default function PublicProfile() {
       const data = await resp.json();
       if (data && !data.available) {
         setProfile(data);
-        setPosts(data.pulses || []);
+        setPosts(data.posts || data.pulses || []);
         setIsFollowing(data.isFollowing);
         setEditData({
             full_name: data.full_name,
@@ -205,7 +205,7 @@ export default function PublicProfile() {
 
   const toggleFollow = async () => {
     if (!session) {
-        toast.error("Sign in to follow operators");
+        toast.error("Sign in to follow users");
         return;
     }
     setFollowLoading(true);
@@ -361,7 +361,7 @@ export default function PublicProfile() {
 
   const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
     if (!session) {
-      toast.error("Sign in to interact with pulses");
+      toast.error("Sign in to interact with posts");
       return;
     }
 
@@ -381,7 +381,7 @@ export default function PublicProfile() {
         const isAdding = data.reacted;
         
         if (isAdding) {
-          toast.success(type === 'heart' ? 'Liked pulse' : 'Pulse echoed to your profile!');
+          toast.success(type === 'heart' ? 'Liked post' : 'Post shared to your profile!');
         }
 
         setPosts(prev => prev.map((p: any) => {
@@ -407,7 +407,7 @@ export default function PublicProfile() {
     }
     if (!isProfileComplete) {
       toast.error("Complete your profile to purchase items");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
     setSafeTradeTarget(pulse);
@@ -447,8 +447,8 @@ export default function PublicProfile() {
         error: (err) => `Escrow failed: ${err.message}`
     });
   };
-  const handleDeletePulse = async (pulseId: string) => {
-    if (!confirm("Are you sure you want to delete this pulse?")) return;
+  const handleDeletePost = async (pulseId: string) => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
     
     try {
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
@@ -460,7 +460,7 @@ export default function PublicProfile() {
       });
       
       if (resp.ok) {
-        toast.success("Pulse deleted");
+        toast.success("Post deleted");
         setPosts(prev => prev.filter(p => p.id !== pulseId));
       } else {
         const data = await resp.json();
@@ -471,8 +471,8 @@ export default function PublicProfile() {
     }
   };
 
-  const handleReportPulse = (pulseId: string) => {
-    toast.success("Pulse reported. Our team will review it.");
+  const handleReportPost = (pulseId: string) => {
+    toast.success("Post reported. Our team will review it.");
     setMenuOpenId(null);
   };
 
@@ -632,7 +632,7 @@ export default function PublicProfile() {
             </button>
             <div className="ml-auto flex items-center gap-4 bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3 shadow-2xl backdrop-blur-xl">
                <div className="text-right">
-                 <div className="text-[9px] uppercase font-black text-[#7c3aed] tracking-[0.2em] mb-1">Aura Matrix</div>
+                 <div className="text-[9px] uppercase font-black text-[#7c3aed] tracking-[0.2em] mb-1">Aura Status</div>
                  <div className="text-[11px] font-black text-white uppercase tracking-tighter">{profile.aura_tier || 'Elite'}</div>
                </div>
                <div className="w-[1px] h-8 bg-white/10" />
@@ -666,7 +666,7 @@ export default function PublicProfile() {
               <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-gray-700">
                 <MessageSquare size={32} />
               </div>
-              <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Matrix Empty</p>
+              <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">No posts yet</p>
             </div>
           ) : (
               posts.filter(p => {
@@ -709,13 +709,13 @@ export default function PublicProfile() {
                                             {isOwnProfile ? (
                                                 <>
                                                     <button 
-                                                        onClick={() => { setMenuOpenId(null); navigate(`/pulse/${p.id}`); }}
+                                                        onClick={() => { setMenuOpenId(null); navigate(`/post/${p.id}`); }}
                                                         className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hover:bg-white/5 flex items-center gap-3 transition-colors"
                                                     >
-                                                        <Edit3 size={16} className="text-[#7c3aed]" /> Edit Pulse
+                                                        <Edit3 size={16} className="text-[#7c3aed]" /> Edit Post
                                                     </button>
                                                     <button 
-                                                        onClick={() => handleDeletePulse(p.id)}
+                                                        onClick={() => handleDeletePost(p.id)}
                                                         className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors"
                                                     >
                                                         <Trash2 size={16} /> Delete
@@ -723,7 +723,7 @@ export default function PublicProfile() {
                                                 </>
                                             ) : (
                                                 <button 
-                                                    onClick={() => handleReportPulse(p.id)}
+                                                    onClick={() => handleReportPost(p.id)}
                                                     className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hover:bg-white/5 flex items-center gap-3 transition-colors"
                                                 >
                                                     <AlertTriangle size={16} /> Report
@@ -755,7 +755,7 @@ export default function PublicProfile() {
                               </div>
                               <div>
                                 <p className="text-2xl font-black text-white font-['Space_Grotesk'] leading-tight">KES {Number(dealMeta?.price || 0).toLocaleString()}</p>
-                                <p className="text-[10px] uppercase font-black text-gray-500 tracking-[0.2em]">{dealMeta?.location || 'Operational Sector'}</p>
+                                <p className="text-[10px] uppercase font-black text-gray-500 tracking-[0.2em]">{dealMeta?.location || 'Location'}</p>
                               </div>
                             </div>
                             {!isOwnProfile && (
@@ -763,14 +763,14 @@ export default function PublicProfile() {
                                 onClick={(e) => { e.stopPropagation(); handleBuyClick(p); }}
                                 className="px-8 py-3 bg-[#4cd7f6] text-[#003640] rounded-xl font-black text-[11px] tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl hover:shadow-[#4cd7f6]/20"
                               >
-                                INITIATE ESCROW
+                                BUY SECURELY
                               </button>
                             )}
                           </div>
                         )}
 
                         <div className="flex items-center gap-6 text-gray-500 mt-2">
-                           <button onClick={() => navigate(`/pulse/${p.id}`)} className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10">
+                           <button onClick={() => navigate(`/post/${p.id}`)} className="flex items-center gap-2 text-xs hover:text-brand-purple transition-colors p-2 rounded-full hover:bg-brand-purple/10">
                               <MessageSquare size={16} /> 
                               <span className="font-bold">{p.comments_count || 0}</span>
                            </button>
@@ -819,7 +819,7 @@ export default function PublicProfile() {
               <div className="p-6 border-b border-white/5 flex items-center justify-between sticky top-0 bg-[#0B0B0F] z-10">
                 <div className="flex items-center gap-4">
                     <button onClick={() => setIsEditModalOpen(false)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><X size={20} /></button>
-                    <h2 className="text-xl font-black">Refine Identity</h2>
+                    <h2 className="text-xl font-black">Edit Profile</h2>
                 </div>
                 <button onClick={handleSaveProfile} className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 transition-all">Update</button>
               </div>
@@ -856,15 +856,15 @@ export default function PublicProfile() {
                 <div className="px-6 space-y-6 pt-4 pb-12">
                    <div>
                      <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Display Name</label>
-                     <input placeholder="Global ID" value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
+                     <input placeholder="Full Name" value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
                    </div>
                    <div>
-                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Biological Description</label>
+                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Bio</label>
                      <textarea placeholder="Tell your story..." value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 min-h-[100px] focus:border-brand-purple outline-none transition-all resize-none" />
                    </div>
                    <div>
-                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Geographical Sector</label>
-                     <input placeholder="e.g. Sector-7, Nairobi" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
+                     <label className="text-[10px] uppercase font-black text-gray-500 mb-2 block tracking-widest">Location</label>
+                     <input placeholder="e.g. Nairobi, Kenya" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 focus:border-brand-purple outline-none transition-all" />
                    </div>
                    
                    <div className="pt-6 border-t border-white/5">

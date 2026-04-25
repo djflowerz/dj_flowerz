@@ -82,7 +82,7 @@ export default function Notifications() {
                 animate={{ opacity: 1 }}
                 className="p-4 flex gap-4 hover:bg-white/[0.02] cursor-pointer transition-all"
                 onClick={() => {
-                   if (n.type === 'escrow_update') navigate('/marketplace');
+                   if (n.type === 'escrow_update') navigate('/community?tab=marketplace');
                    else if (n.reference_id) navigate(`/community`); // Could be deep link to pulse
                 }}
               >

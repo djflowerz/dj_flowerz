@@ -1,5 +1,5 @@
 // src/admin/pages/TrustPortal.tsx
-// Admin Moderation Command Centre — 4-tab trust management interface
+// Admin Moderation Dashboard — 4-tab trust management interface
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -558,8 +558,8 @@ export default function TrustPortal() {
             <ShieldCheck size={22} className="text-brand-purple" />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Trust Portal</h1>
-            <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">Community Moderation Command Centre</p>
+            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Moderation Dashboard</h1>
+            <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">Community Moderation Dashboard</p>
           </div>
         </div>
         <p className="text-sm text-gray-400 max-w-xl">

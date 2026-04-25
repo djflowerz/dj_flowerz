@@ -28,7 +28,7 @@ import { SafeTradePopup } from '../components/community/SafeTradePopup';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
-interface Pulse {
+interface Post {
   id: string;
   author_id: string;
   author_handle: string;
@@ -82,13 +82,13 @@ const UserAvatar = ({ src, name, size = 10, className = "", onClick }: { src?: s
     );
 };
 
-export default function PulseDetail() {
+export default function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, session, isAuthenticated, isProfileComplete } = useAuth();
   
-  const [pulse, setPulse] = useState<Pulse | null>(null);
-  const [replies, setReplies] = useState<Pulse[]>([]);
+  const [post, setPost] = useState<Post | null>(null);
+  const [replies, setReplies] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyContent, setReplyContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
@@ -99,7 +99,7 @@ export default function PulseDetail() {
   const [editContent, setEditContent] = useState('');
 
   useEffect(() => {
-    fetchPulse();
+    fetchPost();
     if (session) fetchUnread();
   }, [id, session]);
 
@@ -113,7 +113,7 @@ export default function PulseDetail() {
     } catch (e) {}
   };
 
-  const fetchPulse = async () => {
+  const fetchPost = async () => {
     try {
       const headers: HeadersInit = {};
       if (session?.access_token) {
@@ -123,7 +123,7 @@ export default function PulseDetail() {
       const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${id}`, { headers });
       if (resp.ok) {
         const data = await resp.json();
-        setPulse(data.pulse);
+        setPost(data.pulse);
         setReplies(data.replies);
       } else {
         toast.error("Post not found");
@@ -136,15 +136,15 @@ export default function PulseDetail() {
     }
   };
 
-  const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
+  const handleInteract = async (postId: string, type: 'heart' | 'echo') => {
     if (!isProfileComplete) {
       toast.error("Complete your profile to interact");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
 
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}/react`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${postId}/react`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -156,15 +156,15 @@ export default function PulseDetail() {
       
       if (resp.ok) {
         const data = await resp.json();
-        // Update local state for main pulse or replies
-        if (pulse?.id === pulseId) {
-            setPulse(prev => prev ? {
+        // Update local state for main post or replies
+        if (post?.id === postId) {
+            setPost(prev => prev ? {
                 ...prev,
                 [type === 'heart' ? 'hearts' : 'echoes']: data.reacted ? prev[type === 'heart' ? 'hearts' : 'echoes'] + 1 : prev[type === 'heart' ? 'hearts' : 'echoes'] - 1,
                 [type === 'heart' ? 'has_hearted' : 'has_echoed']: data.reacted ? 'yes' : null
             } : null);
         } else {
-            setReplies(prev => prev.map(p => p.id === pulseId ? {
+            setReplies(prev => prev.map(p => p.id === postId ? {
                 ...p,
                 [type === 'heart' ? 'hearts' : 'echoes']: data.reacted ? p[type === 'heart' ? 'hearts' : 'echoes'] + 1 : p[type === 'heart' ? 'hearts' : 'echoes'] - 1,
                 [type === 'heart' ? 'has_hearted' : 'has_echoed']: data.reacted ? 'yes' : null
@@ -172,7 +172,7 @@ export default function PulseDetail() {
         }
 
         if (data.reacted) {
-          toast.success(type === 'heart' ? "Pulse hearted!" : "Pulse echoed!");
+          toast.success(type === 'heart' ? "Post liked!" : "Post shared!");
         }
       }
     } catch (e) {}
@@ -185,7 +185,7 @@ export default function PulseDetail() {
     }
     if (!isProfileComplete) {
       toast.error("Complete your profile to reply");
-      navigate('/setup-identity');
+      navigate('/setup-profile');
       return;
     }
     if (!replyContent.trim() || isPosting) return;
@@ -207,7 +207,7 @@ export default function PulseDetail() {
 
       if (resp.ok) {
         setReplyContent('');
-        fetchPulse();
+        fetchPost();
         toast.success("Reply posted");
       }
     } catch (e) {
@@ -227,7 +227,7 @@ export default function PulseDetail() {
       if (navigator.share) {
         const shareData = {
           title: 'Check out this post on DJ Flowerz',
-          text: pulse?.content,
+          text: post?.content,
           url: shareUrl
         };
         try {
@@ -244,7 +244,7 @@ export default function PulseDetail() {
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulse?.id}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${post?.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -264,17 +264,17 @@ export default function PulseDetail() {
   };
 
   const handleEdit = () => {
-    if (!pulse) return;
-    setEditContent(pulse.content);
+    if (!post) return;
+    setEditContent(post.content);
     setIsEditing(true);
     setShowMenu(false);
   };
 
   const saveEdit = async () => {
-    if (!pulse || !editContent.trim()) return;
+    if (!post || !editContent.trim()) return;
     setIsPosting(true);
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulse.id}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${post.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -284,7 +284,7 @@ export default function PulseDetail() {
         body: JSON.stringify({ content: editContent })
       });
       if (resp.ok) {
-        setPulse(prev => prev ? { ...prev, content: editContent } : null);
+        setPost(prev => prev ? { ...prev, content: editContent } : null);
         setIsEditing(false);
         toast.success("Post updated");
       }
@@ -301,7 +301,7 @@ export default function PulseDetail() {
   };
 
   const initiateEscrow = async () => {
-    const metadata = parseJSON(pulse?.deal_metadata);
+    const metadata = parseJSON(post?.deal_metadata);
     const amount = Number(metadata?.price) || 0;
 
     toast.promise(async () => {
@@ -313,7 +313,7 @@ export default function PulseDetail() {
                 'X-Actor-Id': user?.id || ''
             },
             body: JSON.stringify({
-                pulse_id: pulse?.id,
+                pulse_id: post?.id,
                 amount: amount
             })
         });
@@ -335,7 +335,7 @@ export default function PulseDetail() {
   };
 
   if (loading) return <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center"><Activity className="animate-spin text-brand-purple" /></div>;
-  if (!pulse) return null;
+  if (!post) return null;
 
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-white">
@@ -351,12 +351,12 @@ export default function PulseDetail() {
 
           <div className="p-4 border-b border-white/5">
             <div className="flex gap-4">
-              <UserAvatar src={pulse.author_avatar} name={pulse.author_name} size={12} onClick={() => navigate(`/op/${pulse.author_handle}`)} className="cursor-pointer" />
+              <UserAvatar src={post.author_avatar} name={post.author_name} size={12} onClick={() => navigate(`/member/${post.author_handle}`)} className="cursor-pointer" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="font-bold text-white hover:underline cursor-pointer" onClick={() => navigate(`/op/${pulse.author_handle}`)}>{pulse.author_name}</p>
-                        <p className="text-sm text-gray-500">@{pulse.author_handle}</p>
+                        <p className="font-bold text-white hover:underline cursor-pointer" onClick={() => navigate(`/member/${post.author_handle}`)}>{post.author_name}</p>
+                        <p className="text-sm text-gray-500">@{post.author_handle}</p>
                     </div>
                     <div className="relative z-50">
                         <button 
@@ -376,12 +376,12 @@ export default function PulseDetail() {
                                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                         className="absolute right-0 top-10 w-48 bg-[#16161D] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
                                     >
-                                        {user?.id === pulse.author_id && (
+                                        {user?.id === post.author_id && (
                                             <button onClick={handleEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors">
                                                 <Edit size={16} /> Edit Post
                                             </button>
                                         )}
-                                        {user?.id === pulse.author_id && (
+                                        {user?.id === post.author_id && (
                                             <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-400/10 transition-colors">
                                                 <Trash2 size={16} /> Delete Post
                                             </button>
@@ -423,14 +423,14 @@ export default function PulseDetail() {
                 </div>
             ) : (
                 <div className="mt-4 text-xl leading-relaxed text-gray-100 whitespace-pre-wrap">
-                    {pulse.content}
+                    {post.content}
                 </div>
             )}
 
             {/* Media Rendering */}
-            {parseJSON(pulse.media_urls, []).length > 0 && (
-              <div className={`mt-4 grid gap-2 ${parseJSON(pulse.media_urls).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                {parseJSON(pulse.media_urls).map((url: string, i: number) => (
+            {parseJSON(post.media_urls, []).length > 0 && (
+              <div className={`mt-4 grid gap-2 ${parseJSON(post.media_urls).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {parseJSON(post.media_urls).map((url: string, i: number) => (
                   <div key={url} className="relative aspect-auto min-h-[300px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#0B0B0F] cursor-zoom-in" onClick={() => window.open(url, '_blank')}>
                     <img src={url} className="w-full h-auto object-contain max-h-[800px] hover:scale-[1.02] transition-transform duration-700" alt="" />
                   </div>
@@ -439,17 +439,17 @@ export default function PulseDetail() {
             )}
 
             {/* Marketplace Metadata */}
-            {(Number(pulse.is_marketplace) === 1 || pulse.type === 'marketplace' || pulse.deal_metadata) && (
+            {(Number(post.is_marketplace) === 1 || post.type === 'marketplace' || post.deal_metadata) && (
                 <div className="mt-4 p-6 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center justify-between group">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <ShoppingBag className="text-brand-cyan" size={20} />
                             <span className="font-black text-brand-cyan uppercase text-xs tracking-widest">Marketplace Item</span>
                         </div>
-                        <p className="text-2xl font-black text-white">KES {parseJSON(pulse.deal_metadata)?.price || 'Negotiable'}</p>
+                        <p className="text-2xl font-black text-white">KES {parseJSON(post.deal_metadata)?.price || 'Negotiable'}</p>
                         <div className="flex items-center gap-2 text-gray-500 text-sm mt-1">
                             <MapPin size={14} />
-                            <span>{parseJSON(pulse.deal_metadata)?.location || 'Kenya'}</span>
+                            <span>{parseJSON(post.deal_metadata)?.location || 'Kenya'}</span>
                         </div>
                     </div>
                     <button 
@@ -462,23 +462,23 @@ export default function PulseDetail() {
             )}
 
             <div className="mt-4 py-4 border-y border-white/5 flex items-center gap-6 text-sm text-gray-500">
-                <span><span className="text-white font-bold">{pulse.hearts}</span> Hearts</span>
-                <span><span className="text-white font-bold">{pulse.echoes}</span> Reshares</span>
-                <span><span className="text-white font-bold">{pulse.comments_count}</span> Replies</span>
+                <span><span className="text-white font-bold">{post.hearts}</span> Likes</span>
+                <span><span className="text-white font-bold">{post.echoes}</span> Shares</span>
+                <span><span className="text-white font-bold">{post.comments_count}</span> Replies</span>
             </div>
 
             <div className="pt-2 flex items-center justify-between max-w-sm text-gray-500">
                 <button 
-                    onClick={(e) => { e.stopPropagation(); handleInteract(pulse.id, 'echo'); }}
-                    className={`flex items-center gap-2 p-3 rounded-full transition-all ${pulse.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
+                    onClick={(e) => { e.stopPropagation(); handleInteract(post.id, 'echo'); }}
+                    className={`flex items-center gap-2 p-3 rounded-full transition-all ${post.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
                 >
                     <Repeat size={22} />
                 </button>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); handleInteract(pulse.id, 'heart'); }}
-                    className={`flex items-center gap-2 p-3 rounded-full transition-all ${pulse.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
+                    onClick={(e) => { e.stopPropagation(); handleInteract(post.id, 'heart'); }}
+                    className={`flex items-center gap-2 p-3 rounded-full transition-all ${post.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
                 >
-                    <Heart size={22} className={pulse.has_hearted ? 'fill-current' : ''} />
+                    <Heart size={22} className={post.has_hearted ? 'fill-current' : ''} />
                 </button>
                 <button 
                     onClick={(e) => { e.stopPropagation(); handleShare(); }}
@@ -496,7 +496,7 @@ export default function PulseDetail() {
                 <textarea 
                     value={replyContent}
                     onChange={(e) => setReplyContent(e.target.value)}
-                    placeholder="Signal back..."
+                    placeholder="Reply to this post..."
                     className="w-full bg-transparent border-none text-lg outline-none placeholder:text-gray-600 resize-none min-h-[60px]"
                 />
                 <div className="flex justify-end items-center mt-2 pt-2 border-t border-white/5">
@@ -516,7 +516,7 @@ export default function PulseDetail() {
             {replies.map((reply) => (
               <div key={reply.id} className="p-4 hover:bg-white/[0.02] transition-all">
                 <div className="flex gap-4">
-                    <UserAvatar src={reply.author_avatar} name={reply.author_name} size={10} onClick={() => navigate(`/op/${reply.author_handle}`)} />
+                    <UserAvatar src={reply.author_avatar} name={reply.author_name} size={10} onClick={() => navigate(`/member/${reply.author_handle}`)} />
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-sm">
                             <span className="font-bold text-white">@{reply.author_handle}</span>
@@ -551,8 +551,8 @@ export default function PulseDetail() {
       <SafeTradePopup 
         isOpen={safeTradeOpen}
         onClose={() => setSafeTradeOpen(false)}
-        sellerName={pulse.author_name}
-        amount={parseJSON(pulse.deal_metadata)?.price}
+        sellerName={post.author_name}
+        amount={parseJSON(post.deal_metadata)?.price}
         onConfirm={() => {
             setSafeTradeOpen(false);
             initiateEscrow();

@@ -71,9 +71,7 @@ const Community = lazyWithRetry(() => import('./pages/Community'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const Notifications = lazy(() => import('./pages/Notifications'));
-const PulseDetail = lazy(() => import('./pages/PulseDetail'));
-const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));
-const MarketplaceStorefront = lazyWithRetry(() => import('./pages/MarketplaceStorefront'));
+const PostDetail = lazy(() => import('./pages/PostDetail'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
 const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
@@ -131,8 +129,8 @@ const AppContent = () => {
   const location = useLocation();
 
   // Redirect if profile setup is required
-  if (isAuthenticated && !loading && needsSetup && location.pathname !== '/setup-identity') {
-    return <Navigate to="/setup-identity" replace />;
+  if (isAuthenticated && !loading && needsSetup && location.pathname !== '/setup-profile') {
+    return <Navigate to="/setup-profile" replace />;
   }
   
   return (
@@ -146,21 +144,22 @@ const AppContent = () => {
             <Route path="/mixtapes/:id" element={<MixtapeDetails />} />
             <Route path="/music-pool" element={<ProtectedRoute subscriberOnly><MusicPool /></ProtectedRoute>} />
             <Route path="/community" element={<Community />} />
-            <Route path="/pulse/:id" element={<Suspense fallback={<LoadingSpinner />}><PulseDetail /></Suspense>} />
-            <Route path="/op/:handle" element={<PublicProfile />} />
+            <Route path="/marketplace" element={<Navigate to="/community?tab=marketplace" replace />} />
+            <Route path="/post/:id" element={<Suspense fallback={<LoadingSpinner />}><PostDetail /></Suspense>} />
+            <Route path="/member/:handle" element={<PublicProfile />} />
             <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
 
             <Route path="/store" element={<Store />} />
             <Route path="/store/:slug" element={<ProductDetails />} />
+            <Route path="/cart" element={<Suspense fallback={<LoadingSpinner />}><Cart /></Suspense>} />
+            <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-            <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
+            <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute><MarketplaceStorefront /></ProtectedRoute>} />
-            <Route path="/marketplace/dashboard" element={<ProtectedRoute><MarketplaceDashboard /></ProtectedRoute>} />
             <Route path="/verification" element={<ProtectedRoute><VerificationPortal /></ProtectedRoute>} />
 
             {/* Admin Modular Pages */}
@@ -289,8 +288,8 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <Activity className="text-white" size={24} />
                         <div>
-                          <p className="text-sm font-black text-white uppercase tracking-tighter">Nocturnal Pulse</p>
-                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Identity & Commerce Hub</p>
+                          <p className="text-sm font-black text-white uppercase tracking-tighter">DJ FLOWERZ App</p>
+                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Official Mobile Experience</p>
                         </div>
                     </div>
                     <div className="flex gap-2">

@@ -195,7 +195,7 @@ export default function SetupProfile() {
           {step === 3 && (
             <div className="space-y-8">
                <div className="text-center">
-                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Neural Sync</h1>
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Verification</h1>
                 <p className="text-white/40">Add your operator log and external links.</p>
               </div>
 

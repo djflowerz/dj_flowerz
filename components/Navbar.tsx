@@ -69,9 +69,6 @@ const Navbar: React.FC = () => {
             
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 z-50 group">
-              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center p-1 border border-white/10 overflow-hidden shadow-[0_0_20px_rgba(163,73,245,0.2)]">
-                <img src="/logo.png?v=2" alt="DJ FLOWERZ" className="w-full h-full object-contain" />
-              </div>
               <div className="flex flex-col -space-y-1">
                 <span className="text-xl font-bold tracking-tighter text-white">DJ</span>
                 <span className="text-xl font-black tracking-tighter text-[#A349F5] leading-none group-hover:text-[#00F5FF] transition-colors duration-500">FLOWERZ</span>
@@ -163,7 +160,7 @@ const Navbar: React.FC = () => {
                       </div>
                       
                       {user?.handle && (
-                        <Link to={`/op/${user.handle.replace('@', '')}`} className="flex items-center gap-3 px-5 py-3.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all group">
+                        <Link to={`/member/${user.handle.replace('@', '')}`} className="flex items-center gap-3 px-5 py-3.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all group">
                           <div className="w-8 h-8 rounded-lg bg-[#00F5FF]/10 flex items-center justify-center group-hover:bg-[#00F5FF]/20 transition-colors">
                             <User size={16} className="text-[#00F5FF]" />
                           </div>
@@ -183,7 +180,7 @@ const Navbar: React.FC = () => {
                           <div className="w-8 h-8 rounded-lg bg-[#A349F5]/10 flex items-center justify-center group-hover:bg-[#A349F5]/20 transition-colors">
                             <ShieldCheck size={16} />
                           </div>
-                          Command Center
+                          Admin Dashboard
                         </Link>
                       )}
                       
@@ -249,7 +246,7 @@ const Navbar: React.FC = () => {
               {!isAuthenticated && (
                 <Link to="/login" className="col-span-2">
                   <button className="w-full bg-white/5 text-white font-bold py-5 rounded-2xl border border-white/10 uppercase tracking-widest">
-                    OPERATOR SIGN IN
+                    SIGN IN
                   </button>
                 </Link>
               )}

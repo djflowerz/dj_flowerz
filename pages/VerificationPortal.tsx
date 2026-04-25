@@ -36,7 +36,7 @@ const VerificationPortal: React.FC = () => {
       const res = await requestSync();
       if (res.success) {
         setSyncRequested(true);
-        setMessage({ type: 'success', text: 'Neural Sync requested. Check your registered channel for OTP.' });
+        setMessage({ type: 'success', text: 'Verification requested. Check your email or phone for code.' });
       } else {
         setMessage({ type: 'error', text: res.message || 'Failed to request sync.' });
       }
@@ -56,7 +56,7 @@ const VerificationPortal: React.FC = () => {
     try {
       const res = await verifyOtp(otp);
       if (res.success) {
-        setMessage({ type: 'success', text: 'Neural Sync Complete. Identity Verified.' });
+        setMessage({ type: 'success', text: 'Verification Complete. Identity Verified.' });
         setOtp('');
       } else {
         setMessage({ type: 'error', text: res.message || 'Invalid OTP.' });
@@ -102,13 +102,13 @@ const VerificationPortal: React.FC = () => {
         >
           <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full border border-electric-purple/30 bg-electric-purple/5 mb-4">
             <ShieldCheck className="w-4 h-4 text-electric-purple" />
-            <span className="text-xs font-bold tracking-widest uppercase text-electric-purple">Neural Sync Portal</span>
+            <span className="text-xs font-bold tracking-widest uppercase text-electric-purple">Account Verification</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tighter">
-            TRUST THE <span className="text-gradient-cyan">MATRIX</span>
+            GET <span className="text-gradient-cyan">VERIFIED</span>
           </h1>
           <p className="text-gray-400 max-w-xl mx-auto text-lg">
-            Verify your identity and elevate your Aura status to unlock premium platform capabilities.
+            Verify your identity and elevate your account status to unlock premium platform capabilities.
           </p>
         </motion.div>
 
@@ -127,7 +127,7 @@ const VerificationPortal: React.FC = () => {
               
               <h3 className="text-xl font-bold mb-8 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-cyber-cyan" />
-                Aura Identity
+                Account Status
               </h3>
 
               <div className="space-y-6">
@@ -186,11 +186,10 @@ const VerificationPortal: React.FC = () => {
               </div>
 
               <h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                <Cpu className="w-8 h-8 text-electric-purple" />
-                Neural Sync
+                Account Verification
               </h2>
               <p className="text-gray-400 mb-8">
-                Connect your account to the matrix oversight system. This protocol requires a one-time cryptographic proof.
+                Connect your account to the official community verification system. This process requires a one-time verification code.
               </p>
 
               <AnimatePresence mode="wait">
@@ -217,14 +216,14 @@ const VerificationPortal: React.FC = () => {
                     <div className="p-8 border border-dashed border-white/10 rounded-2xl text-center">
                       <Lock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                       <h4 className="text-lg font-bold mb-2">Protocol Initialized</h4>
-                      <p className="text-sm text-gray-500 mb-6">Start the sync process to receive your Neural Badge.</p>
+                      <p className="text-sm text-gray-500 mb-6">Start the verification process to receive your badge.</p>
                       <button
                         onClick={handleRequestSync}
                         disabled={loading}
                         className="btn-premium flex items-center gap-2 mx-auto"
                       >
                         {loading ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
-                        REQUEST NEURAL SYNC
+                        REQUEST VERIFICATION
                       </button>
                     </div>
                   ) : (
@@ -232,7 +231,7 @@ const VerificationPortal: React.FC = () => {
                       <div>
                         <label className="block text-sm font-bold text-gray-400 mb-3 flex items-center gap-2">
                           <Fingerprint className="w-4 h-4 text-cyber-cyan" />
-                          CRYPTOGRAPHIC OTP
+                          VERIFICATION CODE
                         </label>
                         <input
                           type="text"
@@ -249,12 +248,12 @@ const VerificationPortal: React.FC = () => {
                         className="w-full btn-premium py-4 flex items-center justify-center gap-3 text-lg"
                       >
                         {loading ? <RefreshCcw className="w-6 h-6 animate-spin" /> : <ShieldCheck className="w-6 h-6" />}
-                        COMPLETE IDENTITY SYNC
+                        COMPLETE VERIFICATION
                       </button>
                       <div className="flex justify-between items-center text-[10px] text-gray-500 uppercase tracking-widest">
                         <span>Awaiting Input...</span>
                         <button type="button" onClick={handleRequestSync} className="hover:text-cyber-cyan flex items-center gap-1">
-                          <RefreshCcw className="w-3 h-3" /> Resend Protocol
+                          <RefreshCcw className="w-3 h-3" /> Resend Code
                         </button>
                       </div>
                     </form>
@@ -265,9 +264,9 @@ const VerificationPortal: React.FC = () => {
                   <div className="w-24 h-24 bg-cyber-cyan/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-cyber-cyan/30 animate-pulse">
                     <CheckCircle2 className="w-12 h-12 text-cyber-cyan" />
                   </div>
-                  <h2 className="text-3xl font-bold mb-4">Sync Success</h2>
+                  <h2 className="text-3xl font-bold mb-4">Verification Success</h2>
                   <p className="text-gray-400 mb-8 max-w-sm mx-auto">
-                    Your identity is now part of the Aura Matrix. You have full access to platform features and Shield Escrow protection.
+                    Your identity is now verified. You have full access to platform features and secure payment protection.
                   </p>
                   <div className="flex flex-wrap justify-center gap-4">
                     <button 
@@ -293,8 +292,8 @@ const VerificationPortal: React.FC = () => {
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="glass-card p-6 rounded-2xl border border-white/5">
             <ShieldCheck className="w-8 h-8 text-cyber-cyan mb-4" />
-            <h4 className="text-lg font-bold mb-2">Shield Escrow</h4>
-            <p className="text-sm text-gray-500">Enable secure transactions with platform-backed escrow protection.</p>
+            <h4 className="text-lg font-bold mb-2">Secure Payments</h4>
+            <p className="text-sm text-gray-500">Enable secure transactions with platform-backed payment protection.</p>
           </div>
           <div className="glass-card p-6 rounded-2xl border border-white/5">
             <Zap className="w-8 h-8 text-aura-gold mb-4" />

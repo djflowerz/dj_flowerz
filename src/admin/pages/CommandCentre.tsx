@@ -67,7 +67,7 @@ const CommandCentre: React.FC = () => {
                 setSystemHealth(data);
             }
         } catch (e) {
-            toast.error("Failed to sync Command Centre data");
+            toast.error("Failed to sync dashboard data");
         } finally {
             setLoading(false);
         }
@@ -148,9 +148,9 @@ const CommandCentre: React.FC = () => {
             a.href = url;
             a.download = `FORENSIC_REPORT_${id.slice(0,8)}.csv`;
             a.click();
-            toast.success("Case Report Exported", { description: "Forensic audit is ready." });
+            toast.success("Case Report Exported", { description: "Case audit is ready." });
         } catch (e) {
-            toast.error("Forensic export failed");
+            toast.error("Audit export failed");
         }
     };
 
@@ -191,7 +191,7 @@ const CommandCentre: React.FC = () => {
     };
 
     return (
-        <AdminLayout title="Command Centre">
+        <AdminLayout title="Operations Center">
             {/* ── MISSION CONTROL TABS ── */}
             <div className="flex flex-wrap items-center gap-4 mb-12 bg-[#0B0B0F] border border-white/5 p-2 rounded-[2rem]">
                 <button 
@@ -212,7 +212,7 @@ const CommandCentre: React.FC = () => {
                     )}
                 >
                     <Gavel size={16} />
-                    The Courtroom
+                    Dispute Resolution
                 </button>
                 <button 
                     onClick={() => setActiveTab('system')}
@@ -488,7 +488,7 @@ const CommandCentre: React.FC = () => {
                             <div className="flex justify-between items-center mb-10">
                                 <div>
                                     <h3 className="text-2xl font-black uppercase tracking-tighter">Audit Trail</h3>
-                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">Cryptographically immutable system logs</p>
+                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">Immutable system logs</p>
                                 </div>
                                 <button className="flex items-center gap-2 text-[10px] font-black text-brand-purple uppercase tracking-widest hover:underline transition-all">
                                     <Filter size={14} />

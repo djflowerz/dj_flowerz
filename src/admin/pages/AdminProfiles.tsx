@@ -97,10 +97,10 @@ const AdminProfiles: React.FC = () => {
     };
 
     return (
-        <AdminLayout title="Operator Registry">
+        <AdminLayout title="Member Registry">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                 <StatCard 
-                    label="Total Registered Operators" 
+                    label="Total Registered Members" 
                     value={profiles.length} 
                     icon={Users} 
                     color="text-brand-purple" 
@@ -112,7 +112,7 @@ const AdminProfiles: React.FC = () => {
                     value={activeUsers.length} 
                     icon={Activity} 
                     color="text-brand-cyan" 
-                    trend="PULSE"
+                    trend="ACTIVE"
                     trendUp={true}
                 />
             </div>
@@ -129,7 +129,7 @@ const AdminProfiles: React.FC = () => {
                         onClick={() => setActiveTab('community')} 
                         className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'community' ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20 border-brand-purple/50' : 'text-gray-500 hover:text-white border-transparent'} border`}
                     >
-                        Community Pulse
+                        Community Feed
                     </button>
                 </div>
                 <div className="relative w-full md:w-96">
@@ -150,10 +150,10 @@ const AdminProfiles: React.FC = () => {
                         <thead>
                             <tr className="border-b border-white/5 bg-white/[0.02]">
                                 <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Identity</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Signal Status</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Aura Tier</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Timeline</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500 text-right">Ops Protocol</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Contact Info</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Member Tier</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500">Joined</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-500 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -162,14 +162,14 @@ const AdminProfiles: React.FC = () => {
                                     <td colSpan={5} className="px-8 py-20 text-center">
                                         <div className="flex flex-col items-center gap-4">
                                             <div className="w-12 h-12 border-4 border-brand-purple/20 border-t-brand-purple rounded-full animate-spin" />
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Syncing Registry...</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Syncing Members...</p>
                                         </div>
                                     </td>
                                 </tr>
                             ) : filteredProfiles.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-8 py-20 text-center">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">No signals detected.</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">No members detected.</p>
                                     </td>
                                 </tr>
                             ) : filteredProfiles.map((p) => {
@@ -229,7 +229,7 @@ const AdminProfiles: React.FC = () => {
                                             <div className="flex items-center justify-end gap-2">
                                                 {p.handle && (
                                                     <a 
-                                                        href={`/op/@${p.handle}`} 
+                                                        href={`/member/@${p.handle}`} 
                                                         target="_blank" 
                                                         rel="noreferrer"
                                                         className="p-3 bg-white/5 border border-white/5 rounded-xl text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 transition-all"
@@ -290,27 +290,27 @@ const AdminProfiles: React.FC = () => {
                             
                             <div className="grid grid-cols-2 gap-8 mb-8">
                                 <div>
-                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">{selectedProfile.full_name || 'Anonymous Operator'}</h3>
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">{selectedProfile.full_name || 'Anonymous Member'}</h3>
                                     <p className="text-sm font-bold text-brand-purple">@{selectedProfile.handle || 'no-handle'}</p>
                                 </div>
                                 <div className="text-right">
                                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${selectedProfile.is_verified ? 'bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan' : 'bg-white/5 border-white/5 text-gray-500'}`}>
-                                        {selectedProfile.is_verified ? 'Verified Bio-ID' : 'Pending Verification'}
+                                        {selectedProfile.is_verified ? 'Verified Profile' : 'Pending Verification'}
                                     </span>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 mb-8">
                                 <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Electronic Mail</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Email Address</p>
                                     <p className="text-sm font-bold text-white">{selectedProfile.email}</p>
                                 </div>
                                 <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Aura Classification</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Membership Level</p>
                                     <p className="text-sm font-bold text-white uppercase">{selectedProfile.aura_tier || 'Standard'}</p>
                                 </div>
                                 <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Registry Date</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Joined Date</p>
                                     <p className="text-sm font-bold text-white">{new Date(selectedProfile.created_at).toLocaleDateString()}</p>
                                 </div>
                                 <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
@@ -324,15 +324,15 @@ const AdminProfiles: React.FC = () => {
                                     onClick={() => setSelectedProfile(null)}
                                     className="flex-1 py-4 bg-white/5 text-gray-400 text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition-all border border-white/5"
                                 >
-                                    Close Intelligence Report
+                                    Close Profile Summary
                                 </button>
                                 {selectedProfile.handle && (
                                     <a 
-                                        href={`/op/@${selectedProfile.handle}`}
+                                        href={`/member/@${selectedProfile.handle}`}
                                         target="_blank"
                                         className="flex-1 py-4 bg-brand-purple text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:scale-[1.02] transition-all text-center shadow-lg shadow-brand-purple/20"
                                     >
-                                        Visit Neural Interface
+                                        Visit Public Profile
                                     </a>
                                 )}
                             </div>

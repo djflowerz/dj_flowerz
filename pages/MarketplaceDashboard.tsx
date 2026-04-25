@@ -77,9 +77,9 @@ export default function MarketplaceDashboard() {
         <header className="pt-24 pb-8 flex items-center justify-between">
            <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-                Shield <span className="text-brand-cyan">Escrow Terminal</span>
+                Secure <span className="text-brand-cyan">Escrow Dashboard</span>
               </h1>
-              <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-bold">Nocturnal Pulse Secure Commerce</p>
+              <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-bold">DJ Flowerz Secure Marketplace</p>
            </div>
            <Link to="/community" className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">
               <ArrowLeft size={16} /> Back to Feed
@@ -90,10 +90,10 @@ export default function MarketplaceDashboard() {
            {/* Sidebar Stats */}
            <div className="md:col-span-1 space-y-6">
               <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Aura Integrity</p>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Member Reputation</p>
                  <div className="flex items-center gap-2 text-brand-cyan">
                     <ShieldCheck size={20} />
-                    <span className="font-black text-xs">SECURE MATRIX</span>
+                    <span className="font-black text-xs">SECURE SYSTEM</span>
                  </div>
               </div>
            </div>
@@ -287,7 +287,7 @@ function DealCard({ deal, onUpdate, currentUser, session }: { deal: Deal, onUpda
                 <div>
                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Item Details</p>
                    <p className="text-sm text-gray-300 italic mb-4 leading-relaxed">"{deal.pulse_content}"</p>
-                   <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl group/seller cursor-pointer" onClick={() => window.open(`/op/${deal.seller_handle}`, '_blank')}>
+                   <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl group/seller cursor-pointer" onClick={() => window.open(`/member/${deal.seller_handle}`, '_blank')}>
                        <img src={`https://ui-avatars.com/api/?name=${deal.seller_name || 'U'}`} className="w-8 h-8 rounded-full" alt="" />
                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
@@ -307,7 +307,7 @@ function DealCard({ deal, onUpdate, currentUser, session }: { deal: Deal, onUpda
                       </div>
                       <p className="text-[10px] text-gray-400 leading-relaxed">
                         This seller uses DJ Flowerz Escrow via Paystack. Funds are only released when you confirm receipt. 
-                        Check their <Link to={`/op/${deal.seller_handle}`} className="text-brand-cyan underline">Seller Scorecard</Link> for trade history.
+                        Check their <Link to={`/member/${deal.seller_handle}`} className="text-brand-cyan underline">Member Scorecard</Link> for trade history.
                       </p>
                    </div>
                 </div>

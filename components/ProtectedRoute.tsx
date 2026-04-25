@@ -38,8 +38,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
     }
 
     // ✅ Redirect to community identity setup if handle hasn't been claimed yet
-    if (user?.needsSetup && location.pathname !== '/setup-identity') {
-        return <Navigate to="/setup-identity" replace />;
+    if (user?.needsSetup && location.pathname !== '/setup-profile') {
+        return <Navigate to="/setup-profile" replace />;
     }
 
     if (adminOnly && (!user || !['ianmuriithiflowerz@gmail.com', 'djflowerz254@gmail.com'].includes(user.email || ''))) {

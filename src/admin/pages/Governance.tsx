@@ -39,7 +39,7 @@ const Governance: React.FC = () => {
             const data = await request('/api/admin/governance/queue');
             setOperators(data.operators || []);
         } catch (e) {
-            toast.error("Failed to sync operator data");
+            toast.error("Failed to sync member data");
         } finally {
             setLoading(false);
         }
@@ -55,7 +55,7 @@ const Governance: React.FC = () => {
                 method: 'PATCH',
                 body: JSON.stringify({ is_verified: verify })
             });
-            toast.success(verify ? "Operator Verified" : "Verification Revoked");
+            toast.success(verify ? "Member Verified" : "Verification Revoked");
             fetchData();
         } catch (e) {
             toast.error("Process failed");
@@ -71,7 +71,7 @@ const Governance: React.FC = () => {
             toast.success(`Tier adjusted to ${tier}`);
             fetchData();
         } catch (e) {
-            toast.error("Aura modulation failed");
+            toast.error("Tier adjustment failed");
         }
     };
 
@@ -85,7 +85,7 @@ const Governance: React.FC = () => {
     });
 
     return (
-        <AdminLayout title="Operator Governance">
+        <AdminLayout title="Member Verification">
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* ── STATS BAR ── */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -95,7 +95,7 @@ const Governance: React.FC = () => {
                                 <Users size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total Operators</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total Members</p>
                                 <p className="text-3xl font-black">{operators.length}</p>
                             </div>
                         </div>
@@ -106,7 +106,7 @@ const Governance: React.FC = () => {
                                 <ShieldCheck size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Verified Nodes</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Verified Profiles</p>
                                 <p className="text-3xl font-black">{operators.filter(o => o.is_verified).length}</p>
                             </div>
                         </div>
@@ -117,7 +117,7 @@ const Governance: React.FC = () => {
                                 <Zap size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Aura Activity</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Activity Level</p>
                                 <p className="text-3xl font-black">High</p>
                             </div>
                         </div>
@@ -129,7 +129,7 @@ const Governance: React.FC = () => {
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
                         <div>
                             <h3 className="text-2xl font-black uppercase tracking-tighter">Verification Queue</h3>
-                            <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest mt-1">Audit and authorize community identities</p>
+                            <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest mt-1">Manage and authorize community accounts</p>
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
@@ -162,11 +162,11 @@ const Governance: React.FC = () => {
 
                     <div className="space-y-4">
                         {loading ? (
-                            <div className="p-12 text-center text-gray-500 font-black uppercase tracking-widest text-[10px] animate-pulse italic">Scanning Neural Mesh...</div>
+                            <div className="p-12 text-center text-gray-500 font-black uppercase tracking-widest text-[10px] animate-pulse italic">Loading Member Records...</div>
                         ) : filteredOperators.length === 0 ? (
                             <div className="p-20 text-center border-2 border-dashed border-white/5 rounded-[2.5rem]">
                                 <Activity className="w-12 h-12 mx-auto text-white/5 mb-4" />
-                                <p className="text-[11px] font-black uppercase tracking-widest text-gray-600">No matching operators found in governance loop.</p>
+                                <p className="text-[11px] font-black uppercase tracking-widest text-gray-600">No matching members found.</p>
                             </div>
                         ) : (
                             filteredOperators.map((op) => (
@@ -195,7 +195,7 @@ const Governance: React.FC = () => {
 
                                     <div className="flex items-center gap-8">
                                         <div className="text-right px-8 border-x border-white/5">
-                                            <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Aura Modulation</p>
+                                            <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Tier Selection</p>
                                             <select 
                                                 value={op.aura_tier}
                                                 onChange={(e) => handleModulateAura(op.id, e.target.value)}
@@ -220,7 +220,7 @@ const Governance: React.FC = () => {
                                                     onClick={() => handleVerify(op.id, true)}
                                                     className="px-8 py-3 bg-[#00F5FF]/10 border border-[#00F5FF]/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-[#00F5FF] hover:bg-[#00F5FF]/20 transition-all shadow-[0_0_20px_rgba(0,245,255,0.1)]"
                                                 >
-                                                    Verify Identity
+                                                    Verify Profile
                                                 </button>
                                             )}
                                             <button className="p-3 text-white/20 hover:text-white transition-all">

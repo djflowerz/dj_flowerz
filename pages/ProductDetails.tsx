@@ -182,10 +182,21 @@ export default function ProductDetails() {
   }, [product]);
 
   const productFeatures = useMemo(() => {
-    if (!product) return [];
+    if (!product || !product.features) return [];
     if (Array.isArray(product.features)) return product.features;
     if (typeof product.features === 'string') {
-      try { return JSON.parse(product.features); } catch (e) { return []; }
+      try {
+        const parsed = JSON.parse(product.features);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        if (product.features.includes('\n')) {
+          return product.features.split('\n').map(f => f.trim()).filter(Boolean);
+        }
+        if (product.features.includes(',')) {
+          return product.features.split(',').map(f => f.trim()).filter(Boolean);
+        }
+        return [product.features];
+      }
     }
     return [];
   }, [product]);
