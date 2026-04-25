@@ -16,6 +16,7 @@ interface AuthContextType {
   isProfileComplete: boolean;
   session: any | null;
   refreshUserProfile: () => Promise<void>;
+  updateUserProfile: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -180,7 +181,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user,
       isProfileComplete: !!user && !user.needsSetup,
       session,
-      refreshUserProfile: () => fetchProfileAndSetUser(session)
+      refreshUserProfile: () => fetchProfileAndSetUser(session),
+      updateUserProfile: (updates: Partial<User>) => {
+        setUser(prev => prev ? { ...prev, ...updates } : null);
+      }
     }}>
       {children}
     </AuthContext.Provider>

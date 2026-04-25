@@ -3,13 +3,15 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   CheckCircle2, ShoppingBag, Repeat, MessageSquare, Heart, Share2, MoreHorizontal, UserPlus, UserCheck, ArrowLeft,
-  X, Instagram, Facebook, Camera, Globe, ShieldCheck, ExternalLink, MapPin, Calendar
+  X, Instagram, Facebook, Camera, Globe, ShieldCheck, ExternalLink, MapPin, Calendar,
+  Trash2, AlertTriangle, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { TrustBadge } from '../components/community/TrustBadge';
 import { SellerScorecard } from '../components/community/SellerScorecard';
 import { VerificationJourney } from '../components/community/VerificationJourney';
+import { SafeTradePopup } from '../components/community/SafeTradePopup';
 
 interface SocialLinks {
   instagram?: string;
@@ -37,6 +39,7 @@ interface ProfileData {
   created_at: string;
   followers_count?: number;
   following_count?: number;
+  followsViewer?: boolean;
 }
 
 interface Post {
@@ -107,6 +110,8 @@ export default function PublicProfile() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'posts' | 'media' | 'likes' | 'marketplace'>('posts');
+  const [safeTradeOpen, setSafeTradeOpen] = useState(false);
+  const [safeTradeTarget, setSafeTradeTarget] = useState<any>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -124,6 +129,32 @@ export default function PublicProfile() {
   const [showVerifOtp, setShowVerifOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  const handleShare = async (p: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/pulse/${p.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied to clipboard");
+      
+      if (navigator.share) {
+        const shareData = {
+          title: `Pulse from @${profile?.handle}`,
+          text: p.content.substring(0, 100),
+          url: shareUrl,
+        };
+        try {
+          await navigator.share(shareData);
+        } catch (sErr) {
+          // Ignore
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const cleanHandle = handle?.replace(/^@/, '').toLowerCase();
   const userHandle = user?.handle?.replace(/^@/, '').toLowerCase();
@@ -347,9 +378,14 @@ export default function PublicProfile() {
       
       if (resp.ok) {
         const data = await resp.json();
+        const isAdding = data.reacted;
+        
+        if (isAdding) {
+          toast.success(type === 'heart' ? 'Liked pulse' : 'Pulse echoed to your profile!');
+        }
+
         setPosts(prev => prev.map((p: any) => {
           if (p.id === pulseId) {
-            const isAdding = data.reacted;
             return {
               ...p,
               [type === 'heart' ? 'hearts' : 'echoes']: p[type === 'heart' ? 'hearts' : 'echoes'] + (isAdding ? 1 : -1),
@@ -359,45 +395,85 @@ export default function PublicProfile() {
           return p;
         }));
       }
-  const handleBuy = async (pulse: any) => {
+    } catch (e) {
+      toast.error('Interaction failed');
+    }
+  };
+
+  const handleBuyClick = (pulse: any) => {
     if (!isAuthenticated) {
-      toast.error("Sign in to initiate escrow");
+      toast.error("Sign in to purchase items");
       return;
     }
-    
-    // Redirect to escrow flow
-    const dealMeta = parseJSON(pulse.deal_metadata);
-    const amount = Number(dealMeta?.price) || 0;
-    
-    toast.loading("Initiating secure deal...");
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to purchase items");
+      navigate('/setup-identity');
+      return;
+    }
+    setSafeTradeTarget(pulse);
+    setSafeTradeOpen(true);
+  };
+
+  const initiateEscrow = async (pulse: any) => {
+    const metadata = parseJSON(pulse.deal_metadata);
+    const amount = Number(metadata?.price) || 0;
+
+    toast.promise(async () => {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`,
+                'X-Actor-Id': user?.id || ''
+            },
+            body: JSON.stringify({
+                pulse_id: pulse.id,
+                amount: amount
+            })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error);
+        return data;
+    }, {
+        loading: 'Initiating secure escrow...',
+        success: (data) => {
+          if (data.authorizationUrl) {
+            setTimeout(() => window.location.href = data.authorizationUrl, 1500);
+            return `Deal #${data.dealId.slice(0,8)} created! Redirecting to Paystack...`;
+          }
+          setTimeout(() => navigate('/marketplace/dashboard'), 2000);
+          return `Secure deal #${data.dealId.slice(0,8)} created! Check your dashboard for payment instructions.`;
+        },
+        error: (err) => `Escrow failed: ${err.message}`
+    });
+  };
+  const handleDeletePulse = async (pulseId: string) => {
+    if (!confirm("Are you sure you want to delete this pulse?")) return;
     
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
-        method: 'POST',
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulseId}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
           'X-Actor-Id': user?.id || ''
-        },
-        body: JSON.stringify({
-          pulse_id: pulse.id,
-          amount: amount,
-          seller_id: pulse.author_id || profile?.id
-        })
+        }
       });
       
-      const resData = await resp.json();
       if (resp.ok) {
-        toast.dismiss();
-        toast.success("Deal initiated! Redirecting to dashboard...");
-        setTimeout(() => navigate(`/marketplace/deals/${resData.deal_id}`), 1500);
+        toast.success("Pulse deleted");
+        setPosts(prev => prev.filter(p => p.id !== pulseId));
       } else {
-        toast.dismiss();
-        throw new Error(resData.error || "Failed up initiate escrow");
+        const data = await resp.json();
+        toast.error(data.error || "Failed to delete");
       }
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error("Deletion failed");
     }
+  };
+
+  const handleReportPulse = (pulseId: string) => {
+    toast.success("Pulse reported. Our team will review it.");
+    setMenuOpenId(null);
   };
 
 
@@ -484,7 +560,17 @@ export default function PublicProfile() {
                     : 'bg-white text-black hover:scale-105 active:scale-95'
                 }`}
               >
-                {isFollowing ? 'Following' : 'Follow'}
+                {isFollowing ? (
+                  <>
+                    <UserCheck size={18} />
+                    <span>Following</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={18} />
+                    <span>{profile.followsViewer ? 'Follow Back' : 'Follow'}</span>
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -544,22 +630,27 @@ export default function PublicProfile() {
               <span className="font-black text-white">{profile.followers_count || 0}</span>
               <span className="text-gray-500">Followers</span>
             </button>
-            <div className="ml-auto flex items-center gap-2">
-               <div className="text-[10px] uppercase font-black text-brand-purple tracking-widest">{profile.aura_tier}</div>
-               <div className="w-1 h-8 rounded-full bg-brand-purple/20" />
-               <div className="text-lg font-black text-brand-purple">{profile.aura_points}</div>
+            <div className="ml-auto flex items-center gap-4 bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3 shadow-2xl backdrop-blur-xl">
+               <div className="text-right">
+                 <div className="text-[9px] uppercase font-black text-[#7c3aed] tracking-[0.2em] mb-1">Aura Matrix</div>
+                 <div className="text-[11px] font-black text-white uppercase tracking-tighter">{profile.aura_tier || 'Elite'}</div>
+               </div>
+               <div className="w-[1px] h-8 bg-white/10" />
+               <div className="text-2xl font-black text-[#7c3aed] font-['Space_Grotesk'] drop-shadow-[0_0_10px_rgba(124,58,237,0.5)]">
+                 {profile.aura_points}
+               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex border-b border-white/5 mt-6 mb-2">
+        <div className="flex border-b border-white/5 mt-10 mb-2">
           {['posts', 'media', 'likes', 'marketplace'].map(t => (
             <button key={t} onClick={() => setTab(t as any)}
-              className={`flex-1 py-4 text-sm font-black transition-all capitalize relative ${
+              className={`flex-1 py-5 text-[11px] uppercase tracking-[0.2em] font-black transition-all relative ${
                 tab === t ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
               }`}>
               {t}
-              {tab === t && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-brand-purple mx-8 rounded-t-full shadow-[0_-2px_10px_rgba(124,58,237,0.5)]" />}
+              {tab === t && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-[#7c3aed] mx-8 rounded-t-full shadow-[0_-2px_15px_rgba(124,58,237,0.8)]" />}
             </button>
           ))}
         </div>
@@ -571,9 +662,11 @@ export default function PublicProfile() {
               if (tab === 'marketplace') return p.is_marketplace;
               return true;
           }).length === 0) ? (
-            <div className="py-20 text-center flex flex-col items-center gap-4">
-              <div className="p-6 bg-white/5 rounded-full"><MessageSquare size={32} className="text-gray-700" /></div>
-              <p className="text-gray-500 font-bold">No {tab} found.</p>
+            <div className="py-32 text-center flex flex-col items-center gap-6">
+              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-gray-700">
+                <MessageSquare size={32} />
+              </div>
+              <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Matrix Empty</p>
             </div>
           ) : (
               posts.filter(p => {
@@ -585,43 +678,92 @@ export default function PublicProfile() {
                 const dealMeta = parseJSON(p.deal_metadata, {});
                 
                 return (
-                <div key={p.id} className="py-6 px-4 hover:bg-white/[0.01] transition-all group">
-                   <div className="flex gap-4">
-                     <Avatar src={profile.avatar_url} name={profile.full_name} size={10} className="group-hover:ring-2 ring-brand-purple/20" />
+                <div key={p.id} className="py-8 px-4 hover:bg-white/[0.01] transition-all group">
+                   <div className="flex gap-6">
+                     <Avatar src={profile.avatar_url} name={profile.full_name} size={10} className="group-hover:ring-4 ring-[#7c3aed]/20 transition-all" />
                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white group-hover:text-brand-purple transition-colors">{profile.full_name}</span>
-                            <span className="text-gray-500 text-xs">@{profile.handle} · {timeAgo(p.created_at)}</span>
+                            <span className="font-black text-white group-hover:text-[#7c3aed] transition-colors uppercase tracking-tight text-base">{profile.full_name}</span>
+                            <span className="text-gray-500 text-[11px] font-bold">@{profile.handle} · {timeAgo(p.created_at)}</span>
+                          </div>
+
+                          <div className="relative">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === p.id ? null : p.id); }}
+                                className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-colors"
+                            >
+                                <MoreHorizontal size={18} />
+                            </button>
+
+                            <AnimatePresence>
+                                {menuOpenId === p.id && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setMenuOpenId(null)} />
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                            className="absolute right-0 mt-2 w-48 bg-[#050508] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl"
+                                        >
+                                            {isOwnProfile ? (
+                                                <>
+                                                    <button 
+                                                        onClick={() => { setMenuOpenId(null); navigate(`/pulse/${p.id}`); }}
+                                                        className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hover:bg-white/5 flex items-center gap-3 transition-colors"
+                                                    >
+                                                        <Edit3 size={16} className="text-[#7c3aed]" /> Edit Pulse
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeletePulse(p.id)}
+                                                        className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors"
+                                                    >
+                                                        <Trash2 size={16} /> Delete
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleReportPulse(p.id)}
+                                                    className="w-full px-5 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hover:bg-white/5 flex items-center gap-3 transition-colors"
+                                                >
+                                                    <AlertTriangle size={16} /> Report
+                                                </button>
+                                            )}
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
                           </div>
                         </div>
-                        <p className="text-gray-200 text-[15px] leading-relaxed mb-4 whitespace-pre-wrap">{p.content}</p>
+                        <p className="text-white/90 text-[15px] leading-relaxed mb-6 whitespace-pre-wrap font-medium">{p.content}</p>
                         
                         {mediaItems.length > 0 && (
-                          <div className={`mb-4 grid gap-2 rounded-2xl overflow-hidden border border-white/5 ${mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          <div className={`mb-6 grid gap-3 rounded-3xl overflow-hidden border border-white/10 ${mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                              {mediaItems.slice(0, 4).map((url: string, i: number) => (
-                               <div key={i} className="relative cursor-zoom-in" onClick={() => setViewingImage(url)}>
-                                 <img src={url} className="w-full h-auto object-contain max-h-[500px] bg-black/20 hover:opacity-90 transition-opacity" />
+                               <div key={i} className="relative cursor-zoom-in group/img" onClick={() => setViewingImage(url)}>
+                                 <img src={url} className="w-full h-auto object-contain max-h-[500px] bg-white/[0.02] hover:opacity-90 transition-all duration-500 group-hover/img:scale-[1.02]" />
                                </div>
                              ))}
                           </div>
                         )}
 
                         {p.is_marketplace && (
-                          <div className="mb-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <ShieldCheck className="text-brand-cyan" size={20} />
+                          <div className="mb-6 bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex items-center justify-between shadow-2xl backdrop-blur-md">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-[#4cd7f6]/10 flex items-center justify-center border border-[#4cd7f6]/20">
+                                <ShieldCheck className="text-[#4cd7f6]" size={24} />
+                              </div>
                               <div>
-                                <p className="text-lg font-black text-white">KES {Number(dealMeta?.price || 0).toLocaleString()}</p>
-                                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">{dealMeta?.location || 'Direct Deal'}</p>
+                                <p className="text-2xl font-black text-white font-['Space_Grotesk'] leading-tight">KES {Number(dealMeta?.price || 0).toLocaleString()}</p>
+                                <p className="text-[10px] uppercase font-black text-gray-500 tracking-[0.2em]">{dealMeta?.location || 'Operational Sector'}</p>
                               </div>
                             </div>
                             {!isOwnProfile && (
                               <button 
-                                onClick={(e) => { e.stopPropagation(); handleBuy(p); }}
-                                className="px-5 py-1.5 bg-brand-cyan text-black rounded-full font-black text-xs hover:scale-105 active:scale-95 transition-all"
+                                onClick={(e) => { e.stopPropagation(); handleBuyClick(p); }}
+                                className="px-8 py-3 bg-[#4cd7f6] text-[#003640] rounded-xl font-black text-[11px] tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl hover:shadow-[#4cd7f6]/20"
                               >
-                                Buy Safely
+                                INITIATE ESCROW
                               </button>
                             )}
                           </div>
@@ -645,6 +787,13 @@ export default function PublicProfile() {
                            >
                               <Heart size={16} className={p.has_hearted ? "fill-current" : ""} /> 
                               <span className="font-bold">{p.hearts || 0}</span>
+                           </button>
+
+                           <button 
+                             onClick={(e) => handleShare(p, e)}
+                             className="flex items-center gap-2 text-xs hover:text-brand-cyan transition-colors p-2 rounded-full hover:bg-brand-cyan/10"
+                           >
+                             <Share2 size={16} />
                            </button>
                         </div>
                      </div>
@@ -784,6 +933,18 @@ export default function PublicProfile() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Safe Trade Popup */}
+      <SafeTradePopup
+        isOpen={safeTradeOpen}
+        sellerName={profile?.handle}
+        amount={parseJSON(safeTradeTarget?.deal_metadata)?.price}
+        onClose={() => { setSafeTradeOpen(false); setSafeTradeTarget(null); }}
+        onConfirm={() => {
+          setSafeTradeOpen(false);
+          if (safeTradeTarget) initiateEscrow(safeTradeTarget);
+          setSafeTradeTarget(null);
+        }}
+      />
     </div>
   );
 }

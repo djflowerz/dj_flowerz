@@ -190,6 +190,17 @@ export default function ProductDetails() {
     return [];
   }, [product]);
 
+  const tierPriceMap = useMemo(() => {
+    if (!product) return { local: 0, air: 0, sea: 0 };
+    const base = Number(product.price) || 0;
+    const local = Number(product.price_local) || base;
+    return {
+      local: local,
+      air: Number(product.price_air) || (local * 0.9),
+      sea: Number(product.price_sea) || (local * 0.8)
+    };
+  }, [product]);
+
   if (productsLoading) {
     return (
       <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center pt-20 text-white">
@@ -207,16 +218,6 @@ export default function ProductDetails() {
     );
   }
 
-  const tierPriceMap = useMemo(() => {
-    if (!product) return { local: 0, air: 0, sea: 0 };
-    const base = Number(product.price) || 0;
-    const local = Number(product.price_local) || base;
-    return {
-      local: local,
-      air: Number(product.price_air) || (local * 0.9),
-      sea: Number(product.price_sea) || (local * 0.8)
-    };
-  }, [product]);
 
   const activePriceVar = currentVariant || product;
   const baseOrVariantPrice = Number(activePriceVar?.discountPrice || activePriceVar?.price || product.price) || 0;

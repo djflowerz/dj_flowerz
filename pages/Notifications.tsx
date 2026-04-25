@@ -71,7 +71,7 @@ export default function Notifications() {
           <div className="py-20 text-center flex flex-col items-center gap-4">
              <Bell size={48} className="text-gray-800" />
              <h2 className="text-xl font-black">Nothing to see here — yet</h2>
-             <p className="text-gray-500 max-w-xs">When folks interact with your signals or marketplace deals, you'll find them here.</p>
+             <p className="text-gray-500 max-w-xs">When folks interact with your transmissions or Shield Escrow pulses, you'll find them here.</p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">

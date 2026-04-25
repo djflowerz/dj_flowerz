@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&amp;family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary": "#003640",
+                        "on-error": "#690005",
+                        "tertiary": "#c6c6c7",
+                        "primary-container": "#7c3aed",
+                        "on-tertiary": "#2f3131",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "on-error-container": "#ffdad6",
+                        "secondary-container": "#03b5d3",
+                        "surface": "#131317",
+                        "outline-variant": "#4a4455",
+                        "on-tertiary-container": "#e5e6e6",
+                        "error-container": "#93000a",
+                        "tertiary-fixed": "#e2e2e2",
+                        "on-secondary-container": "#00424e",
+                        "tertiary-container": "#656767",
+                        "inverse-primary": "#732ee4",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "on-secondary-fixed": "#001f26",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "surface-tint": "#d2bbff",
+                        "surface-dim": "#131317",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-background": "#e5e1e7",
+                        "surface-variant": "#353439",
+                        "error": "#ffb4ab",
+                        "on-surface": "#e5e1e7",
+                        "surface-container": "#1f1f23",
+                        "inverse-on-surface": "#303034",
+                        "primary-fixed": "#eaddff",
+                        "on-primary-container": "#ede0ff",
+                        "surface-container-high": "#2a292e",
+                        "outline": "#958da1",
+                        "surface-container-lowest": "#0e0e12",
+                        "surface-container-low": "#1b1b1f",
+                        "surface-container-highest": "#353439",
+                        "primary-fixed-dim": "#d2bbff",
+                        "primary": "#d2bbff",
+                        "inverse-surface": "#e5e1e7",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "secondary": "#4cd7f6",
+                        "secondary-fixed": "#acedff",
+                        "on-primary-fixed": "#25005a",
+                        "on-surface-variant": "#ccc3d8",
+                        "on-primary": "#3f008e",
+                        "background": "#131317",
+                        "surface-bright": "#39393d",
+                        "on-tertiary-fixed-variant": "#454747"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "gutter": "24px",
+                        "xl": "80px",
+                        "sm": "16px",
+                        "xs": "8px",
+                        "unit": "4px",
+                        "md": "24px",
+                        "lg": "48px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Space Grotesk"],
+                        "label-caps": ["Space Grotesk"],
+                        "body-md": ["Spline Sans"],
+                        "body-lg": ["Spline Sans"],
+                        "headline-md": ["Space Grotesk"],
+                        "display-xl": ["Space Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "900"}],
+                        "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                        "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "800"}],
+                        "display-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "900"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .neon-glow-purple:hover {
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.4);
+        }
+        .neon-glow-cyan:hover {
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.4);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.3); border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-[#050508] text-on-surface font-body-md overflow-x-hidden">
+<!-- TopAppBar Section -->
+<header class="fixed top-0 w-full z-50 bg-[#050508]/60 backdrop-blur-xl border-b border-white/12 shadow-[0_0_30px_rgba(124,58,237,0.1)] flex justify-between items-center px-8 h-20">
+<div class="flex items-center gap-6">
+<span class="text-xl font-black tracking-tighter text-white uppercase font-['Space_Grotesk']">NOCTURNAL ADMIN</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<input class="bg-black/40 border-b border-white/12 px-4 py-2 focus:border-secondary-container focus:ring-0 text-xs tracking-widest font-['Space_Grotesk'] w-64 transition-all duration-300" placeholder="SEARCH OPERATORS..." type="text"/>
+<span class="material-symbols-outlined absolute right-2 top-2 text-slate-400 text-sm">search</span>
+</div>
+<div class="flex items-center gap-4 border-l border-white/12 pl-6">
+<button class="text-slate-400 hover:text-white transition-colors duration-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-colors duration-300">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-colors duration-300">
+<span class="material-symbols-outlined">dns</span>
+</button>
+<div class="w-10 h-10 rounded-full border border-primary-container p-0.5 overflow-hidden">
+<img alt="Admin profile avatar" class="w-full h-full object-cover rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyVOAp5H9-RWieJYMxT0d0VXB241g4LHmChRc7JHEHlD_T64lDDGvX05KN02tcDNKTAMld3JX7ihR0ma9fLKlUzP04eV3s0Rg1eImccrFZrdlid2iwou167VjS7S4dI_tno3aRcny7o_Bpzm4AqLK_Uqm_f04Kk4fJKgtLoo56sfNgqu8v3WuBS5BSldRtOuvrGWaK_C1guymzCtO3iNu0Pz47RsApondgCuhg6Ro9CvGDo8Fp9GppmPS6tZeeY64EasAnhjMaaxIf"/>
+</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar Section -->
+<aside class="fixed left-0 top-0 h-full w-72 border-r border-white/12 bg-[#050508]/40 backdrop-blur-2xl flex flex-col pt-24 pb-8 z-40">
+<div class="px-8 mb-10">
+<h2 class="text-[#7C3AED] font-['Space_Grotesk'] font-black uppercase tracking-tighter text-2xl">DASHBOARD</h2>
+<p class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs text-slate-500">Elite Performance</p>
+</div>
+<nav class="flex-1 space-y-1 px-4">
+<a class="flex items-center gap-4 px-4 py-4 rounded-lg bg-white/10 text-cyan-400 border-r-2 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] transition-all duration-300" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">Users</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-4 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 group" href="#">
+<span class="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">shopping_cart</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">Commerce</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-4 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 group" href="#">
+<span class="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">subscriptions</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">Content</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-4 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 group" href="#">
+<span class="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">terminal</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">System</span>
+</a>
+</nav>
+<div class="mt-auto px-4 space-y-1 pt-8 border-t border-white/5">
+<button class="w-full flex items-center gap-4 px-4 py-4 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 group">
+<span class="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">history</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">Logs</span>
+</button>
+<button class="w-full flex items-center gap-4 px-4 py-4 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 group">
+<span class="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">logout</span>
+<span class="font-['Space_Grotesk'] font-medium uppercase tracking-widest text-xs">Logout</span>
+</button>
+<div class="px-4 mt-6">
+<button class="w-full py-4 bg-primary-container text-white rounded-full font-headline-md text-xs tracking-widest hover:bg-primary-fixed-dim transition-all duration-300 neon-glow-purple flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">assessment</span>
+                    GENERATE REPORT
+                </button>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-72 pt-24 px-10 pb-10 min-h-screen">
+<!-- Header Section -->
+<header class="mb-lg flex justify-between items-end">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-white mb-2 uppercase">Operator Governance</h1>
+<p class="font-body-lg text-on-surface-variant max-w-xl">Manage the elite ecosystem of DJs and Operators. Authenticate identities and modulate permission vectors.</p>
+</div>
+<div class="flex gap-4">
+<div class="glass-panel px-6 py-4 rounded-xl flex items-center gap-4">
+<div class="text-right">
+<p class="font-label-caps text-slate-500 mb-1 uppercase">Total Operators</p>
+<p class="font-headline-md text-cyan-400">12,482</p>
+</div>
+<span class="material-symbols-outlined text-cyan-400 text-3xl">hub</span>
+</div>
+<div class="glass-panel px-6 py-4 rounded-xl flex items-center gap-4">
+<div class="text-right">
+<p class="font-label-caps text-slate-500 mb-1 uppercase">Verification Queue</p>
+<p class="font-headline-md text-primary-container">156</p>
+</div>
+<span class="material-symbols-outlined text-primary-container text-3xl">verified_user</span>
+</div>
+</div>
+</header>
+<!-- Search & Filters Bento Grid -->
+<div class="grid grid-cols-12 gap-6 mb-lg">
+<div class="col-span-12 glass-panel p-md rounded-lg flex items-center gap-6">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">search</span>
+<input class="w-full bg-black/60 border-none rounded-full py-4 pl-12 pr-6 text-sm font-['Space_Grotesk'] focus:ring-2 focus:ring-primary-container transition-all" placeholder="FILTER BY HANDLE, ID, OR RESIDENCY..." type="text"/>
+</div>
+<div class="flex gap-2 shrink-0">
+<button class="px-6 py-3 bg-white/5 border border-white/10 rounded-full text-xs font-label-caps hover:bg-white/10 transition-colors uppercase">Role</button>
+<button class="px-6 py-3 bg-white/5 border border-white/10 rounded-full text-xs font-label-caps hover:bg-white/10 transition-colors uppercase">Tier</button>
+<button class="px-6 py-3 bg-white/5 border border-white/10 rounded-full text-xs font-label-caps hover:bg-white/10 transition-colors uppercase">Status</button>
+<button class="px-6 py-3 bg-primary-container/20 border border-primary-container/40 rounded-full text-xs font-label-caps text-primary-container hover:bg-primary-container/30 transition-all flex items-center gap-2 uppercase">
+<span class="material-symbols-outlined text-sm">filter_alt</span>
+                        Pending Verification
+                    </button>
+</div>
+</div>
+</div>
+<!-- High-Density Table Glass Card -->
+<div class="glass-panel rounded-lg overflow-hidden relative">
+<!-- Decorative Glow Background -->
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-primary-container/10 blur-[100px] rounded-full -z-10"></div>
+<div class="absolute -bottom-24 -left-24 w-64 h-64 bg-cyan-400/10 blur-[100px] rounded-full -z-10"></div>
+<table class="w-full text-left border-collapse">
+<thead class="bg-white/5 border-b border-white/10">
+<tr>
+<th class="px-6 py-5 font-label-caps text-slate-400 uppercase">Operator</th>
+<th class="px-6 py-5 font-label-caps text-slate-400 uppercase">Identity Handle</th>
+<th class="px-6 py-5 font-label-caps text-slate-400 uppercase">Core Role</th>
+<th class="px-6 py-5 font-label-caps text-slate-400 uppercase">Aura Tier</th>
+<th class="px-6 py-5 font-label-caps text-slate-400 uppercase">Status</th>
+<th class="px-6 py-5 font-label-caps text-slate-400 text-right uppercase">Protocol Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<!-- Row 1: Verified Operator -->
+<tr class="hover:bg-white/[0.03] transition-colors group">
+<td class="px-6 py-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full ring-2 ring-primary-container ring-offset-2 ring-offset-black overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzas_4X7OnaT_4TS493LVRiWamX2or4Hr71j87ik5GJlghabjrEVUQF0GHgY28T08HWNcH8pyIFriIJCarn0ih3eqk35mEAPdejdlRggmuiwyRAHeFVY1MLVczum0XmR3kQNR5WA_xK5YTs6A9-4Gi6hX6UGSfgUTNkA0vsdWibERVEqmvWJQTJ6FRPjjiyXsh_-xJJAxpbw2z0A2InDi_trEQxm2CWKhfwPRgzoHQMXOLkSx0uXHC--SRrflCIU0PAzb3NiSntTv1"/>
+</div>
+<div>
+<p class="font-headline-md text-sm text-white uppercase">Xavier Flux</p>
+<p class="font-body-md text-xs text-slate-500 tracking-wider">ID: 99283-ZF</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<span class="text-cyan-400 font-['Space_Grotesk'] text-sm">@FLUX_MODULATOR</span>
+</td>
+<td class="px-6 py-6">
+<span class="px-3 py-1 bg-primary-container/20 text-primary-container rounded-full text-[10px] font-label-caps border border-primary-container/30 uppercase">DJ / Producer</span>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-400 text-lg" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="text-amber-400 font-label-caps text-[11px] uppercase">Legendary</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2 text-emerald-400">
+<div class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+<span class="font-label-caps text-[10px] uppercase">Verified</span>
+</div>
+</td>
+<td class="px-6 py-6 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-90" title="Revoke Verification">
+<span class="material-symbols-outlined text-lg">cancel_presentation</span>
+</button>
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all active:scale-90" title="Adjust Role">
+<span class="material-symbols-outlined text-lg">tune</span>
+</button>
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-slate-300 hover:bg-white/10 transition-all active:scale-90" title="Modulate Handle">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2: Pending Operator -->
+<tr class="hover:bg-white/[0.03] transition-colors group">
+<td class="px-6 py-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border border-white/20 overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJRGWLdhsELJnYMwXO4fVCdGe1LEJQtqnibj8OPGVyaZUTkwe42cJbhemxvGD3qozqG-9T8g-TSEQRvxZ86W3rYNrwch6moumOuJdv4V7YsggOoSE4O2m5kxijVnk2eUH0dFrDZ1wIwIaclNmfF3RTYmICrU0oeBTYOBbGS19xNnLnKmXTQavWnRY5Pqqq_K9DVBMPQCPhoUvQFzFTLJoooKRjJl2VFKj_QUAP-zed6yQ8_DL6uPzNjR7Omh6VcUncnW1cJFk_JzF3"/>
+</div>
+<div>
+<p class="font-headline-md text-sm text-white uppercase">Kai Zenith</p>
+<p class="font-body-md text-xs text-slate-500 tracking-wider">ID: 77210-KZ</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<span class="text-cyan-400 font-['Space_Grotesk'] text-sm">@ZENITH_WAVE</span>
+</td>
+<td class="px-6 py-6">
+<span class="px-3 py-1 bg-white/5 text-slate-400 rounded-full text-[10px] font-label-caps border border-white/5 uppercase">Core User</span>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-500 text-lg">shield</span>
+<span class="text-slate-500 font-label-caps text-[11px] uppercase">Standard</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2 text-amber-400">
+<div class="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
+<span class="font-label-caps text-[10px] uppercase">Pending</span>
+</div>
+</td>
+<td class="px-6 py-6 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="px-4 h-9 glass-panel rounded-full flex items-center justify-center gap-2 text-emerald-400 hover:bg-emerald-400/20 transition-all active:scale-95" title="Approve Verification">
+<span class="material-symbols-outlined text-lg">verified</span>
+<span class="font-label-caps text-[10px] uppercase">Approve</span>
+</button>
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all active:scale-90" title="Adjust Role">
+<span class="material-symbols-outlined text-lg">tune</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: Verified Admin -->
+<tr class="hover:bg-white/[0.03] transition-colors group">
+<td class="px-6 py-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full ring-2 ring-cyan-400 ring-offset-2 ring-offset-black overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCG6B4jTWalgUxqllSh7Qrs9ua6kbF88hXmABHEOoP1LlcLVQtY7UXIzFFo4rz_qJUF9Y8Dq8E2qKU4Gt3Ag5zZd19MQlkBSCUeAhwW_gxSZ1QVusBy2ZDWqrkPpnl9ktU3MCPNxiF6WOvyKNxs0epjNLjOdrKcmlYGKmOeFJpDMzd5UNojagAg0ZcqY5ZMr_vJjyssGZpat_fumaui74MOGsRJJe-5wKZEABHmr1gu6wn-muzZMhLOeW4gpsdbZ36Z5FrWLqzWi8mx"/>
+</div>
+<div>
+<p class="font-headline-md text-sm text-white uppercase">Lyra Void</p>
+<p class="font-body-md text-xs text-slate-500 tracking-wider">ID: 88472-LV</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<span class="text-cyan-400 font-['Space_Grotesk'] text-sm">@VOID_COMMANDER</span>
+</td>
+<td class="px-6 py-6">
+<span class="px-3 py-1 bg-white/10 text-white rounded-full text-[10px] font-label-caps border border-white/20 uppercase">System Admin</span>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-cyan-400 text-lg" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+<span class="text-cyan-400 font-label-caps text-[11px] uppercase">Prime</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2 text-emerald-400">
+<div class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+<span class="font-label-caps text-[10px] uppercase">Verified</span>
+</div>
+</td>
+<td class="px-6 py-6 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-90" title="Revoke Verification">
+<span class="material-symbols-outlined text-lg">cancel_presentation</span>
+</button>
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all active:scale-90" title="Adjust Role">
+<span class="material-symbols-outlined text-lg">tune</span>
+</button>
+<button class="w-9 h-9 glass-panel rounded-full flex items-center justify-center text-slate-300 hover:bg-white/10 transition-all active:scale-90" title="Modulate Handle">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination Footer -->
+<div class="p-6 bg-white/5 border-t border-white/10 flex items-center justify-between">
+<span class="font-body-md text-xs text-slate-500 uppercase">Showing 1-25 of 12,482 Operators</span>
+<div class="flex gap-2">
+<button class="w-10 h-10 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="px-4 py-2 glass-panel rounded-full bg-primary-container text-white text-xs font-label-caps">1</button>
+<button class="px-4 py-2 glass-panel rounded-full text-xs font-label-caps hover:bg-white/10">2</button>
+<button class="px-4 py-2 glass-panel rounded-full text-xs font-label-caps hover:bg-white/10">3</button>
+<button class="w-10 h-10 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- System Logs Bento Bottom -->
+<div class="grid grid-cols-12 gap-6 mt-lg">
+<div class="col-span-4 glass-panel p-md rounded-lg">
+<h3 class="font-label-caps text-slate-500 mb-4 uppercase">Security Feed</h3>
+<div class="space-y-4">
+<div class="flex gap-3 text-xs">
+<span class="text-primary-container font-mono">14:22:01</span>
+<p class="text-white">Operator <span class="text-cyan-400">@FLUX_MODULATOR</span> escalated to Tier: Legendary</p>
+</div>
+<div class="flex gap-3 text-xs">
+<span class="text-primary-container font-mono">14:18:45</span>
+<p class="text-white">System login detected from <span class="text-cyan-400">NEO-TOKYO NODE 4</span></p>
+</div>
+<div class="flex gap-3 text-xs">
+<span class="text-primary-container font-mono">14:12:30</span>
+<p class="text-white">Protocol modulation: <span class="text-error uppercase">Access_Denied</span> for Guest ID: 1042</p>
+</div>
+</div>
+</div>
+<div class="col-span-8 glass-panel p-md rounded-lg relative overflow-hidden">
+<!-- Graphic Decorative Element -->
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+<div class="w-full h-full" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 24px 24px;"></div>
+</div>
+<div class="relative z-10 flex flex-col h-full justify-between">
+<div>
+<h3 class="font-label-caps text-slate-500 mb-2 uppercase">Network Throughput</h3>
+<p class="font-display-xl text-white text-4xl">48.2 <span class="text-lg text-slate-500 uppercase tracking-widest">Gbps</span></p>
+</div>
+<div class="flex items-center gap-6 mt-4">
+<div class="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+<div class="h-full w-[72%] bg-gradient-to-r from-cyan-400 to-primary-container"></div>
+</div>
+<span class="font-label-caps text-xs text-cyan-400 uppercase">72% Load</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Action (Contextual: User Management) -->
+<div class="fixed bottom-10 right-10 z-50">
+<button class="w-16 h-16 bg-primary-container text-white rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(124,58,237,0.5)] hover:scale-110 active:scale-95 transition-all duration-300 group">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-90 transition-transform duration-500">add</span>
+</button>
+</div>
+</body></html>

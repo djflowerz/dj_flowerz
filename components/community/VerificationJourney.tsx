@@ -53,47 +53,47 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
     {
       id: 'photo',
       phase: 1,
-      label: 'Profile Photo',
-      description: 'Upload a clear photo or logo',
+      label: 'Avatar Initialization',
+      description: 'Upload a high-fidelity profile signature',
       icon: <Camera size={16} />,
-      reward: '+5 Trust Points',
+      reward: '+5 Aura Points',
       completed: !!profile?.avatar_url && !profile.avatar_url.includes('ui-avatars'),
     },
     {
       id: 'bio',
       phase: 1,
-      label: 'Write a Bio',
-      description: 'Description of your expertise',
+      label: 'Operator Dossier',
+      description: 'Describe your nocturnal expertise',
       icon: <FileText size={16} />,
-      reward: '+5 Trust Points',
+      reward: '+5 Aura Points',
       completed: !!(profile?.bio && profile.bio.trim().length > 0),
     },
     {
       id: 'location',
       phase: 1,
-      label: 'Add Your Location',
-      description: 'Specify your city or county',
+      label: 'Regional Grid',
+      description: 'Specify your operational sector',
       icon: <MapPin size={16} />,
-      reward: '+5 Trust Points',
+      reward: '+5 Aura Points',
       completed: !!(profile?.location && profile.location.trim()),
     },
     // Phase 2: Trust Baseline
     {
       id: 'contact_verify',
       phase: 2,
-      label: 'Verify Reachability',
-      description: 'Verify your Email, Phone or WhatsApp via OTP',
-      icon: <Mail size={16} />,
-      reward: '+10 Trust Points',
+      label: 'Neural Verification',
+      description: 'Validate reachability via encrypted OTP',
+      icon: <Zap size={16} />,
+      reward: '+10 Aura Points',
       completed: isContactVerified,
     },
     {
       id: 'social_link',
       phase: 2,
-      label: 'Link Social Profile',
-      description: 'Connect Instagram, TikTok, etc.',
+      label: 'Cross-Network Sync',
+      description: 'Link your external identities',
       icon: <Link2 size={16} />,
-      reward: '+10 Trust Points',
+      reward: '+10 Aura Points',
       completed: (() => {
         try {
           const s = typeof profile?.social_links === 'string' ? JSON.parse(profile.social_links) : profile?.social_links || {};
@@ -105,8 +105,8 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
     {
       id: 'badge',
       phase: 3,
-      label: 'Verified Badge 🛡️',
-      description: 'Official community Trust Badge application',
+      label: 'Aura Elite Status 🛡️',
+      description: 'Official Nocturnal Pulse Trust Accreditation',
       icon: <Shield size={16} />,
       reward: 'Verified Badge 🛡️',
       completed: hasBadge,
@@ -230,9 +230,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
   };
 
   const phaseLabels: Record<number, string> = {
-    1: 'Phase 1: Build Your Identity',
-    2: 'Phase 2: Verification Layer',
-    3: 'Phase 3: Marketplace Readiness',
+    1: 'Phase 1: Digital Presence',
+    2: 'Phase 2: Trust Matrix',
+    3: 'Phase 3: Aura Ascension',
   };
 
   const barColor = completionPercent >= 80
@@ -254,9 +254,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
-              <p className="text-[11px] font-black uppercase tracking-widest text-white">Verification Journey</p>
+              <p className="text-[11px] font-black uppercase tracking-widest text-white">Aura Identity Progress</p>
               {isVerified && (
-                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">COMPLETE</span>
+                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">ASCENDED</span>
               )}
             </div>
             {/* Progress Bar */}
@@ -339,6 +339,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
 
           {/* Reachability & Badge Verification */}
           <div className="p-5 relative border-t border-white/5">
@@ -350,9 +351,9 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
               </div>
               <div>
                 <p className={`text-[12px] font-black ${isContactVerified ? 'text-emerald-400 opacity-60' : 'text-white'}`}>
-                  Phase 2: Contact Verification
+                  Phase 2: Trust Matrix Neural Sync
                 </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Verify your reachability</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Validate your operational reachability</p>
               </div>
             </div>
 
@@ -425,7 +426,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                       {isBadgeRequested ? (
                         <div className="flex items-center gap-2 text-amber-400 text-[11px] font-black animate-pulse bg-amber-400/5 p-4 rounded-xl border border-amber-400/10">
                           <Zap size={14} />
-                          Reviewing Eligibility — Expected update in 24h.
+                          Analyzing Aura Signature — Review in progress.
                         </div>
                       ) : isBadgeApproved ? (
                          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
@@ -448,7 +449,7 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
                                 : 'bg-white/5 text-gray-600 grayscale cursor-not-allowed border border-white/5'
                             }`}
                           >
-                            {requesting ? '...' : isEligibleForBadge ? '🏆 Apply for Verified Badge' : `Locked: (${eligibleCount}/${eligibilitySteps.length} steps done)`}
+                            {requesting ? '...' : isEligibleForBadge ? '🏆 Claim Elite Aura Status' : `Locked: (${eligibleCount}/${eligibilitySteps.length} matrix keys synced)`}
                           </button>
                         </>
                       )}
@@ -461,13 +462,12 @@ export const VerificationJourney: React.FC<VerificationJourneyProps> = ({
               {isVerified && (
                 <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 text-center">
                   <p className="text-2xl mb-2">🏆</p>
-                  <h3 className="font-black text-emerald-400 uppercase tracking-tighter">Fully Verified!</h3>
+                  <h3 className="font-black text-emerald-400 uppercase tracking-tighter">Ascended to Elite Status</h3>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Your profile is 100% verified. Buyers are 5x more likely to trade with you.
+                    Your identity matrix is 100% verified. You are now protected by Shield Escrow as a trusted operator.
                   </p>
                 </div>
               )}
-            </div>
             </div>
           </motion.div>
         )}

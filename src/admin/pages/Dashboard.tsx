@@ -120,10 +120,10 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="space-y-6">
                         {loading && <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Loading activity...</p>}
-                        {!loading && stats?.recentActivity.length === 0 && (
+                        {!loading && (stats?.recentActivity || []).length === 0 && (
                             <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No recent orders found.</p>
                         )}
-                        {!loading && stats?.recentActivity.map((activity) => (
+                        {!loading && (stats?.recentActivity || []).map((activity: any) => (
                             <div key={activity.id} className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-brand-purple/20 transition-all group">
                                 <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center text-brand-purple group-hover:scale-110 transition-transform flex-shrink-0">
                                     {activity.type === 'payment' ? <DollarSign size={20} /> : <ShoppingBag size={20} />}

@@ -59,16 +59,16 @@ const Home: React.FC = () => {
          {/* 1. Hero Section */}
          {hero && (
             <Hero 
-               badge="The Official Audio Portal"
+               badge="The Nocturnal Pulse Portal"
                title={
                   <>
-                     DJ <span className="text-brand-purple">FLOWERZ</span>
+                     NOCTURNAL <span className="text-brand-purple">PULSE</span>
                   </>
                }
                subtitle={hero?.subtitle}
-               cta1Text="Join The Community"
+               cta1Text="Initialize Aura Identity"
                cta1Link="/community"
-               cta2Text="Visit Store"
+               cta2Text="Access Marketplace"
                cta2Link="/store"
                bgImage={hero?.bgImage}
             />
@@ -80,18 +80,18 @@ const Home: React.FC = () => {
                <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
                   <div>
                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple text-[10px] font-black uppercase tracking-widest mb-4">
-                        <ShoppingBag size={12} /> Premium Gear
+                        <ShoppingBag size={12} /> Pulse Tech & Gear
                      </div>
                      <h2 className="text-4xl md:text-5xl font-outfit font-black text-white uppercase italic tracking-tighter">
-                        Featured <span className="text-brand-cyan">Products</span>
+                        Curated <span className="text-brand-cyan">Artifacts</span>
                      </h2>
                      <p className="text-gray-400 mt-4 font-medium max-w-xl leading-relaxed">
-                        Elevate your performance with our curated selection of professional DJ equipment and exclusive merchandise.
+                        Elevate your performance with our curated selection of professional DJ equipment and exclusive Nocturnal Pulse merchandise.
                      </p>
                   </div>
                   <Link to="/store" className="btn-premium px-8 py-4 text-xs uppercase tracking-widest group">
                      <span className="flex items-center gap-2">
-                        Browse Full Store
+                        Access Marketplace
                         <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                      </span>
                   </Link>
@@ -110,11 +110,11 @@ const Home: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="flex justify-between items-end mb-12">
                   <div>
-                     <h2 className="text-3xl md:text-4xl font-outfit font-black text-white uppercase italic">Featured Mixtapes</h2>
-                     <p className="text-gray-400 mt-2 font-medium">Curated sets for the ultimate listening experience.</p>
+                     <h2 className="text-3xl md:text-4xl font-outfit font-black text-white uppercase italic">Sonic <span className="text-brand-purple">Transmissions</span></h2>
+                     <p className="text-gray-400 mt-2 font-medium">Curated sets for the ultimate listening experience in the pulse.</p>
                   </div>
                   <Link to="/mixtapes" className="text-brand-pink flex items-center gap-2 hover:underline font-black uppercase text-xs tracking-widest transition">
-                     Explore All <ArrowRight size={16} />
+                     Access Full Archive <ArrowRight size={16} />
                   </Link>
                </div>
 
@@ -160,7 +160,7 @@ const Home: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                <div className="flex items-center justify-between mb-8">
                   <h2 className="text-3xl font-display font-bold text-white flex items-center gap-3">
-                     <Youtube size={32} className="text-red-500" /> Latest Videos
+                     <Youtube size={32} className="text-red-500" /> Pulse Visuals
                   </h2>
                   <a href="https://www.youtube.com/@dj_flowerz" target="_blank" rel="noopener noreferrer" className="hidden md:flex px-4 py-2 bg-red-600 text-white rounded-full text-sm font-bold hover:bg-red-700 transition">
                      Subscribe on YouTube
@@ -203,8 +203,8 @@ const Home: React.FC = () => {
                   <div className="w-full md:w-1/2 grid grid-cols-2 gap-4">
                      <Link to="/bookings" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-pink/50 transition cursor-pointer group">
                         <Disc size={32} className="text-brand-pink mx-auto mb-3 group-hover:scale-110 transition" />
-                        <h3 className="text-white font-bold">DJ Sets</h3>
-                        <p className="text-xs text-gray-500 mt-1">Weddings, Clubs, Corporate</p>
+                        <h3 className="text-white font-bold">Live Sets</h3>
+                        <p className="text-xs text-gray-500 mt-1">Operational Sectors</p>
                      </Link>
                      <Link to="/sessions" className="bg-[#15151A] p-6 rounded-2xl border border-white/5 text-center hover:border-brand-cyan/50 transition cursor-pointer group">
                         <Music size={32} className="text-brand-cyan mx-auto mb-3 group-hover:scale-110 transition" />
@@ -236,8 +236,8 @@ const Home: React.FC = () => {
          <section className="py-20 bg-gradient-to-b from-[#0B0B0F] to-[#15151A] border-t border-white/5">
             <div className="max-w-3xl mx-auto px-4 text-center">
                <Mail size={48} className="text-brand-purple mx-auto mb-6" />
-               <h2 className="text-3xl font-bold text-white mb-4">Join The Community</h2>
-               <p className="text-gray-400 mb-8">Get exclusive access to free downloads, event updates, and discount codes.</p>
+               <h2 className="text-3xl font-bold text-white mb-4">Initialize Neural Sync</h2>
+               <p className="text-gray-400 mb-8">Get exclusive access to free downloads, event updates, and discount codes in the pulse.</p>
                <form
                   className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto"
                   onSubmit={async (e) => {
@@ -248,19 +248,19 @@ const Home: React.FC = () => {
                      const btn = e.currentTarget.querySelector('button');
                      if (btn) {
                         btn.disabled = true;
-                        btn.textContent = 'Joining...';
+                        btn.textContent = 'Syncing...';
                      }
 
                      try {
                         await addSubscriber(email, 'Homepage Newsletter');
-                        alert('Successfully joined the community!');
+                        alert('Successfully synced with the community!');
                         (e.target as HTMLFormElement).reset();
                      } catch (err) {
                         alert('Something went wrong. Please try again.');
                      } finally {
                         if (btn) {
                            btn.disabled = false;
-                           btn.textContent = 'Join Now';
+                           btn.textContent = 'Initialize Sync';
                         }
                      }
                   }}
@@ -272,12 +272,12 @@ const Home: React.FC = () => {
                         id="newsletter-email"
                         name="email"
                         required
-                        placeholder="Your terminal address (guest@djflowerz.com)"
+                        placeholder="Operator Email (guest@nocturnalpulse.com)"
                         className="flex-1 bg-transparent border-none py-5 text-white focus:ring-0 placeholder:text-gray-600 outline-none font-medium ml-3"
                      />
                   </div>
                   <button type="submit" className="btn-premium px-10 py-5 uppercase tracking-[0.2em] text-xs font-black min-w-[180px]">
-                     Join Community
+                     Initialize Sync
                   </button>
                </form>
             </div>

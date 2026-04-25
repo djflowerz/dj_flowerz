@@ -17,8 +17,14 @@ import {
   TrendingUp,
   Activity,
   Bell,
-  User
+  User,
+  Trash2,
+  Edit,
+  Flag,
+  X,
+  ExternalLink
 } from 'lucide-react';
+import { SafeTradePopup } from '../components/community/SafeTradePopup';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -87,6 +93,10 @@ export default function PulseDetail() {
   const [replyContent, setReplyContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [safeTradeOpen, setSafeTradeOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
 
   useEffect(() => {
     fetchPulse();
@@ -160,6 +170,10 @@ export default function PulseDetail() {
                 [type === 'heart' ? 'has_hearted' : 'has_echoed']: data.reacted ? 'yes' : null
             } : p));
         }
+
+        if (data.reacted) {
+          toast.success(type === 'heart' ? "Pulse hearted!" : "Pulse echoed!");
+        }
       }
     } catch (e) {}
   };
@@ -203,6 +217,123 @@ export default function PulseDetail() {
     }
   };
 
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied to clipboard");
+      
+      if (navigator.share) {
+        const shareData = {
+          title: 'Check out this post on DJ Flowerz',
+          text: pulse?.content,
+          url: shareUrl
+        };
+        try {
+          await navigator.share(shareData);
+        } catch (sErr) {
+          // Ignore
+        }
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulse?.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        }
+      });
+      if (resp.ok) {
+        toast.success("Post deleted");
+        navigate('/community');
+      } else {
+        const d = await resp.json();
+        throw new Error(d.error || 'Failed to delete');
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleEdit = () => {
+    if (!pulse) return;
+    setEditContent(pulse.content);
+    setIsEditing(true);
+    setShowMenu(false);
+  };
+
+  const saveEdit = async () => {
+    if (!pulse || !editContent.trim()) return;
+    setIsPosting(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/pulses/${pulse.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
+        },
+        body: JSON.stringify({ content: editContent })
+      });
+      if (resp.ok) {
+        setPulse(prev => prev ? { ...prev, content: editContent } : null);
+        setIsEditing(false);
+        toast.success("Post updated");
+      }
+    } catch (e) {
+      toast.error("Failed to update post");
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  const handleReport = () => {
+    toast.success("Post reported to moderators");
+    setShowMenu(false);
+  };
+
+  const initiateEscrow = async () => {
+    const metadata = parseJSON(pulse?.deal_metadata);
+    const amount = Number(metadata?.price) || 0;
+
+    toast.promise(async () => {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/escrow/create-deal`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`,
+                'X-Actor-Id': user?.id || ''
+            },
+            body: JSON.stringify({
+                pulse_id: pulse?.id,
+                amount: amount
+            })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error);
+        return data;
+    }, {
+        loading: 'Initiating secure escrow...',
+        success: (data) => {
+          if (data.authorizationUrl) {
+            setTimeout(() => window.location.href = data.authorizationUrl, 1500);
+            return `Deal #${data.id?.slice(0,8) || 'created'} created! Redirecting to Paystack...`;
+          }
+          setTimeout(() => navigate('/marketplace'), 2000);
+          return `Secure deal created! Check your dashboard for payment instructions.`;
+        },
+        error: (err) => `Escrow failed: ${err.message}`
+    });
+  };
+
   if (loading) return <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center"><Activity className="animate-spin text-brand-purple" /></div>;
   if (!pulse) return null;
 
@@ -227,30 +358,88 @@ export default function PulseDetail() {
                         <p className="font-bold text-white hover:underline cursor-pointer" onClick={() => navigate(`/op/${pulse.author_handle}`)}>{pulse.author_name}</p>
                         <p className="text-sm text-gray-500">@{pulse.author_handle}</p>
                     </div>
-                    <button className="text-gray-500 hover:text-brand-purple p-2 rounded-full hover:bg-brand-purple/10 transition-all">
-                        <MoreHorizontal size={20} />
-                    </button>
+                    <div className="relative z-50">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                            className={`p-2 rounded-full transition-all relative z-50 ${showMenu ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-500 hover:text-brand-purple hover:bg-brand-purple/10'}`}
+                        >
+                            <MoreHorizontal size={20} />
+                        </button>
+                        
+                        <AnimatePresence>
+                            {showMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                                    <motion.div 
+                                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                        className="absolute right-0 top-10 w-48 bg-[#16161D] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                                    >
+                                        {user?.id === pulse.author_id && (
+                                            <button onClick={handleEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors">
+                                                <Edit size={16} /> Edit Post
+                                            </button>
+                                        )}
+                                        {user?.id === pulse.author_id && (
+                                            <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-400/10 transition-colors">
+                                                <Trash2 size={16} /> Delete Post
+                                            </button>
+                                        )}
+                                        <button onClick={handleReport} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-400 hover:bg-white/5 transition-colors">
+                                            <Flag size={16} /> Report Post
+                                        </button>
+                                    </motion.div>
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 text-xl leading-relaxed text-gray-100 whitespace-pre-wrap">
-                {pulse.content}
-            </div>
+            {isEditing ? (
+                <div className="mt-4 space-y-4">
+                    <textarea 
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-brand-purple/50 min-h-[120px] resize-none"
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={() => setIsEditing(false)}
+                            className="px-6 py-2 rounded-full border border-white/10 text-sm font-bold hover:bg-white/5 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={saveEdit}
+                            disabled={isPosting}
+                            className="px-6 py-2 bg-brand-purple text-white rounded-full font-black text-sm hover:scale-105 transition-all"
+                        >
+                            {isPosting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div className="mt-4 text-xl leading-relaxed text-gray-100 whitespace-pre-wrap">
+                    {pulse.content}
+                </div>
+            )}
 
             {/* Media Rendering */}
             {parseJSON(pulse.media_urls, []).length > 0 && (
               <div className={`mt-4 grid gap-2 ${parseJSON(pulse.media_urls).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {parseJSON(pulse.media_urls).map((url: string, i: number) => (
-                  <div key={url} className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                    <img src={url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" alt="" />
+                  <div key={url} className="relative aspect-auto min-h-[300px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#0B0B0F] cursor-zoom-in" onClick={() => window.open(url, '_blank')}>
+                    <img src={url} className="w-full h-auto object-contain max-h-[800px] hover:scale-[1.02] transition-transform duration-700" alt="" />
                   </div>
                 ))}
               </div>
             )}
 
             {/* Marketplace Metadata */}
-            {pulse.is_marketplace && (
+            {(Number(pulse.is_marketplace) === 1 || pulse.type === 'marketplace' || pulse.deal_metadata) && (
                 <div className="mt-4 p-6 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center justify-between group">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -263,6 +452,12 @@ export default function PulseDetail() {
                             <span>{parseJSON(pulse.deal_metadata)?.location || 'Kenya'}</span>
                         </div>
                     </div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setSafeTradeOpen(true); }}
+                        className="px-6 py-3 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-cyan/20 flex items-center gap-2"
+                    >
+                        Buy Safely <ExternalLink size={16} />
+                    </button>
                 </div>
             )}
 
@@ -274,18 +469,21 @@ export default function PulseDetail() {
 
             <div className="pt-2 flex items-center justify-between max-w-sm text-gray-500">
                 <button 
-                    onClick={() => handleInteract(pulse.id, 'echo')}
+                    onClick={(e) => { e.stopPropagation(); handleInteract(pulse.id, 'echo'); }}
                     className={`flex items-center gap-2 p-3 rounded-full transition-all ${pulse.has_echoed ? 'text-green-500 bg-green-500/10' : 'hover:text-green-500 hover:bg-green-500/10'}`}
                 >
                     <Repeat size={22} />
                 </button>
                 <button 
-                    onClick={() => handleInteract(pulse.id, 'heart')}
+                    onClick={(e) => { e.stopPropagation(); handleInteract(pulse.id, 'heart'); }}
                     className={`flex items-center gap-2 p-3 rounded-full transition-all ${pulse.has_hearted ? 'text-red-500 bg-red-500/10' : 'hover:text-red-500 hover:bg-red-500/10'}`}
                 >
                     <Heart size={22} className={pulse.has_hearted ? 'fill-current' : ''} />
                 </button>
-                <button className="p-3 rounded-full hover:text-brand-cyan hover:bg-brand-cyan/10 transition-all">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                    className="p-3 rounded-full hover:text-brand-cyan hover:bg-brand-cyan/10 transition-all"
+                >
                     <Share2 size={22} />
                 </button>
             </div>
@@ -349,6 +547,17 @@ export default function PulseDetail() {
             {/* Trends or suggestions can go here */}
         </aside>
       </div>
+      
+      <SafeTradePopup 
+        isOpen={safeTradeOpen}
+        onClose={() => setSafeTradeOpen(false)}
+        sellerName={pulse.author_name}
+        amount={parseJSON(pulse.deal_metadata)?.price}
+        onConfirm={() => {
+            setSafeTradeOpen(false);
+            initiateEscrow();
+        }}
+      />
     </div>
   );
 }

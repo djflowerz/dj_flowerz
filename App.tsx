@@ -73,10 +73,12 @@ const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const PulseDetail = lazy(() => import('./pages/PulseDetail'));
 const MarketplaceDashboard = lazy(() => import('./pages/MarketplaceDashboard'));
+const MarketplaceStorefront = lazyWithRetry(() => import('./pages/MarketplaceStorefront'));
 const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
 const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
 const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
 const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/AdminProfiles'));
+const VerificationPortal = lazy(() => import('./pages/VerificationPortal'));
 
 const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
 const MixtapeDetails = lazyWithRetry(() => import('./pages/MixtapeDetails'));
@@ -157,7 +159,9 @@ const AppContent = () => {
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
             <Route path="/setup-identity" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute><MarketplaceDashboard /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><MarketplaceStorefront /></ProtectedRoute>} />
+            <Route path="/marketplace/dashboard" element={<ProtectedRoute><MarketplaceDashboard /></ProtectedRoute>} />
+            <Route path="/verification" element={<ProtectedRoute><VerificationPortal /></ProtectedRoute>} />
 
             {/* Admin Modular Pages */}
             <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
@@ -285,8 +289,8 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <Activity className="text-white" size={24} />
                         <div>
-                          <p className="text-sm font-black text-white">SIGNAL APP</p>
-                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Marketplace & Hub</p>
+                          <p className="text-sm font-black text-white uppercase tracking-tighter">Nocturnal Pulse</p>
+                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Identity & Commerce Hub</p>
                         </div>
                     </div>
                     <div className="flex gap-2">

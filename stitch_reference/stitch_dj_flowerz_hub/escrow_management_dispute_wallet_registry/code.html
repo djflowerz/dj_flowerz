@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Flowerz Hub - Escrow Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;family=Spline+Sans:wght@300..700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-bright": "#39393d",
+                    "surface-container-low": "#1b1b1f",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "inverse-primary": "#732ee4",
+                    "on-error-container": "#ffdad6",
+                    "outline": "#958da1",
+                    "surface-variant": "#353439",
+                    "on-surface": "#e5e1e7",
+                    "on-tertiary-container": "#e5e6e6",
+                    "on-surface-variant": "#ccc3d8",
+                    "tertiary": "#c6c6c7",
+                    "inverse-on-surface": "#303034",
+                    "surface-container-high": "#2a292e",
+                    "surface": "#131317",
+                    "primary-container": "#7c3aed",
+                    "on-primary": "#3f008e",
+                    "surface-container-highest": "#353439",
+                    "error": "#ffb4ab",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "primary-fixed-dim": "#d2bbff",
+                    "on-tertiary-fixed-variant": "#454747",
+                    "on-primary-fixed": "#25005a",
+                    "on-error": "#690005",
+                    "on-tertiary": "#2f3131",
+                    "error-container": "#93000a",
+                    "surface-container": "#1f1f23",
+                    "background": "#131317",
+                    "on-primary-container": "#ede0ff",
+                    "tertiary-fixed-dim": "#c6c6c7",
+                    "secondary": "#4cd7f6",
+                    "surface-container-lowest": "#0e0e12",
+                    "on-tertiary-fixed": "#1a1c1c",
+                    "on-secondary": "#003640",
+                    "on-primary-fixed-variant": "#5a00c6",
+                    "on-secondary-fixed": "#001f26",
+                    "on-secondary-container": "#00424e",
+                    "secondary-fixed": "#acedff",
+                    "inverse-surface": "#e5e1e7",
+                    "surface-tint": "#d2bbff",
+                    "secondary-container": "#03b5d3",
+                    "tertiary-fixed": "#e2e2e2",
+                    "primary": "#d2bbff",
+                    "primary-fixed": "#eaddff",
+                    "on-background": "#e5e1e7",
+                    "surface-dim": "#131317",
+                    "tertiary-container": "#656767",
+                    "outline-variant": "#4a4455"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xs": "8px",
+                    "md": "24px",
+                    "unit": "4px",
+                    "gutter": "24px",
+                    "container-max": "1440px",
+                    "lg": "48px",
+                    "xl": "80px",
+                    "sm": "16px"
+            },
+            "fontFamily": {
+                    "label-caps": ["Space Grotesk"],
+                    "headline-lg": ["Space Grotesk"],
+                    "body-lg": ["Spline Sans"],
+                    "headline-md": ["Space Grotesk"],
+                    "body-md": ["Spline Sans"],
+                    "display-xl": ["Space Grotesk"]
+            },
+            "fontSize": {
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                    "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "900"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                    "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "800"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                    "display-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "900"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .neon-glow-purple {
+        box-shadow: 0 0 30px rgba(124, 58, 237, 0.3);
+      }
+      .neon-glow-cyan {
+        box-shadow: 0 0 30px rgba(34, 211, 238, 0.3);
+      }
+      .waveform-bar {
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { height: 10px; }
+        50% { height: 24px; }
+      }
+      body {
+        background-color: #050508;
+      }
+      .modal-open {
+        overflow: hidden;
+      }
+    </style>
+</head>
+<body class="font-body-md text-on-background selection:bg-primary/30">
+<!-- Dispute Modal Overlay -->
+<div class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" id="disputeModal">
+<div class="glass-card w-full max-w-lg rounded-lg overflow-hidden animate-in fade-in zoom-in duration-300">
+<div class="p-6 border-b border-white/10 flex justify-between items-center">
+<h2 class="font-headline-md text-2xl text-white">Raise Dispute</h2>
+<button class="material-symbols-outlined text-white/60 hover:text-white" onclick="toggleModal('disputeModal')">close</button>
+</div>
+<form class="p-6 space-y-6" id="disputeForm">
+<div class="bg-red-500/10 border border-red-500/20 p-4 rounded-lg flex gap-3">
+<span class="material-symbols-outlined text-red-500">warning</span>
+<div class="text-xs text-red-200/80 leading-relaxed">
+<p class="font-bold text-red-400 mb-1">FUNDS FROZEN WARNING</p>
+                    By submitting this dispute, all KES associated with this deal will be frozen immediately. Admin <span class="font-bold text-red-400">DJ Flowerz</span> will mediate the resolution.
+                </div>
+</div>
+<div>
+<label class="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Dispute Category</label>
+<select class="w-full bg-white/5 border border-white/10 rounded-lg py-3 px-4 text-white focus:ring-primary focus:border-primary appearance-none font-body-md" required="">
+<option class="bg-surface" value="">Select a reason...</option>
+<option class="bg-surface" value="not_described">Item not as described</option>
+<option class="bg-surface" value="not_received">Item not received</option>
+<option class="bg-surface" value="unresponsive">Seller unresponsive</option>
+<option class="bg-surface" value="defective">Defective upon arrival</option>
+<option class="bg-surface" value="other">Other issue</option>
+</select>
+</div>
+<div>
+<label class="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Statement of Fact</label>
+<textarea class="w-full bg-white/5 border border-white/10 rounded-lg py-3 px-4 text-white focus:ring-primary focus:border-primary font-body-md h-32 placeholder:text-white/20" placeholder="Provide a detailed explanation of the issue, including dates and any attempts to resolve with the seller..." required=""></textarea>
+</div>
+<div class="flex gap-4 pt-4">
+<button class="flex-1 py-4 bg-white/5 border border-white/10 rounded-full font-label-caps text-label-caps text-white/60 hover:bg-white/10 transition-all" onclick="toggleModal('disputeModal')" type="button">CANCEL</button>
+<button class="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-full font-label-caps text-label-caps transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)]" type="submit">SUBMIT DISPUTE</button>
+</div>
+</form>
+</div>
+</div>
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full z-50 bg-[#050508]/60 backdrop-blur-xl border-b border-white/10 shadow-[0_0_20px_rgba(124,58,237,0.1)]">
+<div class="flex justify-between items-center h-20 px-8 w-full">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] bg-clip-text text-transparent font-['Space_Grotesk'] tracking-tight">Flowerz Hub</span>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-label-caps text-label-caps text-white/60 hover:text-[#7C3AED] transition-all duration-300" href="#">Home</a>
+<a class="font-label-caps text-label-caps text-white/60 hover:text-[#7C3AED] transition-all duration-300" href="#">Signals</a>
+<a class="font-label-caps text-label-caps text-white/60 hover:text-[#7C3AED] transition-all duration-300" href="#">Market</a>
+<a class="font-label-caps text-label-caps text-white/60 hover:text-[#7C3AED] transition-all duration-300" href="#">Beam</a>
+<a class="font-label-caps text-label-caps text-white/60 hover:text-[#7C3AED] transition-all duration-300" href="#">Storefront</a>
+<a class="font-label-caps text-label-caps text-[#22D3EE] drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" href="#">Vault</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
+<span class="material-symbols-outlined text-secondary text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-on-surface-variant w-40 font-body-md" placeholder="Search transactions..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-white/60 hover:text-[#7C3AED] transition-all">notifications</button>
+<button class="material-symbols-outlined text-white/60 hover:text-[#7C3AED] transition-all">account_balance_wallet</button>
+<div class="w-10 h-10 rounded-full bg-surface-container overflow-hidden border border-primary/20">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Stylized portrait of a modern DJ with neon highlights and futuristic headphones in a dark studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAB1bQt5DaEj2-S7U2kT71stgOAqXLq6WRyN0ajUPO3Rr-lhp91gh5OezPsrpRgLl_Vh-9SyL0--aLJng9GKv9O2Rn3VVunSSt3IGBpW4izq2YoX7JlrG8LvtJRiLISsumK6_kcIVF15yBQxRUgJDQhqIOAXMMHD55jZxBkxv1tkyV6G8klb3LHFDmGuk8JEiP7f2TJsPectW-UrvzDvGjRJd8l2kc0JnF-4739GEJ3HIEFlHTmVhw7DRXcYni5pIlEb1IxuqDGrBLm"/>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-32 pb-40 px-8 max-w-7xl mx-auto">
+<!-- Hero Wallet Section -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-xl">
+<div class="lg:col-span-2 glass-card p-lg rounded-xl flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute -right-20 -top-20 w-64 h-64 bg-primary/20 blur-[100px] rounded-full"></div>
+<div class="relative z-10">
+<p class="font-label-caps text-label-caps text-white/40 mb-xs">AVAILABLE FOR WITHDRAWAL</p>
+<h1 class="font-headline-lg text-headline-lg text-white mb-lg">KES 142,500.00</h1>
+<div class="flex gap-4">
+<button class="px-8 py-4 bg-primary text-white rounded-full font-label-caps text-label-caps hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] transition-all flex items-center gap-2 active:scale-95">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+                            WITHDRAW FUNDS
+                        </button>
+<button class="px-8 py-4 bg-transparent border border-secondary text-white rounded-full font-label-caps text-label-caps hover:bg-secondary/10 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">add_circle</span>
+                            DEPOSIT
+                        </button>
+</div>
+</div>
+<div class="mt-lg flex items-center gap-8 relative z-10">
+<div>
+<p class="text-[10px] text-white/30 uppercase tracking-widest font-bold mb-1">In Escrow</p>
+<p class="font-headline-md text-headline-md text-secondary">KES 84,200</p>
+</div>
+<div class="h-12 w-[1px] bg-white/10"></div>
+<div>
+<p class="text-[10px] text-white/30 uppercase tracking-widest font-bold mb-1">Pending Clearance</p>
+<p class="font-headline-md text-headline-md text-on-surface-variant">KES 12,000</p>
+</div>
+</div>
+</div>
+<!-- Tactical Stats Bento -->
+<div class="flex flex-col gap-4">
+<div class="glass-card p-md rounded-xl flex items-center justify-between">
+<div>
+<p class="font-label-caps text-label-caps text-white/40">BEAM OFFERS</p>
+<p class="font-headline-md text-headline-md text-white">12 New</p>
+</div>
+<div class="w-12 h-12 bg-secondary/20 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+</div>
+<div class="glass-card p-md rounded-xl flex items-center justify-between">
+<div>
+<p class="font-label-caps text-label-caps text-white/40">ACTIVE DEALS</p>
+<p class="font-headline-md text-headline-md text-white">04 Running</p>
+</div>
+<div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">sync_alt</span>
+</div>
+</div>
+<div class="glass-card p-md rounded-xl flex items-center justify-between">
+<div>
+<p class="font-label-caps text-label-caps text-white/40">COMPLETION RATE</p>
+<p class="font-headline-md text-headline-md text-white">99.2%</p>
+</div>
+<div class="flex items-end gap-1 h-8">
+<div class="w-1 bg-secondary rounded-full h-4 waveform-bar" style="animation-delay: 0.1s"></div>
+<div class="w-1 bg-secondary rounded-full h-8 waveform-bar" style="animation-delay: 0.2s"></div>
+<div class="w-1 bg-secondary rounded-full h-6 waveform-bar" style="animation-delay: 0.3s"></div>
+<div class="w-1 bg-secondary rounded-full h-2 waveform-bar" style="animation-delay: 0.4s"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Active Deals & History Grid -->
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-xl">
+<!-- Active Deals List -->
+<div class="xl:col-span-2 space-y-md">
+<div class="flex items-center justify-between px-xs">
+<h2 class="font-headline-md text-headline-md text-white">Active Escrow Deals</h2>
+<button class="text-secondary font-label-caps text-label-caps flex items-center gap-2 hover:underline">
+                        VIEW ALL DEALS <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="space-y-4">
+<!-- Deal Item 1 -->
+<div class="glass-card p-sm rounded-xl flex items-center gap-sm group hover:border-secondary/40 transition-all cursor-pointer" id="deal-8921">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden">
+<img alt="Pioneer DDJ" class="w-full h-full object-cover" data-alt="Close-up of a high-end Pioneer DJ controller with illuminated buttons and faders in a dark environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6ohQgTc0Xu_KsJHWxMQQpi_Fj7u_kjfty-J6SU20r4nFIWsNKtC4TfmLvHkfAdUSxKyrqL5aZKS1O2uqFlPzafO01PEFytukqa0oPt-tYNev101voCj7eeAm3inzd6F7qkJUbGEkGz0rlsM_CoLHdmC39qgKURJe_k1nQVAVb6QJa1-LmzzERwBJ-UswUgENTNhHd7kTmf-nlNBdOU2xi1zlhhGx4RPXjdYHMhLD4GxR8wA53gYM7OBw2aBjwHk15A8O5EgcGW_NZ"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-body-lg text-body-lg text-white">Pioneer CDJ-3000 Limited</h3>
+<p class="text-white/40 font-body-md">Deal ID: #ELITE-8921 • Buyer: @techno_king</p>
+<button class="mt-2 text-[10px] font-bold text-red-500 uppercase tracking-widest hover:underline flex items-center gap-1" onclick="openDispute('ELITE-8921')">
+<span class="material-symbols-outlined text-sm">gavel</span> Raise Dispute
+                                    </button>
+</div>
+<div class="text-right">
+<p class="font-body-lg text-secondary">KES 310,000</p>
+<span class="deal-status-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-[10px] font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+                                        Funded
+                                    </span>
+</div>
+</div>
+</div>
+<button class="material-symbols-outlined text-white/20 group-hover:text-white transition-colors">more_vert</button>
+</div>
+<!-- Deal Item 2 -->
+<div class="glass-card p-sm rounded-xl flex items-center gap-sm group hover:border-primary/40 transition-all cursor-pointer" id="deal-7704">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden">
+<img alt="Studio Mic" class="w-full h-full object-cover" data-alt="Professional studio condenser microphone with a pop filter in a dark, acoustically treated room with soft purple mood lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDj9ErFHAG1vckJdTcOBT0MR9N2pDBq4f8gTm9ZEsJiY4yMhoLQ-3HqHp_Pk9xDa5kI3E1kBXrdXl1NuamH9hm4d2Trfm44jTZmLGu66DL_yci5ONnvD3VU_rVL7pnmx-oZ9-kp8FDAUF9ZZTJHTDqoh0FsDminv3VyhcqBvsCQgPbTz68EYRQAfjbryAuPQDf2FFRcKkQNVM98cC_efp6UPsm1fg_WOcvcc7P_hWjYhc6PTEQIHk2mH2Av387YXOxBZRl0lT0Ce_f4"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-body-lg text-body-lg text-white">Neumann U87 Studio Mic</h3>
+<p class="text-white/40 font-body-md">Deal ID: #ELITE-7704 • Seller: @audio_vault</p>
+<button class="mt-2 text-[10px] font-bold text-red-500 uppercase tracking-widest hover:underline flex items-center gap-1" onclick="openDispute('ELITE-7704')">
+<span class="material-symbols-outlined text-sm">gavel</span> Raise Dispute
+                                    </button>
+</div>
+<div class="text-right">
+<p class="font-body-lg text-primary">KES 245,000</p>
+<span class="deal-status-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                        Shipped
+                                    </span>
+</div>
+</div>
+</div>
+<button class="material-symbols-outlined text-white/20 group-hover:text-white transition-colors">more_vert</button>
+</div>
+<!-- Deal Item 3 -->
+<div class="glass-card p-sm rounded-xl flex items-center gap-sm group hover:border-white/40 transition-all cursor-pointer">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden">
+<img alt="Mixing Console" class="w-full h-full object-cover" data-alt="Top-down view of a complex analog audio mixing console with many colorful knobs and sliders in a professional recording studio" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCc0c1Gbx8sMjXACLeDdczeS4skekX4AQs8HzNpRCB6ha2s-yx58YhTINNTquszLc0KnHsZ9KeOdAB2OEbohYBY5_2SpDQKXDquNXurctQMqC6Vuk_olhzReeyPfWOyTr9eHQSUdJzNVggcDPfbk3iB4EC-qKMIlBqDhjO34UTdz1xDiaUtKfx62wowbK6kJt4893-wwK74sPf771L2PEZxaMVQW_ZljbQjir9ZyGw88DW2htBa_MqcDg-F8XqvQ8Sq6d6HLTUYqC4n"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-body-lg text-body-lg text-white">Mixing &amp; Mastering Service</h3>
+<p class="text-white/40 font-body-md">Deal ID: #ELITE-4412 • Client: @nightlife_ent</p>
+</div>
+<div class="text-right">
+<p class="font-body-lg text-white">KES 45,000</p>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/40 text-[10px] font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                                        Released
+                                    </span>
+</div>
+</div>
+</div>
+<button class="material-symbols-outlined text-white/20 group-hover:text-white transition-colors">more_vert</button>
+</div>
+</div>
+</div>
+<!-- Transaction History / Registry -->
+<div class="space-y-md">
+<div class="flex items-center justify-between px-xs">
+<h2 class="font-headline-md text-headline-md text-white">Registry</h2>
+</div>
+<div class="glass-card rounded-xl p-md">
+<div class="space-y-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20">
+<span class="material-symbols-outlined text-green-500 text-sm">download</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-body-md font-bold">Withdrawal to Equity Bank</p>
+<p class="text-white/40 text-xs">Today, 2:45 PM</p>
+</div>
+<p class="text-on-surface font-body-md">- KES 50,000</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20">
+<span class="material-symbols-outlined text-secondary text-sm">upload</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-body-md font-bold">Escrow Payout: Gig #229</p>
+<p class="text-white/40 text-xs">Yesterday, 11:20 PM</p>
+</div>
+<p class="text-secondary font-body-md">+ KES 15,000</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20">
+<span class="material-symbols-outlined text-secondary text-sm">upload</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-body-md font-bold">Sale: Tech 1210 MK2</p>
+<p class="text-white/40 text-xs">24 Oct, 2023</p>
+</div>
+<p class="text-secondary font-body-md">+ KES 85,000</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
+<span class="material-symbols-outlined text-red-500 text-sm">close</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-body-md font-bold">Refund: Defective Cables</p>
+<p class="text-white/40 text-xs">22 Oct, 2023</p>
+</div>
+<p class="text-red-400 font-body-md">- KES 3,200</p>
+</div>
+</div>
+<button class="w-full mt-lg py-3 rounded-full border border-white/5 bg-white/5 font-label-caps text-label-caps text-white/60 hover:bg-white/10 hover:text-white transition-all">
+                        GENERATE REPORT
+                    </button>
+</div>
+<!-- Ad/Promo Card -->
+<div class="glass-card rounded-xl p-md relative overflow-hidden h-48 flex flex-col justify-end group cursor-pointer">
+<img alt="Music Festival" class="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:scale-105 transition-transform duration-700" data-alt="Vibrant night scene of a large music festival crowd with colorful laser lights and stage performance in the background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrYLQXVeUCoj9V4cI5JxQwEWronteHjcJcoYC4fVdm1g8N3gzvfNa_R3Rs6h-2Ixi1lmUzTjDRQOSGIZS3wRaK0PvuxrZgPfpwtZpvkgLC-dkZL1byNZljzXAthOtg5n9yIk5OarCpI-QCbnnFgsXBpznBF-iCTD6q4qzU_8M18YC0mIYxQQvrfN5ww10lGpcWTlf1szYGgJGrluHH7D5n254D2ZKpt1kIo1dLyv3CP3a7qsskc6ThPVOlSG1v6LFsyxDJqdNSaf2P"/>
+<div class="absolute inset-0 bg-gradient-to-t from-[#050508] to-transparent"></div>
+<div class="relative z-10">
+<p class="font-label-caps text-label-caps text-secondary mb-1">PRO FEATURE</p>
+<h3 class="font-headline-md text-headline-md leading-tight text-white">Escrow Protection+</h3>
+<p class="text-white/60 text-xs mt-1">Insure your gear during shipping up to KES 1M</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-24 bg-[#050508]/80 backdrop-blur-2xl flex justify-around items-center px-6 pb-4 border-t border-white/10 z-50">
+<div class="flex flex-col items-center justify-center text-white/40 font-['Space_Grotesk'] text-[10px] uppercase tracking-widest font-bold">
+<span class="material-symbols-outlined text-2xl mb-1">grid_view</span>
+            Home
+        </div>
+<div class="flex flex-col items-center justify-center text-white/40 font-['Space_Grotesk'] text-[10px] uppercase tracking-widest font-bold">
+<span class="material-symbols-outlined text-2xl mb-1">sensors</span>
+            Signals
+        </div>
+<div class="flex flex-col items-center justify-center text-white/40 font-['Space_Grotesk'] text-[10px] uppercase tracking-widest font-bold">
+<span class="material-symbols-outlined text-2xl mb-1">storefront</span>
+            Market
+        </div>
+<div class="flex flex-col items-center justify-center text-white/40 font-['Space_Grotesk'] text-[10px] uppercase tracking-widest font-bold">
+<span class="material-symbols-outlined text-2xl mb-1">bolt</span>
+            Beam
+        </div>
+<div class="flex flex-col items-center justify-center text-[#22D3EE] drop-shadow-[0_0_12px_rgba(34,211,238,0.6)] bg-white/5 rounded-full p-2 font-['Space_Grotesk'] text-[10px] uppercase tracking-widest font-bold transform -translate-y-1 transition-all">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+            Vault
+        </div>
+</nav>
+<script>
+    let activeDealId = null;
+
+    function toggleModal(id) {
+        const modal = document.getElementById(id);
+        modal.classList.toggle('hidden');
+        document.body.classList.toggle('modal-open');
+    }
+
+    function openDispute(dealId) {
+        activeDealId = dealId;
+        toggleModal('disputeModal');
+    }
+
+    document.getElementById('disputeForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Find the specific deal card based on common ID pattern in this demo
+        const shortId = activeDealId.split('-').pop();
+        const dealCard = document.getElementById(`deal-${shortId}`);
+        
+        if (dealCard) {
+            const badge = dealCard.querySelector('.deal-status-badge');
+            if (badge) {
+                badge.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    Disputed
+                `;
+                badge.className = 'deal-status-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-500 text-[10px] font-bold uppercase tracking-widest';
+            }
+            
+            // Hide the dispute button for this deal as it's already disputed
+            const disputeBtn = dealCard.querySelector('button[onclick*="openDispute"]');
+            if (disputeBtn) disputeBtn.style.display = 'none';
+        }
+
+        toggleModal('disputeModal');
+        this.reset();
+        
+        // Optional: show a small toast or confirmation (simulated)
+        console.log(`Dispute submitted for deal: ${activeDealId}`);
+    });
+</script>
+</body></html>

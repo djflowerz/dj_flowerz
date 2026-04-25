@@ -109,25 +109,25 @@ export default function SetupProfile() {
             <div className="space-y-8">
               <div className="text-center">
                 <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-                  Claim Your Identity
+                  Aura Identity Initialization
                 </h1>
-                <p className="text-white/40">Secure your unique @handle to join the Pulse.</p>
+                <p className="text-white/40">Secure your unique @handle to join the Nocturnal Pulse.</p>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-xl space-y-6">
                 <div>
-                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">FULL NAME</label>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">OPERATOR NAME</label>
                   <input 
                     type="text" 
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#A349F5] focus:ring-1 focus:ring-[#A349F5] outline-none transition-all"
-                    placeholder="Operator Name"
+                    placeholder="Full Name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">CHOOSE HANDLE</label>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">NEURAL HANDLE</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">@</span>
                     <input 
@@ -150,7 +150,7 @@ export default function SetupProfile() {
                   disabled={!handleAvailable || !fullName}
                   className="w-full bg-[#A349F5] hover:bg-[#B060F7] disabled:opacity-30 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(163,73,245,0.3)]"
                 >
-                  Continue
+                  Continue to Matrix
                 </button>
               </div>
             </div>
@@ -159,8 +159,8 @@ export default function SetupProfile() {
           {step === 2 && (
             <div className="space-y-8">
               <div className="text-center">
-                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Professional Role</h1>
-                <p className="text-white/40">How do you interact with the ecosystem?</p>
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Sector Designation</h1>
+                <p className="text-white/40">How do you interact with the Nocturnal Pulse?</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -185,9 +185,9 @@ export default function SetupProfile() {
                   onClick={() => setStep(3)}
                   className="w-full bg-[#00F5FF] hover:bg-[#33F7FF] text-[#050505] font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)]"
                 >
-                  Next: Bio & Socials
+                  Next: Bio & Social Sync
                 </button>
-                <button onClick={() => setStep(1)} className="w-full text-white/40 hover:text-white transition-colors text-sm">Back to identity</button>
+                <button onClick={() => setStep(1)} className="w-full text-white/40 hover:text-white transition-colors text-sm">Back to Identity</button>
               </div>
             </div>
           )}
@@ -195,18 +195,18 @@ export default function SetupProfile() {
           {step === 3 && (
             <div className="space-y-8">
                <div className="text-center">
-                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Connect Others</h1>
-                <p className="text-white/40">Add your bio and social media presence.</p>
+                <h1 className="text-4xl font-heading mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Neural Sync</h1>
+                <p className="text-white/40">Add your operator log and external links.</p>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-xl space-y-6">
                 <div>
-                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">BIO / OPERATOR LOG</label>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">OPERATOR LOG (BIO)</label>
                   <textarea 
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#A349F5] outline-none transition-all resize-none h-24"
-                    placeholder="Tell us what you do..."
+                    placeholder="Describe your nocturnal expertise..."
                   />
                 </div>
 
@@ -217,7 +217,7 @@ export default function SetupProfile() {
                         value={socialLinks.instagram}
                         onChange={e => setSocialLinks({...socialLinks, instagram: e.target.value})}
                         className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:border-[#A349F5] outline-none" 
-                        placeholder="Instagram Link"
+                        placeholder="Instagram Profile"
                       />
                    </div>
                    <div className="relative">
@@ -226,7 +226,7 @@ export default function SetupProfile() {
                         value={socialLinks.tiktok}
                         onChange={e => setSocialLinks({...socialLinks, tiktok: e.target.value})}
                         className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:border-[#A349F5] outline-none" 
-                        placeholder="TikTok / Website"
+                        placeholder="TikTok / Digital Portfolio"
                       />
                    </div>
                 </div>
@@ -238,7 +238,7 @@ export default function SetupProfile() {
                   disabled={loading}
                   className="w-full bg-brand-purple text-white font-black py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(163,73,245,0.3)] flex items-center justify-center space-x-2"
                 >
-                  {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Initialize Identity'}
+                  {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Initialize Aura Identity'}
                 </button>
                 <button onClick={() => setStep(2)} className="w-full text-white/40 hover:text-white transition-colors text-sm">Back to role</button>
               </div>

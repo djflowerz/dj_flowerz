@@ -77,9 +77,9 @@ export default function MarketplaceDashboard() {
         <header className="pt-24 pb-8 flex items-center justify-between">
            <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-                Marketplace <span className="text-brand-cyan">Escrow</span>
+                Shield <span className="text-brand-cyan">Escrow Terminal</span>
               </h1>
-              <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-bold">Secure Commerce Portal</p>
+              <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-bold">Nocturnal Pulse Secure Commerce</p>
            </div>
            <Link to="/community" className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">
               <ArrowLeft size={16} /> Back to Feed
@@ -90,10 +90,10 @@ export default function MarketplaceDashboard() {
            {/* Sidebar Stats */}
            <div className="md:col-span-1 space-y-6">
               <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Protection Level</p>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Aura Integrity</p>
                  <div className="flex items-center gap-2 text-brand-cyan">
                     <ShieldCheck size={20} />
-                    <span className="font-black text-xs">TIER 1 SECURE</span>
+                    <span className="font-black text-xs">SECURE MATRIX</span>
                  </div>
               </div>
            </div>

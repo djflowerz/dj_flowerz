@@ -318,6 +318,12 @@ interface DataContextType {
   sendNewsletterConfirmation: (email: string) => Promise<void>;
   uploadTrackList: (file: File) => Promise<{ success: boolean; message: string; count?: number }>;
   downloadTrackList: () => void;
+
+  // Trust & Identity Actions
+  requestSync: () => Promise<{ success: boolean; message: string }>;
+  verifyOtp: (code: string) => Promise<{ success: boolean; message: string }>;
+  requestBadge: (badgeType: string, notes?: string) => Promise<{ success: boolean; message: string }>;
+  resolveDispute: (dealId: string, resolution: 'release_to_seller' | 'refund_to_buyer') => Promise<{ success: boolean; message: string }>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -414,7 +420,12 @@ const useCollection = <T extends { id: string }>(
         results = await fetchFromR2<any>(tableName);
       }
 
-      let transformed = results.map(item => transform ? transform(item) : (item as unknown as T));
+      let transformed: any[] = [];
+      if (Array.isArray(results)) {
+        transformed = results.map(item => transform ? transform(item) : (item as unknown as T));
+      } else {
+        console.warn(`[useCollection] Expected array for ${tableName}, got ${typeof results}. Forcing empty map.`);
+      }
 
       if (orderByField) {
         transformed.sort((a: any, b: any) => {
@@ -2160,6 +2171,65 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user, wishlist, isInWishlist]);
 
+  const requestSync = useCallback(async () => {
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/verification/request-sync`, {
+        method: 'POST',
+        headers: authHeader
+      });
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }, [getAuthHeader]);
+
+  const verifyOtp = useCallback(async (code: string) => {
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/verification/verify-otp`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (data.success && updateUserProfile) {
+        updateUserProfile({ isVerified: true, verificationStatus: 'verified' });
+      }
+      return data;
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }, [getAuthHeader, updateUserProfile]);
+
+  const requestBadge = useCallback(async (badgeType: string, notes?: string) => {
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/verification/request-badge`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ badgeType, notes })
+      });
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }, [getAuthHeader]);
+
+  const resolveDispute = useCallback(async (dealId: string, resolution: 'release_to_seller' | 'refund_to_buyer') => {
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/escrow/resolve-dispute`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId, resolution })
+      });
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }, [getAuthHeader]);
+
   const value = useMemo(() => ({
     siteConfig,
     products,
@@ -2332,7 +2402,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshBookings, refreshSubscribers, refreshCampaigns, refreshPayments, refreshTips,
     refreshEquipment, refreshRooms, refreshLogs, refreshSessionTypes,
     refreshStudioSessions, refreshEventGigs, refreshInstallments, refreshChatSessions,
-    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
+    refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshExpiringUsers,
+    refreshReferrals,
+    refreshTelegramChannels,
+    refreshContactMessages,
+    refreshReviews,
+    refreshComments,
+    refreshAdminStats,
+
+    // Trust & Identity
+    requestSync,
+    verifyOtp,
+    requestBadge,
+    resolveDispute,
     messages: contactMessages
   }), [
     siteConfig, products, mixtapes, bookings, sessionTypes, youtubeVideos, poolTracks, poolPagination, genres, studioEquipment, shippingZones, subscribers, subscriptions, orders, newsletterCampaigns, newsletterSegments,

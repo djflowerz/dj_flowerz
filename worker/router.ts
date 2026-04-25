@@ -424,6 +424,69 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // ── POST /api/verification/request-sync ─────────────────────────────────
+  // User: Submit for verification sync (sets status to pending)
+  if (path === '/api/verification/request-sync' && method === 'POST') {
+    if (!actorId) return json({ error: 'Auth required' }, 401);
+    try {
+      await env.DB.prepare(`
+        UPDATE profiles 
+        SET verification_status = 'pending', 
+            is_manual_verify = 1 
+        WHERE id = ?
+      `).bind(actorId).run();
+      return json({ success: true, message: 'Neural Sync request submitted' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/verification/verify-otp ──────────────────────────────────
+  // User: Verify account using the OTP provided by admin
+  if (path === '/api/verification/verify-otp' && method === 'POST') {
+    if (!actorId) return json({ error: 'Auth required' }, 401);
+    try {
+      const { code } = await request.json() as any;
+      const profile = await env.DB.prepare(`SELECT otp_code FROM profiles WHERE id = ?`).bind(actorId).first() as any;
+      
+      if (!profile || !profile.otp_code || profile.otp_code !== code) {
+        return json({ error: 'Invalid verification code' }, 400);
+      }
+
+      await env.DB.prepare(`
+        UPDATE profiles 
+        SET is_verified = 1, 
+            verification_status = 'verified',
+            otp_code = NULL 
+        WHERE id = ?
+      `).bind(actorId).run();
+      
+      // Award "Verified" badge
+      const badgeId = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO seller_badges (id, user_id, badge_type)
+        VALUES (?, ?, 'verified')
+      `).bind(badgeId, actorId).run();
+
+      return json({ success: true, message: 'Neural Sync successful' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/verification/request-badge ───────────────────────────────
+  // User: Request specific badges (Elite, Artist, etc)
+  if (path === '/api/verification/request-badge' && method === 'POST') {
+    if (!actorId) return json({ error: 'Auth required' }, 401);
+    try {
+      const { badgeType, notes } = await request.json() as any;
+      await env.DB.prepare(`UPDATE profiles SET is_manual_verify = 1 WHERE id = ?`).bind(actorId).run();
+      return json({ success: true, message: 'Badge request submitted for review' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // GET /api/pulses (The Multi-Vector Feed)
   if (path === '/api/pulses' && method === 'GET') {
     const vector = url.searchParams.get('vector') || 'latest';
@@ -454,6 +517,26 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     const { results } = await env.DB.prepare(query).bind(actorId || '', actorId || '').all();
     return json(results || []);
+  }
+
+  // GET /api/marketplace/storefront (Marketplace Feed)
+  if (path === '/api/marketplace/storefront' && method === 'GET') {
+    try {
+      const { results } = await env.DB.prepare(`
+        SELECT p.*, pr.handle as author_handle, pr.full_name as author_name, pr.avatar_url as author_avatar, pr.aura_tier as author_tier, pr.is_verified as author_verified,
+               (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id) as reaction_count,
+               (SELECT COUNT(*) FROM pulse_comments WHERE pulse_id = p.id) as comment_count
+        FROM pulses p
+        JOIN profiles pr ON p.author_id = pr.id
+        WHERE p.is_marketplace = 1 
+        AND p.is_shadow_banned = 0 
+        AND p.is_deleted = 0
+        ORDER BY p.created_at DESC
+      `).all();
+      return json(results || []);
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
   }
 
   // GET /api/pulses/:id
@@ -2840,6 +2923,23 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
         ORDER BY d.created_at DESC
       `).all();
       return json({ deals: results });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // ── POST /api/admin/escrow/resolve-dispute ─────────────────────────────
+  // Admin: Manually resolve a disputed deal
+  if (path === '/api/admin/escrow/resolve-dispute' && method === 'POST') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    try {
+      const { dealId, resolution } = await request.json() as any; // resolution: 'release_to_seller' | 'refund_to_buyer'
+      
+      const newStatus = resolution === 'release_to_seller' ? 'completed' : 'cancelled';
+      
+      await env.DB.prepare(`UPDATE escrow_deals SET status = ? WHERE id = ?`).bind(newStatus, dealId).run();
+      
+      return json({ success: true, message: `Deal ${resolution === 'release_to_seller' ? 'released' : 'refunded'}` });
     } catch (e: any) {
       return json({ error: e.message }, 500);
     }

@@ -185,6 +185,7 @@ export interface User {
   bannerUrl?: string; // New: Profile banner
   isAdmin?: boolean;
   isVerified?: boolean; // New: Verification status
+  verificationStatus?: 'unverified' | 'pending' | 'verified'; // New: Detailed status
   primaryRole?: string; // New: DJ, Producer, Collector, etc.
   auraTier: 'standard' | 'prime' | 'legendary'; // New: Cyber-Minimalist Tier
   auraPoints: number; // New: Reputation points

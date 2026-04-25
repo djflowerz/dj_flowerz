@@ -236,7 +236,10 @@ export default function AdminInstallmentsTab() {
                 && plan.status === 'active';
 
               let items: any[] = [];
-              try { items = JSON.parse(plan.order_items || '[]'); } catch {}
+              try { 
+                const parsed = JSON.parse(plan.order_items || '[]'); 
+                if (Array.isArray(parsed)) items = parsed;
+              } catch {}
 
               return (
                 <div key={plan.id} className="hover:bg-white/[0.015] transition-colors">

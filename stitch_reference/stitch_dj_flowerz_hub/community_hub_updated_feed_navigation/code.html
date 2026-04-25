@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&amp;family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .neon-glow-purple:hover {
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.4);
+        }
+        .neon-glow-cyan:hover {
+            box-shadow: 0 0 30px rgba(76, 215, 246, 0.4);
+        }
+        .waveform-bar {
+            background: linear-gradient(to top, #7C3AED, #4cd7f6);
+        }
+        .tab-active {
+            border-bottom: 2px solid #d2bbff;
+            color: white;
+            font-weight: 700;
+        }
+        .tab-inactive {
+            border-bottom: 2px solid transparent;
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .tab-inactive:hover {
+            color: white;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-fixed-dim": "#4cd7f6",
+                      "on-error": "#690005",
+                      "secondary-container": "#03b5d3",
+                      "primary-fixed": "#eaddff",
+                      "on-secondary-fixed": "#001f26",
+                      "on-background": "#e5e1e7",
+                      "tertiary": "#c6c6c7",
+                      "surface-dim": "#131317",
+                      "on-surface": "#e5e1e7",
+                      "on-tertiary-fixed": "#1a1c1c",
+                      "on-primary": "#3f008e",
+                      "error": "#ffb4ab",
+                      "surface-container-highest": "#353439",
+                      "outline": "#958da1",
+                      "inverse-primary": "#732ee4",
+                      "on-primary-fixed-variant": "#5a00c6",
+                      "inverse-on-surface": "#303034",
+                      "on-error-container": "#ffdad6",
+                      "surface-container": "#1f1f23",
+                      "on-primary-fixed": "#25005a",
+                      "tertiary-fixed": "#e2e2e2",
+                      "tertiary-container": "#656767",
+                      "outline-variant": "#4a4455",
+                      "surface-tint": "#d2bbff",
+                      "primary": "#d2bbff",
+                      "on-tertiary-container": "#e5e6e6",
+                      "on-secondary-fixed-variant": "#004e5c",
+                      "background": "#131317",
+                      "primary-container": "#7c3aed",
+                      "on-tertiary": "#2f3131",
+                      "surface-container-low": "#1b1b1f",
+                      "on-secondary-container": "#00424e",
+                      "secondary": "#4cd7f6",
+                      "secondary-fixed": "#acedff",
+                      "tertiary-fixed-dim": "#c6c6c7",
+                      "error-container": "#93000a",
+                      "on-surface-variant": "#ccc3d8",
+                      "on-secondary": "#003640",
+                      "on-primary-container": "#ede0ff",
+                      "surface-bright": "#39393d",
+                      "surface": "#131317",
+                      "inverse-surface": "#e5e1e7",
+                      "surface-container-high": "#2a292e",
+                      "surface-variant": "#353439",
+                      "primary-fixed-dim": "#d2bbff",
+                      "on-tertiary-fixed-variant": "#454747",
+                      "surface-container-lowest": "#0e0e12"
+              },
+              "borderRadius": {
+                      "DEFAULT": "1rem",
+                      "lg": "2rem",
+                      "xl": "3rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "container-max": "1440px",
+                      "xl": "80px",
+                      "unit": "4px",
+                      "md": "24px",
+                      "xs": "8px",
+                      "sm": "16px",
+                      "lg": "48px"
+              },
+              "fontFamily": {
+                      "display-xl": ["Space Grotesk"],
+                      "headline-md": ["Space Grotesk"],
+                      "body-md": ["Spline Sans"],
+                      "label-caps": ["Space Grotesk"],
+                      "body-lg": ["Spline Sans"],
+                      "headline-lg": ["Space Grotesk"]
+              },
+              "fontSize": {
+                      "display-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "900"}],
+                      "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "800"}],
+                      "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                      "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "500"}],
+                      "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "900"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body-md overflow-x-hidden">
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-8 h-20 bg-black/40 backdrop-blur-2xl border-b border-white/12">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black italic tracking-tighter text-white uppercase font-display-xl">DJ Flowerz</span>
+<div class="relative hidden md:block w-96">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/40">search</span>
+<input class="w-full bg-black/60 border-b border-secondary px-12 py-2 rounded-full text-white focus:outline-none focus:ring-0" placeholder="Network Scanner..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="material-symbols-outlined text-white/60 hover:text-primary transition-colors">notifications</button>
+<button class="material-symbols-outlined text-white/60 hover:text-primary transition-colors">mail</button>
+<button class="material-symbols-outlined text-white/60 hover:text-primary transition-colors">settings</button>
+<div class="h-10 w-10 rounded-full border-2 border-primary overflow-hidden">
+<img alt="Aura Avatar" class="h-full w-full object-cover" data-alt="close-up portrait of a professional DJ with neon reflections on their face in a dark studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_Sj9g1hqUXwswyTM9Hv7aJ0AQgv0fjT7LbWtqT0ows1avym_HMZghaXt2pxiJkKkd-pPhgFYJ3M_1q0YB0DAYtoIMeQkHycsEdv-2D3TU3mA1zCFep9kVzS_5drdRaHmjS0YK_uOPZNona-j57ctF5BX-iWLfSBAfDjkkv2069kHrUP1jm1K4rKjmRL3i3uhqJReQ96gSFImxNO_GWB-MJ2ShjDeUB_hhpxtv2pwamdEYeio-3njOOXoxcdRk9o0suo4aZwHurcIy"/>
+</div>
+</div>
+</nav>
+<!-- Side Navigation Bar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-8 z-40 bg-[#050508]/60 backdrop-blur-3xl border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] w-64 pt-24">
+<div class="flex flex-col flex-1">
+<!-- Feed is active -->
+<a class="flex items-center gap-4 px-6 py-4 text-white bg-primary-container/20 border-r-4 border-primary shadow-[inset_0_0_20px_rgba(124,58,237,0.2)] font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined">dynamic_feed</span>
+                Feed
+            </a>
+<a class="flex items-center gap-4 px-6 py-4 text-white/40 hover:text-white/80 transition-all font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+                Marketplace
+            </a>
+<a class="flex items-center gap-4 px-6 py-4 text-white/40 hover:text-white/80 transition-all font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined">group</span>
+                Network
+            </a>
+<a class="flex items-center gap-4 px-6 py-4 text-white/40 hover:text-white/80 transition-all font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined">library_music</span>
+                Library
+            </a>
+<a class="flex items-center gap-4 px-6 py-4 text-white/40 hover:text-white/80 transition-all font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined">equalizer</span>
+                Analytics
+            </a>
+<a class="flex items-center gap-4 px-6 py-4 text-secondary/80 hover:text-secondary transition-all font-label-caps uppercase tracking-widest text-[10px] mt-4" href="#">
+<span class="material-symbols-outlined text-sm">leaderboard</span>
+                View Top Aura Leaders
+            </a>
+</div>
+<div class="px-6 mb-8">
+<button class="w-full bg-primary-container py-3 rounded-full text-white font-bold tracking-widest uppercase text-xs hover:shadow-[0_0_20px_rgba(124,58,237,0.6)] transition-all">Go Live</button>
+</div>
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-4 px-6 py-3 text-white/40 hover:text-white/80 font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+                Support
+            </a>
+<a class="flex items-center gap-4 px-6 py-3 text-white/40 hover:text-white/80 font-label-caps uppercase tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-sm">logout</span>
+                Log Out
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 mr-80 pt-28 px-8 min-h-screen">
+<!-- Post Composer -->
+<section class="mb-lg">
+<div class="glass-panel p-6 rounded-lg">
+<div class="flex gap-4">
+<img class="h-12 w-12 rounded-full object-cover" data-alt="blurred portrait of a DJ wearing headphones with aesthetic pink and blue lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfg3J_0imcSCYLTrjtgh2A7au67d_17Obs-dFiuf9GsodniHv2SjBgakoD_pp0kNFN6uklo-x-KzNnbq0IAJFpIpH0ld-GFlxI9JxyzVb8PSelO63bXdmeH8Cu9axJFyIIBRB7p4PCdL63M8NmOvLZVrV4dfFUgH4rRtUw3BJILs-SgfghJubdP8ZmvknMbLVjaOxP7u5V9O_NG1JSODUBIMAO230d5zJKyMRWeYu363Acj1EYZxE3w2QACg7lb6271ZXxOtKzdzCQ"/>
+<div class="flex-1">
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-white text-lg placeholder:text-white/20 resize-none h-12" placeholder="Pulse the community..."></textarea>
+<div class="flex justify-between items-center mt-4 border-t border-white/5 pt-4">
+<div class="flex gap-4">
+<button class="material-symbols-outlined text-secondary hover:text-white transition-colors">image</button>
+<button class="material-symbols-outlined text-secondary hover:text-white transition-colors">graphic_eq</button>
+<button class="material-symbols-outlined text-secondary hover:text-white transition-colors">poll</button>
+<button class="material-symbols-outlined text-secondary hover:text-white transition-colors">sell</button>
+</div>
+<button class="bg-primary-container text-white px-8 py-2 rounded-full font-bold text-sm tracking-wide neon-glow-purple">Post Pulse</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Feed Header & Tabs -->
+<div class="mb-8">
+<div class="flex gap-8 border-b border-white/5">
+<button class="pb-4 tab-active" onclick="this.className='pb-4 tab-active'; this.parentElement.querySelectorAll('button').forEach(b =&gt; b !== this &amp;&amp; (b.className='pb-4 tab-inactive'))">Latest</button>
+<button class="pb-4 tab-inactive" onclick="this.className='pb-4 tab-active'; this.parentElement.querySelectorAll('button').forEach(b =&gt; b !== this &amp;&amp; (b.className='pb-4 tab-inactive'))">Following</button>
+<button class="pb-4 tab-inactive relative group" onclick="this.className='pb-4 tab-active relative group'; this.parentElement.querySelectorAll('button').forEach(b =&gt; b !== this &amp;&amp; (b.className='pb-4 tab-inactive'))">
+                Trending
+                <span class="absolute -top-1 -right-2 w-2 h-2 bg-secondary rounded-full animate-pulse shadow-[0_0_8px_rgba(76,215,246,0.8)]"></span>
+</button>
+<button class="pb-4 tab-inactive" onclick="this.className='pb-4 tab-active'; this.parentElement.querySelectorAll('button').forEach(b =&gt; b !== this &amp;&amp; (b.className='pb-4 tab-inactive'))">Marketplace</button>
+</div>
+<!-- Secondary Filter Bar -->
+<div class="flex items-center gap-4 mt-6">
+<span class="text-white/40 text-[10px] uppercase font-bold tracking-widest mr-2">Filter By:</span>
+<button class="px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-bold border border-white/10 hover:bg-white/20 transition-all">All</button>
+<button class="px-4 py-1.5 rounded-full bg-transparent text-white/60 text-xs font-bold border border-white/5 hover:border-secondary/40 transition-all">Media</button>
+<button class="px-4 py-1.5 rounded-full bg-transparent text-white/60 text-xs font-bold border border-white/5 hover:border-secondary/40 transition-all">Polls</button>
+<div class="ml-auto flex items-center gap-2">
+<span class="text-white/40 text-[10px] uppercase font-bold tracking-widest">Sort:</span>
+<button class="flex items-center gap-1 text-white text-xs font-bold">Newest <span class="material-symbols-outlined text-sm">expand_more</span></button>
+</div>
+</div>
+</div>
+<!-- Pulses Feed -->
+<div class="space-y-8 pb-xl">
+<!-- Hardware Deal Pulse (Marketplace Integration) -->
+<article class="glass-panel p-6 rounded-lg relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4">
+<span class="bg-secondary/20 text-secondary px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-secondary/40">Marketplace Deal</span>
+</div>
+<div class="flex gap-4 mb-4">
+<img class="h-12 w-12 rounded-full object-cover" data-alt="professional DJ controller in a dark setting with vibrant glowing blue and red buttons" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAd2z_66DfgtWNpjvoojfhgA3awI-liDZrAZJknLkdphPKOHjYWsI7wlAQBlpzixTNwSirZEl3wuCY6po2Rk25E4khuAW0hm-RpSWz6Gs7IH3RMDtTzylKdxR_sVPCJ9YBvnIfYR4TpF7pxltjg3tRaShVF-lXjJ24aMZRp0feiZZHvY-8fV0nvEBXO9cNmEXk3-113B_m9QZosY6ZMnt4hWstW28qYXu1q6L_VsYlU-GhtjJTg5ZGxyShtBD4RHpBjUv00a4k6xNeS"/>
+<div>
+<h4 class="font-bold text-white">TechnoThrift Official</h4>
+<p class="text-white/40 text-xs">2 hours ago • Sponsored Pulse</p>
+</div>
+</div>
+<p class="text-white/80 mb-6 font-body-lg">Just landed: Pioneer CDJ-3000 Limited Edition. Pristine condition, direct from the Tokyo hub. Who's stepping up their booth game? ⚡️ #GearPorn #PioneerDJ</p>
+<div class="rounded-xl overflow-hidden mb-6 relative aspect-video">
+<img class="w-full h-full object-cover" data-alt="extreme close up of a high-end black vinyl record turntable with warm atmospheric lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtCJojLwkLXE6G3hStBx3xD-ZzFE7IClcLbIyR3dpkJNeHkBh_1ULV7H_gp1RmurQAaiCS9rffwDz_bqG8OMKWQKeKh4ap1ESKL2o8hLmys8f-wmXI16IM0qVjkjforcI4i5tDmYAO7pDdKr4A3NISoe_5LrsKV78oYRNbGEyd0THbU3QkHSZ0a_XFOIkpyE9bkIDn-im5dlwEmUenOY5KZauo3qOEoi95rEU_KkqM7QLc0Sz83VHWagIBetwL5biWLLrL8lgWVbKm"/>
+<div class="absolute bottom-6 left-6 right-6 glass-panel p-4 rounded-lg flex justify-between items-center">
+<div>
+<p class="text-white/60 text-xs uppercase tracking-widest font-bold">Price</p>
+<p class="text-secondary text-2xl font-black">$2,499.00</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2 border border-secondary text-secondary rounded-full font-bold text-xs hover:bg-secondary/10 transition-all uppercase">Offer</button>
+<button class="px-6 py-2 bg-secondary text-black rounded-full font-bold text-xs neon-glow-cyan transition-all uppercase">Buy Now</button>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-6 text-white/40 border-t border-white/5 pt-4">
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">favorite</span> 1.2k</button>
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">chat_bubble</span> 45</button>
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">share</span> 8</button>
+</div>
+</article>
+<!-- Standard Pulse with Media -->
+<article class="glass-panel p-6 rounded-lg">
+<div class="flex gap-4 mb-4">
+<img class="h-12 w-12 rounded-full object-cover" data-alt="professional dj with headphones performing in front of a massive crowd with laser lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgeZ2lhzpccgGkkn3xFJkJFpYZwKkawMNm7woDeiqi96NvmGWXHU3xCLiWSzdkfOSJY6vAZJ9zbxFIh0OvKqlTlsaesPltiWlaRSoNL4ECskHXMmgt3sQtSn93aPwKtDwZhgu1Vhgb2ODm7ZeUJBqnQI6IGBWQ4ZhtLTEOrR1dG6EQ-DSfWj6lx_R0DH7x33YIbLNlOTbHrcJXq_SiW08Ld0uea0blxxs_xfAfFBXRxH18_qzj-0l5lTpYZkYIVJbY80mkZuul_ZW6"/>
+<div>
+<h4 class="font-bold text-white">DJ Nox</h4>
+<p class="text-white/40 text-xs">4 hours ago • Nairobi, KE</p>
+</div>
+</div>
+<p class="text-white/80 mb-6 font-body-lg">The energy last night at The Void was legendary. Kenyan #AmapianoVibes are just different. Track ID: Flow State (Nox Remix). Drop a 🔥 if you want the link.</p>
+<div class="grid grid-cols-2 gap-2 mb-6 h-64">
+<img class="w-full h-full object-cover rounded-l-lg" data-alt="vibrant blue and purple laser beams cutting through a dark smoky nightclub" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQZW8-LjOwJ6SZj33xfy4faWeVGcBR8T2pFXnBTaeZk8DAFIkA-M7hT_RZYokwCCJ7ewdoGfz3vz-wZbzZq9tw66HIKitnL6SiCd-6UmdjDKoXLGjRs5QK73nzoBCWVCveSdfhY8HUUEOu0NlZM9emSBsNY8n_AR_5BcCuJny1kXIDyRJBmm-uO19skBzvVgdjkJ9l21GDKGQpKuqPUtl7S62Av2sZGglGgXzk0cHI4VqgcoIkm7FfqIMNBpjRRp_fo-1Hfoa9WuMh"/>
+<img class="w-full h-full object-cover rounded-r-lg" data-alt="silhouettes of a crowd at a music festival with golden light streaming from the stage" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDs2IFJyBRkNQkM9EXdCWSZK70nbVqer5Wed6Wz7aASSoYchJbprHsp36xe-XjsW5U9gvCI14mLTxsWVSFBnX6gXnKcQ5sKNBDkUlkLoppzfyUnL72DFcHDlnQhwaSIFrmG0Tt6JsuLzfYpzx5yXndAh6wSuacTB3rHd95TmUGWHBZMklyERg9xvDiWUmaZhft8KEjDLC3GBDUmvCMCtZ2iwOHlrcO7C_2VHYDWGDgfhHXrdiAbdh4tqPspCXpihYR2_u0C5VH59yhW"/>
+</div>
+<div class="flex items-center gap-6 text-white/40 border-t border-white/5 pt-4">
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">favorite</span> 892</button>
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">chat_bubble</span> 128</button>
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">repeat</span> 54</button>
+</div>
+</article>
+<!-- Text Only Pulse -->
+<article class="glass-panel p-6 rounded-lg">
+<div class="flex gap-4 mb-4">
+<img class="h-12 w-12 rounded-full object-cover" data-alt="close up profile of person wearing futuristic transparent headphones with neon pink accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQ2OohJVpSVDzruuJTaX9_Zey28URx8jZ4sO_1e07q40v14xBiZsK2VX285THy-BDUm3tzzcd2jTvol4ryivNUEBvw3OAP4MDHwDxOeS56Fl6KkoyFKBeS3p8Gjq0lMUeWbKTu6YE5G-yxa3Vhy6PT6CIfGz2jgNXBOy75sSTLjwnQpv8urbYd2DI_6UdTdAIOEw7ygf-D1bAgL1jUwP5qChf-Vr3mPVt7NIP6VLnudwbtJmHXrrBzesGHHeKdk6OV9CMRXTsNOsLE"/>
+<div>
+<h4 class="font-bold text-white">Aura_Wave</h4>
+<p class="text-white/40 text-xs">6 hours ago</p>
+</div>
+</div>
+<p class="text-white text-xl font-medium leading-relaxed italic border-l-4 border-primary pl-6 py-2">
+                    "Transitioning from 128bpm to 140bpm mid-set is an art form, not just a fader movement. Who else is experimental tonight?"
+                </p>
+<div class="flex items-center gap-6 mt-6 text-white/40">
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">favorite</span> 214</button>
+<button class="flex items-center gap-2 hover:text-primary transition-colors"><span class="material-symbols-outlined text-xl">chat_bubble</span> 12</button>
+</div>
+</article>
+</div>
+</main>
+<!-- Right Sidebar (Network & Trends) -->
+<aside class="fixed right-0 top-0 h-screen w-80 p-8 pt-28 space-y-8 bg-surface-container-lowest/80 backdrop-blur-md overflow-y-auto">
+<!-- Trending Scenes -->
+<section>
+<h3 class="font-display-xl text-lg text-white mb-6 tracking-tighter uppercase font-black">Trending Scenes</h3>
+<div class="space-y-4">
+<div class="p-4 glass-panel rounded-lg hover:border-primary/40 transition-all cursor-pointer">
+<p class="text-primary text-sm font-bold">#AmapianoVibes</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest mt-1">2.4k Pulses • Trending</p>
+</div>
+<div class="p-4 glass-panel rounded-lg hover:border-primary/40 transition-all cursor-pointer">
+<p class="text-primary text-sm font-bold">#NairobiDJs</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest mt-1">1.8k Pulses</p>
+</div>
+<div class="p-4 glass-panel rounded-lg hover:border-primary/40 transition-all cursor-pointer">
+<p class="text-primary text-sm font-bold">#VinylOnly</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest mt-1">940 Pulses</p>
+</div>
+</div>
+<button class="text-secondary text-xs font-bold uppercase tracking-widest mt-4 w-full text-center">See More Scene Intelligence</button>
+</section>
+<!-- Suggested Network -->
+<section>
+<h3 class="font-display-xl text-lg text-white mb-6 tracking-tighter uppercase font-black">Suggested Network</h3>
+<div class="space-y-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<img class="h-10 w-10 rounded-full object-cover" data-alt="portrait of a man with glowing cyan lighting on his face wearing high tech glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvOPicmcP8xOvY1macnIDbtywkkfSxqGIh3Ycx_IXGIWmFbtYn8xX5eeRmfCSnA4OGYj1DarI5g0wJse5tSza3qxe_PGeiNU7tcMOK7tfpT43p9usdwzG2wYdjNLcWHaKvItqzH0PlYRmWISJ05-fNbwg6ISebBuoNNnhskhviMJ2aDswIqWE_pCkjrx601uzy8hWTT_PQE7B2AM2LFyFzlMOdimisfG7esD2oBH7MC_W3od1W44VslQy3jcKvI_9u0R-o89AacLzH"/>
+<div>
+<p class="text-white text-sm font-bold">Synth_Lord</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest">Techno Producer</p>
+</div>
+</div>
+<button class="text-primary font-bold text-xs uppercase hover:underline">Sync</button>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<img class="h-10 w-10 rounded-full object-cover" data-alt="atmospheric photo of dj hands on a mixer with colorful glowing bokeh lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOvTPv9k_Rj_243RPFrHYP3STvGVGhKms06LmJZwzLrbaW-qC-8eqFBV8d5Flg0tVI4FiD-mh0CmDQBK91iqo67jqVVDxqCcBPP1lN9ZaKTnqsmjQJcGnGhxsaNQt_ki2mScL-CPHXMqHGNcygbYyUa4blStK1OQOlpWqEQ9L98QTPOVKLaUNOVgNqX8DL6S-QtIZsCKhXMfgcEkvjNnsQkGxdJ1fDI7z-KfSxFZasypdJ__au-n0r8OkfI7InWqNaxtQ3vXzoWXb_"/>
+<div>
+<p class="text-white text-sm font-bold">Lumina_Beat</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest">House Artist</p>
+</div>
+</div>
+<button class="text-primary font-bold text-xs uppercase hover:underline">Sync</button>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<img class="h-10 w-10 rounded-full object-cover" data-alt="low light photo of a person wearing a futuristic face mask with neon glowing lines" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAd-8D1LdLid5dXd1rosvmbnar67xjG1WasO3tTAi6iSOBky85TeyFTgLetUu_2J07hJxSuLIPPHKd_Cn2bcoC35-qGsWrDIwtdy1vh3O5-4m1jR5cukWbwXUuW_yU6M4BoAVuyyNJToCtUhkDcP2QriYE0loIHgcVcEsX3lVQMqeMRVN7YZz1rSRQaF7SKykdCQw56zvchezk3PDFWIVXn-x9SrbBfL_pEsqMN2WJGFaE7-pNwBd1otulyhYIhtKcXZP0kyIKx4hcu"/>
+<div>
+<p class="text-white text-sm font-bold">Bass_Anomaly</p>
+<p class="text-white/40 text-[10px] uppercase tracking-widest">Dubstep Elite</p>
+</div>
+</div>
+<button class="text-primary font-bold text-xs uppercase hover:underline">Sync</button>
+</div>
+</div>
+</section>
+<!-- Live Visualizer Widget -->
+<section class="p-6 rounded-lg glass-panel relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
+<div class="relative z-10">
+<div class="flex justify-between items-center mb-4">
+<span class="text-[10px] font-bold uppercase tracking-widest text-secondary">Global Pulse Rate</span>
+<span class="text-white text-xs font-bold">128 BPM</span>
+</div>
+<div class="flex items-end justify-between h-12 gap-1">
+<div class="waveform-bar w-1 h-3 rounded-full"></div>
+<div class="waveform-bar w-1 h-6 rounded-full"></div>
+<div class="waveform-bar w-1 h-8 rounded-full"></div>
+<div class="waveform-bar w-1 h-12 rounded-full"></div>
+<div class="waveform-bar w-1 h-10 rounded-full"></div>
+<div class="waveform-bar w-1 h-7 rounded-full"></div>
+<div class="waveform-bar w-1 h-4 rounded-full"></div>
+<div class="waveform-bar w-1 h-9 rounded-full"></div>
+<div class="waveform-bar w-1 h-11 rounded-full"></div>
+<div class="waveform-bar w-1 h-6 rounded-full"></div>
+<div class="waveform-bar w-1 h-3 rounded-full"></div>
+</div>
+</div>
+</section>
+</aside>
+</body></html>

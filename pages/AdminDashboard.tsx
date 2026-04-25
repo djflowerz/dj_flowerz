@@ -9,7 +9,7 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload, Play,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
-   History,
+   Handshake,
    Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload, ScanSearch
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ import AdminExpiryWatch from '../components/admin/AdminExpiryWatch';
 import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory';
 import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
 import BlackoutManager from '../components/admin/BlackoutManager';
+import AdminMarketplaceTab from '../components/admin/AdminMarketplaceTab';
 import { AdminLiveChatTab } from '../components/admin/AdminLiveChatTab';
 import AddProductForm from '../components/admin/AddProductForm';
 import { 
@@ -45,6 +46,7 @@ import {
 } from '../components/admin/UploadComponents';
 import AdminInstallmentsTab from '../components/admin/AdminInstallmentsTab';
 import ShippingSettings from '../components/admin/ShippingSettings';
+import AdminVerificationTab from '../components/admin/AdminVerificationTab';
 import WhatsAppManager from '../components/admin/WhatsAppManager';
 
 const ReactQuill: React.FC<any> = ({ value, onChange, placeholder, theme, modules, ...rest }) => (
@@ -259,10 +261,7 @@ const AdminDashboard: React.FC = () => {
 
    console.log("AdminDashboard Render:", { user, loading, hasDataContext: !!dataContext });
 
-   if (!dataContext) {
-      console.error("AdminDashboard: DataContext is missing!");
-      return <div className="p-10 text-white">Critical Error: Data Context Missing. Contact Support.</div>;
-   }
+   // Hook Violation Fixed: Moved dataContext safety to destructuring.
 
    const tabs = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -280,6 +279,8 @@ const AdminDashboard: React.FC = () => {
       { id: 'marketing', label: 'Marketing', icon: Tag },
       { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
       { id: 'site-profile', label: 'Site Profile', icon: Globe },
+      { id: 'marketplace', label: 'Marketplace', icon: Handshake },
+      { id: 'verification', label: 'Aura Identity', icon: Fingerprint },
       { id: 'community-profiles', label: 'Community Profile', icon: Users },
       { id: 'referrals', label: 'Referrals', icon: Gift },
       { id: 'payments', label: 'Payments', icon: CreditCard },
@@ -477,7 +478,7 @@ const AdminDashboard: React.FC = () => {
       refreshStudioSessions, refreshEventGigs,
       refreshScannedTracks, refreshPoolTracks, refreshGenres, refreshVideos, refreshPlans, refreshZones, refreshCoupons, refreshReferrals, refreshTelegramChannels, refreshContactMessages, refreshReviews, refreshComments,
       adminStats, refreshAdminStats,
-   } = dataContext;
+   } = dataContext || {} as any;
 
    const ordersLoading = odLoading;
    const subsLoading = sbLoading;
@@ -486,10 +487,10 @@ const AdminDashboard: React.FC = () => {
    const productsLoading = pdLoading;
    const usersLoading = usLoading;
 
-   const liveOrders = orders;
-   const liveSubscriptions = subscriptions;
-   const livePayments = payments;
-   const liveTips = tips;
+   const liveOrders = orders || [];
+   const liveSubscriptions = subscriptions || [];
+   const livePayments = payments || [];
+   const liveTips = tips || [];
 
    const filteredOrders = useMemo(() => {
       if (!liveOrders) return [];
@@ -1668,6 +1669,10 @@ const AdminDashboard: React.FC = () => {
    }
 
    console.log("AdminDashboard: Reaching main return", { activeTab });
+   if (!dataContext) {
+      return <div className="p-10 text-white">Critical Error: Data Context Missing. Contact Support.</div>;
+   }
+
    return (
       <div className="flex h-screen bg-[#0B0B0F] text-white">
          <AdminPaymentListener setLiveSales={setLiveSales} />
@@ -1748,7 +1753,7 @@ const AdminDashboard: React.FC = () => {
                               </div>
                               <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
                                  {(notifications || []).length > 0 ? (
-                                    notifications.map((n) => (
+                                 {(Array.isArray(notifications) ? notifications : []).map((n) => (
                                        <div
                                           key={n.id}
                                           className={`p-5 border-b border-white/5 transition-all hover:bg-white/5 relative group cursor-pointer ${!n.read ? 'bg-brand-purple/5' : ''}`}
@@ -1881,7 +1886,7 @@ const AdminDashboard: React.FC = () => {
                            </div>
                            
                            <div className="space-y-4">
-                              {syncNotifications.slice(0, 3).map((notif: any, idx: number) => (
+                              {(syncNotifications || []).slice(0, 3).map((notif: any, idx: number) => (
                                  <div key={idx} className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-brand-cyan/20 transition-all">
                                     <div className="flex items-center gap-4">
                                        <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 flex items-center justify-center">
@@ -2029,7 +2034,7 @@ const AdminDashboard: React.FC = () => {
                                  </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.03] text-sm">
-                                 {combinedTransactions.slice(0, 8).map(tx => (
+                                 {(combinedTransactions || []).slice(0, 8).map(tx => (
                                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group cursor-pointer" onClick={() => { if (tx.type === 'Order') { setSelectedOrder(liveOrders.find(o => o.id === tx.id) || null); setActiveModal('editOrderStatus'); } }}>
                                        <td className="px-8 py-5">
                                           <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${tx.type === 'Order' ? 'bg-brand-purple/5 text-brand-purple border-brand-purple/20' :
@@ -2061,6 +2066,8 @@ const AdminDashboard: React.FC = () => {
 
                {activeTab === 'interactions' && <InteractionsTab />}
                {activeTab === 'analytics' && <AnalyticsTab />}
+               {activeTab === 'marketplace' && <AdminMarketplaceTab />}
+               {activeTab === 'verification' && <AdminVerificationTab />}
 
                {activeTab === 'orders' && <AdminOrdersTab />}
                
@@ -2594,7 +2601,7 @@ const AdminDashboard: React.FC = () => {
                                           // but if they skipped, maybe user wants them to stay? 
                                           // User said "skip", usually means don't add, but usually they should be cleared from scanned too.
                                           // I'll keep them in scanned if skipped so user can decide later.
-                                          idsToRemove = finalToAdd.map(t => t.id);
+                                          idsToRemove = (finalToAdd || []).map(t => t.id);
                                        } else {
                                           // Replace: we need to find existing pool track IDs and remove/update them.
                                           // For simplicity in this R2 architecture, we will just add them as "new" entries 
@@ -2605,7 +2612,7 @@ const AdminDashboard: React.FC = () => {
                                        }
                                     }
 
-                                    const newBatch: any[] = finalToAdd.map((track: any) => {
+                                    const newBatch: any[] = (finalToAdd || []).map((track: any) => {
                                        const versions: any[] = track.versions?.length ? track.versions : [];
                                        if (versions.length === 0 && track.downloadUrl) {
                                           versions.push({
@@ -3621,7 +3628,7 @@ const AdminDashboard: React.FC = () => {
                                              <div className="flex flex-col gap-1">
                                                 <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full w-max">{s.duration_hours} Hour Session</span>
                                                 <div className="flex gap-1">
-                                                   {JSON.parse(s.extras || '[]').map((ex: string) => (
+                                                   {(Array.isArray(JSON.parse(s.extras || '[]')) ? JSON.parse(s.extras || '[]') : []).map((ex: string) => (
                                                       <span key={ex} className="text-[8px] font-black uppercase tracking-tighter text-brand-cyan/60">{ex}</span>
                                                    ))}
                                                 </div>
@@ -3870,7 +3877,7 @@ const AdminDashboard: React.FC = () => {
                                        </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.03] text-sm">
-                                       {studioEquipment.map(eq => (
+                                       {(studioEquipment || []).map(eq => (
                                           <tr key={eq.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6 font-black text-white group-hover:text-brand-cyan transition-colors text-base tracking-tight">{eq.name}</td>
                                              <td className="px-8 py-6">
@@ -3902,7 +3909,7 @@ const AdminDashboard: React.FC = () => {
                               </button>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {studioRooms.map(room => (
+                              {(studioRooms || []).map(room => (
                                  <div key={room.id} className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 shadow-xl group">
                                     <div className="flex justify-between items-start mb-6">
                                        <div className="flex flex-col gap-1">
@@ -3946,7 +3953,7 @@ const AdminDashboard: React.FC = () => {
                                        </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.03] text-sm">
-                                       {maintenanceLogs.map(log => (
+                                       {(maintenanceLogs || []).map(log => (
                                           <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6 font-black text-white group-hover:text-brand-purple transition-colors text-base tracking-tight">{log.itemName}</td>
                                              <td className="px-8 py-6 text-gray-400 font-medium">{log.description}</td>
@@ -4172,7 +4179,7 @@ const AdminDashboard: React.FC = () => {
                                           </div>
                                        </td></tr>
                                     ) : (
-                                       referralLogs.map(log => (
+                                       (referralLogs || []).map(log => (
                                           <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                                              <td className="px-8 py-6">
                                                 <div className="flex flex-col">
@@ -4775,7 +4782,7 @@ const AdminDashboard: React.FC = () => {
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-white/[0.03] text-sm">
-                                    {newsletterCampaigns?.map(c => (
+                                    {(newsletterCampaigns || []).map(c => (
                                        <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">
@@ -5465,7 +5472,7 @@ const AdminDashboard: React.FC = () => {
                         <div className="pt-2">
                            <label className="block text-[10px] font-bold text-brand-purple uppercase tracking-widest mb-3 pl-1">Select Applicable Plans</label>
                            <div className="flex flex-wrap gap-2">
-                              {subscriptionPlans.map(plan => (
+                              {(subscriptionPlans || []).map(plan => (
                                  <button
                                     key={plan.id}
                                     onClick={() => {

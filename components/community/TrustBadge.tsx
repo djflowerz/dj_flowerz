@@ -15,7 +15,9 @@ export type BadgeType =
   | 'elite_performer'
   | 'top_vendor'
   | 'established'
-  | 'repeat_clients';
+  | 'repeat_clients'
+  | 'aura_elite'
+  | 'aura_legendary';
 
 interface BadgeConfig {
   icon: React.ReactNode;
@@ -24,16 +26,36 @@ interface BadgeConfig {
   bg: string;
   border: string;
   tooltip: string;
+  glow?: string;
 }
 
 const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   verified: {
     icon: <ShieldCheck size={11} />,
-    label: 'Verified',
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-    tooltip: 'This account has been manually verified by the DJ Flowerz team.',
+    label: 'Aura Identity',
+    color: 'text-[#4cd7f6]',
+    bg: 'bg-[#4cd7f6]/10',
+    border: 'border-[#4cd7f6]/20',
+    tooltip: 'Identity verified through the Aura Matrix. Secure trading enabled.',
+    glow: 'shadow-[0_0_10px_rgba(76,215,246,0.2)]',
+  },
+  aura_elite: {
+    icon: <Star size={11} />,
+    label: 'Elite Operator',
+    color: 'text-[#7c3aed]',
+    bg: 'bg-[#7c3aed]/10',
+    border: 'border-[#7c3aed]/20',
+    tooltip: 'Distinguished Elite status within the Nocturnal Pulse network.',
+    glow: 'shadow-[0_0_10px_rgba(124,58,237,0.2)]',
+  },
+  aura_legendary: {
+    icon: <Trophy size={11} />,
+    label: 'Legendary',
+    color: 'text-[#f59e0b]',
+    bg: 'bg-[#f59e0b]/10',
+    border: 'border-[#f59e0b]/20',
+    tooltip: 'Legendary status: Exceptional trust and contribution to the scene.',
+    glow: 'shadow-[0_0_10px_rgba(245,158,11,0.2)]',
   },
   caution: {
     icon: <AlertTriangle size={11} />,
@@ -41,19 +63,19 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/20',
-    tooltip: '⚠️ Caution: This user has received multiple reports in the last 30 days. We recommend using our Secure Escrow for any transactions.',
+    tooltip: '⚠️ Caution: Potential trust variance detected. Shield Escrow mandatory.',
   },
   fast_responder: {
     icon: <Zap size={11} />,
-    label: 'Fast Responder',
+    label: 'Neural Sync',
     color: 'text-yellow-400',
     bg: 'bg-yellow-500/10',
     border: 'border-yellow-500/20',
-    tooltip: 'Typically responds to trade inquiries within 4 hours.',
+    tooltip: 'Ultra-fast response time (Neural Sync active).',
   },
   quick_shipper: {
     icon: <Package size={11} />,
-    label: 'Quick Shipper',
+    label: 'Rapid Delivery',
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
     border: 'border-cyan-500/20',
@@ -61,7 +83,7 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   },
   elite_performer: {
     icon: <Trophy size={11} />,
-    label: 'Elite Performer',
+    label: 'Top Pulse',
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
@@ -69,7 +91,7 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   },
   top_vendor: {
     icon: <Wrench size={11} />,
-    label: 'Top Equipment Vendor',
+    label: 'Gear Specialist',
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/20',
@@ -77,19 +99,19 @@ const BADGE_CONFIG: Record<BadgeType, BadgeConfig> = {
   },
   established: {
     icon: <Leaf size={11} />,
-    label: 'Established Member',
+    label: 'Legacy Member',
     color: 'text-green-400',
     bg: 'bg-green-500/10',
     border: 'border-green-500/20',
-    tooltip: 'Has been an active member of the DJ Flowerz community for over 12 months.',
+    tooltip: 'Has been an active member of the Nocturnal Pulse for over 12 months.',
   },
   repeat_clients: {
     icon: <Repeat2 size={11} />,
-    label: 'Repeat Clients',
+    label: 'Vouched',
     color: 'text-pink-400',
     bg: 'bg-pink-500/10',
     border: 'border-pink-500/20',
-    tooltip: 'Multiple buyers have returned to trade with this seller more than once — a strong sign of reliability.',
+    tooltip: 'Multiple operators have returned to trade with this seller — highly reliable.',
   },
 };
 
@@ -119,7 +141,7 @@ export const TrustBadge: React.FC<TrustBadgeProps> = ({
       <span
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
-        className={`inline-flex items-center gap-1 rounded-full border cursor-help transition-all hover:scale-105 ${padding} ${config.color} ${config.bg} ${config.border} ${pulse} ${className}`}
+        className={`inline-flex items-center gap-1 rounded-full border cursor-help transition-all hover:scale-105 ${padding} ${config.color} ${config.bg} ${config.border} ${pulse} ${config.glow || ''} ${className}`}
       >
         {config.icon}
         {showLabel && (
@@ -130,9 +152,13 @@ export const TrustBadge: React.FC<TrustBadgeProps> = ({
       </span>
 
       {showTooltip && (
-        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 w-64 p-3 bg-[#111] border border-white/10 rounded-xl text-[11px] text-gray-300 leading-relaxed shadow-2xl pointer-events-none animate-in fade-in duration-150">
+        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 w-64 p-3 bg-[#050508] border border-white/10 rounded-xl text-[11px] text-gray-300 leading-relaxed shadow-2xl pointer-events-none animate-in fade-in duration-150 backdrop-blur-xl">
+          <div className="font-black text-white uppercase tracking-tighter mb-1 flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${config.color.replace('text-', 'bg-')}`} />
+            {config.label}
+          </div>
           {config.tooltip}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#111]" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#050508]" />
         </div>
       )}
     </div>
