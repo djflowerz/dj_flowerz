@@ -18,13 +18,24 @@ import {
   Activity,
   Bell,
   User,
-  Trash2,
-  Edit,
-  Flag,
-  X,
-  ExternalLink
+  Trash2, 
+  Edit, 
+  Flag, 
+  X, 
+  ExternalLink,
+  Gavel,
+  Clock,
+  ShieldCheck,
+  Info,
+  Lock,
+  UserPlus,
+  UserCheck,
+  Loader2
 } from 'lucide-react';
 import { SafeTradePopup } from '../components/community/SafeTradePopup';
+import { AuctionTimer } from '../components/community/AuctionTimer';
+import { BidModal } from '../components/community/BidModal';
+import { InterestModal } from '../components/community/InterestModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -48,6 +59,15 @@ interface Post {
   has_hearted?: string;
   has_echoed?: string;
   created_at: string;
+
+  // Marketplace expansions
+  listing_type?: 'fixed' | 'auction';
+  listing_status?: 'available' | 'reserved' | 'sold';
+  auction_end_at?: string;
+  auction_start_price?: number;
+  highest_bid?: number;
+  highest_bidder_id?: string;
+  bid_count?: number;
 }
 
 const parseJSON = (str: string | undefined, fallback: any = null) => {
@@ -97,11 +117,33 @@ export default function PostDetail() {
   const [safeTradeOpen, setSafeTradeOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followsViewer, setFollowsViewer] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [userInterests, setUserInterests] = useState<any[]>([]);
+  const [interestPulse, setInterestPulse] = useState<Post | null>(null);
+  const [bidPulse, setBidPulse] = useState<Post | null>(null);
 
   useEffect(() => {
     fetchPost();
-    if (session) fetchUnread();
+    if (session) {
+        fetchUnread();
+        fetchUserInterests();
+    }
   }, [id, session]);
+
+  const fetchUserInterests = async () => {
+      try {
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/marketplace/interests/my`, {
+              headers: { 
+                  'Authorization': `Bearer ${session?.access_token}`,
+                  'X-Actor-Id': user?.id || ''
+              }
+          });
+          const data = await resp.json();
+          if (resp.ok) setUserInterests(data.interests || []);
+      } catch (e) {}
+  };
 
   const fetchUnread = async () => {
     try {
@@ -125,6 +167,8 @@ export default function PostDetail() {
         const data = await resp.json();
         setPost(data.pulse);
         setReplies(data.replies);
+        setIsFollowing(data.pulse.isFollowing);
+        setFollowsViewer(data.pulse.followsViewer);
       } else {
         toast.error("Post not found");
         navigate('/community');
@@ -178,6 +222,32 @@ export default function PostDetail() {
     } catch (e) {}
   };
 
+  const handleFollow = async () => {
+    if (!isAuthenticated) {
+        toast.error("Sign in to follow users");
+        return;
+    }
+    setFollowLoading(true);
+    try {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/${post?.author_id}/follow`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'X-Actor-Id': user?.id || ''
+            }
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            setIsFollowing(data.following);
+            toast.success(data.following ? `Following ${post?.author_name}` : `Unfollowed ${post?.author_name}`);
+        }
+    } catch (e) {
+        toast.error("Failed to update follow status");
+    } finally {
+        setFollowLoading(false);
+    }
+  };
+
   const postReply = async () => {
     if (!isAuthenticated) {
       toast.error("Sign in to reply");
@@ -196,7 +266,8 @@ export default function PostDetail() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Actor-Id': user?.id || ''
         },
         body: JSON.stringify({
           content: replyContent,
@@ -209,9 +280,12 @@ export default function PostDetail() {
         setReplyContent('');
         fetchPost();
         toast.success("Reply posted");
+      } else {
+        const errorData = await resp.json();
+        toast.error(errorData.error || "Failed to post reply");
       }
-    } catch (e) {
-      toast.error("Failed to post reply");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to post reply");
     } finally {
       setIsPosting(false);
     }
@@ -358,41 +432,64 @@ export default function PostDetail() {
                         <p className="font-bold text-white hover:underline cursor-pointer" onClick={() => navigate(`/member/${post.author_handle}`)}>{post.author_name}</p>
                         <p className="text-sm text-gray-500">@{post.author_handle}</p>
                     </div>
-                    <div className="relative z-50">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                            className={`p-2 rounded-full transition-all relative z-50 ${showMenu ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-500 hover:text-brand-purple hover:bg-brand-purple/10'}`}
-                        >
-                            <MoreHorizontal size={20} />
-                        </button>
+                    <div className="flex items-center gap-3">
+                        <div className="relative z-50">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                                className={`p-2 rounded-full transition-all relative z-50 ${showMenu ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-500 hover:text-brand-purple hover:bg-brand-purple/10'}`}
+                            >
+                                <MoreHorizontal size={20} />
+                            </button>
+                            
+                            <AnimatePresence>
+                                {showMenu && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                            className="absolute right-0 top-10 w-48 bg-[#16161D] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                                        >
+                                            {user?.id === post.author_id && (
+                                                <button onClick={handleEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors">
+                                                    <Edit size={16} /> Edit Post
+                                                </button>
+                                            )}
+                                            {user?.id === post.author_id && (
+                                                <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-400/10 transition-colors">
+                                                    <Trash2 size={16} /> Delete Post
+                                                </button>
+                                            )}
+                                            <button onClick={handleReport} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-400 hover:bg-white/5 transition-colors">
+                                                <Flag size={16} /> Report Post
+                                            </button>
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
+                        </div>
                         
-                        <AnimatePresence>
-                            {showMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
-                                    <motion.div 
-                                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        className="absolute right-0 top-10 w-48 bg-[#16161D] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
-                                    >
-                                        {user?.id === post.author_id && (
-                                            <button onClick={handleEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors">
-                                                <Edit size={16} /> Edit Post
-                                            </button>
-                                        )}
-                                        {user?.id === post.author_id && (
-                                            <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-400/10 transition-colors">
-                                                <Trash2 size={16} /> Delete Post
-                                            </button>
-                                        )}
-                                        <button onClick={handleReport} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-400 hover:bg-white/5 transition-colors">
-                                            <Flag size={16} /> Report Post
-                                        </button>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
+                        {user?.id !== post.author_id && (
+                            <button 
+                                onClick={handleFollow}
+                                disabled={followLoading}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
+                                    isFollowing 
+                                        ? 'bg-white/10 text-white hover:bg-red-500/10 hover:text-red-500' 
+                                        : 'bg-white text-black hover:bg-white/90'
+                                }`}
+                            >
+                                {followLoading ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                ) : isFollowing ? (
+                                    <UserCheck size={14} />
+                                ) : (
+                                    <UserPlus size={14} />
+                                )}
+                                {isFollowing ? 'Following' : (followsViewer ? 'Follow Back' : 'Follow')}
+                            </button>
+                        )}
                     </div>
                 </div>
               </div>
@@ -439,25 +536,101 @@ export default function PostDetail() {
             )}
 
             {/* Marketplace Metadata */}
-            {(Number(post.is_marketplace) === 1 || post.type === 'marketplace' || post.deal_metadata) && (
-                <div className="mt-4 p-6 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl flex items-center justify-between group">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <ShoppingBag className="text-brand-cyan" size={20} />
-                            <span className="font-black text-brand-cyan uppercase text-xs tracking-widest">Marketplace Item</span>
+            {(post.is_marketplace || post.type === 'marketplace' || post.deal_metadata) && (
+                <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-3xl p-6 flex flex-col gap-4 group/deal relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-brand-cyan/10 rounded-2xl">
+                                <ShoppingBag className="text-brand-cyan" size={24} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-black text-brand-cyan tracking-wider">
+                                    {post.listing_type === 'auction' ? 'LIVE AUCTION' : 'Verified Seller Deal'}
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <p className="text-2xl font-black text-white">
+                                        {post.listing_type === 'auction' 
+                                            ? `KES ${Number(post.highest_bid || post.auction_start_price || 0).toLocaleString()}`
+                                            : `KES ${Number(parseJSON(post.deal_metadata)?.price || 0).toLocaleString()}`
+                                        }
+                                    </p>
+                                    {parseJSON(post.deal_metadata)?.condition && (
+                                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/20">
+                                            {parseJSON(post.deal_metadata).condition}
+                                        </span>
+                                    )}
+                                </div>
+                                {parseJSON(post.deal_metadata)?.location && (
+                                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                        <MapPin size={12} />
+                                        <span>{parseJSON(post.deal_metadata).location}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <p className="text-2xl font-black text-white">KES {parseJSON(post.deal_metadata)?.price || 'Negotiable'}</p>
-                        <div className="flex items-center gap-2 text-gray-500 text-sm mt-1">
-                            <MapPin size={14} />
-                            <span>{parseJSON(post.deal_metadata)?.location || 'Kenya'}</span>
-                        </div>
+
+                        {post.listing_type === 'auction' && post.auction_end_at && (
+                            <AuctionTimer expiryDate={post.auction_end_at} />
+                        )}
                     </div>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setSafeTradeOpen(true); }}
-                        className="px-6 py-3 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-cyan/20 flex items-center gap-2"
-                    >
-                        Buy Safely <ExternalLink size={16} />
-                    </button>
+
+                    {user?.id !== post.author_id && post.listing_status !== 'sold' && (
+                        <div className="flex gap-3">
+                            {post.listing_type === 'auction' ? (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setBidPulse(post); }}
+                                    className="flex-1 py-4 bg-brand-cyan text-black rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-brand-cyan/20 flex items-center justify-center gap-2"
+                                >
+                                    <Gavel size={18} />
+                                    Place Bid
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')) {
+                                            setSafeTradeOpen(true);
+                                        } else {
+                                            setInterestPulse(post);
+                                        }
+                                    }}
+                                    className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
+                                        userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')
+                                            ? 'bg-green-500 text-white shadow-xl shadow-green-500/20'
+                                            : 'bg-brand-cyan text-black shadow-xl shadow-brand-cyan/20 hover:scale-[1.02]'
+                                    }`}
+                                >
+                                    {userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted') ? (
+                                        <>
+                                            <CheckCircle size={18} />
+                                            Deal Accepted - Buy Safely
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MessageSquare size={18} />
+                                            Chat to Buy
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                            
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); }} // Could open info modal
+                                className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-brand-cyan transition-all border border-brand-cyan/20"
+                                title="Safety Guidelines"
+                            >
+                                <ShieldCheck size={20} />
+                            </button>
+                        </div>
+                    )}
+                    
+                    {post.listing_status === 'sold' && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-10">
+                            <div className="px-8 py-3 bg-red-500 text-white font-black uppercase tracking-widest rounded-full rotate-[-5deg] border-4 border-white shadow-2xl">
+                                Sold Out
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -558,6 +731,34 @@ export default function PostDetail() {
             initiateEscrow();
         }}
       />
+
+      {/* Marketplace Modals */}
+      {interestPulse && (
+        <InterestModal
+          pulse={interestPulse}
+          existingInterest={userInterests.find(i => i.pulse_id === interestPulse.id)}
+          onClose={() => setInterestPulse(null)}
+          onInterestSent={(id) => {
+            fetchUserInterests();
+            setInterestPulse(null);
+          }}
+          onProceedToEscrow={() => {
+            setInterestPulse(null);
+            setSafeTradeOpen(true);
+          }}
+        />
+      )}
+
+      {bidPulse && (
+        <BidModal
+          pulse={bidPulse}
+          onClose={() => setBidPulse(null)}
+          onBidPlaced={() => {
+            setBidPulse(null);
+            fetchPost();
+          }}
+        />
+      )}
     </div>
   );
 }
