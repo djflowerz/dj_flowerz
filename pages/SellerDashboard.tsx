@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { useCurrency } from '../context/CurrencyContext';
 
 interface SellerStats {
   total_earned: number;
@@ -26,6 +27,7 @@ interface PayoutRequest {
 
 export default function SellerDashboard() {
   const { session } = useAuth();
+  const { formatPrice, currency } = useCurrency();
   const [stats, setStats] = useState<SellerStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -143,20 +145,20 @@ export default function SellerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
            <StatCard 
              title="Total Earned" 
-             value={`KES ${stats?.total_earned?.toLocaleString() || '0'}`} 
+             value={formatPrice(stats?.total_earned || 0)} 
              icon={<TrendingUp className="text-emerald-400" />} 
              subtitle="Lifetime marketplace revenue"
            />
            <StatCard 
              title="Pending Escrow" 
-             value={`KES ${stats?.pending_escrow?.toLocaleString() || '0'}`} 
+             value={formatPrice(stats?.pending_escrow || 0)} 
              icon={<Clock className="text-amber-400" />} 
              subtitle="Locked until buyer confirms receipt"
              highlight
            />
            <StatCard 
              title="Available Balance" 
-             value={`KES ${stats?.available_balance?.toLocaleString() || '0'}`} 
+             value={formatPrice(stats?.available_balance || 0)} 
              icon={<Wallet className="text-brand-cyan" />} 
              subtitle="Ready for withdrawal"
              action={
@@ -199,7 +201,7 @@ export default function SellerDashboard() {
                         className="flex-1 bg-gradient-to-t from-brand-cyan/20 to-brand-cyan/60 rounded-t-lg group relative"
                       >
                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white text-black text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            +{Math.floor(Math.random() * 5000)} KES
+                            +{formatPrice(Math.floor(Math.random() * 5000))}
                          </div>
                       </motion.div>
                     ))}
@@ -209,6 +211,7 @@ export default function SellerDashboard() {
                     <span>Jun</span>
                     <span>Dec</span>
                  </div>
+              </div>
 
                {/* Payout History */}
                <div className="glass-panel rounded-3xl p-8 border border-white/5 bg-white/[0.02]">
@@ -230,7 +233,7 @@ export default function SellerDashboard() {
                                   <Landmark size={20} />
                                </div>
                                <div>
-                                  <p className="text-sm font-black text-white">KES {payout.amount.toLocaleString()}</p>
+                                  <p className="text-sm font-black text-white">{formatPrice(payout.amount)}</p>
                                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{new Date(payout.created_at).toLocaleDateString()}</p>
                                </div>
                             </div>
@@ -286,7 +289,6 @@ export default function SellerDashboard() {
                     </div>
                   )}
                </div>
-              </div>
            </div>
 
            {/* Right Col: Payout Status / Policy */}
@@ -341,7 +343,7 @@ export default function SellerDashboard() {
                   
                   <div className="space-y-6">
                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Amount to Withdraw (KES)</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Amount to Withdraw ({currency})</label>
                         <div className="relative">
                            <input 
                              type="number" 
@@ -350,7 +352,7 @@ export default function SellerDashboard() {
                              placeholder="e.g. 5000"
                              className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xl font-black text-white focus:border-brand-cyan/50 focus:outline-none transition-all placeholder:text-gray-800"
                            />
-                           <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-cyan">MAX: {stats?.available_balance?.toLocaleString()}</div>
+                           <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-cyan">MAX: {formatPrice(stats?.available_balance || 0)}</div>
                         </div>
                      </div>
 

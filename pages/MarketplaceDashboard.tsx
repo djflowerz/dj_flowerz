@@ -256,7 +256,7 @@ export default function MarketplaceDashboard() {
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Amount to Withdraw (KES)</label>
+                    <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Amount to Withdraw ({currency})</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -265,7 +265,7 @@ export default function MarketplaceDashboard() {
                         className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xl font-bold text-white outline-none focus:border-green-500/50 transition-colors"
                         placeholder="0.00"
                       />
-                      <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 font-black">KES</div>
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 font-black">{currency}</div>
                     </div>
                   </div>
 

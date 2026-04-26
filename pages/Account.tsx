@@ -14,8 +14,9 @@ import SubscriptionTimer from '../components/SubscriptionTimer';
 import UserInstallments from '../components/user/UserInstallments';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
+import { useCurrency } from '../context/CurrencyContext';
 
-const generateOrderPDF = (order: any) => {
+const generateOrderPDF = (order: any, formatPrice: (n: number) => string) => {
   const doc = new jsPDF();
   const themeColor: [number, number, number] = [147, 51, 234]; // Brand Purple (RGB for #9333ea)
 
@@ -55,8 +56,8 @@ const generateOrderPDF = (order: any) => {
     item.productName,
     item.variant || 'Standard',
     item.quantity.toString(),
-    `KES ${item.price.toLocaleString()}`,
-    `KES ${(item.price * item.quantity).toLocaleString()}`
+    formatPrice(item.price),
+    formatPrice(item.price * item.quantity)
   ]);
 
   autoTable(doc, {
@@ -74,22 +75,22 @@ const generateOrderPDF = (order: any) => {
   
   const summaryX = 140;
   doc.text("Subtotal:", summaryX, finalY);
-  doc.text(`KES ${(order.subtotal || order.total - (order.shippingCost || 0) + (order.discountAmount || 0)).toLocaleString()}`, 190, finalY, { align: 'right' });
+  doc.text(formatPrice(order.subtotal || order.total - (order.shippingCost || 0) + (order.discountAmount || 0)), 190, finalY, { align: 'right' });
 
   if (order.discountAmount > 0) {
     doc.text("Discount:", summaryX, finalY + 5);
-    doc.text(`- KES ${order.discountAmount.toLocaleString()}`, 190, finalY + 5, { align: 'right' });
+    doc.text(`- ${formatPrice(order.discountAmount)}`, 190, finalY + 5, { align: 'right' });
   }
 
   if (order.shippingCost > 0) {
     doc.text("Shipping:", summaryX, finalY + 10);
-    doc.text(`KES ${order.shippingCost.toLocaleString()}`, 190, finalY + 10, { align: 'right' });
+    doc.text(formatPrice(order.shippingCost), 190, finalY + 10, { align: 'right' });
   }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.text("Total:", summaryX, finalY + 18);
-  doc.text(`KES ${order.total.toLocaleString()}`, 190, finalY + 18, { align: 'right' });
+  doc.text(formatPrice(order.total), 190, finalY + 18, { align: 'right' });
 
   // Footer
   doc.setFontSize(8);
@@ -104,8 +105,9 @@ const generateOrderPDF = (order: any) => {
 
 const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || import.meta.env.VITE_STORAGE_WORKER_URL || 'https://djflowerz-worker.ianmuriithiflowerz.workers.dev';
 
-const Account: React.FC = () => {
+export default function Account() {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount, session } = useAuth();
+  const { formatPrice } = useCurrency();
   const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats, wishlist, products, mixtapes, poolTracks, toggleWishlist, wishlistLoading } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
   
@@ -330,10 +332,15 @@ const Account: React.FC = () => {
     if (!user?.id) return;
     setLoadingLoyalty(true);
     try {
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/loyalty/history?userId=${user.id}`);
+      const resp = await fetch(`${API}/api/loyalty/history?userId=${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+          'X-Actor-Id': user.id
+        }
+      });
       if (resp.ok) {
         const data = await resp.json();
-        setLoyaltyHistory(data);
+        setLoyaltyHistory(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error("Failed to fetch loyalty history:", err);
@@ -796,7 +803,7 @@ const Account: React.FC = () => {
                           <Package size={20} />
                         </div>
                         <h4 className="text-white font-bold mb-1">Shopping</h4>
-                        <p className="text-gray-500 text-xs">Earn 1 Aura Point for every KES 100 spent on digital or physical items.</p>
+                        <p className="text-gray-500 text-xs">Earn 1 Aura Point for every 100 in local currency spent on digital or physical items.</p>
                       </div>
 
                       <div className="bg-[#15151A] p-5 rounded-xl border border-white/5 hover:border-brand-cyan/30 transition group">
@@ -1004,7 +1011,7 @@ const Account: React.FC = () => {
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total</p>
-                                  <p className="text-brand-purple font-black text-xs">KES {order.total.toLocaleString()}</p>
+                                  <p className="text-brand-purple font-black text-xs">{formatPrice(order.total)}</p>
                                 </div>
                                 <div>
                                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${order.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
@@ -1017,7 +1024,7 @@ const Account: React.FC = () => {
                                 </div>
                                 <div>
                                   <button 
-                                    onClick={() => generateOrderPDF(order)}
+                                    onClick={() => generateOrderPDF(order, formatPrice)}
                                     className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-white text-[10px] font-bold transition-all group"
                                   >
                                     <FileText size={14} className="text-brand-purple group-hover:scale-110 transition-transform" />
@@ -1169,7 +1176,7 @@ const Account: React.FC = () => {
                             <DollarSign size={14} />
                             <span className="text-xs font-bold uppercase">Earned</span>
                           </div>
-                          <p className="text-2xl font-bold text-brand-purple">KES {userReferralStats?.total_earned || userReferralStats?.totalEarned || 0}</p>
+                          <p className="text-2xl font-bold text-brand-purple">{formatPrice(userReferralStats?.total_earned || userReferralStats?.totalEarned || 0)}</p>
                         </div>
                       </div>
 
@@ -1182,7 +1189,7 @@ const Account: React.FC = () => {
                           </li>
                           <li className="flex gap-3 text-xs text-gray-300">
                             <div className="w-4 h-4 rounded-full bg-brand-purple/20 flex items-center justify-center flex-shrink-0 text-brand-purple text-[10px] font-bold">2</div>
-                            You earn KES 100 instantly!
+                            You earn {formatPrice(100)} instantly!
                           </li>
                         </ul>
 
@@ -1303,7 +1310,7 @@ const Account: React.FC = () => {
                                     {details.name || details.title}
                                   </Link>
                                   {details.price && (
-                                    <p className="text-brand-cyan text-xs font-bold mt-1">KES {details.price.toLocaleString()}</p>
+                                    <p className="text-brand-cyan text-xs font-bold mt-1">{formatPrice(details.price)}</p>
                                   )}
                                   {details.artist && (
                                     <p className="text-gray-500 text-xs mt-1">{details.artist}</p>
@@ -1343,5 +1350,3 @@ const Account: React.FC = () => {
     </div>
   );
 };
-
-export default Account;

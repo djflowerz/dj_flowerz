@@ -106,6 +106,49 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   };
 
+  // ── GET /api/loyalty/history ────────────────────────────────────────────
+  // Returns the aura_logs for the authenticated user, newest first.
+  if (path === '/api/loyalty/history' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const userId = url.searchParams.get('userId') || actorId;
+    // Only allow fetching own history unless admin
+    if (userId !== actorId) {
+      const reqProfile = await env.DB.prepare('SELECT is_admin FROM profiles WHERE id = ?').bind(actorId).first() as any;
+      if (!reqProfile?.is_admin) return json({ error: 'Forbidden' }, 403);
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT id, action_type, points, metadata, created_at FROM aura_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`
+      ).bind(userId).all();
+
+      const ACTION_LABELS: Record<string, string> = {
+        purchase: 'Store Purchase',
+        comment: 'Community Reply',
+        post: 'Community Post',
+        review: 'Product Review',
+        referral: 'Referral Bonus',
+        identity_verification: 'Identity Verified',
+        marketplace_deal: 'Marketplace Deal',
+        adjustment: 'Admin Adjustment',
+        signup: 'Welcome Bonus',
+      };
+
+      const history = (results as any[]).map((row: any) => ({
+        id: row.id,
+        type: row.action_type,
+        points: row.points,
+        description: ACTION_LABELS[row.action_type] || row.action_type,
+        metadata: JSON.parse(row.metadata || '{}'),
+        created_at: row.created_at,
+      }));
+
+      return json(history);
+    } catch (e: any) {
+      console.error('[GET /api/loyalty/history]', e);
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // GET /api/files/* (Serves files from R2 or proxies from external hubs)
   if (method === 'GET' && path.startsWith('/api/files/')) {
     const origin = url.searchParams.get('origin');
@@ -428,6 +471,36 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ available: true, handle });
   }
 
+  // GET /api/profiles/:id/followers
+  const followersMatch = path.match(/^\/api\/profiles\/([^/]+)\/followers$/);
+  if (followersMatch && method === 'GET') {
+    const userId = followersMatch[1];
+    const { results } = await env.DB.prepare(`
+      SELECT p.id, p.handle, p.full_name, p.avatar_url, p.bio, p.aura_tier,
+      EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.id) as is_following
+      FROM follows f
+      JOIN profiles p ON f.follower_id = p.id
+      WHERE f.followed_id = ?
+      ORDER BY f.created_at DESC
+    `).bind(actorId || '', userId).all();
+    return json({ results: results || [] });
+  }
+
+  // GET /api/profiles/:id/following
+  const followingMatch = path.match(/^\/api\/profiles\/([^/]+)\/following$/);
+  if (followingMatch && method === 'GET') {
+    const userId = followingMatch[1];
+    const { results } = await env.DB.prepare(`
+      SELECT p.id, p.handle, p.full_name, p.avatar_url, p.bio, p.aura_tier,
+      EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.id) as is_following
+      FROM follows f
+      JOIN profiles p ON f.followed_id = p.id
+      WHERE f.follower_id = ?
+      ORDER BY f.created_at DESC
+    `).bind(actorId || '', userId).all();
+    return json({ results: results || [] });
+  }
+
   // POST /api/profiles/handle/claim
   if (path === '/api/profiles/handle/claim' && method === 'POST') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
@@ -718,8 +791,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         }
       }
 
-      // Award Reputation for activity
-      await env.DB.prepare('UPDATE profiles SET aura_points = aura_points + 5 WHERE id = ?').bind(actorId).run();
+      // Award Reputation for activity (logs to aura_logs for history)
+      const isReply = !!parent_id;
+      await awardPoints(actorId, isReply ? 'comment' : 'post', 5, { pulse_id: id });
 
       return json({ success: true, id });
     } catch (e: any) {

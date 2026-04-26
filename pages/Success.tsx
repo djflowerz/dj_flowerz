@@ -4,12 +4,14 @@ import { CheckCircle, Download, ArrowRight, Printer, Package, Music, FileText, S
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { downloadFileSecurely } from '../utils/downloadHelper';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Success: React.FC = () => {
    const { clearCart } = useCart();
+   const { formatPrice } = useCurrency();
    const { siteConfig, issueReferralReward, addSubscriber, addOrder, addPayment, addTip, orders, ordersLoading, tips, payments } = useData();
     const { id } = useParams<{ id: string }>();
     const location = useLocation();
@@ -360,25 +362,25 @@ const Success: React.FC = () => {
                         <div className="space-y-4">
                            <div className="flex justify-between items-center text-xs">
                               <span className="text-gray-500 font-bold uppercase tracking-widest">Base Subtotal</span>
-                              <span className="text-white font-bold tracking-tight">KES {(state.subtotal || totalAmount).toLocaleString()}</span>
+                              <span className="text-white font-bold tracking-tight">{formatPrice(state.subtotal || totalAmount)}</span>
                            </div>
                            {state.shippingCost > 0 && (
                               <div className="flex justify-between items-center text-xs">
                                  <span className="text-gray-500 font-bold uppercase tracking-widest">Shipping Pulse</span>
-                                 <span className="text-white font-bold tracking-tight">+ KES {state.shippingCost.toLocaleString()}</span>
+                                 <span className="text-white font-bold tracking-tight">+ {formatPrice(state.shippingCost)}</span>
                               </div>
                            )}
                            {state.discountAmount > 0 && (
                               <div className="flex justify-between items-center text-xs">
                                  <span className="text-gray-500 font-bold uppercase tracking-widest">Protocol Discount</span>
-                                 <span className="text-emerald-500 font-bold tracking-tight">- KES {state.discountAmount.toLocaleString()}</span>
+                                 <span className="text-emerald-500 font-bold tracking-tight">- {formatPrice(state.discountAmount)}</span>
                               </div>
                            )}
 
                            <div className="pt-6 border-t border-white/5 flex justify-between items-end">
                               <div>
                                  <p className="text-[9px] font-black text-brand-purple uppercase tracking-[0.4em] mb-1">Total Settlement</p>
-                                 <p className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">KES {totalAmount.toLocaleString()}</p>
+                                 <p className="text-4xl font-black text-white tracking-tighter tabular-nums leading-none">{formatPrice(totalAmount)}</p>
                               </div>
                               <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
                                  Confirmed

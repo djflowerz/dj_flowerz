@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Heart, Coffee } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
 
 const TipJar: React.FC = () => {
   const { user } = useAuth();
+  const { currency, formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [amount, setAmount] = useState<number | ''>('');
   const [message, setMessage] = useState('');
@@ -14,7 +16,11 @@ const TipJar: React.FC = () => {
   const [guestEmail, setGuestEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const presets = [100, 200, 500, 1000];
+  // Constants for conversion
+  const KES_TO_USD = 0.0075;
+  const USD_TO_KES = 1 / KES_TO_USD;
+
+  const presets = currency === 'USD' ? [1, 5, 10, 20] : [100, 200, 500, 1000];
 
   const handlePayment = async () => {
     if (!amount || amount <= 0) {
@@ -36,14 +42,16 @@ const TipJar: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'tip',
-          amount: Number(amount), // Amount in KES (worker will convert to kobo)
+          amount: currency === 'USD' ? Math.round(Number(amount) * USD_TO_KES) : Number(amount), // Convert USD back to KES for Paystack
           email: user?.email || guestEmail,
           metadata: {
             userId: user?.id,
             userEmail: user?.email || guestEmail,
             customerName: user?.name || guestName || 'Guest Tipper',
             message: message,
-            type: 'tip', // Explicitly pass type for webhook processing
+            type: 'tip',
+            currency: currency,
+            originalAmount: amount
           },
           callback_url: `${window.location.origin}/checkout`
         })
@@ -87,13 +95,13 @@ const TipJar: React.FC = () => {
                 onClick={() => setAmount(val)}
                 className={`py-3 rounded-xl text-sm font-bold border transition active:scale-95 ${amount === val ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-brand-purple/20' : 'bg-black/20 border-white/10 text-gray-300 hover:border-brand-purple hover:text-white'}`}
               >
-                {val}
+                {currency === 'USD' ? `$${val}` : val}
               </button>
             ))}
           </div>
 
           <div className="mb-6 relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-lg">KES</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-lg">{currency}</span>
             <input
               id="tip-amount"
               name="amount"

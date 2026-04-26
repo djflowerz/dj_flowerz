@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 // --- Constants & Data ---
 
@@ -35,6 +36,7 @@ const PACKAGES = [
 ];
 
 const RecordingSessions: React.FC = () => {
+   const { formatPrice, currency } = useCurrency();
    // Booking State
    const { user } = useAuth();
    const { studioLocations, studioGear, studioLocationsLoading, studioGearLoading } = useData();
@@ -235,7 +237,7 @@ const RecordingSessions: React.FC = () => {
                                           </div>
                                        </div>
                                        <div className="text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0">
-                                          <span className="block text-xl font-bold text-white">KES {loc.rate.toLocaleString()}</span>
+                                          <span className="block text-xl font-bold text-white">{formatPrice(loc.rate)}</span>
                                           <span className="text-xs text-gray-500">/ hour</span>
                                        </div>
                                     </div>
@@ -333,7 +335,7 @@ const RecordingSessions: React.FC = () => {
                                                 {isSelected && <Check size={18} className="text-brand-purple" />}
                                              </div>
                                              <p className="text-xs text-gray-400 mb-2">{item.category}</p>
-                                             <p className="text-brand-cyan font-bold text-sm">+ KES {item.hourlyRate}/hr</p>
+                                             <p className="text-brand-cyan font-bold text-sm">+ {formatPrice(item.hourlyRate)}/hr</p>
 
                                              {!status.available && (
                                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl backdrop-blur-sm">
@@ -374,7 +376,7 @@ const RecordingSessions: React.FC = () => {
                                        return (
                                           <div key={id} className="flex justify-between text-sm mb-1">
                                              <span className="text-gray-300">+ {g?.name}</span>
-                                             <span className="text-brand-purple">KES {g?.hourlyRate || g?.hourly_rate}/hr</span>
+                                             <span className="text-brand-purple">{formatPrice(g?.hourlyRate || g?.hourly_rate || 0)}/hr</span>
                                           </div>
                                        );
                                     })}
@@ -427,7 +429,7 @@ const RecordingSessions: React.FC = () => {
                                     disabled={loading}
                                     className="px-8 py-3 bg-gradient-to-r from-brand-purple to-brand-cyan text-white font-bold rounded-lg hover:shadow-lg hover:shadow-brand-purple/20 transition flex items-center gap-2 disabled:opacity-50"
                                  >
-                                    <CreditCard size={18} /> {loading ? 'Processing...' : 'Pay Deposit (KES 1,000)'}
+                                    <CreditCard size={18} /> {loading ? 'Processing...' : `Pay Deposit (${formatPrice(1000)})`}
                                  </button>
                               </div>
                            )}
@@ -469,12 +471,12 @@ const RecordingSessions: React.FC = () => {
                      <div className="space-y-3 mb-6">
                         <div className="flex justify-between text-sm text-gray-400">
                            <span>Base Rate ({duration}h)</span>
-                           <span>KES {(selectedLocation.rate * duration).toLocaleString()}</span>
+                           <span>{formatPrice(selectedLocation.rate * duration)}</span>
                         </div>
                         {selectedGear.length > 0 && (
                            <div className="flex justify-between text-sm text-gray-400">
                               <span>Equipment Add-ons</span>
-                              <span>KES {(calculateTotal - (selectedLocation.rate * duration)).toLocaleString()}</span>
+                              <span>{formatPrice(calculateTotal - (selectedLocation.rate * duration))}</span>
                            </div>
                         )}
                         <div className="flex justify-between text-sm text-gray-400 pt-2 border-t border-white/5">
@@ -485,7 +487,7 @@ const RecordingSessions: React.FC = () => {
 
                      <div className="flex justify-between items-center text-2xl font-bold text-white mb-6">
                         <span>Total</span>
-                        <span>KES {calculateTotal.toLocaleString()}</span>
+                        <span>{formatPrice(calculateTotal)}</span>
                      </div>
 
                      <div className="bg-brand-cyan/10 p-3 rounded-lg text-xs text-brand-cyan leading-relaxed mb-4">
@@ -503,7 +505,7 @@ const RecordingSessions: React.FC = () => {
                                  <h4 className="font-bold text-white">{pkg.name}</h4>
                                  {pkg.isPopular && <span className="text-[10px] bg-brand-purple text-white px-2 py-0.5 rounded-full">HOT</span>}
                               </div>
-                              <p className="text-brand-cyan font-bold text-sm mb-2">KES {pkg.price.toLocaleString()} <span className="text-gray-500 font-normal">{pkg.period}</span></p>
+                              <p className="text-brand-cyan font-bold text-sm mb-2">{formatPrice(pkg.price)} <span className="text-gray-500 font-normal">{pkg.period}</span></p>
                               <p className="text-xs text-gray-400 group-hover:text-white transition">Includes: {pkg.features.slice(0, 3).join(', ')}...</p>
                            </div>
                         ))}

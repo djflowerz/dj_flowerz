@@ -13,6 +13,7 @@ import { supabase } from '../utils/supabase';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 /* ─── Digital Delivery Screen ───────────────────────────────────────────── */
 interface DownloadItem {
@@ -75,6 +76,7 @@ const DigitalDelivery: React.FC<{ downloads: DownloadItem[]; email: string }> = 
 /* ─── Main Checkout Page ─────────────────────────────────────────────────── */
 export default function Checkout() {
   const { user, loading } = useAuth() as any;
+  const { formatPrice, currency } = useCurrency();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const paymentRef = queryParams.get('reference') || queryParams.get('trxref');
@@ -295,7 +297,7 @@ export default function Checkout() {
       const data = await resp.json();
       if (data.success) {
         if (data.min_spend && subtotal < data.min_spend) {
-          toast.error(`Minimum spend for this coupon is KES ${data.min_spend.toLocaleString()}`);
+          toast.error(`Minimum spend for this coupon is ${formatPrice(data.min_spend)}`);
           return;
         }
         setActiveCoupon(data);
@@ -699,7 +701,7 @@ export default function Checkout() {
                                 </p>
                             </div>
                         </div>
-                        <span className="text-xl font-black text-brand-cyan">KES {shippingCost.toLocaleString()}</span>
+                        <span className="text-xl font-black text-brand-cyan">{formatPrice(shippingCost)}</span>
                     </div>
 
                     <div className="flex gap-4 mt-6">
@@ -859,7 +861,7 @@ export default function Checkout() {
                             <span className="text-[9px] bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 px-1.5 py-0.5 rounded uppercase font-black tracking-widest">Digital</span>
                           )}
                         </div>
-                        <span className="text-sm font-black text-brand-purple">KES {(item.price * item.quantity).toLocaleString()}</span>
+                        <span className="text-sm font-black text-brand-purple">{formatPrice(item.price * item.quantity)}</span>
                       </div>
                     </div>
                   </div>
@@ -910,7 +912,7 @@ export default function Checkout() {
                   <div className="flex items-center gap-2 px-2 text-green-500 animate-in fade-in slide-in-from-top-1">
                     <Check size={12} />
                     <span className="text-[10px] font-black uppercase tracking-widest">
-                      {activeCoupon.code} applied (-KES {discountAmount.toLocaleString()})
+                      {activeCoupon.code} applied (-{formatPrice(discountAmount)})
                     </span>
                   </div>
                 )}
@@ -919,18 +921,18 @@ export default function Checkout() {
               <div className="space-y-3 pt-6 border-t border-white/5">
                 <div className="flex justify-between items-center px-2">
                   <span className="text-xs font-black text-gray-600 uppercase tracking-widest">Subtotal</span>
-                  <span className="text-sm font-bold text-gray-400">KES {cartTotal.toLocaleString()}</span>
+                  <span className="text-sm font-bold text-gray-400">{formatPrice(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between items-center px-2">
                   <span className="text-xs font-black text-gray-600 uppercase tracking-widest">Shipping</span>
                   <span className={`text-sm font-bold ${isDigitalOnly ? 'text-green-500' : 'text-brand-cyan'}`}>
-                    {isDigitalOnly ? 'FREE' : `KES ${shippingCost.toLocaleString()}`}
+                    {isDigitalOnly ? 'FREE' : formatPrice(shippingCost)}
                   </span>
                 </div>
                 {activeCoupon && (
                   <div className="flex justify-between items-center px-2">
                     <span className="text-xs font-black text-green-600 uppercase tracking-widest">Discount</span>
-                    <span className="text-sm font-bold text-green-500">- KES {discountAmount.toLocaleString()}</span>
+                    <span className="text-sm font-bold text-green-500">- {formatPrice(discountAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center px-4 py-6 bg-brand-purple/10 rounded-[2rem] border border-brand-purple/20 shadow-inner">
@@ -939,11 +941,11 @@ export default function Checkout() {
                   </span>
                   <div className="text-right">
                     <span className="text-2xl font-black text-white tracking-tighter leading-none">
-                      KES {paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}
+                      {formatPrice(paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2) : finalTotal)}
                     </span>
                     {paymentType === 'lipa_pole_pole' && (
                       <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
-                        Full Price: KES {finalTotal.toLocaleString()}
+                        Full Price: {formatPrice(finalTotal)}
                       </p>
                     )}
                   </div>
@@ -963,8 +965,8 @@ export default function Checkout() {
                   </div>
                 ) : (
                   isDigitalOnly
-                    ? <><Zap size={20} className="mr-2" /> Pay & Download · KES {paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}</>
-                    : `Pay KES ${paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2).toLocaleString() : finalTotal.toLocaleString()}`
+                    ? <><Zap size={20} className="mr-2" /> Pay & Download · {formatPrice(paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2) : finalTotal)}</>
+                    : `Pay ${formatPrice(paymentType === 'lipa_pole_pole' ? Math.ceil(finalTotal * 0.2) : finalTotal)}`
                 )}
               </button>
 

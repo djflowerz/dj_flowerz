@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import MusicPoolPreview from '../components/MusicPoolPreview';
+import CommunityPreview from '../components/CommunityPreview';
 import { CountdownTimer } from '../components/CountdownTimer';
 import Hero from '../components/Hero';
 import ProductCard from '../components/ProductCard';
@@ -153,8 +153,8 @@ const Home: React.FC = () => {
             </div>
          </section>
 
-         {/* 5. Music Pool Preview & Grid */}
-         <MusicPoolPreview />
+         {/* 5. Community Preview Section */}
+         <CommunityPreview />
 
          {/* 5. YouTube Section (Dynamic) */}
          <section className="py-20 bg-[#15151A] border-y border-white/5">

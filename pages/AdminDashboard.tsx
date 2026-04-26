@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 import { Booking, Product, Mixtape, SessionType, SiteConfig, User as UserType, TelegramChannel, StudioEquipment, Track, TrackVersion, Genre, Subscription, Order, NewsletterCampaign, SubscriptionPlan, StudioRoom, MaintenanceLog, Coupon, ReferralStats, ShippingZone, ShippingRate, ContactMessage, StudioSession, EventGig } from '../types';
 import { POOL_HUBS, TRACK_TYPES, MIXTAPE_GENRE_NAMES } from '../constants';
@@ -253,12 +254,12 @@ const INITIAL_ROOM_STATE: StudioRoom = { id: '', name: '', capacity: 1, descript
 
 
 
-
 const WORKER_URL = import.meta.env.VITE_STORAGE_WORKER_URL || '';
 
 const AdminDashboard: React.FC = () => {
    const { user, loading, logout } = useAuth();
    const dataContext = useData();
+   const { formatPrice, currency } = useCurrency();
 
    console.log("AdminDashboard Render:", { user, loading, hasDataContext: !!dataContext });
 
@@ -387,7 +388,7 @@ const AdminDashboard: React.FC = () => {
 
    // Form States
 
-   const [newProduct, setNewProduct] = useState<Product>(INITIAL_PRODUCT_STATE);
+   const [newProduct, setNewProduct] = useState<Product>(() => ({ ...INITIAL_PRODUCT_STATE, currency }));
    const [mixtapeFormTab, setMixtapeFormTab] = useState('basic');
    const [notificationsDropdownOpen, setNotificationsDropdownOpen] = useState(false);
    const [newMixtape, setNewMixtape] = useState<Mixtape>(INITIAL_MIXTAPE_STATE);
@@ -1223,7 +1224,7 @@ const AdminDashboard: React.FC = () => {
 
    const openAddProduct = () => {
       setIsEditing(false);
-      setNewProduct(INITIAL_PRODUCT_STATE);
+      setNewProduct({ ...INITIAL_PRODUCT_STATE, currency });
 
       setActiveModal('addProduct');
    };
@@ -1928,10 +1929,10 @@ const AdminDashboard: React.FC = () => {
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard label="Net Revenue" value={`KES ${(adminStats?.total_revenue || 0).toLocaleString()}`} icon={CreditCard} color="text-brand-purple" trend="LIVE" trendUp={true} subtext="Total D1 Revenue" />
-                        <StatCard label="Monthly Forecast" value={`KES ${(adminStats?.monthly_sales_amt || 0).toLocaleString()}`} icon={TrendingUp} color="text-brand-cyan" trend="MTD" trendUp={true} subtext="Last 30 Days" />
-                        <StatCard label="VIP Access" value={(adminStats?.active_subs || 0).toString()} icon={Users} color="text-brand-purple" trend="ACTIVE" trendUp={true} subtext="Pool members" />
-                        <StatCard label="Referrals" value={`KES ${(referralStatsSummary?.payouts || 0).toLocaleString()}`} icon={Gift} color="text-brand-pink" subtext="Reward payouts" />
+                        <StatCard label="Net Revenue" value={formatPrice(adminStats?.total_revenue || 0)} icon={CreditCard} color="text-brand-purple" trend="LIVE" trendUp={true} subtext="Total D1 Revenue" />
+                        <StatCard label="Monthly Forecast" value={formatPrice(adminStats?.monthly_sales_amt || 0)} icon={TrendingUp} color="text-brand-cyan" trend="MTD" trendUp={true} subtext="Last 30 Days" />
+                        <StatCard label="Active Clients" value={adminStats?.total_users || 0} icon={Users} color="text-brand-purple" trend="NEW" trendUp={true} subtext="Registered Accounts" />
+                        <StatCard label="Referrals" value={formatPrice(referralStatsSummary?.payouts || 0)} icon={Gift} color="text-brand-pink" subtext="Reward payouts" />
                      </div>
 
                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2049,7 +2050,7 @@ const AdminDashboard: React.FC = () => {
                                           <div className="text-[10px] text-gray-600 font-bold uppercase tracking-wider mt-0.5">{tx.date}</div>
                                        </td>
                                        <td className="px-8 py-5">
-                                          <div className="text-white font-black">KES {(tx.amount || 0).toLocaleString()}</div>
+                                          <div className="text-white font-black">{formatPrice(tx.amount || 0)}</div>
                                        </td>
                                        <td className="px-8 py-5 text-right">
                                           <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${tx.status === 'completed' || tx.status === 'paid' || tx.status === 'success' || tx.status === 'shipped' || tx.status === 'active'
@@ -3216,11 +3217,11 @@ const AdminDashboard: React.FC = () => {
                                           <td className="px-8 py-6">
                                              <div className="flex flex-col">
                                                 <span className={p.discountPrice && p.discountPrice > 0 ? 'text-gray-600 line-through text-[10px] font-bold' : 'text-white font-black text-base'}>
-                                                   KES {(p.price || 0).toLocaleString()}
+                                                   {formatPrice(p.price || 0)}
                                                 </span>
                                                 {p.discountPrice && p.discountPrice > 0 && (
                                                    <span className="text-brand-cyan font-black text-base">
-                                                      KES {(p.discountPrice || 0).toLocaleString()}
+                                                      {formatPrice(p.discountPrice || 0)}
                                                    </span>
                                                 )}
                                              </div>
@@ -3329,7 +3330,7 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div className="relative z-10">
                                     <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Settled Credit</p>
-                                    <p className="text-3xl font-black text-white tracking-tighter">KES {referralStats.reduce((acc, r) => acc + r.totalEarned, 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">{formatPrice(referralStats.reduce((acc, r) => acc + r.totalEarned, 0))}</p>
                                     <p className="text-[10px] text-brand-cyan font-bold mt-1">Total volume paid</p>
                                  </div>
                               </div>
@@ -3339,7 +3340,7 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                                  <div>
                                     <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Escrowed</p>
-                                    <p className="text-3xl font-black text-white tracking-tighter">KES {referralStats.reduce((acc, r) => acc + r.pendingPayout, 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">{formatPrice(referralStats.reduce((acc, r) => acc + r.pendingPayout, 0))}</p>
                                     <p className="text-[10px] text-brand-pink font-bold mt-1">Awaiting settlement</p>
                                  </div>
                               </div>
@@ -3373,8 +3374,8 @@ const AdminDashboard: React.FC = () => {
                                              <td className="px-8 py-6">
                                                 <span className="text-white font-black text-base">{r.totalReferrals}</span>
                                              </td>
-                                             <td className="px-8 py-6 text-brand-cyan font-black text-base">KES {(r.totalEarned || 0).toLocaleString()}</td>
-                                             <td className="px-8 py-6 text-brand-pink font-black text-base">KES {(r.pendingPayout || 0).toLocaleString()}</td>
+                                             <td className="px-8 py-6 text-brand-cyan font-black text-base">{formatPrice(r.totalEarned || 0)}</td>
+                                             <td className="px-8 py-6 text-brand-pink font-black text-base">{formatPrice(r.pendingPayout || 0)}</td>
                                           </tr>
                                        ))}
                                     </tbody>
@@ -3651,7 +3652,7 @@ const AdminDashboard: React.FC = () => {
                                              </span>
                                           </td>
                                           <td className="px-8 py-6 text-right">
-                                             <span className="text-white font-black">KES {(Number(s.total_price_kes) || 0).toLocaleString()}</span>
+                                             <span className="text-white font-black">{formatPrice(Number(s.total_price_kes) || 0)}</span>
                                           </td>
                                        </tr>
                                     ))}
@@ -3797,7 +3798,7 @@ const AdminDashboard: React.FC = () => {
                               </div>
                            </div>
                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Room Yield</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">KES {(Math.round(studioStats?.revenuePerRoom || 0)).toLocaleString()}</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{formatPrice(Math.round(studioStats?.revenuePerRoom || 0))}</p>
                            <p className="text-[10px] text-brand-purple font-bold mt-1">Avg per unit</p>
                         </div>
                         <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
@@ -3849,7 +3850,7 @@ const AdminDashboard: React.FC = () => {
                                     <div className="flex justify-between items-center relative z-10">
                                        <div className="px-4 py-2 bg-brand-purple/5 border border-brand-purple/10 rounded-2xl">
                                           <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-1">MAGNITUDE</p>
-                                          <p className="font-black text-brand-purple text-lg">KES {(st.price || 0).toLocaleString()}</p>
+                                          <p className="font-black text-brand-purple text-lg">{formatPrice(st.price || 0)}</p>
                                        </div>
                                        <div className="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center text-gray-700 group-hover:border-brand-purple/20 group-hover:text-brand-purple transition-all">
                                           <ExternalLink size={20} />
@@ -4003,7 +4004,7 @@ const AdminDashboard: React.FC = () => {
                               <Gift size={24} />
                            </div>
                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Settled Assets</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">KES {(referralStatsSummary?.payouts || 0).toLocaleString()}</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{formatPrice(referralStatsSummary?.payouts || 0)}</p>
                            <p className="text-[10px] text-brand-pink font-bold mt-1">Cumulative payouts</p>
                         </div>
                         <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group">
@@ -4056,7 +4057,7 @@ const AdminDashboard: React.FC = () => {
                                        className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-purple uppercase outline-none focus:border-brand-purple/50 transition-all cursor-pointer"
                                     >
                                        <option value="percentage">% MAGNITUDE</option>
-                                       <option value="flat">KES QUANTITY</option>
+                                       <option value="flat">{currency} QUANTITY</option>
                                     </select>
                                  </div>
                                  <div className="relative group">
@@ -4069,7 +4070,7 @@ const AdminDashboard: React.FC = () => {
                                        className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-purple/50 outline-none font-black text-xl text-white transition-all shadow-inner"
                                     />
                                     <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-purple transition-colors">
-                                       {referralSettings.newUserDiscountType === 'percentage' ? '%' : 'KES'}
+                                       {referralSettings.newUserDiscountType === 'percentage' ? '%' : currency}
                                     </span>
                                  </div>
                               </div>
@@ -4086,7 +4087,7 @@ const AdminDashboard: React.FC = () => {
                                        onChange={(e) => updateReferralSettings({ referrerRewardAmount: Number(e.target.value) })}
                                        className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-purple/50 outline-none font-black text-xl text-white transition-all shadow-inner"
                                     />
-                                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-purple transition-colors">KES</span>
+                                    <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-purple transition-colors">{currency}</span>
                                  </div>
                               </div>
                            </div>
@@ -4103,7 +4104,7 @@ const AdminDashboard: React.FC = () => {
                                        className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-brand-cyan uppercase outline-none focus:border-brand-cyan/50 transition-all cursor-pointer"
                                     >
                                        <option value="percentage">% MAGNITUDE</option>
-                                       <option value="flat">KES QUANTITY</option>
+                                       <option value="flat">{currency} QUANTITY</option>
                                     </select>
                                  </div>
                                  <div className="relative group">
@@ -4116,7 +4117,7 @@ const AdminDashboard: React.FC = () => {
                                        className="bg-[#07070A] border border-white/5 rounded-2xl px-6 py-5 w-full focus:border-brand-cyan/50 outline-none font-black text-xl text-white transition-all shadow-inner"
                                     />
                                     <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 font-black text-xs uppercase tracking-widest group-focus-within:text-brand-cyan transition-colors">
-                                       {referralSettings.firstTimeDiscountType === 'percentage' ? '%' : 'KES'}
+                                       {referralSettings.firstTimeDiscountType === 'percentage' ? '%' : currency}
                                     </span>
                                  </div>
                               </div>
@@ -4199,7 +4200,7 @@ const AdminDashboard: React.FC = () => {
                                              <td className="px-8 py-6">
                                                 <span className="text-gray-400 font-black uppercase tracking-widest text-[9px] px-3 py-1 border border-white/5 rounded-full">{log.planPurchased}</span>
                                              </td>
-                                             <td className="px-8 py-6 text-brand-cyan font-black text-base">KES {referralSettings.referrerRewardAmount}</td>
+                                             <td className="px-8 py-6 text-brand-cyan font-black text-base">{formatPrice(referralSettings.referrerRewardAmount)}</td>
                                              <td className="px-8 py-6 text-gray-500 font-bold">{new Date(log.createdAt).toLocaleDateString()}</td>
                                              <td className="px-8 py-6">
                                                 <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${log.status === 'completed' ? 'bg-brand-cyan/5 text-brand-cyan border-brand-cyan/20' :
@@ -4261,7 +4262,7 @@ const AdminDashboard: React.FC = () => {
                               </div>
                            </div>
                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-[0.2em] mb-1">Asset Revenue</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">KES {new Intl.NumberFormat('en-KE', { notation: "compact" }).format(shippingStats.revenue)}</p>
+                           <p className="text-3xl font-black text-white tracking-tighter">{formatPrice(shippingStats.revenue)}</p>
                         </div>
                         <div className="bg-[#0B0B0F] p-6 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
                            <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl rounded-full -mr-12 -mt-12 group-hover:bg-red-500/10 transition-colors" />
@@ -5208,7 +5209,7 @@ const AdminDashboard: React.FC = () => {
                <div className="space-y-4">
                   <InputGroup label="Plan Name" value={editingPlan.name} onChange={v => setEditingPlan({ ...editingPlan, name: v })} required />
                   <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Price (KES)" type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} required />
+                     <InputGroup label={`Price (${currency})`} type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} required />
                      <InputGroup label="Period (e.g. mo, yr)" value={editingPlan.period} onChange={v => setEditingPlan({ ...editingPlan, period: v })} required />
                   </div>
                   <InputGroup label="Payment Link" value={editingPlan.link || ''} onChange={v => setEditingPlan({ ...editingPlan, link: v })} placeholder="https://paystack..." />
@@ -5237,7 +5238,7 @@ const AdminDashboard: React.FC = () => {
                   {editingZone?.rates.map((rate) => (
                      <div key={rate.id} className="bg-black/20 p-4 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                         <div className="font-bold text-white">{rate.type.toUpperCase()}</div>
-                        <InputGroup label="Price (KES)" type="number" value={rate.price} onChange={v => updateRate(rate.id, 'price', Number(v))} />
+                        <InputGroup label={`Price (${currency})`} type="number" value={rate.price} onChange={v => updateRate(rate.id, 'price', Number(v))} />
                         <InputGroup label="Timeline" value={rate.timeline} onChange={v => updateRate(rate.id, 'timeline', v)} />
                      </div>
                   ))}
@@ -5626,7 +5627,7 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <p className="text-white font-bold text-sm">KES {(item.price || 0).toLocaleString()}</p>
+                                 <p className="text-white font-bold text-sm">{formatPrice(item.price || 0)}</p>
                                  <p className="text-[10px] text-gray-600 font-bold">QTY: {item.quantity}</p>
                               </div>
                            </div>
@@ -5635,23 +5636,23 @@ const AdminDashboard: React.FC = () => {
                      <div className="bg-white/5 px-8 pt-6 pb-8 border-t border-white/5 space-y-2">
                         <div className="flex justify-between text-xs">
                            <span className="text-gray-500 font-medium">Subtotal</span>
-                           <span className="text-white font-bold">KES {(selectedOrder?.subtotal || selectedOrder?.total || 0).toLocaleString()}</span>
+                           <span className="text-white font-bold">{formatPrice(selectedOrder?.subtotal || selectedOrder?.total || 0)}</span>
                         </div>
                         {selectedOrder?.discountAmount ? (
                            <div className="flex justify-between text-xs">
                               <span className="text-gray-500 font-medium whitespace-nowrap">Discount {selectedOrder?.couponCode ? `(${selectedOrder.couponCode})` : ''}</span>
-                              <span className="text-red-500 font-bold">- KES {(selectedOrder?.discountAmount || 0).toLocaleString()}</span>
+                              <span className="text-red-500 font-bold">- {formatPrice(selectedOrder?.discountAmount || 0)}</span>
                            </div>
                         ) : null}
                         {selectedOrder?.shippingCost ? (
                            <div className="flex justify-between text-xs">
                               <span className="text-gray-500 font-medium">Shipping Fee</span>
-                              <span className="text-white font-bold">KES {(selectedOrder?.shippingCost || 0).toLocaleString()}</span>
+                              <span className="text-white font-bold">{formatPrice(selectedOrder?.shippingCost || 0)}</span>
                            </div>
                         ) : null}
                         <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-4">
                            <span className="text-white font-bold text-base">Grand Total</span>
-                           <span className="text-2xl font-black text-brand-purple tracking-tighter">KES {(selectedOrder?.total || 0).toLocaleString()}</span>
+                           <span className="text-2xl font-black text-brand-purple tracking-tighter">{formatPrice(selectedOrder?.total || 0)}</span>
                         </div>
                      </div>
                   </div>
@@ -5799,7 +5800,7 @@ const AdminDashboard: React.FC = () => {
                         <InputGroup label="Time Slot" type="time" value={newBooking.time} onChange={v => setNewBooking({ ...newBooking, time: v })} />
                      </div>
                      <div className="grid grid-cols-2 gap-6">
-                        <InputGroup label="Budget (KES)" type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
+                        <InputGroup label={`Budget (${currency})`} type="number" value={newBooking.amount} onChange={v => setNewBooking({ ...newBooking, amount: Number(v) })} />
                         <InputGroup label="Mission Status" options={['pending', 'confirmed', 'completed', 'cancelled']} value={newBooking.status} onChange={v => setNewBooking({ ...newBooking, status: v })} />
                      </div>
                   </div>
@@ -5817,7 +5818,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                      <InputGroup label="Service Label" value={newSessionType.name} onChange={v => setNewSessionType({ ...newSessionType, name: v })} required />
                      <div className="grid grid-cols-2 gap-6">
-                        <InputGroup label="Price (KES)" type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
+                        <InputGroup label={`Price (${currency})`} type="number" value={newSessionType.price} onChange={v => setNewSessionType({ ...newSessionType, price: Number(v) })} />
                         <InputGroup label="Duration (Hrs)" type="number" value={newSessionType.duration} onChange={v => setNewSessionType({ ...newSessionType, duration: Number(v) })} />
                      </div>
                      <InputGroup label="Logic Description" type="textarea" value={newSessionType.description} onChange={v => setNewSessionType({ ...newSessionType, description: v })} />
@@ -5873,7 +5874,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="bg-[#0B0B0F] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                      <InputGroup label="Tier Label" value={editingPlan.name} onChange={v => setEditingPlan({ ...editingPlan, name: v })} required />
                      <div className="grid grid-cols-2 gap-6">
-                        <InputGroup label="Investment (KES)" type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} />
+                        <InputGroup label={`Investment (${currency})`} type="number" value={editingPlan.price} onChange={v => setEditingPlan({ ...editingPlan, price: Number(v) })} />
                         <InputGroup label="Cycle Period" options={['wk', 'mo', '3mo', '6mo', 'yr']} value={editingPlan.period} onChange={v => setEditingPlan({ ...editingPlan, period: v as any })} />
                      </div>
                      <InputGroup label="Protocol Features (One per line)" type="textarea" value={planFeaturesInput} onChange={v => setPlanFeaturesInput(v)} placeholder="Weekly High-Quality Drops&#10;Exclusive Edits & Remixes" />

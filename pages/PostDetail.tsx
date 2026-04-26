@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { UserAvatar } from '../components/user/UserAvatar';
 import { 
   ArrowLeft, 
   MessageSquare, 
@@ -90,18 +91,6 @@ const timeAgo = (dateStr: string) => {
     return `${Math.floor(seconds / 86400)}d`;
 };
 
-const UserAvatar = ({ src, name, size = 10, className = "", onClick }: { src?: string; name?: string; size?: number; className?: string; onClick?: (e: any) => void }) => {
-    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
-    return (
-        <img loading="lazy" src={src || fallback}
-            onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
-            className={`w-${size} h-${size} rounded-full object-cover ring-1 ring-white/10 flex-shrink-0 ${className}`}
-            alt={name}
-            onClick={onClick}
-        />
-    );
-};
-
 export default function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -123,6 +112,21 @@ export default function PostDetail() {
   const [userInterests, setUserInterests] = useState<any[]>([]);
   const [interestPulse, setInterestPulse] = useState<Post | null>(null);
   const [bidPulse, setBidPulse] = useState<Post | null>(null);
+
+  const handleMarketplaceAction = (e: React.MouseEvent, action: () => void) => {
+      e.stopPropagation();
+      if (!isAuthenticated) {
+          toast.error("Please login to use marketplace features");
+          navigate('/login');
+          return;
+      }
+      if (!isProfileComplete) {
+          toast.error("Please complete your profile first");
+          navigate('/setup-profile');
+          return;
+      }
+      action();
+  };
 
   useEffect(() => {
     fetchPost();
@@ -181,8 +185,13 @@ export default function PostDetail() {
   };
 
   const handleInteract = async (postId: string, type: 'heart' | 'echo') => {
+    if (!isAuthenticated) {
+      toast.error(`Please sign in to ${type === 'heart' ? 'like' : 'share'} posts`);
+      navigate('/login');
+      return;
+    }
     if (!isProfileComplete) {
-      toast.error("Complete your profile to interact");
+      toast.error("Complete your profile to interact with the community");
       navigate('/setup-profile');
       return;
     }
@@ -224,7 +233,13 @@ export default function PostDetail() {
 
   const handleFollow = async () => {
     if (!isAuthenticated) {
-        toast.error("Sign in to follow users");
+        toast.error("Please sign in to follow users");
+        navigate('/login');
+        return;
+    }
+    if (!isProfileComplete) {
+        toast.error("Complete your profile to follow users");
+        navigate('/setup-profile');
         return;
     }
     setFollowLoading(true);
@@ -250,11 +265,12 @@ export default function PostDetail() {
 
   const postReply = async () => {
     if (!isAuthenticated) {
-      toast.error("Sign in to reply");
+      toast.error("Sign in to join the conversation");
+      navigate('/login');
       return;
     }
     if (!isProfileComplete) {
-      toast.error("Complete your profile to reply");
+      toast.error("Complete your profile to post replies");
       navigate('/setup-profile');
       return;
     }
@@ -396,7 +412,7 @@ export default function PostDetail() {
         return data;
     }, {
         loading: 'Initiating secure escrow...',
-        success: (data) => {
+        success: (data: any) => {
           if (data.authorizationUrl) {
             setTimeout(() => window.location.href = data.authorizationUrl, 1500);
             return `Deal #${data.id?.slice(0,8) || 'created'} created! Redirecting to Paystack...`;
@@ -404,7 +420,7 @@ export default function PostDetail() {
           setTimeout(() => navigate('/marketplace'), 2000);
           return `Secure deal created! Check your dashboard for payment instructions.`;
         },
-        error: (err) => `Escrow failed: ${err.message}`
+        error: (err: any) => `Escrow failed: ${err.message}`
     });
   };
 
@@ -519,8 +535,21 @@ export default function PostDetail() {
                     </div>
                 </div>
             ) : (
-                <div className="mt-4 text-xl leading-relaxed text-gray-100 whitespace-pre-wrap">
-                    {post.content}
+                <div className="mt-4 text-[17px] leading-relaxed text-gray-100 whitespace-pre-wrap">
+                  {post.content.split(/(\s+)/).map((part, i) => {
+                    if (part.startsWith('#') && part.length > 1) {
+                      return (
+                        <Link 
+                          key={i} 
+                          to={`/community?q=${encodeURIComponent(part)}`}
+                          className="text-brand-cyan hover:underline"
+                        >
+                          {part}
+                        </Link>
+                      );
+                    }
+                    return part;
+                  })}
                 </div>
             )}
 
@@ -578,7 +607,7 @@ export default function PostDetail() {
                         <div className="flex gap-3">
                             {post.listing_type === 'auction' ? (
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setBidPulse(post); }}
+                                    onClick={(e) => handleMarketplaceAction(e, () => setBidPulse(post))}
                                     className="flex-1 py-4 bg-brand-cyan text-black rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-brand-cyan/20 flex items-center justify-center gap-2"
                                 >
                                     <Gavel size={18} />
@@ -586,14 +615,13 @@ export default function PostDetail() {
                                 </button>
                             ) : (
                                 <button 
-                                    onClick={(e) => { 
-                                        e.stopPropagation(); 
+                                    onClick={(e) => handleMarketplaceAction(e, () => {
                                         if (userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')) {
                                             setSafeTradeOpen(true);
                                         } else {
                                             setInterestPulse(post);
                                         }
-                                    }}
+                                    })}
                                     className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
                                         userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')
                                             ? 'bg-green-500 text-white shadow-xl shadow-green-500/20'

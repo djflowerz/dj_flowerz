@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { UserAvatar } from '../components/user/UserAvatar';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Activity, 
@@ -95,16 +96,6 @@ const timeAgo = (dateStr: string) => {
     return `${Math.floor(seconds / 86400)}d`;
 };
 
-const UserAvatar = ({ src, name, size = 10, className = "" }: { src?: string; name?: string; size?: number; className?: string }) => {
-    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=7C3AED&color=fff`;
-    return (
-        <img loading="lazy" src={src || fallback}
-            onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
-            className={`w-${size} h-${size} rounded-full object-cover ring-1 ring-white/10 flex-shrink-0 ${className}`}
-            alt={name}
-        />
-    );
-};
 
 // Mask phone numbers in rendered content
 const maskPhoneNumbers = (text: string): string => {
@@ -112,7 +103,7 @@ const maskPhoneNumbers = (text: string): string => {
 };
 
 export default function Community() {
-  const { user, session, isAuthenticated, isProfileComplete, loading: authLoading } = useAuth();
+  const { user, session, isAuthenticated, isProfileComplete, refreshUserProfile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -178,8 +169,11 @@ export default function Community() {
       }
 
       const resps = await Promise.all(fetchOps);
-      setPosts(await resps[0].json());
-      setLeaders(await resps[1].json());
+      const postsData = await resps[0].json();
+      setPosts(Array.isArray(postsData) ? postsData : []);
+      
+      const leadersData = await resps[1].json();
+      setLeaders(Array.isArray(leadersData) ? leadersData : (leadersData?.results || []));
       
       const tagsData = await resps[2].json();
       setTrendingTags(Array.isArray(tagsData) ? tagsData : []);
@@ -198,6 +192,7 @@ export default function Community() {
   const handleFollow = async (targetId: string, targetHandle: string) => {
     if (!isAuthenticated) {
       toast.error("Please sign in to follow others");
+      navigate('/login');
       return;
     }
     if (!isProfileComplete) {
@@ -272,11 +267,12 @@ export default function Community() {
   const handlePost = async () => {
     if (!content.trim() && mediaUrls.length === 0) return;
     if (!isAuthenticated) {
-        toast.error("Please sign in to post");
+        toast.error("Please sign in to share your thoughts with the community");
+        navigate('/login');
         return;
     }
     if (!isProfileComplete) {
-        toast.error("Complete your profile to post");
+        toast.error("Please complete your profile before posting");
         navigate('/setup-profile');
         return;
     }
@@ -353,6 +349,7 @@ export default function Community() {
       setPollOptions(['', '']);
       setIsComposerExpanded(false);
       fetchData();
+      refreshUserProfile(); // Update Aura points
       toast.success("Post shared!");
     } catch (e: any) {
       toast.error(e.message || "Failed to post");
@@ -361,11 +358,12 @@ export default function Community() {
 
   const handleInteract = async (postId: string, type: 'heart' | 'echo') => {
     if (!isAuthenticated) {
-      toast.error("Sign in to interact with posts");
+      toast.error(`Sign in to ${type === 'heart' ? 'like' : 'share'} posts`);
+      navigate('/login');
       return;
     }
     if (!isProfileComplete) {
-      toast.error("Complete your profile to interact");
+      toast.error("Complete your profile to interact with the community");
       navigate('/setup-profile');
       return;
     }
@@ -387,6 +385,7 @@ export default function Community() {
         
         if (isAdding) {
           toast.success(type === 'heart' ? 'Liked post' : 'Post shared to your profile!');
+          refreshUserProfile(); // Update Aura points for interaction
         }
 
         setPosts(prev => prev.map(p => {
@@ -506,9 +505,12 @@ export default function Community() {
                       <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0B0B0F]" />
                     )}
                  </Link>
-                 <Link to={`/member/${user?.handle}`} className="p-1 hover:ring-2 ring-brand-purple rounded-full transition-all">
-                    <UserAvatar src={user?.avatarUrl} name={user?.name} size={8} />
-                 </Link>
+                  <Link 
+                    to={user ? `/member/${user.handle}` : '/login'} 
+                    className="p-1 hover:ring-2 ring-brand-purple rounded-full transition-all"
+                  >
+                     <UserAvatar src={user?.avatarUrl} name={user?.name || 'Guest'} size={8} />
+                  </Link>
               </div>
             </div>
 
@@ -892,7 +894,7 @@ export default function Community() {
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
             <h3 className="text-lg font-black mb-4">Top Members</h3>
             <div className="space-y-4">
-              {leaders.slice(0, 5).map((leader) => (
+              {Array.isArray(leaders) && leaders.slice(0, 5).map((leader) => (
                 <div key={leader.handle} className="flex items-center justify-between group">
                   <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/member/${leader.handle}`)}>
                     <UserAvatar src={leader.avatar_url} name={leader.full_name} size={10} />
@@ -991,6 +993,21 @@ function PostCard({
   const [editContent, setEditContent] = useState(post.content);
   const [showMenu, setShowMenu] = useState(false);
   const [showReport, setShowReport] = useState(false);
+
+  const handleMarketplaceAction = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation();
+    if (!session) {
+      toast.error("Please login to use marketplace features");
+      navigate('/login');
+      return;
+    }
+    if (!currentUser?.handle) {
+      toast.error("Please complete your profile first");
+      navigate('/setup-profile');
+      return;
+    }
+    action();
+  };
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1143,7 +1160,24 @@ function PostCard({
               </div>
             ) : (
               <div className="text-[15px] leading-relaxed text-gray-200 whitespace-pre-wrap">
-                {maskPhoneNumbers(post.content)}
+                {maskPhoneNumbers(post.content).split(/(\s+)/).map((part, i) => {
+                  if (part.startsWith('#') && part.length > 1) {
+                    return (
+                      <span 
+                        key={i} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const tag = part.substring(1).toLowerCase();
+                          setSearchParams({ q: `#${tag}` });
+                        }}
+                        className="text-brand-cyan hover:underline cursor-pointer"
+                      >
+                        {part}
+                      </span>
+                    );
+                  }
+                  return part;
+                })}
               </div>
             )}
           </div>
@@ -1220,7 +1254,7 @@ function PostCard({
                 <div className="flex gap-2">
                   {post.listing_type === 'auction' ? (
                     <button 
-                      onClick={(e) => { e.stopPropagation(); setBidPulse(post); }}
+                      onClick={(e) => handleMarketplaceAction(e, () => setBidPulse(post))}
                       className="flex-1 py-3 bg-brand-cyan text-black rounded-xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-brand-cyan/20 flex items-center justify-center gap-2"
                     >
                       <Gavel size={16} />
@@ -1228,7 +1262,7 @@ function PostCard({
                     </button>
                   ) : (
                     <button 
-                      onClick={(e) => { e.stopPropagation(); setInterestPulse(post); }}
+                      onClick={(e) => handleMarketplaceAction(e, () => setInterestPulse(post))}
                       className={`flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
                         userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')
                           ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
@@ -1251,7 +1285,7 @@ function PostCard({
                   
                   {/* Safety Info Button */}
                   <button 
-                    onClick={(e) => { e.stopPropagation(); onBuy(post); }}
+                    onClick={(e) => handleMarketplaceAction(e, () => onBuy(post))}
                     className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-brand-cyan transition-all border border-brand-cyan/20"
                     title="How it works"
                   >

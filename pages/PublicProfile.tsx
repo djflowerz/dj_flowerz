@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   CheckCircle2, ShoppingBag, Repeat, MessageSquare, Heart, Share2, MoreHorizontal, UserPlus, UserCheck, ArrowLeft,
   X, Instagram, Facebook, Camera, Globe, ShieldCheck, ExternalLink, MapPin, Calendar,
-  Trash2, AlertTriangle, Edit3
+  Trash2, AlertTriangle, Edit3, User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import { TrustBadge } from '../components/community/TrustBadge';
 import { SellerScorecard } from '../components/community/SellerScorecard';
 import { VerificationJourney } from '../components/community/VerificationJourney';
 import { SafeTradePopup } from '../components/community/SafeTradePopup';
+import { FollowerListModal } from '../components/community/FollowerListModal';
 
 interface SocialLinks {
   instagram?: string;
@@ -130,6 +131,10 @@ export default function PublicProfile() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [socialListModal, setSocialListModal] = useState<{ isOpen: boolean; type: 'followers' | 'following' }>({
+    isOpen: false,
+    type: 'followers'
+  });
 
   const handleShare = async (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -177,7 +182,7 @@ export default function PublicProfile() {
         headers: authHeader
       });
       const data = await resp.json();
-      if (data && !data.available) {
+      if (data && data.id && !data.available) {
         setProfile(data);
         setPosts(data.posts || data.pulses || []);
         setIsFollowing(data.isFollowing);
@@ -204,8 +209,14 @@ export default function PublicProfile() {
   }, [handle]);
 
   const toggleFollow = async () => {
-    if (!session) {
-        toast.error("Sign in to follow users");
+    if (!isAuthenticated) {
+        toast.error("Please sign in to follow users");
+        navigate('/login');
+        return;
+    }
+    if (!isProfileComplete) {
+        toast.error("Complete your profile to follow users");
+        navigate('/setup-profile');
         return;
     }
     setFollowLoading(true);
@@ -360,8 +371,14 @@ export default function PublicProfile() {
   };
 
   const handleInteract = async (pulseId: string, type: 'heart' | 'echo') => {
-    if (!session) {
-      toast.error("Sign in to interact with posts");
+    if (!isAuthenticated) {
+      toast.error(`Sign in to ${type === 'heart' ? 'like' : 'share'} posts`);
+      navigate('/login');
+      return;
+    }
+    if (!isProfileComplete) {
+      toast.error("Complete your profile to interact with the community");
+      navigate('/setup-profile');
       return;
     }
 
@@ -402,11 +419,12 @@ export default function PublicProfile() {
 
   const handleBuyClick = (pulse: any) => {
     if (!isAuthenticated) {
-      toast.error("Sign in to purchase items");
+      toast.error("Sign in to buy securely via Escrow");
+      navigate('/login');
       return;
     }
     if (!isProfileComplete) {
-      toast.error("Complete your profile to purchase items");
+      toast.error("Please complete your profile to trade on the marketplace");
       navigate('/setup-profile');
       return;
     }
@@ -487,13 +505,41 @@ export default function PublicProfile() {
 
   if (notFound || !profile) {
     return (
-      <div className="min-h-screen bg-[#0B0B0F] flex flex-col items-center justify-center gap-4 text-center px-4">
-        <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-4 text-4xl">🔍</div>
-        <h1 className="text-2xl font-black text-white">Profile Not Found</h1>
-        <p className="text-gray-400 max-w-sm">This account doesn't exist or hasn't set up their profile yet.</p>
-        <Link to="/community" className="mt-4 px-6 py-3 bg-brand-purple text-white rounded-full font-bold text-sm hover:bg-brand-purple/90 transition-all">
-          Back to Community
-        </Link>
+      <div className="min-h-screen bg-[#0B0B0F] flex flex-col items-center justify-center gap-6 text-center px-4">
+        {!isAuthenticated ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="max-w-md w-full bg-white/[0.02] border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-xl shadow-2xl"
+          >
+            <div className="w-24 h-24 rounded-3xl bg-brand-purple/20 flex items-center justify-center mx-auto mb-8 animate-pulse">
+              <User size={48} className="text-brand-purple" />
+            </div>
+            <h1 className="text-3xl font-black text-white mb-4">Join the Community</h1>
+            <p className="text-gray-400 mb-8 leading-relaxed">
+              Sign in or create an account to view full profiles, follow DJs, and trade securely on the marketplace.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => navigate('/login')}
+                className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-brand-purple/20"
+              >
+                SIGN IN / REGISTER
+              </button>
+              <Link to="/community" className="text-gray-500 hover:text-white transition-colors text-sm font-bold py-2">
+                Continue Exploring as Guest
+              </Link>
+            </div>
+          </motion.div>
+        ) : (
+          <>
+            <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-4 text-4xl">🔍</div>
+            <h1 className="text-2xl font-black text-white">Profile Not Found</h1>
+            <p className="text-gray-400 max-w-sm">This account doesn't exist or hasn't set up their profile yet.</p>
+            <Link to="/community" className="mt-4 px-8 py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-sm hover:bg-white/10 transition-all">
+              Back to Community
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -622,11 +668,17 @@ export default function PublicProfile() {
           </div>
 
           <div className="flex items-center gap-6 text-sm py-2">
-            <button className="hover:underline flex gap-1 items-center">
+            <button 
+              onClick={() => setSocialListModal({ isOpen: true, type: 'following' })}
+              className="hover:underline flex gap-1 items-center transition-all active:scale-95"
+            >
               <span className="font-black text-white">{profile.following_count || 0}</span>
               <span className="text-gray-500">Following</span>
             </button>
-            <button className="hover:underline flex gap-1 items-center">
+            <button 
+              onClick={() => setSocialListModal({ isOpen: true, type: 'followers' })}
+              className="hover:underline flex gap-1 items-center transition-all active:scale-95"
+            >
               <span className="font-black text-white">{profile.followers_count || 0}</span>
               <span className="text-gray-500">Followers</span>
             </button>
@@ -933,9 +985,9 @@ export default function PublicProfile() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Safe Trade Popup */}
-      <SafeTradePopup
-        isOpen={safeTradeOpen}
+      {/* Modals */}
+      <SafeTradePopup 
+        isOpen={safeTradeOpen} 
         sellerName={profile?.handle}
         amount={parseJSON(safeTradeTarget?.deal_metadata)?.price}
         onClose={() => { setSafeTradeOpen(false); setSafeTradeTarget(null); }}
@@ -944,6 +996,14 @@ export default function PublicProfile() {
           if (safeTradeTarget) initiateEscrow(safeTradeTarget);
           setSafeTradeTarget(null);
         }}
+      />
+
+      <FollowerListModal 
+        userId={profile?.id || ''}
+        userName={profile?.full_name || profile?.handle || ''}
+        type={socialListModal.type}
+        isOpen={socialListModal.isOpen}
+        onClose={() => setSocialListModal(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
