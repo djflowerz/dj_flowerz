@@ -23,6 +23,7 @@ const Navbar: React.FC = () => {
   const location = useLocation();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
 
   const isAdminPage = location.pathname.startsWith('/admin');
 
@@ -148,75 +149,19 @@ const Navbar: React.FC = () => {
                 </Link>
 
                 {isAuthenticated && (
-                  <>
-                    <Link
-                      to="/messages"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all"
-                    >
-                      <div className="w-9 h-9 rounded-xl bg-black/40 flex items-center justify-center">
-                        <Mail size={20} className="text-[#A349F5]" />
-                      </div>
-                      <span className="text-lg font-bold">Messages</span>
-                    </Link>
-                    <Link
-                      to="/notifications"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all"
-                    >
-                      <div className="w-9 h-9 rounded-xl bg-black/40 flex items-center justify-center">
-                        <Bell size={20} className="text-amber-400" />
-                      </div>
-                      <span className="text-lg font-bold">Notifications</span>
-                    </Link>
-                  </>
+                  <Link
+                    to="/messages"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-black/40 flex items-center justify-center">
+                      <Mail size={20} className="text-[#A349F5]" />
+                    </div>
+                    <span className="text-lg font-bold">Messages</span>
+                  </Link>
                 )}
               </div>
               
-              {/* PWA / Device Controls */}
-              {(isInstallable || isPushSupported) && (
-                <div className="mt-8 space-y-4">
-                  <h4 className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] px-2 mb-4">Device Settings</h4>
-                  
-                  {isInstallable && (
-                    <button
-                      onClick={() => { installApp(); setIsOpen(false); }}
-                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:bg-brand-purple/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-9 h-9 rounded-xl bg-brand-purple/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Download size={20} />
-                        </div>
-                        <span className="text-lg font-bold">Install App</span>
-                      </div>
-                      <div className="px-3 py-1 rounded-full bg-brand-purple text-[10px] font-black uppercase text-white shadow-lg shadow-brand-purple/30">Native</div>
-                    </button>
-                  )}
-
-                  {isPushSupported && (
-                    <button
-                      onClick={() => { isSubscribed ? unsubscribeFromPush() : subscribeToPush(); }}
-                      className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all group ${
-                        isSubscribed 
-                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500' 
-                          : 'bg-white/5 border border-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
-                          isSubscribed ? 'bg-emerald-500/20' : 'bg-black/40'
-                        }`}>
-                          <Bell size={20} className={isSubscribed ? 'text-emerald-500' : 'text-amber-400'} />
-                        </div>
-                        <span className="text-lg font-bold">Smart Notifications</span>
-                      </div>
-                      <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${isSubscribed ? 'bg-emerald-500' : 'bg-white/10'}`}>
-                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${isSubscribed ? 'left-7' : 'left-1'}`} />
-                      </div>
-                    </button>
-                  )}
-                </div>
-              )}
 
               {/* Action Buttons */}
               <div className="pt-6 space-y-3">
@@ -453,6 +398,65 @@ const Navbar: React.FC = () => {
                       Login
                     </button>
                   </Link>
+                )}
+
+                {/* Mobile: Notification Bell Pop-up (authenticated) */}
+                {isAuthenticated && (
+                  <div className="relative lg:hidden">
+                    <button
+                      id="mobile-notif-btn"
+                      onClick={() => setShowNotifPanel(p => !p)}
+                      className="p-2 text-white/50 hover:text-amber-400 transition-all duration-300 relative"
+                      aria-label="Notifications"
+                    >
+                      <Bell size={22} className={showNotifPanel ? 'text-amber-400' : ''} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showNotifPanel && (
+                        <>
+                          <div className="fixed inset-0 z-[99997]" onClick={() => setShowNotifPanel(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-3 w-72 bg-[#0A0A0A]/98 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden z-[99998]"
+                          >
+                            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                              <span className="text-xs font-black text-white/60 uppercase tracking-[0.2em]">Notifications</span>
+                              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            </div>
+                            <div className="p-4 flex flex-col items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-amber-400/10 flex items-center justify-center">
+                                <Bell size={20} className="text-amber-400" />
+                              </div>
+                              <p className="text-white/40 text-xs text-center">You're all caught up!</p>
+                              <Link
+                                to="/notifications"
+                                onClick={() => setShowNotifPanel(false)}
+                                className="mt-1 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs font-bold hover:bg-white/10 hover:text-white transition-all w-full text-center"
+                              >
+                                View All Notifications
+                              </Link>
+                              {isPushSupported && (
+                                <button
+                                  onClick={() => { isSubscribed ? unsubscribeFromPush() : subscribeToPush(); }}
+                                  className={`w-full px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                                    isSubscribed
+                                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                      : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white'
+                                  }`}
+                                >
+                                  {isSubscribed ? '🔔 Push On — Tap to disable' : '🔕 Enable push notifications'}
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
 
                 {/* Mobile Toggle */}

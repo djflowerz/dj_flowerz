@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminSidebar } from './AdminSidebar';
-import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar } from 'lucide-react';
+import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar, DollarSign, ShieldCheck } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils';
@@ -36,12 +36,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
     const getIcon = (key: string) => {
         switch (key) {
             case 'orders': return <ShoppingCart size={14} />;
+            case 'payouts': return <DollarSign size={14} />;
             case 'chat': return <MessageSquare size={14} />;
             case 'tracks': return <Music size={14} />;
             case 'tickets': return <Ticket size={14} />;
             case 'studio': return <Headphones size={14} />;
             case 'maintenance': return <ShieldAlert size={14} />;
             case 'gigs': return <Calendar size={14} />;
+            case 'verification': return <ShieldCheck size={14} />;
             default: return <Bell size={14} />;
         }
     };
@@ -49,12 +51,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
     const getLabel = (key: string) => {
         switch (key) {
             case 'orders': return 'New Orders';
+            case 'payouts': return 'Payout Requests';
             case 'chat': return 'Live Chats';
             case 'tracks': return 'Pool Updates';
             case 'tickets': return 'Support Tickets';
             case 'studio': return 'Studio Bookings';
             case 'maintenance': return 'Maintenance';
             case 'gigs': return 'Gig Inquiries';
+            case 'verification': return 'Verification Queue';
             default: return key;
         }
     };
@@ -62,12 +66,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
     const getLink = (key: string) => {
         switch (key) {
             case 'orders': return '/admin/orders';
+            case 'payouts': return '/admin/payments';
             case 'chat': return '/admin/chat';
-            case 'tracks': return '/admin/music-pool';
+            case 'tracks': return '/admin/pool';
             case 'tickets': return '/admin/support';
             case 'studio': return '/admin/bookings';
             case 'maintenance': return '/admin/studio';
             case 'gigs': return '/admin/bookings';
+            case 'verification': return '/admin/trust-portal';
             default: return '/admin';
         }
     };

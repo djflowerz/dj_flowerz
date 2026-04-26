@@ -12,6 +12,8 @@ import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnu
 import LiveEventStreamer from './components/LiveEventStreamer';
 import { PushBanner } from './src/components/PushBanner';
 import { PWAProvider } from './context/PWAContext';
+import PWAInstallBanner from './components/PWAInstallBanner';
+import GuestConversionModal from './components/GuestConversionModal';
 
 import AccessDenied from './components/AccessDenied';
 import { Activity } from 'lucide-react';
@@ -287,6 +289,8 @@ const App: React.FC = () => {
                   <Toaster position="top-right" richColors closeButton theme="dark" />
                   <FloatingChatWidget />
                   <LiveEventStreamer />
+                  <PWAInstallBanner />
+                  <GuestConversionModal />
                   <AppContent />
                 </Router>
               </PlayerProvider>

@@ -2497,7 +2497,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         
         // Log payment
         await env.DB.prepare(`
-          INSERT INTO payments (id, amount, status, type, reference, user_id, created_at)
+          INSERT INTO payments (id, amount_kes, status, type, reference, user_id, created_at)
           VALUES (?, ?, 'success', 'escrow_deposit', ?, ?, CURRENT_TIMESTAMP)
         `).bind(crypto.randomUUID(), dealAmount, dealId, metadata.buyer_id).run();
 
@@ -2533,6 +2533,72 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     ];
     
     // Strict email enforcement — redirect non-admins with 403
+
+    // ─── TRUST / MODERATION ENDPOINTS ─────────────────────────────────────────
+
+    // GET /api/admin/trust/verification-queue
+    if (path === '/api/admin/trust/verification-queue' && method === 'GET') {
+      if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) return json({ error: 'Forbidden' }, 403);
+      const { results } = await env.DB.prepare(`
+        SELECT id, handle, full_name, email, aura_tier, is_verified, created_at,
+               profile_image, bio, primary_role
+        FROM profiles
+        WHERE is_verified = 0 AND handle IS NOT NULL
+        ORDER BY created_at ASC
+        LIMIT 50
+      `).all();
+      return json(results || []);
+    }
+
+    // POST /api/admin/trust/approve/:userId
+    const trustApproveMatch = path.match(/^\/api\/admin\/trust\/approve\/([^/]+)$/);
+    if (trustApproveMatch && method === 'POST') {
+      if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) return json({ error: 'Forbidden' }, 403);
+      const userId = trustApproveMatch[1];
+      await env.DB.prepare(`
+        UPDATE profiles SET is_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).bind(userId).run();
+      // Notify the user
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, content, created_at)
+        VALUES (?, ?, ?, 'system', ?, CURRENT_TIMESTAMP)
+      `).bind(crypto.randomUUID(), userId, userId, '🎉 Congratulations! Your account has been verified.').run();
+      return json({ success: true });
+    }
+
+    // POST /api/admin/trust/reject/:userId
+    const trustRejectMatch = path.match(/^\/api\/admin\/trust\/reject\/([^/]+)$/);
+    if (trustRejectMatch && method === 'POST') {
+      if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) return json({ error: 'Forbidden' }, 403);
+      const userId = trustRejectMatch[1];
+      const body = await request.json() as any;
+      const reason = body?.reason || 'Your verification request did not meet our requirements.';
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, content, created_at)
+        VALUES (?, ?, ?, 'system', ?, CURRENT_TIMESTAMP)
+      `).bind(crypto.randomUUID(), userId, userId, `❌ Verification declined: ${reason}`).run();
+      return json({ success: true });
+    }
+
+    // POST /api/admin/trust/suspend/:userId
+    const trustSuspendMatch = path.match(/^\/api\/admin\/trust\/suspend\/([^/]+)$/);
+    if (trustSuspendMatch && method === 'POST') {
+      if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) return json({ error: 'Forbidden' }, 403);
+      const userId = trustSuspendMatch[1];
+      const body = await request.json() as any;
+      const reason = body?.reason || 'Your account has been suspended due to policy violations.';
+      await env.DB.prepare(`
+        UPDATE profiles SET is_verified = 0, aura_tier = 'suspended', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).bind(userId).run();
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, content, created_at)
+        VALUES (?, ?, ?, 'system', ?, CURRENT_TIMESTAMP)
+      `).bind(crypto.randomUUID(), userId, userId, `⛔ Account suspended: ${reason}`).run();
+      return json({ success: true });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     // GET /api/admin/governance/queue
     if (path === '/api/admin/governance/queue' && method === 'GET') {
       const { results } = await env.DB.prepare(`
@@ -2567,7 +2633,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (path === '/api/admin/dashboard' && method === 'GET') {
       try {
         const stats = await env.DB.batch([
-          env.DB.prepare('SELECT SUM(amount) as total FROM payments WHERE status = "success" OR status = "paid"'),
+          env.DB.prepare('SELECT SUM(amount_kes) as total FROM payments WHERE status = "success" OR status = "paid"'),
           env.DB.prepare('SELECT COUNT(*) as count FROM orders'),
           env.DB.prepare('SELECT COUNT(*) as count FROM mixtapes WHERE status = "published"'),
           env.DB.prepare('SELECT SUM(amount) as total FROM tips WHERE status = "success" OR status = "completed"'),
@@ -2864,12 +2930,88 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // GET /api/admin/notifications
     if (path === '/api/admin/notifications' && method === 'GET') {
-      return json([]); // Placeholder for now
+      try {
+        const [ordersRes, payoutsRes, studioRes, verifyRes, tracksRes] = await env.DB.batch([
+          env.DB.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'pending'"),
+          env.DB.prepare("SELECT COUNT(*) as count FROM payout_requests WHERE status = 'pending'"),
+          env.DB.prepare("SELECT COUNT(*) as count FROM studio_sessions WHERE status = 'pending'"),
+          env.DB.prepare("SELECT COUNT(*) as count FROM profiles WHERE is_verified = 0 AND handle IS NOT NULL"),
+          env.DB.prepare("SELECT COUNT(*) as count FROM scraped_tracks WHERE status = 'pending' OR status IS NULL"),
+        ]);
+
+        const orders    = (ordersRes.results?.[0] as any)?.count || 0;
+        const payouts   = (payoutsRes.results?.[0] as any)?.count || 0;
+        const studio    = (studioRes.results?.[0] as any)?.count || 0;
+        const verification = (verifyRes.results?.[0] as any)?.count || 0;
+        const tracks    = (tracksRes.results?.[0] as any)?.count || 0;
+
+        const breakdown: Record<string, number> = {};
+        if (orders > 0)       breakdown.orders = orders;
+        if (payouts > 0)      breakdown.payouts = payouts;
+        if (studio > 0)       breakdown.studio = studio;
+        if (verification > 0) breakdown.verification = verification;
+        if (tracks > 0)       breakdown.tracks = tracks;
+
+        const total = orders + payouts + studio + verification + tracks;
+        return json({ total, breakdown });
+      } catch (e: any) {
+        // Gracefully degrade — don't crash the admin layout
+        console.error('[notifications] aggregation error:', e.message);
+        return json({ total: 0, breakdown: {} });
+      }
     }
 
     // POST /api/admin/r2-sync
     if (path === '/api/admin/r2-sync' && method === 'POST') {
       return json({ success: true, message: 'Sync triggered' });
+    }
+
+    // POST /api/admin/system-reset
+    if (path === '/api/admin/system-reset' && method === 'POST') {
+      if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+      try {
+        try { await env.DB.prepare('DELETE FROM notifications').run(); } catch(e) {}
+        try { await env.DB.prepare('DELETE FROM admin_logs').run(); } catch(e) {}
+        return json({ success: true, message: 'System reset successful' });
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
+    }
+
+    // POST /api/admin/manual-grant
+    if (path === '/api/admin/manual-grant' && method === 'POST') {
+      if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+      const { type, email, amount, id } = await request.json() as any;
+      if (!email) return json({ error: 'Email required' }, 400);
+
+      try {
+        const user = await env.DB.prepare('SELECT id FROM profiles WHERE email = ? COLLATE NOCASE').bind(email).first() as any;
+        if (!user) return json({ error: 'User not found' }, 404);
+
+        if (type === 'subscription') {
+           const expiry = new Date();
+           expiry.setDate(expiry.getDate() + 30);
+           await env.DB.prepare('DELETE FROM "active-subscribers" WHERE user_id = ?').bind(user.id).run();
+           await env.DB.prepare(`
+             INSERT INTO "active-subscribers" (id, user_id, email, expiry_date, plan_id)
+             VALUES (?, ?, ?, ?, ?)
+           `).bind(crypto.randomUUID(), user.id, email, expiry.toISOString(), 'Premium').run();
+           
+           return json({ success: true, message: 'Subscription granted for 30 days' });
+        } else if (type === 'studio') {
+           const sessionDate = new Date();
+           sessionDate.setDate(sessionDate.getDate() + 7); // Schedule for 7 days from now as a default
+           await env.DB.prepare(`
+             INSERT INTO studio_sessions (id, user_id, session_date, duration, status, total_amount, paystack_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+           `).bind(crypto.randomUUID(), user.id, sessionDate.toISOString(), 2, 'approved', amount || 0, 'MANUAL_GRANT').run();
+           
+           return json({ success: true, message: 'Studio session manually granted' });
+        }
+        return json({ error: 'Invalid grant type' }, 400);
+      } catch (e: any) {
+        return json({ error: e.message }, 500);
+      }
     }
 
     // [DELETED FROM HERE - MOVED TO PUBLIC AUTH SECTION BELOW]
