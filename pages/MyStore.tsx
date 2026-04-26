@@ -139,7 +139,7 @@ export default function MyStore() {
   );
 }
 
-function ListingCard({ listing, onDelete }: { listing: Listing, onDelete: (id: string) => void }) {
+function ListingCard({ listing, onDelete }: { listing: Listing, onDelete: (id: string) => void, key?: any }) {
   const metadata = JSON.parse(listing.deal_metadata || '{}');
   const media = JSON.parse(listing.media_urls || '[]');
   

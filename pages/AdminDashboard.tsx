@@ -1003,7 +1003,7 @@ const AdminDashboard: React.FC = () => {
       try {
          const res = await fetch(`${WORKER_URL}/api/admin/system-reset`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${process.env.VITE_PAYSTACK_SECRET_KEY}` }
+            headers: await getAuthHeader()
          });
          const data = await res.json();
          if (data.success) toast.success("System reset successful");
@@ -1082,7 +1082,7 @@ const AdminDashboard: React.FC = () => {
             body: JSON.stringify({ type, email, amount, id }),
             headers: {
                'Content-Type': 'application/json',
-               'Authorization': `Bearer ${process.env.VITE_PAYSTACK_SECRET_KEY}`
+               ...(await getAuthHeader())
             }
          });
          const data = await res.json();

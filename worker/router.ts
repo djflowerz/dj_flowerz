@@ -293,6 +293,71 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // ─── PWA & PUSH NOTIFICATIONS ──────────────────────────────────────────
+
+  // POST /api/push/subscribe
+  if (path === '/api/push/subscribe' && method === 'POST') {
+    try {
+      const sub = await request.json() as any;
+      const { endpoint, keys } = sub;
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return json({ error: 'Invalid subscription object' }, 400);
+      }
+
+      await env.DB.prepare(`
+        INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+          user_id = COALESCE(EXCLUDED.user_id, user_id),
+          p256dh = EXCLUDED.p256dh,
+          auth = EXCLUDED.auth
+      `).bind(actorId || null, endpoint, keys.p256dh, keys.auth).run();
+
+      console.log(`[Push] Subscribed: ${endpoint}`);
+      return json({ success: true });
+    } catch (e: any) {
+      console.error('[POST /api/push/subscribe]', e);
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/push/unsubscribe
+  if (path === '/api/push/unsubscribe' && method === 'POST') {
+    try {
+      const { endpoint } = await request.json() as any;
+      if (!endpoint) return json({ error: 'Missing endpoint' }, 400);
+
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run();
+      console.log(`[Push] Unsubscribed: ${endpoint}`);
+      return json({ success: true });
+    } catch (e: any) {
+      console.error('[POST /api/push/unsubscribe]', e);
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/push/test (Admin only)
+  if (path === '/api/push/test' && method === 'POST') {
+    if (!isAdmin) return json({ error: 'Unauthorized' }, 403);
+    
+    try {
+      const { title, body, url } = await request.json() as any;
+      const { results } = await env.DB.prepare('SELECT * FROM push_subscriptions').all();
+      
+      console.log(`[Push] Broadcasting to ${results.length} subscribers: ${title}`);
+      
+      // We'll return the list of subscribers for now so the admin knows who they are
+      // and a success message. Real delivery requires VAPID encryption.
+      return json({ 
+        success: true, 
+        subscriberCount: results.length,
+        message: 'Broadcast initiated (VAPID encryption pending implementation)'
+      });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // ─── IDENTITY & COMMUNITY (The Pulse) ──────────────────────────────────
   
   // GET /api/profiles/leaders (Top Aura Users)

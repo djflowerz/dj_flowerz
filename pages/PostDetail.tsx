@@ -630,7 +630,7 @@ export default function PostDetail() {
                                 >
                                     {userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted') ? (
                                         <>
-                                            <CheckCircle size={18} />
+                                            <CheckCircle2 size={18} />
                                             Deal Accepted - Buy Safely
                                         </>
                                     ) : (

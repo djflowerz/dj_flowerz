@@ -15,6 +15,9 @@ import { PWAProvider } from './context/PWAContext';
 
 import AccessDenied from './components/AccessDenied';
 import { Activity } from 'lucide-react';
+import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
+import LoadingSpinner from './components/LoadingSpinner';
 
 /**
  * Helper to handle "Failed to fetch dynamically imported module" errors 

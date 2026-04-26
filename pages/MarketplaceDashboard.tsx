@@ -305,7 +305,7 @@ export default function MarketplaceDashboard() {
   );
 }
 
-function DealCard({ deal, onUpdate, currentUser, session }: { deal: Deal, onUpdate: any, currentUser: any, session: any }) {
+function DealCard({ deal, onUpdate, currentUser, session }: { deal: Deal, onUpdate: any, currentUser: any, session: any, key?: any }) {
     const navigate = useNavigate();
     const { formatPrice } = useCurrency();
     const isBuyer = deal.buyer_id === currentUser.id;

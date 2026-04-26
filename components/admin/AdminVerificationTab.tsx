@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Shield, User, Clock, AlertTriangle, Search, Info, Fingerprint, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { STORAGE_WORKER_URL, getAuthHeader } from '../utils/r2';
+import { STORAGE_WORKER_URL, getAuthHeader } from '../../utils/r2';
 
 interface VerificationRequest {
   id: string;
@@ -25,7 +25,7 @@ const AdminVerificationTab: React.FC = () => {
     try {
       setLoading(true);
       const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/trust/verification-queue`, {
-        headers: getAuthHeader()
+        headers: await getAuthHeader()
       });
       if (!res.ok) throw new Error('Failed to fetch queue');
       const data = await res.json();
@@ -47,7 +47,7 @@ const AdminVerificationTab: React.FC = () => {
       const res = await fetch(`${STORAGE_WORKER_URL}/api/admin/verify/${id}`, {
         method: 'POST',
         headers: {
-          ...getAuthHeader(),
+          ...await getAuthHeader(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ action })

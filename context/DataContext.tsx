@@ -310,7 +310,6 @@ interface DataContextType {
   refreshContactMessages: () => void;
   refreshReviews: () => void;
   refreshComments: () => void;
-  refreshInstallments: () => void;
   refreshAdminStats: () => Promise<void>;
   refreshExpiringUsers: () => Promise<void>;
 

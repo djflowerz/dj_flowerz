@@ -111,7 +111,7 @@ export default function Wishlist() {
   );
 }
 
-function WishlistCard({ item, onRemove }: { item: WishlistItem, onRemove: (id: string) => void }) {
+const WishlistCard: React.FC<{ item: WishlistItem; onRemove: (id: string) => Promise<void> | void }> = ({ item, onRemove }) => {
   const metadata = JSON.parse(item.deal_metadata || '{}');
   const media = JSON.parse(item.media_urls || '[]');
   

@@ -433,7 +433,7 @@ export default function Community() {
         body: JSON.stringify({ content })
       });
       if (resp.ok) {
-        setPosts(prev => prev.map(p => p.id === pulseId ? { ...p, content } : p));
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, content } : p));
         toast.success("Post updated");
       }
     } catch (e) { toast.error("Failed to update"); }
@@ -524,7 +524,7 @@ export default function Community() {
               ].map((nav) => (
                 <button 
                   key={nav.id} 
-                  onClick={() => nav.path ? navigate(nav.path) : setTab(nav.id as any)}
+                  onClick={() => setTab(nav.id as any)}
                   className={`flex-1 min-w-[100px] flex flex-col items-center gap-1.5 py-3 transition-all relative group ${
                     tab === nav.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                   }`}
@@ -847,6 +847,7 @@ export default function Community() {
                     setBidPulse={setBidPulse}
                     setInterestPulse={setInterestPulse}
                     userInterests={userInterests}
+                    setSearchParams={setSearchParams}
                 />
               ))}
             </div>
@@ -982,11 +983,13 @@ export default function Community() {
 
 function PostCard({ 
   post, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage,
-  setBidPulse, setInterestPulse, userInterests 
+  setBidPulse, setInterestPulse, userInterests, setSearchParams 
 }: { 
   post: Post, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, 
   maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void,
-  setBidPulse: (p: Post) => void, setInterestPulse: (p: Post) => void, userInterests: any[]
+  setBidPulse: (p: Post) => void, setInterestPulse: (p: Post) => void, userInterests: any[],
+  setSearchParams: any,
+  key?: any
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -1212,7 +1215,7 @@ function PostCard({
           )}
 
           {/* Marketplace Banner */}
-          {(post.is_marketplace || post.type === 'marketplace' || post.deal_metadata) && !isEditing && (
+          {(post.is_marketplace || post.type === 'deal' || post.deal_metadata) && !isEditing && (
             <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex flex-col gap-4 group/deal relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">

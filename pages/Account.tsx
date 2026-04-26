@@ -15,6 +15,8 @@ import UserInstallments from '../components/user/UserInstallments';
 import { toast } from 'sonner';
 import { uploadFileToR2 } from '../utils/r2';
 import { useCurrency } from '../context/CurrencyContext';
+import { usePWA } from '../context/PWAContext';
+import { Bell, Monitor, Info } from 'lucide-react';
 
 const generateOrderPDF = (order: any, formatPrice: (n: number) => string) => {
   const doc = new jsPDF();
@@ -108,14 +110,15 @@ const API = import.meta.env.VITE_API_URL || import.meta.env.VITE_WORKER_URL || i
 export default function Account() {
   const { user, loading, logout, updateUserProfile, updateUserPassword, updateUserEmail, deleteAccount, session } = useAuth();
   const { formatPrice } = useCurrency();
+  const { isInstallable, installApp, isSubscribed, isPushSupported, subscribeToPush, unsubscribeFromPush } = usePWA();
   const { orders, ordersLoading: contextOrdersLoading, referralLogs, referralStats: allReferralStats, wishlist, products, mixtapes, poolTracks, toggleWishlist, wishlistLoading } = useData();
   const [timeLeft, setTimeLeft] = useState<string>('');
   
   // Set active tab based on query param
-  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals' | 'wishlist' | 'installments'>(() => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'aura-rewards' | 'orders' | 'downloads' | 'subscription' | 'referrals' | 'wishlist' | 'installments' | 'app-settings'>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') as any;
-    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments'];
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments', 'app-settings'];
     return allowed.includes(tab) ? tab : 'profile';
   });
 
@@ -123,7 +126,7 @@ export default function Account() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') as any;
-    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments'];
+    const allowed = ['profile', 'aura-rewards', 'orders', 'downloads', 'subscription', 'referrals', 'wishlist', 'installments', 'app-settings'];
     if (tab && allowed.includes(tab) && tab !== activeTab) {
       setActiveTab(tab);
     }
@@ -670,6 +673,7 @@ export default function Account() {
                   { id: 'referrals', icon: Gift, label: 'Referrals' },
                   { id: 'wishlist', icon: Heart, label: 'My Wishlist' },
                   { id: 'installments', icon: CreditCard, label: 'Lipa Pole Pole' },
+                  { id: 'app-settings', icon: Monitor, label: 'App Settings' },
                   { id: 'admin', icon: Shield, label: 'Admin Panel', show: user.role === 'admin' || user.role === 'dj', link: '/admin' },
                 ].filter(item => item.show !== false).map((item, i) => (
                   item.link ? (
@@ -735,6 +739,95 @@ export default function Account() {
                             <Trash2 size={16} /> Delete Account
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'app-settings' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-[#15151A] rounded-2xl border border-white/5 overflow-hidden p-6 md:p-8">
+                      <div className="flex items-center gap-4 mb-8">
+                        <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center">
+                          <Monitor className="text-brand-purple" size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-white">App Experience</h3>
+                          <p className="text-gray-400 text-sm">Customize how you interact with the DJ Flowerz Hub.</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-8">
+                        {/* PWA Install */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-2xl bg-white/5 border border-white/5">
+                          <div className="flex-1">
+                            <h4 className="text-white font-bold mb-1 flex items-center gap-2">
+                              <Download size={18} className="text-brand-cyan" /> Install to Home Screen
+                            </h4>
+                            <p className="text-gray-400 text-xs leading-relaxed">
+                              Add the DJ Flowerz Hub to your device for a native experience, offline access, and faster loading.
+                            </p>
+                          </div>
+                          {isInstallable ? (
+                            <button
+                              onClick={installApp}
+                              className="px-6 py-3 bg-brand-purple text-white font-black rounded-xl text-xs uppercase tracking-widest hover:bg-purple-600 transition shadow-lg shadow-brand-purple/20 flex items-center gap-2"
+                            >
+                              <Download size={16} /> Install Now
+                            </button>
+                          ) : (
+                            <div className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                              <CheckCircle size={14} /> Already Installed
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Push Notifications */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-2xl bg-white/5 border border-white/5">
+                          <div className="flex-1">
+                            <h4 className="text-white font-bold mb-1 flex items-center gap-2">
+                              <Bell size={18} className="text-amber-400" /> Smart Notifications
+                            </h4>
+                            <p className="text-gray-400 text-xs leading-relaxed">
+                              Get real-time updates on your orders, new mixtapes, and community interactions even when the app is closed.
+                            </p>
+                          </div>
+                          {isPushSupported ? (
+                            <div className="flex items-center gap-3">
+                              <span className={`text-[10px] font-black uppercase tracking-widest ${isSubscribed ? 'text-emerald-500' : 'text-gray-500'}`}>
+                                {isSubscribed ? 'Active' : 'Disabled'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  if (isSubscribed) {
+                                    unsubscribeFromPush();
+                                  } else {
+                                    subscribeToPush();
+                                  }
+                                }}
+                                className={`w-14 h-7 rounded-full relative transition-all duration-300 ${
+                                  isSubscribed ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-white/10'
+                                }`}
+                              >
+                                <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-md ${
+                                  isSubscribed ? 'left-8' : 'left-1'
+                                }`} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                              <Info size={14} /> Not Supported on this Browser
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-12 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3">
+                        <Info className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                        <p className="text-gray-400 text-[11px] leading-relaxed">
+                          For the best experience, ensure your browser permissions allow notifications. 
+                          On iOS, you must first <strong className="text-white">Add to Home Screen</strong> to enable Push Notifications.
+                        </p>
                       </div>
                     </div>
                   </div>

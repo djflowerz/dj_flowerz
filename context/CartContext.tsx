@@ -1,3 +1,4 @@
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Product, CartItem } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
