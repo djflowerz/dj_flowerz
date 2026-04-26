@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Product, CartItem } from '../types';
 import { toast } from 'sonner';
+import { useAuth } from './AuthContext';
 
 interface CartContextType {
   items: CartItem[];
@@ -27,10 +27,26 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   });
 
+  const { isAuthenticated } = useAuth();
+
   // Persist to localStorage
   React.useEffect(() => {
-    localStorage.setItem('djf_cart', JSON.stringify(items));
+    if (items.length > 0) {
+      localStorage.setItem('djf_cart', JSON.stringify(items));
+    } else {
+      localStorage.removeItem('djf_cart');
+    }
   }, [items]);
+
+  // Clear cart state if user logs out (localStorage is cleared in AuthContext)
+  React.useEffect(() => {
+    if (!isAuthenticated) {
+      // Check if we should clear guest cart or if guest carts are allowed
+      // The user seems to want it empty when not logged in
+      setItems([]);
+      localStorage.removeItem('djf_cart');
+    }
+  }, [isAuthenticated]);
 
   const addToCart = (product: Product, quantity: number = 1, variantId?: string) => {
     setItems(prev => {

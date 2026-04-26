@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Menu, X, ShoppingCart, User, LogOut, ShieldCheck, Settings, 
-  Home, Disc, MessageCircle, Bell, Search, Mail, ShoppingBag, LayoutDashboard, Heart, Monitor, Calendar
+  Home, Disc, MessageCircle, Bell, Search, Mail, ShoppingBag, LayoutDashboard, Heart, Monitor, Calendar, Download
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { usePWA } from '../context/PWAContext';
 import { NeonButton } from './ui/NeonButton';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -18,6 +19,7 @@ const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout, session } = useAuth();
   const { siteConfig } = useData();
   const { currency, setCurrency } = useCurrency();
+  const { isInstallable, installApp, isSubscribed, isPushSupported, subscribeToPush, unsubscribeFromPush } = usePWA();
   const location = useLocation();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -170,6 +172,51 @@ const Navbar: React.FC = () => {
                   </>
                 )}
               </div>
+              
+              {/* PWA / Device Controls */}
+              {(isInstallable || isPushSupported) && (
+                <div className="mt-8 space-y-4">
+                  <h4 className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] px-2 mb-4">Device Settings</h4>
+                  
+                  {isInstallable && (
+                    <button
+                      onClick={() => { installApp(); setIsOpen(false); }}
+                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:bg-brand-purple/20 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-9 h-9 rounded-xl bg-brand-purple/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Download size={20} />
+                        </div>
+                        <span className="text-lg font-bold">Install App</span>
+                      </div>
+                      <div className="px-3 py-1 rounded-full bg-brand-purple text-[10px] font-black uppercase text-white shadow-lg shadow-brand-purple/30">Native</div>
+                    </button>
+                  )}
+
+                  {isPushSupported && (
+                    <button
+                      onClick={() => { isSubscribed ? unsubscribeFromPush() : subscribeToPush(); }}
+                      className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all group ${
+                        isSubscribed 
+                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500' 
+                          : 'bg-white/5 border border-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                          isSubscribed ? 'bg-emerald-500/20' : 'bg-black/40'
+                        }`}>
+                          <Bell size={20} className={isSubscribed ? 'text-emerald-500' : 'text-amber-400'} />
+                        </div>
+                        <span className="text-lg font-bold">Smart Notifications</span>
+                      </div>
+                      <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${isSubscribed ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${isSubscribed ? 'left-7' : 'left-1'}`} />
+                      </div>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-6 space-y-3">

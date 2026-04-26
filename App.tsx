@@ -4,9 +4,6 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { Toaster } from 'sonner';
 import AudioPlayer from './components/AudioPlayer';
-import LoadingSpinner from './components/LoadingSpinner';
-import ErrorBoundary from './components/ErrorBoundary';
-import ProtectedRoute from './components/ProtectedRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
@@ -14,6 +11,7 @@ import { DataProvider } from './context/DataContext';
 import { FloatingChatWidget } from './components/ui/floating-chat-widget-shadcnui';
 import LiveEventStreamer from './components/LiveEventStreamer';
 import { PushBanner } from './src/components/PushBanner';
+import { PWAProvider } from './context/PWAContext';
 
 import AccessDenied from './components/AccessDenied';
 import { Activity } from 'lucide-react';
@@ -271,52 +269,18 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = React.useState(false);
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBanner(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallBanner(false);
-    }
-  };
+  // PWA logic is now handled in PWAProvider and PushBanner component
 
   return (
     <CurrencyProvider>
       <AuthProvider>
-        <DataProvider>
-          <CartProvider>
-            <PlayerProvider>
-                <Router>
-                  <ScrollToTop />
-                  {showInstallBanner && (
-                    <div className="fixed bottom-24 left-4 right-4 z-[9999] bg-brand-purple p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/20">
-                      <div className="flex items-center gap-3">
-                          <Activity className="text-white" size={24} />
-                          <div>
-                            <p className="text-sm font-black text-white uppercase tracking-tighter">DJ FLOWERZ App</p>
-                            <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Official Mobile Experience</p>
-                          </div>
-                      </div>
-                      <div className="flex gap-2">
-                          <button onClick={() => setShowInstallBanner(false)} className="px-3 py-2 text-white/50 text-[10px] font-black uppercase">Later</button>
-                          <button onClick={handleInstall} className="px-5 py-2 bg-white text-brand-purple rounded-full text-[10px] font-black uppercase shadow-xl">Install</button>
-                      </div>
-                    </div>
-                  )}
+        <PWAProvider>
+          <DataProvider>
+            <CartProvider>
+              <PlayerProvider>
+                  <Router>
+                    <ScrollToTop />
+                    <PushBanner />
                   <Toaster position="top-right" richColors closeButton theme="dark" />
                   <FloatingChatWidget />
                   <LiveEventStreamer />
@@ -325,8 +289,9 @@ const App: React.FC = () => {
               </PlayerProvider>
             </CartProvider>
           </DataProvider>
-        </AuthProvider>
-      </CurrencyProvider>
+        </PWAProvider>
+      </AuthProvider>
+    </CurrencyProvider>
     );
   };
 

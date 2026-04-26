@@ -164,9 +164,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    
+    // Clear cart on logout
+    localStorage.removeItem('djf_cart');
+    
     setUser(null);
     setSession(null);
     posthog.reset();
+    
+    // Force a reload to clear all states if needed, or rely on state updates
+    // window.location.href = '/'; 
   };
 
   return (

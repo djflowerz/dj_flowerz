@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, ShieldCheck, Sparkles, Download } from 'lucide-react';
-import { usePushNotifications } from '../hooks/usePushNotifications';
-import { usePWA } from '../hooks/usePWA';
+import { usePWA } from '../../context/PWAContext';
 
 export const PushBanner: React.FC = () => {
-    const { isSubscribed, subscribeToPush, isSupported: pushSupported } = usePushNotifications();
-    const { installable, installApp } = usePWA();
+    const { 
+        isSubscribed, 
+        subscribeToPush, 
+        isPushSupported: pushSupported,
+        isInstallable: installable, 
+        installApp 
+    } = usePWA();
     
     const [isVisible, setIsVisible] = useState(false);
     const [isDismissed, setIsDismissed] = useState(() => localStorage.getItem('push_banner_dismissed') === 'true');
