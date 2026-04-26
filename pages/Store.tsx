@@ -15,6 +15,7 @@ import { useCart } from '../context/CartContext';
 import { toast } from 'sonner';
 import { STORAGE_WORKER_URL } from '../utils/r2';
 import { CountdownTimer as GlobalCountdownTimer } from '../components/CountdownTimer';
+import { useCurrency } from '../context/CurrencyContext';
 
 // Simple countdown timer for sections
 const CountdownTimer = ({ hours, minutes, seconds, id = "default_timer" }: { hours: number, minutes: number, seconds: number, id?: string }) => {
@@ -84,6 +85,7 @@ const DEFAULT_STORE_SETTINGS = {
 export default function Products() {
   const { products, productsLoading, addSubscriber } = useData();
   const { addToCart: addItem } = useCart();
+  const { formatPrice } = useCurrency();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState('');
@@ -338,7 +340,7 @@ export default function Products() {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-black text-white uppercase">Pro X2 Controller</h3>
-                      <span className="text-brand-cyan font-black">$1,499</span>
+                      <span className="text-brand-cyan font-black">{formatPrice(1499)}</span>
                     </div>
                     <div className="flex items-center gap-1 text-brand-cyan mb-4">
                       <Star size={12} fill="currentColor" />
@@ -434,7 +436,7 @@ export default function Products() {
                     <h3 className="text-xl font-black text-white truncate uppercase">{products.filter(p => p.isBestSeller)[0]?.name}</h3>
                   </div>
                   <div className="flex items-center justify-between">
-                     <span className="text-2xl font-black text-white">KES {products.filter(p => p.isBestSeller)[0]?.price.toLocaleString()}</span>
+                     <span className="text-2xl font-black text-white">{formatPrice(products.filter(p => p.isBestSeller)[0]?.price || 0)}</span>
                      <div className="flex items-center gap-1 text-brand-cyan">
                        <Star size={10} fill="currentColor" />
                        <span className="text-[10px] font-bold">5.0</span>
@@ -506,8 +508,8 @@ export default function Products() {
                           </div>
 
                           <div className="flex items-center justify-center gap-4">
-                             <span className="text-3xl font-black text-white">KES {offer.price.toLocaleString()}</span>
-                             <span className="text-lg font-bold text-gray-500 line-through">KES {originalPrice.toLocaleString()}</span>
+                             <span className="text-3xl font-black text-white">{formatPrice(offer.price)}</span>
+                             <span className="text-lg font-bold text-gray-500 line-through">{formatPrice(originalPrice)}</span>
                           </div>
 
                           <div className="space-y-3 px-4">

@@ -30,7 +30,36 @@ export default function AdminMarketplaceTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDeal, setSelectedDeal] = useState<EscrowDeal | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [evidenceList, setEvidenceList] = useState<any[]>([]);
+  const [loadingEvidence, setLoadingEvidence] = useState(false);
   const { resolveDispute } = useData();
+
+  const fetchEvidence = async (dealId: string) => {
+    setLoadingEvidence(true);
+    try {
+      const res = await fetch(`/api/escrow/deals/${dealId}/evidence`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('session_token') || ''}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEvidenceList(data.evidence || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch evidence:', err);
+    } finally {
+      setLoadingEvidence(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedDeal?.status === 'disputed') {
+      fetchEvidence(selectedDeal.id);
+    } else {
+      setEvidenceList([]);
+    }
+  }, [selectedDeal]);
 
   const fetchDeals = async () => {
     setLoading(true);
@@ -352,7 +381,42 @@ export default function AdminMarketplaceTab() {
                         <AlertCircle className="w-5 h-5" />
                         <span className="text-sm font-black uppercase tracking-widest">Dispute Resolution Protocol</span>
                       </div>
-                      <p className="text-xs text-gray-400">This transaction has been flagged for manual oversight. Select the final destination of the escrow funds.</p>
+
+                      <div className="space-y-4 mt-4">
+                        <p className="text-[10px] text-red-400 font-black uppercase tracking-widest border-b border-red-500/20 pb-2">Submitted Evidence</p>
+                        {loadingEvidence ? (
+                          <p className="text-red-400 text-xs animate-pulse">Loading evidence...</p>
+                        ) : evidenceList.length === 0 ? (
+                          <p className="text-red-400/50 text-xs italic">No evidence submitted yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {evidenceList.map((ev, idx) => (
+                              <div key={ev.id || idx} className="p-4 bg-black/40 border border-red-500/20 rounded-2xl flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs font-bold text-white">{ev.uploader_name} <span className="text-brand-cyan">@{ev.uploader_handle}</span></p>
+                                  <span className="text-[10px] text-gray-500">{new Date(ev.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm text-gray-300">{ev.description}</p>
+                                {ev.file_url && (
+                                  <div className="mt-2 space-y-2">
+                                    {ev.file_url.match(/\\.(jpg|jpeg|png|gif|webp)$/i) && (
+                                      <a href={ev.file_url} target="_blank" rel="noreferrer" className="block max-w-[200px] overflow-hidden rounded-xl border border-white/10 hover:border-brand-purple transition-colors">
+                                        <img src={ev.file_url} alt="Evidence Preview" className="w-full h-auto object-cover" />
+                                      </a>
+                                    )}
+                                    <a href={ev.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-purple hover:text-brand-cyan transition-colors">
+                                      <ExternalLink size={12} />
+                                      {ev.file_url.match(/\\.(jpg|jpeg|png|gif|webp)$/i) ? 'Open Full Image' : 'View Evidence File'}
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-400 mt-4 border-t border-red-500/20 pt-4">This transaction has been flagged for manual oversight. Select the final destination of the escrow funds.</p>
                       <div className="grid grid-cols-2 gap-4">
                         <button 
                           onClick={() => handleResolveDispute(selectedDeal.id, 'release_to_seller')}

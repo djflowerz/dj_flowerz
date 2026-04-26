@@ -9,7 +9,7 @@ import {
    Trash2, Check, X, Plus, Mic, Globe, Save, FileText, DollarSign, Upload, Play,
    Image as ImageIcon, Box, Lock, List, MessageSquare, Link as LinkIcon, PenSquare,
    Bold, Italic, AlignLeft, AlignCenter, AlignRight,
-   Handshake,
+   Handshake, Fingerprint,
    Mail, MessageCircle, Truck, Send, Headphones, Menu, Search, Edit2, Timer, Eye, Download, Info, Settings, AlertTriangle, Monitor, Shield, UserX, Clock, Tag, Ticket, Database, RefreshCw, Star, Gift, Copy, ExternalLink, CheckCircle, AlertCircle, Zap, Activity, Infinity, Inbox, TrendingUp, TrendingDown, LogOut, StopCircle, ChevronDown, BarChart2, MapPin, ShieldAlert, RotateCcw, CloudUpload, ScanSearch
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,6 +39,7 @@ import AdminCommunityDirectory from '../components/admin/AdminCommunityDirectory
 import AdminUsageMonitor from '../components/admin/AdminUsageMonitor';
 import BlackoutManager from '../components/admin/BlackoutManager';
 import AdminMarketplaceTab from '../components/admin/AdminMarketplaceTab';
+import AdminPayoutsTab from '../components/admin/AdminPayoutsTab';
 import { AdminLiveChatTab } from '../components/admin/AdminLiveChatTab';
 import AddProductForm from '../components/admin/AddProductForm';
 import { 
@@ -280,6 +281,7 @@ const AdminDashboard: React.FC = () => {
       { id: 'telegram', label: 'Telegram Bot', icon: MessageCircle },
       { id: 'site-profile', label: 'Site Profile', icon: Globe },
       { id: 'marketplace', label: 'Marketplace', icon: Handshake },
+      { id: 'payouts', label: 'Payouts', icon: DollarSign },
       { id: 'verification', label: 'Aura Identity', icon: Fingerprint },
       { id: 'community-profiles', label: 'Community Profile', icon: Users },
       { id: 'referrals', label: 'Referrals', icon: Gift },
@@ -1752,8 +1754,8 @@ const AdminDashboard: React.FC = () => {
                                  </span>
                               </div>
                               <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
-                                 {(notifications || []).length > 0 ? (
-                                 {(Array.isArray(notifications) ? notifications : []).map((n) => (
+                                 {(Array.isArray(notifications) ? notifications : []).length > 0 ? (
+                                    (Array.isArray(notifications) ? notifications : []).map((n) => (
                                        <div
                                           key={n.id}
                                           className={`p-5 border-b border-white/5 transition-all hover:bg-white/5 relative group cursor-pointer ${!n.read ? 'bg-brand-purple/5' : ''}`}
@@ -2067,6 +2069,7 @@ const AdminDashboard: React.FC = () => {
                {activeTab === 'interactions' && <InteractionsTab />}
                {activeTab === 'analytics' && <AnalyticsTab />}
                {activeTab === 'marketplace' && <AdminMarketplaceTab />}
+               {activeTab === 'payouts' && <AdminPayoutsTab />}
                {activeTab === 'verification' && <AdminVerificationTab />}
 
                {activeTab === 'orders' && <AdminOrdersTab />}

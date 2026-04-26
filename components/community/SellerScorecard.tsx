@@ -23,6 +23,7 @@ interface ScorecardData {
   aura_tier: string;
   primary_role?: string;
   location?: string;
+  total_sales_volume?: number;
 }
 
 interface SellerScorecardProps {
@@ -187,9 +188,12 @@ export const SellerScorecard: React.FC<SellerScorecardProps> = ({
 
           {/* Account Age */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Member Since</p>
-            <p className="text-2xl font-black text-white">{data.account_age_months}</p>
-            <p className="text-[9px] text-gray-500 mt-1">months</p>
+            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Trade Volume</p>
+            <p className="text-2xl font-black text-white">
+              <span className="text-sm text-gray-500 mr-1">KES</span>
+              {data.total_sales_volume?.toLocaleString() || 0}
+            </p>
+            <p className="text-[9px] text-gray-500 mt-1">Verified sales</p>
           </div>
         </div>
 

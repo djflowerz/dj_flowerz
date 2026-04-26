@@ -69,6 +69,43 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return url;
   };
 
+  const sendWhatsAppMessage = async (phone: string, message: string) => {
+    const waUrl = (env as any).WHATSAPP_SERVICE_URL;
+    const waKey = (env as any).WHATSAPP_API_KEY;
+    if (!waUrl || !waKey) {
+      console.warn('[WhatsApp] Service not configured.');
+      return;
+    }
+    try {
+      await fetch(`${waUrl}/send-otp`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': waKey },
+        body: JSON.stringify({ phone, message, otp: message, expiryMin: 1440 }),
+      });
+      console.log(`[WhatsApp] Alert sent to ${phone}`);
+    } catch (e) {
+      console.error('[WhatsApp] Alert error:', e);
+    }
+  };
+
+  const awardPoints = async (userId: string, actionType: string, points: number, metadata: any = {}) => {
+    if (!userId) return;
+    try {
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO aura_logs (id, user_id, action_type, points, metadata) VALUES (?, ?, ?, ?, ?)`
+      ).bind(id, userId, actionType, points, JSON.stringify(metadata)).run();
+
+      await env.DB.prepare(
+        `UPDATE profiles SET aura_points = COALESCE(aura_points, 0) + ? WHERE id = ?`
+      ).bind(points, userId).run();
+      
+      console.log(`[Aura Points] Awarded ${points} points to ${userId} for ${actionType}`);
+    } catch (e) {
+      console.error('[Aura Points] Error awarding points:', e);
+    }
+  };
+
   // GET /api/files/* (Serves files from R2 or proxies from external hubs)
   if (method === 'GET' && path.startsWith('/api/files/')) {
     const origin = url.searchParams.get('origin');
@@ -475,6 +512,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         VALUES (?, ?, 'verified')
       `).bind(badgeId, actorId).run();
 
+      // Award Points for Identity Verification
+      await awardPoints(actorId, 'identity_verification', 50, { method: 'admin_otp' });
+
       return json({ success: true, message: 'Identity Verification successful' });
     } catch (e: any) {
       return json({ error: e.message }, 500);
@@ -494,6 +534,34 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     }
   }
 
+  // GET /api/trending-tags
+  if (path === '/api/trending-tags' && method === 'GET') {
+    try {
+      const posts = await env.DB.prepare(`SELECT content FROM pulses WHERE created_at > datetime('now', '-7 days') LIMIT 500`).all() as any;
+      const tagCounts: Record<string, number> = {};
+      
+      (posts.results || []).forEach((post: any) => {
+        if (!post.content) return;
+        const matches = post.content.match(/#[a-zA-Z0-9_]+/g);
+        if (matches) {
+          matches.forEach((tag: string) => {
+            const lowerTag = tag.toLowerCase();
+            tagCounts[lowerTag] = (tagCounts[lowerTag] || 0) + 1;
+          });
+        }
+      });
+
+      const trending = Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([tag, count]) => ({ tag, count }));
+
+      return json({ success: true, tags: trending });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   // GET /api/pulses (The Multi-Vector Feed)
   if (path === '/api/pulses' && method === 'GET') {
     const vector = url.searchParams.get('vector') || 'latest';
@@ -503,27 +571,35 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
       (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count,
       (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'heart') as has_hearted,
-      (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed
+      (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed,
+      (SELECT 1 FROM follows WHERE follower_id = p.author_id AND followed_id = ?) as followsViewer,
+      (SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.author_id) as isFollowing
       FROM pulses p
       JOIN profiles pr ON p.author_id = pr.id
     `;
 
     const handleFilter = url.searchParams.get('handle');
+    let params: any[] = [actorId || '', actorId || '', actorId || '', actorId || ''];
     if (handleFilter) {
-      query += ` WHERE pr.handle = '${handleFilter.replace(/^@/, '')}'`;
+      query += ` WHERE pr.handle = ?`;
+      params.push(handleFilter.replace(/^@/, ''));
     }
 
     if (vector === 'trending') {
       query += (handleFilter ? ' AND' : ' WHERE') + ` p.created_at > datetime('now', '-7 days')`;
-      query += ` ORDER BY (hearts + echoes * 2) DESC, p.created_at DESC LIMIT 50`;
+      query += ` ORDER BY p.is_featured DESC, (hearts + echoes * 2) DESC, p.created_at DESC LIMIT 50`;
     } else if (vector === 'marketplace') {
-      query += (handleFilter ? ' AND' : ' WHERE') + ` (p.is_marketplace = 1 OR p.type = 'deal') ORDER BY p.created_at DESC LIMIT 50`;
+      query += (handleFilter ? ' AND' : ' WHERE') + ` (p.is_marketplace = 1 OR p.type = 'deal') ORDER BY p.is_featured DESC, p.created_at DESC LIMIT 50`;
     } else {
-      query += ` ORDER BY p.created_at DESC LIMIT 50`;
+      query += ` ORDER BY p.is_featured DESC, p.created_at DESC LIMIT 50`;
     }
 
-    const { results } = await env.DB.prepare(query).bind(actorId || '', actorId || '').all();
-    return json(results || []);
+    const { results } = await env.DB.prepare(query).bind(...params).all();
+    return json(results?.map((r: any) => ({
+      ...r,
+      isFollowing: !!r.isFollowing,
+      followsViewer: !!r.followsViewer
+    })) || []);
   }
 
   // GET /api/marketplace/storefront (Marketplace Feed)
@@ -538,7 +614,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         WHERE p.is_marketplace = 1 
         AND p.is_shadow_banned = 0 
         AND p.is_deleted = 0
-        ORDER BY p.created_at DESC
+        ORDER BY p.is_featured DESC, p.created_at DESC
       `).all();
       return json(results || []);
     } catch (e: any) {
@@ -556,13 +632,15 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
           (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count,
           (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'heart') as has_hearted,
-          (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed
+          (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed,
+          (SELECT 1 FROM follows WHERE follower_id = p.author_id AND followed_id = ?) as followsViewer,
+          (SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.author_id) as isFollowing
           FROM pulses p
           JOIN profiles pr ON p.author_id = pr.id
           WHERE p.id = ?
         `;
         
-        const pulse = await env.DB.prepare(pulseQuery).bind(actorId || '', actorId || '', id).first() as any;
+        const pulse = await env.DB.prepare(pulseQuery).bind(actorId || '', actorId || '', actorId || '', actorId || '', id).first() as any;
         if (!pulse) return json({ error: 'Pulse not found' }, 404);
 
         const repliesQuery = `
@@ -571,27 +649,48 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
           (SELECT COUNT(*) FROM pulse_reactions WHERE pulse_id = p.id AND type = 'echo') as echoes,
           (SELECT COUNT(*) FROM pulses WHERE parent_id = p.id) as comments_count,
           (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'heart') as has_hearted,
-          (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed
+          (SELECT id FROM pulse_reactions WHERE pulse_id = p.id AND user_id = ? AND type = 'echo') as has_echoed,
+          (SELECT 1 FROM follows WHERE follower_id = p.author_id AND followed_id = ?) as followsViewer,
+          (SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.author_id) as isFollowing
           FROM pulses p
           JOIN profiles pr ON p.author_id = pr.id
           WHERE p.parent_id = ?
           ORDER BY p.created_at ASC
         `;
         
-        const { results: replies } = await env.DB.prepare(repliesQuery).bind(actorId || '', actorId || '', id).all();
-        return json({ pulse, replies });
+        const { results: replies } = await env.DB.prepare(repliesQuery).bind(actorId || '', actorId || '', actorId || '', actorId || '', id).all();
+        return json({ 
+          pulse: {
+            ...pulse,
+            isFollowing: !!pulse.isFollowing,
+            followsViewer: !!pulse.followsViewer
+          }, 
+          replies: replies?.map((r: any) => ({
+            ...r,
+            isFollowing: !!r.isFollowing,
+            followsViewer: !!r.followsViewer
+          })) || []
+        });
     }
   }
 
   if (path === '/api/pulses' && (method === 'POST' || method === 'PUT')) {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
-    const { content, media_urls, poll_data, type, is_marketplace, deal_metadata, parent_id } = await request.json() as any;
+    const { 
+      content, media_urls, poll_data, type, is_marketplace, deal_metadata, parent_id,
+      listing_type, auction_end_at, auction_start_price, auction_reserve_price 
+    } = await request.json() as any;
     const id = crypto.randomUUID();
+
+    console.log('[POST /api/pulses] Request data:', { actorId, content, parent_id });
 
     try {
       await env.DB.prepare(`
-        INSERT INTO pulses (id, author_id, content, media_urls, poll_data, type, is_marketplace, deal_metadata, parent_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO pulses (
+          id, author_id, content, media_urls, poll_data, type, is_marketplace, deal_metadata, parent_id, created_at,
+          listing_type, listing_status, auction_end_at, auction_start_price, auction_reserve_price
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'available', ?, ?, ?)
       `).bind(
         id, 
         actorId, 
@@ -601,7 +700,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         type || 'text',
         is_marketplace ? 1 : 0,
         deal_metadata ? JSON.stringify(deal_metadata) : null,
-        parent_id || null
+        parent_id || null,
+        listing_type || 'fixed',
+        auction_end_at || null,
+        auction_start_price || null,
+        auction_reserve_price || null
       ).run();
 
       // If it's a reply, notify the parent author
@@ -621,6 +724,26 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       return json({ success: true, id });
     } catch (e: any) {
       console.error('[POST /api/pulses]', e);
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/pulses/:id/boost
+  const boostMatch = path.match(/^\/api\/pulses\/([^/]+)\/boost$/);
+  if (boostMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const id = boostMatch[1];
+    try {
+      // Logic: Mark as featured for 24 hours
+      await env.DB.prepare(`
+        UPDATE pulses 
+        SET is_featured = 1, 
+            featured_until = datetime('now', '+24 hours')
+        WHERE id = ? AND author_id = ?
+      `).bind(id, actorId).run();
+      
+      return json({ success: true, message: 'Listing boosted! It will now appear at the top of the feed for 24 hours.' });
+    } catch (e: any) {
       return json({ error: e.message }, 500);
     }
   }
@@ -807,8 +930,10 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         await env.DB.prepare('UPDATE profiles SET email = ? WHERE id = ?').bind(buyerEmail, actorId).run();
       }
 
-      const pulse = await env.DB.prepare('SELECT author_id, author_handle, content, deal_metadata FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
+      const pulse = await env.DB.prepare('SELECT author_id, author_handle, content, deal_metadata, listing_status FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
       if (!pulse) return json({ error: 'Post not found' }, 404);
+      if (pulse.listing_status === 'sold') return json({ error: 'This item has already been sold.' }, 409);
+      if (pulse.listing_status === 'reserved') return json({ error: 'This item is currently reserved by another buyer.' }, 409);
 
       const dealId = `ESC-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
       
@@ -837,17 +962,26 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const psData = await paystackResp.json() as any;
       const authorizationUrl = psData.status ? psData.data.authorization_url : null;
 
-      // INSERT INTO escrow_deals
+      // INSERT INTO escrow_deals + mark listing as reserved
       await env.DB.prepare(`
         INSERT INTO escrow_deals (id, pulse_id, seller_id, buyer_id, amount, status, created_at)
         VALUES (?, ?, ?, ?, ?, 'pending_payment', CURRENT_TIMESTAMP)
       `).bind(dealId, pulse_id, pulse.author_id, actorId, amount).run();
+      // Reserve the listing so no other buyer can initiate payment
+      await env.DB.prepare("UPDATE pulses SET listing_status = 'reserved' WHERE id = ?").bind(pulse_id).run();
 
       // Notify seller
       await env.DB.prepare(`
         INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
         VALUES (?, ?, ?, 'escrow_update', ?, ?)
       `).bind(crypto.randomUUID(), pulse.author_id, actorId, dealId, `initiated a purchase for "${pulse.content?.slice(0, 30)}..."`).run();
+
+      // High-Value WhatsApp Alert for Admin
+      if (Number(amount) >= 10000) {
+        const adminPhone = '254798059089';
+        const msg = `🚀 HIGH-VALUE ESCROW INITIATED\n\nDeal ID: ${dealId}\nAmount: KES ${Number(amount).toLocaleString()}\nBuyer ID: ${actorId}\nPulse ID: ${pulse_id}\n\nPlease monitor for payment confirmation.`;
+        ctx.waitUntil(sendWhatsAppMessage(adminPhone, msg));
+      }
 
       return json({ 
         success: true, 
@@ -927,7 +1061,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   if (path.startsWith('/api/escrow/deals/') && method === 'PATCH') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
     const dealId = path.split('/').pop();
-    const { status } = await request.json() as any;
+    const body = await request.json() as any;
+    const { status, tracking_number, shipping_company } = body;
 
     const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
     if (!deal) return json({ error: 'Deal not found' }, 404);
@@ -937,7 +1072,22 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (status === 'shipped' && deal.seller_id !== actorId) return json({ error: 'Only seller can mark as shipped' }, 403);
     if (status === 'completed' && deal.buyer_id !== actorId) return json({ error: 'Only buyer can confirm receipt' }, 403);
 
-    await env.DB.prepare('UPDATE escrow_deals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(status, dealId).run();
+    // Handle completion (Financial Split)
+    if (status === 'completed' && deal.status !== 'completed') {
+      const commissionRate = deal.commission_rate || 0.10;
+      const platformFee = deal.amount * commissionRate;
+      const netSellerAmount = deal.amount - platformFee;
+
+      await env.DB.batch([
+        env.DB.prepare('UPDATE escrow_deals SET status = ?, platform_fee = ?, net_seller_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(status, platformFee, netSellerAmount, dealId),
+        env.DB.prepare('UPDATE profiles SET commission_balance = commission_balance + ?, pending_balance = pending_balance + ? WHERE id = ?').bind(netSellerAmount, netSellerAmount, deal.seller_id)
+      ]);
+    } else if (status === 'shipped') {
+      await env.DB.prepare('UPDATE escrow_deals SET status = ?, tracking_number = ?, shipping_company = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(status, tracking_number || deal.tracking_number, shipping_company || deal.shipping_company, dealId).run();
+    } else {
+      await env.DB.prepare('UPDATE escrow_deals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(status, dealId).run();
+    }
 
     const targetId = (actorId === deal.buyer_id) ? deal.seller_id : deal.buyer_id;
     await env.DB.prepare(`
@@ -985,11 +1135,479 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     return json({ success: true, message: 'Dispute raised. Admin has been notified.' });
   }
 
+  // POST /api/escrow/deals/:id/evidence
+  const evidenceMatch = path.match(/^\/api\/escrow\/deals\/([^/]+)\/evidence$/);
+  if (evidenceMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const dealId = evidenceMatch[1];
+    const { fileUrl, description } = await request.json() as any;
+
+    if (!fileUrl) return json({ error: 'File URL is required' }, 400);
+
+    const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
+    if (!deal) return json({ error: 'Deal not found' }, 404);
+    if (deal.buyer_id !== actorId && deal.seller_id !== actorId) return json({ error: 'Not a party to this deal' }, 403);
+    
+    try {
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO dispute_evidence (id, deal_id, uploaded_by, file_url, description) VALUES (?, ?, ?, ?, ?)`
+      ).bind(id, dealId, actorId, fileUrl, description || '').run();
+
+      // Notify the other party
+      const otherParty = deal.buyer_id === actorId ? deal.seller_id : deal.buyer_id;
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+        VALUES (?, ?, ?, 'dispute_evidence', ?, ?)
+      `).bind(
+        crypto.randomUUID(), 
+        otherParty, 
+        actorId, 
+        dealId, 
+        'submitted evidence for a disputed deal'
+      ).run();
+
+      return json({ success: true, message: 'Evidence uploaded successfully' });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // GET /api/escrow/deals/:id/evidence
+  if (evidenceMatch && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const dealId = evidenceMatch[1];
+    try {
+      const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
+      if (!deal) return json({ error: 'Deal not found' }, 404);
+      
+      const isAdmin = jwtEmail && ADMIN_EMAILS.includes(jwtEmail.toLowerCase());
+      if (deal.buyer_id !== actorId && deal.seller_id !== actorId && !isAdmin) {
+        return json({ error: 'Not authorized to view this deal' }, 403);
+      }
+
+      const { results } = await env.DB.prepare(`
+        SELECT de.*, p.handle as uploader_handle, p.full_name as uploader_name 
+        FROM dispute_evidence de
+        JOIN profiles p ON de.uploaded_by = p.id
+        WHERE de.deal_id = ?
+        ORDER BY de.created_at ASC
+      `).bind(dealId).all();
+
+      return json({ success: true, evidence: results || [] });
+    } catch (e: any) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // GET /api/seller/stats
+  if (path === '/api/seller/stats' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const stats = await env.DB.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN net_seller_amount ELSE 0 END), 0) as total_earned,
+        COALESCE(SUM(CASE WHEN status IN ('deposited', 'shipped') THEN net_seller_amount ELSE 0 END), 0) as pending_escrow,
+        (SELECT commission_balance FROM profiles WHERE id = ?) as available_balance,
+        (SELECT total_withdrawn FROM profiles WHERE id = ?) as total_withdrawn
+      FROM escrow_deals
+      WHERE seller_id = ?
+    `).bind(actorId, actorId, actorId).first();
+    return json(stats || { total_earned: 0, pending_escrow: 0, available_balance: 0, total_withdrawn: 0 });
+  }
+
+  // POST /api/payout/request
+  if (path === '/api/payout/request' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { amount, account_details } = await request.json() as any;
+    
+    const profile = await env.DB.prepare('SELECT commission_balance FROM profiles WHERE id = ?').bind(actorId).first() as any;
+    if (!profile || profile.commission_balance < amount) {
+      return json({ error: 'Insufficient balance' }, 400);
+    }
+
+    const requestId = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO payout_requests (id, user_id, amount, account_details) VALUES (?, ?, ?, ?)').bind(requestId, actorId, amount, account_details),
+      env.DB.prepare('UPDATE profiles SET commission_balance = commission_balance - ?, total_withdrawn = total_withdrawn + ? WHERE id = ?').bind(amount, amount, actorId)
+    ]);
+
+    // Notify Admin
+    const adminProfile = await env.DB.prepare('SELECT id FROM profiles WHERE email = ?').bind(env.ADMIN_EMAIL || 'ianmuriithiflowerz@gmail.com').first() as any;
+    if (adminProfile?.id) {
+       await env.DB.prepare(`
+         INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+         VALUES (?, ?, ?, 'admin_payout', ?, ?)
+       `).bind(crypto.randomUUID(), adminProfile.id, actorId, requestId, `New Payout Request: KES ${amount} from ${actorId}`).run();
+    }
+
+    return json({ success: true, requestId });
+  }
+
+  // GET /api/payout/history
+  if (path === '/api/payout/history' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const payouts = await env.DB.prepare('SELECT * FROM payout_requests WHERE user_id = ? ORDER BY created_at DESC').bind(actorId).all();
+    return json(payouts.results);
+  }
+
+  // GET /api/seller/reviews
+  if (path === '/api/seller/reviews' && method === 'GET') {
+     const seller_id = searchParams.get('seller_id') || actorId;
+     if (!seller_id) return json({ error: 'Seller ID required' }, 400);
+
+     const reviews = await env.DB.prepare(`
+       SELECT r.*, p.display_name as buyer_name, p.avatar_url as buyer_avatar
+       FROM seller_reviews r
+       JOIN profiles p ON r.buyer_id = p.id
+       WHERE r.seller_id = ?
+       ORDER BY r.created_at DESC
+     `).bind(seller_id).all();
+     
+     const stats = await env.DB.prepare(`
+       SELECT COUNT(*) as count, AVG(rating) as average
+       FROM seller_reviews
+       WHERE seller_id = ?
+     `).bind(seller_id).first() as any;
+
+     return json({
+       reviews: reviews.results,
+       average_rating: stats?.average || 0,
+       total_reviews: stats?.count || 0
+     });
+  }
+
+  // GET /api/seller/profile/:id
+  if (path.startsWith('/api/seller/profile/') && method === 'GET') {
+     const sellerId = path.split('/').pop();
+     const stats = await env.DB.prepare(`
+       SELECT 
+         p.display_name, p.handle, p.avatar_url, p.bio,
+         (SELECT COUNT(*) FROM escrow_deals WHERE seller_id = ? AND status = 'completed') as total_sales,
+         (SELECT AVG(rating) FROM seller_reviews WHERE seller_id = ?) as average_rating,
+         (SELECT COUNT(*) FROM seller_reviews WHERE seller_id = ?) as review_count
+       FROM profiles p
+       WHERE p.id = ?
+     `).bind(sellerId, sellerId, sellerId, sellerId).first();
+
+     if (!stats) return json({ error: 'Seller not found' }, 404);
+     return json(stats);
+  }
+
+  // GET /api/admin/payouts
+  if (path === '/api/admin/payouts' && method === 'GET') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    const payouts = await env.DB.prepare(`
+      SELECT r.*, p.display_name, p.email, p.avatar_url
+      FROM payout_requests r
+      JOIN profiles p ON r.user_id = p.id
+      ORDER BY r.created_at DESC
+    `).all();
+    return json(payouts.results);
+  }
+
+  // PATCH /api/admin/payouts/:id
+  if (path.startsWith('/api/admin/payouts/') && method === 'PATCH') {
+    if (!jwtEmail || !ADMIN_EMAILS.includes(jwtEmail.toLowerCase())) return json({ error: 'Admin only' }, 403);
+    const payoutId = path.split('/').pop();
+    const { status } = await request.json() as any;
+    
+    await env.DB.prepare('UPDATE payout_requests SET status = ? WHERE id = ?').bind(status, payoutId).run();
+    
+    // If completed, notify the user
+    if (status === 'paid') {
+      const payout = await env.DB.prepare('SELECT user_id, amount FROM payout_requests WHERE id = ?').bind(payoutId).first() as any;
+      if (payout) {
+        await env.DB.prepare(`
+          INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+          VALUES (?, ?, ?, 'payout_completed', ?, ?)
+        `).bind(crypto.randomUUID(), payout.user_id, actorId, payoutId, `Your payout of KES ${payout.amount} has been processed.`).run();
+      }
+    }
+    
+    return json({ success: true });
+  }
+
+  // POST /api/seller/reviews
+  if (path === '/api/seller/reviews' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { seller_id, deal_id, rating, comment } = await request.json() as any;
+    
+    await env.DB.prepare(`
+      INSERT INTO seller_reviews (id, seller_id, buyer_id, deal_id, rating, comment)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(crypto.randomUUID(), seller_id, actorId, deal_id, rating, comment).run();
+    
+    return json({ success: true });
+  }
+
+  // GET /api/seller/listings
+  if (path === '/api/seller/listings' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const listings = await env.DB.prepare('SELECT * FROM pulses WHERE author_id = ? AND is_marketplace = 1 ORDER BY created_at DESC').bind(actorId).all();
+    return json(listings.results);
+  }
+
+  // GET /api/wishlist
+  if (path === '/api/wishlist' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const items = await env.DB.prepare(`
+      SELECT w.*, p.content, p.media_urls, p.author_handle, p.author_name, p.deal_metadata
+      FROM wishlists w
+      LEFT JOIN pulses p ON w.entity_id = p.id
+      WHERE w.user_id = ?
+      ORDER BY w.created_at DESC
+    `).bind(actorId).all();
+    return json(items.results || []);
+  }
+
+  // POST /api/wishlist
+  if (path === '/api/wishlist' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { entity_id, entity_type } = await request.json() as any;
+    
+    try {
+      await env.DB.prepare(`
+        INSERT INTO wishlists (id, user_id, entity_id, entity_type)
+        VALUES (?, ?, ?, ?)
+      `).bind(crypto.randomUUID(), actorId, entity_id, entity_type || 'pulse').run();
+      return json({ success: true, added: true });
+    } catch (e: any) {
+      if (e.message.includes('UNIQUE')) {
+        await env.DB.prepare('DELETE FROM wishlists WHERE user_id = ? AND entity_id = ?').bind(actorId, entity_id).run();
+        return json({ success: true, removed: true });
+      }
+      return json({ error: e.message }, 500);
+    }
+  }
+
+  // POST /api/escrow/deals/:id/refund
+  const refundMatch = path.match(/^\/api\/escrow\/deals\/([^/]+)\/refund$/);
+  if (refundMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const dealId = refundMatch[1];
+    const { amount, reason } = await request.json() as any;
+    
+    const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
+    if (!deal) return json({ error: 'Deal not found' }, 404);
+    
+    if (deal.seller_id !== actorId) return json({ error: 'Unauthorized' }, 403);
+    
+    await env.DB.prepare('UPDATE escrow_deals SET status = \'refunded\', refund_amount = ?, refund_status = \'full\', updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .bind(amount || deal.amount, dealId).run();
+      
+    return json({ success: true });
+  }
+
+  // ─── MARKETPLACE INTEREST (BUYER-SELLER CHAT FLOW) ─────────────────────────
+
+  // POST /api/marketplace/interest — buyer expresses interest in a listing
+  if (path === '/api/marketplace/interest' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { pulse_id, message } = await request.json() as any;
+    if (!pulse_id || !message?.trim()) return json({ error: 'pulse_id and message required' }, 400);
+
+    const pulse = await env.DB.prepare('SELECT id, author_id, content, listing_status FROM pulses WHERE id = ?').bind(pulse_id).first() as any;
+    if (!pulse) return json({ error: 'Listing not found' }, 404);
+    if (pulse.listing_status === 'sold') return json({ error: 'This item has already been sold.' }, 409);
+    if (pulse.author_id === actorId) return json({ error: 'You cannot express interest in your own listing.' }, 400);
+
+    // Check if this buyer already expressed interest
+    const existing = await env.DB.prepare('SELECT id, status FROM deal_interests WHERE pulse_id = ? AND buyer_id = ?').bind(pulse_id, actorId).first() as any;
+    if (existing) return json({ error: 'You have already expressed interest in this item.', interest_id: existing.id, status: existing.status }, 409);
+
+    const interestId = crypto.randomUUID();
+    await env.DB.prepare(`
+      INSERT INTO deal_interests (id, pulse_id, buyer_id, seller_id, status, buyer_message, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'pending', ?, datetime('now'), datetime('now'))
+    `).bind(interestId, pulse_id, actorId, pulse.author_id, message.trim().slice(0, 500)).run();
+
+    // Notify seller
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+      VALUES (?, ?, ?, 'deal_interest', ?, ?)
+    `).bind(crypto.randomUUID(), pulse.author_id, actorId, interestId, `Someone is interested in your listing: "${pulse.content?.slice(0, 40)}..."`).run();
+
+    return json({ success: true, interest_id: interestId });
+  }
+
+  // GET /api/marketplace/interests — list interests for the logged-in user (buyer or seller)
+  if (path === '/api/marketplace/interests' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { results } = await env.DB.prepare(`
+      SELECT di.*,
+        p.content as listing_content, p.deal_metadata as listing_deal_metadata,
+        buyer.full_name as buyer_name, buyer.avatar_url as buyer_avatar, buyer.handle as buyer_handle,
+        seller.full_name as seller_name, seller.avatar_url as seller_avatar, seller.handle as seller_handle
+      FROM deal_interests di
+      JOIN pulses p ON di.pulse_id = p.id
+      JOIN profiles buyer ON di.buyer_id = buyer.id
+      JOIN profiles seller ON di.seller_id = seller.id
+      WHERE di.buyer_id = ? OR di.seller_id = ?
+      ORDER BY di.updated_at DESC
+      LIMIT 50
+    `).bind(actorId, actorId).all();
+    return json(results || []);
+  }
+
+  // PATCH /api/marketplace/interests/:id — seller accepts/declines or either party replies
+  const interestPatchMatch = path.match(/^\/api\/marketplace\/interests\/([^/]+)$/);
+  if (interestPatchMatch && method === 'PATCH') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const interestId = interestPatchMatch[1];
+    const { status, seller_reply } = await request.json() as any;
+
+    const interest = await env.DB.prepare('SELECT * FROM deal_interests WHERE id = ?').bind(interestId).first() as any;
+    if (!interest) return json({ error: 'Interest not found' }, 404);
+    if (interest.seller_id !== actorId && interest.buyer_id !== actorId) return json({ error: 'Forbidden' }, 403);
+
+    // Only seller can accept/decline
+    if ((status === 'accepted' || status === 'declined') && interest.seller_id !== actorId) {
+      return json({ error: 'Only the seller can accept or decline.' }, 403);
+    }
+
+    await env.DB.prepare(`
+      UPDATE deal_interests SET status = COALESCE(?, status), seller_reply = COALESCE(?, seller_reply), updated_at = datetime('now') WHERE id = ?
+    `).bind(status || null, seller_reply || null, interestId).run();
+
+    // Notify the other party
+    const notifyUserId = actorId === interest.seller_id ? interest.buyer_id : interest.seller_id;
+    const notifContent = status === 'accepted'
+      ? '✅ Your interest was accepted! You can now pay via Escrow.'
+      : status === 'declined'
+        ? '❌ The seller has declined your interest.'
+        : seller_reply ? 'The seller replied to your interest.' : 'Your interest was updated.';
+
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+      VALUES (?, ?, ?, 'interest_update', ?, ?)
+    `).bind(crypto.randomUUID(), notifyUserId, actorId, interestId, notifContent).run();
+
+    return json({ success: true });
+  }
+
+  // ─── MARKETPLACE BIDDING SYSTEM ─────────────────────────────────────────────
+
+  // POST /api/marketplace/bids — place a bid on an auction listing
+  if (path === '/api/marketplace/bids' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const { pulse_id, amount } = await request.json() as any;
+    if (!pulse_id || !amount) return json({ error: 'pulse_id and amount required' }, 400);
+
+    const pulse = await env.DB.prepare(
+      'SELECT id, author_id, content, listing_type, listing_status, auction_end_at, highest_bid, highest_bidder_id, auction_start_price, auction_reserve_price FROM pulses WHERE id = ?'
+    ).bind(pulse_id).first() as any;
+
+    if (!pulse) return json({ error: 'Listing not found' }, 404);
+    if (pulse.listing_type !== 'auction') return json({ error: 'This listing is not an auction.' }, 400);
+    if (pulse.listing_status === 'sold') return json({ error: 'This auction has ended.' }, 409);
+    if (pulse.author_id === actorId) return json({ error: 'You cannot bid on your own listing.' }, 400);
+
+    // Check auction hasn't expired
+    if (pulse.auction_end_at && new Date(pulse.auction_end_at) < new Date()) {
+      return json({ error: 'This auction has already ended.' }, 409);
+    }
+
+    const minBid = (pulse.highest_bid || pulse.auction_start_price || 0) + 50;
+    if (Number(amount) < minBid) {
+      return json({ error: `Bid must be at least KES ${minBid.toLocaleString()}` }, 400 );
+    }
+
+    const bidId = crypto.randomUUID();
+    // Mark previous highest bid as 'outbid'
+    if (pulse.highest_bidder_id) {
+      await env.DB.prepare("UPDATE marketplace_bids SET status = 'outbid' WHERE pulse_id = ? AND status = 'active'").bind(pulse_id).run();
+      // Notify previous high bidder
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+        VALUES (?, ?, ?, 'outbid', ?, ?)
+      `).bind(crypto.randomUUID(), pulse.highest_bidder_id, actorId, pulse_id, `You've been outbid! New highest bid: KES ${Number(amount).toLocaleString()}`).run();
+    }
+
+    // Insert new bid
+    await env.DB.prepare(`
+      INSERT INTO marketplace_bids (id, pulse_id, bidder_id, amount, status, created_at)
+      VALUES (?, ?, ?, ?, 'active', datetime('now'))
+    `).bind(bidId, pulse_id, actorId, amount).run();
+
+    // Update pulse with new highest bid
+    await env.DB.prepare(`
+      UPDATE pulses SET highest_bid = ?, highest_bidder_id = ?, bid_count = bid_count + 1 WHERE id = ?
+    `).bind(amount, actorId, pulse_id).run();
+
+    // Notify seller
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+      VALUES (?, ?, ?, 'new_bid', ?, ?)
+    `).bind(crypto.randomUUID(), pulse.author_id, actorId, pulse_id, `New bid of KES ${Number(amount).toLocaleString()} on your listing!`).run();
+
+    return json({ success: true, bid_id: bidId, highest_bid: amount });
+  }
+
+  // GET /api/marketplace/bids/:pulseId — get all bids for a listing
+  const bidsGetMatch = path.match(/^\/api\/marketplace\/bids\/([^/]+)$/);
+  if (bidsGetMatch && method === 'GET') {
+    const pulseId = bidsGetMatch[1];
+    const { results } = await env.DB.prepare(`
+      SELECT b.*, p.full_name as bidder_name, p.avatar_url as bidder_avatar, p.handle as bidder_handle
+      FROM marketplace_bids b
+      JOIN profiles p ON b.bidder_id = p.id
+      WHERE b.pulse_id = ?
+      ORDER BY b.amount DESC
+    `).bind(pulseId).all();
+    return json(results || []);
+  }
+
+  // POST /api/marketplace/close-auction/:pulseId — seller manually closes auction
+  const closeAuctionMatch = path.match(/^\/api\/marketplace\/close-auction\/([^/]+)$/);
+  if (closeAuctionMatch && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const pulseId = closeAuctionMatch[1];
+
+    const pulse = await env.DB.prepare(
+      'SELECT id, author_id, listing_type, listing_status, highest_bid, highest_bidder_id, auction_reserve_price, content FROM pulses WHERE id = ?'
+    ).bind(pulseId).first() as any;
+
+    if (!pulse) return json({ error: 'Listing not found' }, 404);
+    if (pulse.author_id !== actorId) return json({ error: 'Only the seller can close this auction.' }, 403);
+    if (pulse.listing_type !== 'auction') return json({ error: 'Not an auction.' }, 400);
+    if (pulse.listing_status === 'sold') return json({ error: 'Already sold.' }, 409);
+
+    if (!pulse.highest_bidder_id) {
+      // No bids — just mark as available again or cancelled
+      await env.DB.prepare("UPDATE pulses SET listing_status = 'available', listing_type = 'fixed' WHERE id = ?").bind(pulseId).run();
+      return json({ success: true, result: 'no_bids', message: 'No bids were placed. Listing returned to available.' });
+    }
+
+    // Reserve check
+    if (pulse.auction_reserve_price && pulse.highest_bid < pulse.auction_reserve_price) {
+      await env.DB.prepare("UPDATE pulses SET listing_status = 'available' WHERE id = ?").bind(pulseId).run();
+      return json({ success: true, result: 'reserve_not_met', message: 'Reserve price not met. Auction closed without a sale.' });
+    }
+
+    // Mark winning bid
+    await env.DB.prepare("UPDATE marketplace_bids SET status = 'won' WHERE pulse_id = ? AND bidder_id = ? AND status = 'active'").bind(pulseId, pulse.highest_bidder_id).run();
+    // Reserve listing
+    await env.DB.prepare("UPDATE pulses SET listing_status = 'reserved' WHERE id = ?").bind(pulseId).run();
+
+    // Notify winner to pay via escrow
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+      VALUES (?, ?, ?, 'auction_won', ?, ?)
+    `).bind(crypto.randomUUID(), pulse.highest_bidder_id, pulse.author_id, pulseId,
+      `🏆 You won the auction for "${pulse.content?.slice(0, 40)}..." with KES ${Number(pulse.highest_bid).toLocaleString()}! Complete your payment via Escrow now.`
+    ).run();
+
+    return json({ success: true, result: 'sold', winner_id: pulse.highest_bidder_id, winning_bid: pulse.highest_bid });
+  }
+
   // GET /api/notifications
   if (path === '/api/notifications' && method === 'GET') {
     if (!actorId) return json({ error: 'Unauthorized' }, 401);
     const { results } = await env.DB.prepare(`
-      SELECT n.*, p.full_name as actor_name, p.avatar_url as actor_avatar
+      SELECT n.*, 
+             COALESCE(n.target_id, n.entity_id) as reference_id,
+             p.full_name as actor_name, 
+             p.avatar_url as actor_avatar
       FROM notifications n
       LEFT JOIN profiles p ON n.actor_id = p.id
       WHERE n.user_id = ?
@@ -1733,6 +2351,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         `).bind(userId, planId, expiry.toISOString(), expiry.toISOString(), planId).run();
       } else if (metadata.payment_type === 'escrow_payment') {
         const dealId = metadata.deal_id;
+        const dealAmount = event.data.amount / 100;
         await env.DB.prepare(`
           UPDATE escrow_deals SET status = 'deposited', updated_at = CURRENT_TIMESTAMP WHERE id = ?
         `).bind(dealId).run();
@@ -1741,7 +2360,14 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         await env.DB.prepare(`
           INSERT INTO payments (id, amount, status, type, reference, user_id, created_at)
           VALUES (?, ?, 'success', 'escrow_deposit', ?, ?, CURRENT_TIMESTAMP)
-        `).bind(crypto.randomUUID(), event.data.amount / 100, dealId, metadata.buyer_id).run();
+        `).bind(crypto.randomUUID(), dealAmount, dealId, metadata.buyer_id).run();
+
+        // High-Value WhatsApp Alert for Admin (on Payment Success)
+        if (dealAmount >= 10000) {
+          const adminPhone = '254798059089';
+          const msg = `💰 PAYMENT CONFIRMED: HIGH-VALUE DEAL\n\nDeal ID: ${dealId}\nAmount: KES ${dealAmount.toLocaleString()}\nStatus: deposited\n\nThe funds are now in escrow.`;
+          ctx.waitUntil(sendWhatsAppMessage(adminPhone, msg));
+        }
       }
     }
     return json({ received: true });
@@ -2766,6 +3392,9 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
         VALUES (?, ?, 'verified')
       `).bind(crypto.randomUUID(), actorId).run();
 
+      // Award Points for Identity Verification
+      await awardPoints(actorId, 'identity_verification', 50, { method: 'user_otp' });
+
       await env.DB.prepare(`INSERT INTO admin_logs (action, details, admin_user) VALUES ('EMAIL_VERIFIED', ?, 'SYSTEM')`)
         .bind(`User ${actorId} successfully completed email verification`).run();
 
@@ -2867,6 +3496,10 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
         SELECT COUNT(*) as count FROM community_vouches WHERE vouchee_id = ?
       `).bind(userId).first() as any;
 
+      const { sum: salesVolume } = await env.DB.prepare(`
+        SELECT SUM(amount) as sum FROM escrow_deals WHERE seller_id = ? AND status = 'completed'
+      `).bind(userId).first() as any;
+
       const createdAt = new Date(profile.created_at || Date.now());
       const monthsOld = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30));
 
@@ -2887,6 +3520,7 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
         account_age_months: monthsOld,
         is_verified: !!profile.is_verified,
         strikes: profile.strikes || 0,
+        total_sales_volume: salesVolume || 0,
         member_tier: profile.aura_tier || 'Newcomer',
         primary_role: profile.primary_role,
         location: profile.location,
@@ -2946,6 +3580,28 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
       
       await env.DB.prepare(`UPDATE escrow_deals SET status = ? WHERE id = ?`).bind(newStatus, dealId).run();
       
+      const deal = await env.DB.prepare('SELECT * FROM escrow_deals WHERE id = ?').bind(dealId).first() as any;
+      if (deal) {
+        const msg = resolution === 'release_to_seller' 
+          ? 'Dispute resolved in favor of the seller. Funds have been released.'
+          : 'Dispute resolved in favor of the buyer. Funds have been refunded.';
+          
+        await env.DB.batch([
+          env.DB.prepare(`
+            INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+            VALUES (?, ?, ?, 'dispute_resolved', ?, ?)
+          `).bind(crypto.randomUUID(), deal.buyer_id, 'admin', dealId, msg),
+          env.DB.prepare(`
+            INSERT INTO notifications (id, user_id, actor_id, type, target_id, content)
+            VALUES (?, ?, ?, 'dispute_resolved', ?, ?)
+          `).bind(crypto.randomUUID(), deal.seller_id, 'admin', dealId, msg),
+          env.DB.prepare(`
+            INSERT INTO admin_logs (action, details, admin_user) 
+            VALUES ('DISPUTE_RESOLVED', ?, ?)
+          `).bind(JSON.stringify({ dealId, resolution }), jwtEmail)
+        ]);
+      }
+
       return json({ success: true, message: `Deal ${resolution === 'release_to_seller' ? 'released' : 'refunded'}` });
     } catch (e: any) {
       return json({ error: e.message }, 500);
@@ -3231,6 +3887,188 @@ If you suspect a scam, use the **Report Post** button or email **safe@djflowerz.
        }
 
        return json({ success: true, expiry });
+    } catch (e: any) { return json({ error: e.message }, 500); }
+  }
+
+  // ─── DIRECT MESSAGES ─────────────────────────────────────────────────────────
+
+  // GET /api/dm/conversations — list conversations for current user
+  if (path === '/api/dm/conversations' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const convs = await env.DB.prepare(`
+        SELECT c.*,
+          p1.display_name AS p1_name, p1.avatar_url AS p1_avatar, p1.handle AS p1_handle,
+          p2.display_name AS p2_name, p2.avatar_url AS p2_avatar, p2.handle AS p2_handle
+        FROM dm_conversations c
+        LEFT JOIN profiles p1 ON p1.user_id = c.participant_1
+        LEFT JOIN profiles p2 ON p2.user_id = c.participant_2
+        WHERE c.participant_1 = ? OR c.participant_2 = ?
+        ORDER BY c.last_message_at DESC
+        LIMIT 50
+      `).bind(actorId, actorId).all();
+      return json({ conversations: convs.results || [] });
+    } catch (e: any) { return json({ error: e.message }, 500); }
+  }
+
+  // GET /api/dm/messages/:conversationId — messages in a thread
+  const dmMessagesMatch = path.match(/^\/api\/dm\/messages\/([^/]+)$/);
+  if (dmMessagesMatch && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    const conversationId = dmMessagesMatch[1];
+    try {
+      // Verify user is part of conversation
+      const conv = await env.DB.prepare(
+        'SELECT * FROM dm_conversations WHERE id = ? AND (participant_1 = ? OR participant_2 = ?)'
+      ).bind(conversationId, actorId, actorId).first() as any;
+      if (!conv) return json({ error: 'Conversation not found' }, 404);
+
+      const msgs = await env.DB.prepare(`
+        SELECT m.*, p.display_name AS sender_name, p.avatar_url AS sender_avatar, p.handle AS sender_handle
+        FROM direct_messages m
+        LEFT JOIN profiles p ON p.user_id = m.sender_id
+        WHERE m.conversation_id = ?
+        ORDER BY m.created_at ASC
+        LIMIT 100
+      `).bind(conversationId).all();
+
+      // Mark messages as read
+      await env.DB.prepare(
+        'UPDATE direct_messages SET is_read = 1 WHERE conversation_id = ? AND recipient_id = ? AND is_read = 0'
+      ).bind(conversationId, actorId).run();
+
+      // Reset unread count for this user
+      const field = conv.participant_1 === actorId ? 'unread_count_1' : 'unread_count_2';
+      await env.DB.prepare(`UPDATE dm_conversations SET ${field} = 0 WHERE id = ?`).bind(conversationId).run();
+
+      return json({ messages: msgs.results || [] });
+    } catch (e: any) { return json({ error: e.message }, 500); }
+  }
+
+  // POST /api/dm/send — send a message
+  if (path === '/api/dm/send' && method === 'POST') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const body = await request.json() as any;
+      const { recipient_id, content, media_url } = body;
+      if (!recipient_id || (!content?.trim() && !media_url)) return json({ error: 'recipient_id and (content or media_url) required' }, 400);
+
+      // Find or create conversation (canonical order: smaller id first)
+      const p1 = actorId < recipient_id ? actorId : recipient_id;
+      const p2 = actorId < recipient_id ? recipient_id : actorId;
+      const convId = `conv_${p1}_${p2}`;
+
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO dm_conversations (id, participant_1, participant_2)
+        VALUES (?, ?, ?)
+      `).bind(convId, p1, p2).run();
+
+      const msgId = `msg_${crypto.randomUUID()}`;
+      await env.DB.prepare(`
+        INSERT INTO direct_messages (id, conversation_id, sender_id, recipient_id, content, media_url)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(msgId, convId, actorId, recipient_id, content?.trim() || '', media_url || null).run();
+
+      // Update conversation last message
+      const summary = content?.trim() || '[Image]';
+      const unreadField = p1 === recipient_id ? 'unread_count_1' : 'unread_count_2';
+      await env.DB.prepare(`
+        UPDATE dm_conversations 
+        SET last_message = ?, last_message_at = datetime('now'), ${unreadField} = ${unreadField} + 1
+        WHERE id = ?
+      `).bind(summary.slice(0, 100), convId).run();
+
+      // Create notification for recipient
+      const notifId = `notif_${crypto.randomUUID()}`;
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, actor_id, type, content, entity_id, entity_type)
+        VALUES (?, ?, ?, 'dm', ?, ?, 'dm_conversation')
+      `).bind(notifId, recipient_id, actorId, summary.slice(0, 100), convId).run();
+
+      return json({ success: true, message_id: msgId, conversation_id: convId });
+    } catch (e: any) { return json({ error: e.message }, 500); }
+  }
+
+  // GET /api/dm/unread — unread count for current user
+  if (path === '/api/dm/unread' && method === 'GET') {
+    if (!actorId) return json({ error: 'Unauthorized' }, 401);
+    try {
+      const r = await env.DB.prepare(`
+        SELECT 
+          SUM(CASE WHEN participant_1 = ? THEN unread_count_1 ELSE unread_count_2 END) as total_unread
+        FROM dm_conversations
+        WHERE participant_1 = ? OR participant_2 = ?
+      `).bind(actorId, actorId, actorId).first() as any;
+      return json({ unread: r?.total_unread || 0 });
+    } catch (e: any) { return json({ error: e.message }, 500); }
+  }
+
+  // ─── GLOBAL SEARCH ────────────────────────────────────────────────────────────
+
+  // GET /api/search?q=query&type=all|users|posts|hashtags
+  if (path === '/api/search' && method === 'GET') {
+    const q = url.searchParams.get('q')?.trim();
+    const type = url.searchParams.get('type') || 'all';
+    if (!q || q.length < 1) return json({ users: [], posts: [], hashtags: [] });
+
+    try {
+      const results: any = { users: [], posts: [], hashtags: [] };
+      const like = `%${q}%`;
+
+      if (type === 'all' || type === 'users') {
+        const usersRes = await env.DB.prepare(`
+          SELECT user_id, display_name, handle, avatar_url, bio, role, is_verified, followers_count
+          FROM profiles
+          WHERE display_name LIKE ? OR handle LIKE ? OR bio LIKE ?
+          ORDER BY followers_count DESC
+          LIMIT 20
+        `).bind(like, like, like).all();
+        results.users = usersRes.results || [];
+      }
+
+      if (type === 'all' || type === 'posts') {
+        const postsRes = await env.DB.prepare(`
+          SELECT p.id, p.content, p.author_id, p.author_name, p.author_handle, p.author_avatar,
+                 p.media_urls, p.like_count, p.reply_count, p.reshare_count, p.created_at,
+                 p.hashtags, p.is_marketplace, p.deal_metadata
+          FROM pulses p
+          WHERE (p.content LIKE ? OR p.hashtags LIKE ? OR p.author_handle LIKE ? OR p.author_name LIKE ?)
+            AND p.parent_id IS NULL
+          ORDER BY p.created_at DESC
+          LIMIT 30
+        `).bind(like, like, like, like).all();
+        results.posts = postsRes.results || [];
+      }
+
+      if (type === 'all' || type === 'hashtags') {
+        // Extract unique hashtags from pulses that match query
+        const hashtagRes = await env.DB.prepare(`
+          SELECT hashtags, COUNT(*) as post_count
+          FROM pulses
+          WHERE hashtags LIKE ?
+          GROUP BY hashtags
+          ORDER BY post_count DESC
+          LIMIT 20
+        `).bind(like).all();
+
+        const tagSet = new Map<string, number>();
+        for (const row of (hashtagRes.results || []) as any[]) {
+          try {
+            const tags: string[] = JSON.parse(row.hashtags || '[]');
+            for (const tag of tags) {
+              if (tag.toLowerCase().includes(q.toLowerCase())) {
+                tagSet.set(tag, (tagSet.get(tag) || 0) + row.post_count);
+              }
+            }
+          } catch {}
+        }
+        results.hashtags = Array.from(tagSet.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 15)
+          .map(([tag, count]) => ({ tag, post_count: count }));
+      }
+
+      return json(results);
     } catch (e: any) { return json({ error: e.message }, 500); }
   }
 

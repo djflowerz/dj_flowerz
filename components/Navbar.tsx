@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Menu, X, ShoppingCart, User, LogOut, ShieldCheck, Settings, 
-  Home, Disc, Zap, Monitor, Radio, Calendar, Heart, MessageCircle, Bell 
+  Home, Disc, Zap, Monitor, Radio, Calendar, Heart, MessageCircle, Bell, Search, Mail, ShoppingBag, LayoutDashboard
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { NeonButton } from './ui/NeonButton';
 
 const Navbar: React.FC = () => {
@@ -14,6 +15,7 @@ const Navbar: React.FC = () => {
   const { itemCount } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
   const { siteConfig } = useData();
+  const { currency, setCurrency } = useCurrency();
   const location = useLocation();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -23,7 +25,7 @@ const Navbar: React.FC = () => {
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Mixtapes', path: '/mixtapes', icon: Disc },
-
+    { name: 'Marketplace', path: '/community?tab=marketplace', icon: ShoppingBag },
     { name: 'Community', path: '/community', icon: MessageCircle },
     { name: 'DJ Lab', path: '/dj-lab', icon: Monitor },
     { name: 'Bookings', path: '/bookings', icon: Calendar },
@@ -68,7 +70,7 @@ const Navbar: React.FC = () => {
           <div className="flex items-center justify-between">
             
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 z-50 group">
+            <Link to="/" className="flex items-center z-50 group">
               <div className="flex flex-col -space-y-1">
                 <span className="text-xl font-bold tracking-tighter text-white">DJ</span>
                 <span className="text-xl font-black tracking-tighter text-[#A349F5] leading-none group-hover:text-[#00F5FF] transition-colors duration-500">FLOWERZ</span>
@@ -120,14 +122,29 @@ const Navbar: React.FC = () => {
 
               {isAuthenticated && (
                 <>
-                  <Link to="/notifications" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
-                    <Bell size={22} className="group-hover:scale-110" />
+                  <Link to="/search" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group" title="Search">
+                    <Search size={20} className="group-hover:scale-110" />
                   </Link>
-                  <Link to="/community" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
-                    <MessageCircle size={22} className="group-hover:scale-110" />
+                  <Link to="/messages" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group" title="Messages">
+                    <Mail size={20} className="group-hover:scale-110" />
+                  </Link>
+                  <Link to="/notifications" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group" title="Notifications">
+                    <Bell size={22} className="group-hover:scale-110" />
                   </Link>
                 </>
               )}
+
+              <button 
+                onClick={() => setCurrency(currency === 'KES' ? 'USD' : 'KES')}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white hover:bg-white/10 transition-all group"
+                title="Switch Currency"
+              >
+                <span className={currency === 'KES' ? 'text-[#00F5FF]' : 'text-white/20'}>KES</span>
+                <div className="w-7 h-4 bg-black/40 rounded-full relative p-0.5 border border-white/5">
+                  <div className={`w-2.5 h-2.5 rounded-full bg-white transition-all duration-300 shadow-[0_0_8px_rgba(255,255,255,0.5)] ${currency === 'USD' ? 'translate-x-3' : ''}`} />
+                </div>
+                <span className={currency === 'USD' ? 'text-[#00F5FF]' : 'text-white/20'}>USD</span>
+              </button>
 
               <Link to="/cart" className="relative p-2 text-white/40 hover:text-white transition-all duration-300 group">
                 <ShoppingCart size={22} className="group-hover:scale-110" />
@@ -167,6 +184,20 @@ const Navbar: React.FC = () => {
                           View My Profile
                         </Link>
                       )}
+
+                      <Link to="/seller/dashboard" className="flex items-center gap-3 px-5 py-3.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all group">
+                        <div className="w-8 h-8 rounded-lg bg-brand-cyan/10 flex items-center justify-center group-hover:bg-brand-cyan/20 transition-colors">
+                          <LayoutDashboard size={16} className="text-brand-cyan" />
+                        </div>
+                        Seller Dashboard
+                      </Link>
+
+                      <Link to="/wishlist" className="flex items-center gap-3 px-5 py-3.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all group">
+                        <div className="w-8 h-8 rounded-lg bg-brand-pink/10 flex items-center justify-center group-hover:bg-brand-pink/20 transition-colors">
+                          <Heart size={16} className="text-brand-pink" />
+                        </div>
+                        My Wishlist
+                      </Link>
                       
                       <Link to="/account" className="flex items-center gap-3 px-5 py-3.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all group">
                         <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">

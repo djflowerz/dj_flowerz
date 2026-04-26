@@ -6,11 +6,12 @@ import { useData } from '../context/DataContext';
 import {
   Star, Heart, ShieldCheck, Truck, RefreshCw, ChevronRight,
   Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
-  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap
+  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import ProductReviews from '../components/ProductReviews';
+import { useCurrency } from '../context/CurrencyContext';
 
 export default function ProductDetails() {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +29,7 @@ export default function ProductDetails() {
   const [selectedTier, setSelectedTier] = useState<'local' | 'air' | 'sea'>('local');
 
   const { addToCart } = useCart();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -235,11 +237,6 @@ export default function ProductDetails() {
   const displayPrice = (selectedTier === 'local' ? baseOrVariantPrice : tierPriceMap[selectedTier]) || 0;
   const originalPrice = Number(activePriceVar?.compareAtPrice || (activePriceVar?.discountPrice ? activePriceVar?.price : product.compareAtPrice)) || 0;
 
-  const formatPrice = (p: any) => {
-    const num = Number(p);
-    return isNaN(num) ? '0' : num.toLocaleString();
-  };
-
 
   return (
     <div className="bg-[#050507] text-white min-h-screen pt-24 pb-20">
@@ -303,21 +300,27 @@ export default function ProductDetails() {
                 <h1 className="text-4xl md:text-5xl font-display font-black text-white uppercase tracking-tight leading-[1.1]">{product.name}</h1>
                 
                 <div className="flex items-center gap-4 pb-4 border-b border-white/5">
-                    <span className="text-3xl font-black text-brand-cyan">KES {formatPrice(displayPrice)}</span>
+                    <span className="text-3xl font-black text-brand-cyan">{formatPrice(displayPrice)}</span>
                     {originalPrice && originalPrice > displayPrice && (
-                        <span className="text-xl text-gray-600 line-through font-bold">KES {formatPrice(originalPrice)}</span>
+                        <span className="text-xl text-gray-600 line-through font-bold">{formatPrice(originalPrice)}</span>
                     )}
                 </div>
             </div>
 
             {productFeatures.length > 0 ? (
-                <div className="space-y-3 max-w-xl">
-                    <h4 className="text-[10px] font-black text-brand-cyan uppercase tracking-[0.2em]">Key Features</h4>
-                    <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-4 max-w-xl">
+                    <div className="flex items-center gap-2">
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                        <h4 className="text-[10px] font-black text-brand-cyan uppercase tracking-[0.3em] whitespace-nowrap">Key Features</h4>
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {productFeatures.map((feature: string, idx: number) => (
-                            <div key={idx} className="flex items-start gap-3 group">
-                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-all group-hover:scale-125" />
-                                <p className="text-gray-300 text-sm font-medium leading-tight tracking-wide">{feature}</p>
+                            <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-brand-cyan/30 hover:bg-white/[0.04] transition-all duration-300 group">
+                                <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-brand-cyan/10 flex items-center justify-center text-brand-cyan group-hover:scale-110 transition-transform">
+                                    <CheckCircle2 size={16} />
+                                </div>
+                                <p className="text-gray-400 text-[11px] font-bold leading-tight tracking-wider uppercase">{feature}</p>
                             </div>
                         ))}
                     </div>
@@ -592,7 +595,7 @@ export default function ProductDetails() {
                             <img src={related.image || related.image_url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
                         </div>
                         <h4 className="text-xs font-black text-white uppercase tracking-widest mb-2 line-clamp-1">{related.name}</h4>
-                        <p className="text-brand-cyan font-black">KES {formatPrice(related.price)}</p>
+                        <p className="text-brand-cyan font-black">{formatPrice(related.price)}</p>
                     </Link>
                 ))}
             </div>

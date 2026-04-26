@@ -25,13 +25,18 @@ import {
   Bell,
   User,
   Flag,
-  AlertTriangle
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { SafeTradePopup } from '../components/community/SafeTradePopup';
 import { ReportModal } from '../components/community/ReportModal';
 import { TrustBadge } from '../components/community/TrustBadge';
+import { AuctionTimer } from '../components/community/AuctionTimer';
+import { BidModal } from '../components/community/BidModal';
+import { InterestModal } from '../components/community/InterestModal';
+import { Gavel, Clock, Lock, CheckCircle, Info } from 'lucide-react';
 
 interface Post {
   id: string;
@@ -54,6 +59,16 @@ interface Post {
   has_hearted?: string;
   has_echoed?: string;
   created_at: string;
+  
+  // Marketplace expansions
+  listing_type?: 'fixed' | 'auction';
+  listing_status?: 'available' | 'reserved' | 'sold';
+  auction_end_at?: string;
+  auction_start_price?: number;
+  highest_bid?: number;
+  highest_bidder_id?: string;
+  bid_count?: number;
+  is_featured?: number;
 }
 
 const parseJSON = (str: string | undefined, fallback: any = null) => {
@@ -102,6 +117,7 @@ export default function Community() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
+  const [trendingTags, setTrendingTags] = useState<any[]>([]);
   const [vector, setVector] = useState('latest');
   const [loading, setLoading] = useState(true);
   
@@ -113,7 +129,16 @@ export default function Community() {
   const [dealPrice, setDealPrice] = useState('');
   const [dealLocation, setDealLocation] = useState('');
   const [dealCondition, setDealCondition] = useState('new');
+  const [listingType, setListingType] = useState<'fixed' | 'auction'>('fixed');
+  const [auctionDuration, setAuctionDuration] = useState('3'); // days
+  const [auctionReservePrice, setAuctionReservePrice] = useState('');
+  
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Modal states
+  const [bidPulse, setBidPulse] = useState<Post | null>(null);
+  const [interestPulse, setInterestPulse] = useState<Post | null>(null);
+  const [userInterests, setUserInterests] = useState<any[]>([]);
   // Read initial tab from URL query param (e.g. ?tab=marketplace from /marketplace redirect)
   const initialTab = (searchParams.get('tab') as 'latest' | 'following' | 'trending' | 'marketplace') || 'latest';
   const [tab, setTab] = useState<'latest' | 'following' | 'trending' | 'marketplace'>(initialTab);
@@ -129,8 +154,11 @@ export default function Community() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let url = `${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${tab === 'trending' ? 'trending' : vector}`;
-      if (tab === 'marketplace') url += '&marketplace=true';
+      let currentVector = vector;
+      if (tab === 'marketplace') currentVector = 'marketplace';
+      else if (tab === 'trending') currentVector = 'trending';
+
+      let url = `${import.meta.env.VITE_API_URL || '/api'}/pulses?vector=${currentVector}`;
       if (tab === 'following' && user?.id) url += `&following_only=true&actor=${user.id}`;
       else if (user?.id) url += `&actor=${user.id}`;
 
@@ -138,13 +166,28 @@ export default function Community() {
         'Authorization': `Bearer ${session.access_token}`,
         'X-Actor-Id': user?.id || ''
       } : {};
-      const [postResp, leaderResp] = await Promise.all([
+
+      const fetchOps = [
         fetch(url, { headers: authHeader }),
-        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`, { headers: authHeader })
-      ]);
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/profiles/leaders`, { headers: authHeader }),
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/trending-tags`, { headers: authHeader })
+      ];
+
+      if (isAuthenticated) {
+        fetchOps.push(fetch(`${import.meta.env.VITE_API_URL || '/api'}/marketplace/interests`, { headers: authHeader }));
+      }
+
+      const resps = await Promise.all(fetchOps);
+      setPosts(await resps[0].json());
+      setLeaders(await resps[1].json());
       
-      setPosts(await postResp.json());
-      setLeaders(await leaderResp.json());
+      const tagsData = await resps[2].json();
+      setTrendingTags(Array.isArray(tagsData) ? tagsData : []);
+
+      if (isAuthenticated && resps[3]) {
+        const interestData = await resps[3].json();
+        setUserInterests(Array.isArray(interestData) ? interestData : []);
+      }
     } catch (e) {
       console.error('Fetch error:', e);
     } finally {
@@ -259,9 +302,18 @@ export default function Community() {
     const payload = {
       content,
       media_urls: mediaUrls,
-      type: showPoll ? 'poll' : (mediaUrls.length > 0 ? 'media' : 'text'),
+      type: showPoll ? 'poll' : (isMarketplace ? 'deal' : (mediaUrls.length > 0 ? 'media' : 'text')),
       is_marketplace: isMarketplace ? 1 : 0,
-      deal_metadata: isMarketplace ? { price: dealPrice, location: dealLocation, condition: dealCondition } : null,
+      listing_type: listingType,
+      auction_end_at: listingType === 'auction' ? new Date(Date.now() + parseInt(auctionDuration) * 24 * 60 * 60 * 1000).toISOString() : null,
+      auction_start_price: listingType === 'auction' ? parseFloat(dealPrice) : null,
+      auction_reserve_price: auctionReservePrice ? parseFloat(auctionReservePrice) : null,
+      deal_metadata: isMarketplace ? { 
+        price: dealPrice, 
+        location: dealLocation, 
+        condition: dealCondition,
+        listing_type: listingType 
+      } : null,
       poll_data: showPoll ? { options: pollOptions.filter(o => o.trim()), votes: [] } : null
     };
 
@@ -294,6 +346,9 @@ export default function Community() {
       setDealPrice('');
       setDealLocation('');
       setDealCondition('new');
+      setListingType('fixed');
+      setAuctionDuration('3');
+      setAuctionReservePrice('');
       setShowPoll(false);
       setPollOptions(['', '']);
       setIsComposerExpanded(false);
@@ -551,9 +606,27 @@ export default function Community() {
                         <ShoppingBag size={16} />
                         <span className="text-[10px] font-black uppercase tracking-widest">Marketplace Listing</span>
                     </div>
+
+                    <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-xl">
+                      <button 
+                        onClick={() => setListingType('fixed')}
+                        className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${listingType === 'fixed' ? 'bg-brand-cyan text-black' : 'text-brand-cyan/60 hover:bg-white/5'}`}
+                      >
+                        Fixed Price
+                      </button>
+                      <button 
+                        onClick={() => setListingType('auction')}
+                        className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${listingType === 'auction' ? 'bg-brand-cyan text-black' : 'text-brand-cyan/60 hover:bg-white/5'}`}
+                      >
+                        Auction
+                      </button>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Price (KES)</label>
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">
+                          {listingType === 'auction' ? 'Start Price (KES)' : 'Fixed Price (KES)'}
+                        </label>
                         <input 
                           type="number" 
                           value={dealPrice} 
@@ -574,7 +647,21 @@ export default function Community() {
                           <option value="refurbished">Refurbished</option>
                         </select>
                       </div>
-                      <div className="col-span-2">
+                      {listingType === 'auction' ? (
+                        <div>
+                          <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Duration</label>
+                          <select 
+                            value={auctionDuration}
+                            onChange={e => setAuctionDuration(e.target.value)}
+                            className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-white outline-none focus:border-brand-cyan transition-all appearance-none"
+                          >
+                            <option value="1">24 Hours</option>
+                            <option value="3">3 Days</option>
+                            <option value="7">7 Days</option>
+                          </select>
+                        </div>
+                      ) : null}
+                      <div className={listingType === 'auction' ? '' : 'col-span-2'}>
                         <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Location</label>
                         <input 
                           value={dealLocation} 
@@ -584,6 +671,19 @@ export default function Community() {
                         />
                       </div>
                     </div>
+                    
+                    {listingType === 'auction' && (
+                      <div className="mt-4">
+                        <label className="text-[10px] uppercase font-black text-brand-cyan/60 mb-2 block tracking-widest">Reserve Price (Optional)</label>
+                        <input 
+                          type="number" 
+                          value={auctionReservePrice} 
+                          onChange={e => setAuctionReservePrice(e.target.value)}
+                          placeholder="Min. accepted price"
+                          className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 text-white outline-none focus:border-brand-cyan transition-all"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -742,6 +842,9 @@ export default function Community() {
                     session={session}
                     maskPhoneNumbers={maskPhoneNumbers}
                     onViewImage={setSelectedImageUrl}
+                    setBidPulse={setBidPulse}
+                    setInterestPulse={setInterestPulse}
+                    userInterests={userInterests}
                 />
               ))}
             </div>
@@ -818,17 +921,16 @@ export default function Community() {
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-white/[0.02]">
              <h3 className="text-lg font-black mb-4">Trending Posts</h3>
              <div className="space-y-4">
-                {[
-                    { tag: '#EscrowTrust', signals: '2.4k' },
-                    { tag: '#NairobiBeats', signals: '1.8k' },
-                    { tag: '#Sector7Status', signals: '840' },
-                    { tag: '#SignalBoost', signals: '420' }
-                ].map(trend => (
-                    <div key={trend.tag} className="hover:bg-white/5 p-2 -mx-2 rounded-xl transition-all cursor-pointer group">
-                        <p className="text-brand-purple font-black text-sm">{trend.tag}</p>
-                        <p className="text-[10px] text-gray-500 font-bold">{trend.signals} posts</p>
-                    </div>
-                ))}
+                {trendingTags.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic">No trending tags yet</p>
+                ) : (
+                    trendingTags.map((trend: any) => (
+                        <div key={trend.tag} className="hover:bg-white/5 p-2 -mx-2 rounded-xl transition-all cursor-pointer group">
+                            <p className="text-brand-purple font-black text-sm">{trend.tag}</p>
+                            <p className="text-[10px] text-gray-500 font-bold">{trend.count} posts</p>
+                        </div>
+                    ))
+                )}
              </div>
           </div>
 
@@ -842,13 +944,47 @@ export default function Community() {
           </div>
         </aside>
 
+
+          {/* Marketplace Modals */}
+          {bidPulse && (
+            <BidModal
+              isOpen={!!bidPulse}
+              onClose={() => setBidPulse(null)}
+              post={bidPulse}
+              onBidSuccess={() => {
+                setBidPulse(null);
+                fetchData();
+              }}
+            />
+          )}
+
+          {interestPulse && (
+            <InterestModal
+              pulse={interestPulse}
+              existingInterest={userInterests.find(i => i.pulse_id === interestPulse.id)}
+              onClose={() => setInterestPulse(null)}
+              onInterestSent={() => {
+                setInterestPulse(null);
+                fetchData();
+              }}
+              onProceedToEscrow={() => {
+                setInterestPulse(null);
+                handleBuyClick(interestPulse);
+              }}
+            />
+          )}
+        </div>
       </div>
-    </div>
   );
 }
 
-function PostCard({ post, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage }: { 
-  post: Post, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void
+function PostCard({ 
+  post, onReact, onBuy, currentUser, onDelete, onEdit, session, maskPhoneNumbers, onViewImage,
+  setBidPulse, setInterestPulse, userInterests 
+}: { 
+  post: Post, onReact: any, onBuy: any, currentUser: any, onDelete: any, onEdit: any, session: any, 
+  maskPhoneNumbers: (t: string) => string, onViewImage: (u: string) => void,
+  setBidPulse: (p: Post) => void, setInterestPulse: (p: Post) => void, userInterests: any[]
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -923,6 +1059,11 @@ function PostCard({ post, onReact, onBuy, currentUser, onDelete, onEdit, session
               {post.author_verified && <CheckCircle2 size={14} className="text-brand-cyan fill-brand-cyan/10" />}
               {isCaution && <TrustBadge type="caution" size="xs" showLabel={false} />}
               <span className="text-sm text-gray-500">@{post.author_handle}</span>
+              {post.is_featured === 1 && (
+                <span className="flex items-center gap-1 text-[9px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                  <Zap size={10} fill="currentColor" /> Featured
+                </span>
+              )}
               <span className="text-sm text-gray-600">·</span>
               <span className="text-sm text-gray-500 whitespace-nowrap">{timeAgo(post.created_at)}</span>
             </div>
@@ -1038,36 +1179,93 @@ function PostCard({ post, onReact, onBuy, currentUser, onDelete, onEdit, session
 
           {/* Marketplace Banner */}
           {(post.is_marketplace || post.type === 'marketplace' || post.deal_metadata) && !isEditing && (
-            <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex items-center justify-between group/deal">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-brand-cyan/10 rounded-xl">
-                  <ShoppingBag className="text-brand-cyan" size={24} />
+            <div className="mt-4 bg-brand-cyan/5 border border-brand-cyan/20 rounded-2xl p-4 flex flex-col gap-4 group/deal relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-brand-cyan/10 rounded-xl">
+                    <ShoppingBag className="text-brand-cyan" size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black text-brand-cyan tracking-wider">
+                      {post.listing_type === 'auction' ? 'LIVE AUCTION' : 'Verified Seller Deal'}
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <p className="text-lg font-black text-white">
+                          {post.listing_type === 'auction' 
+                            ? `KES ${Number(post.highest_bid || post.auction_start_price).toLocaleString()}`
+                            : `KES ${Number(dealMeta?.price).toLocaleString()}`
+                          }
+                        </p>
+                        {dealMeta?.condition && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/20">
+                            {dealMeta.condition}
+                          </span>
+                        )}
+                    </div>
+                    {dealMeta?.location && (
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-1">
+                          <MapPin size={10} />
+                          <span>{dealMeta.location}</span>
+                        </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                   <p className="text-[10px] uppercase font-black text-brand-cyan tracking-wider">Verified Seller Deal</p>
-                   <div className="flex items-center gap-3">
-                      <p className="text-lg font-black text-white">KES {Number(dealMeta?.price).toLocaleString()}</p>
-                      {dealMeta?.condition && (
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/20">
-                          {dealMeta.condition}
-                        </span>
-                      )}
-                   </div>
-                   {dealMeta?.location && (
-                      <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-1">
-                        <MapPin size={10} />
-                        <span>{dealMeta.location}</span>
-                      </div>
-                   )}
-                </div>
+
+                {post.listing_type === 'auction' && post.auction_end_at && (
+                  <AuctionTimer expiryDate={post.auction_end_at} />
+                )}
               </div>
-              {!isAuthor && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onBuy(post); }}
-                  className="px-6 py-2 bg-brand-cyan text-black rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-cyan/20"
-                >
-                  🛡️ Buy Safely
-                </button>
+
+              {!isAuthor && post.listing_status !== 'sold' && (
+                <div className="flex gap-2">
+                  {post.listing_type === 'auction' ? (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setBidPulse(post); }}
+                      className="flex-1 py-3 bg-brand-cyan text-black rounded-xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-brand-cyan/20 flex items-center justify-center gap-2"
+                    >
+                      <Gavel size={16} />
+                      Place Bid
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setInterestPulse(post); }}
+                      className={`flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
+                        userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted')
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
+                          : 'bg-brand-cyan text-black shadow-lg shadow-brand-cyan/20 hover:scale-[1.02]'
+                      }`}
+                    >
+                      {userInterests.some(i => i.pulse_id === post.id && i.status === 'accepted') ? (
+                        <>
+                          <CheckCircle size={16} />
+                          Deal Accepted - Buy Safely
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag size={16} />
+                          Chat to Buy
+                        </>
+                      )}
+                    </button>
+                  )}
+                  
+                  {/* Safety Info Button */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onBuy(post); }}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-brand-cyan transition-all border border-brand-cyan/20"
+                    title="How it works"
+                  >
+                    <Info size={18} />
+                  </button>
+                </div>
+              )}
+              
+              {post.listing_status === 'sold' && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-10">
+                   <div className="px-6 py-2 bg-red-500 text-white font-black uppercase tracking-widest rounded-full rotate-[-5deg] border-4 border-white shadow-2xl">
+                      Sold Out
+                   </div>
+                </div>
               )}
             </div>
           )}

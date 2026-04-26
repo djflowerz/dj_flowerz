@@ -4,6 +4,7 @@ import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { ShoppingBag, Star, Zap, Heart, RefreshCw, Eye, AlertTriangle, Flame } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { toast } from 'sonner';
 
 interface ProductCardProps {
@@ -20,6 +21,7 @@ const getStockStatus = (inventory: number) => {
 const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useData();
+  const { formatPrice } = useCurrency();
   const isWishlisted = isInWishlist(product.id);
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
@@ -144,11 +146,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-black text-brand-cyan">
-                  KES {product.price.toLocaleString()}
+                  {formatPrice(product.price)}
                 </span>
                 {product.compareAtPrice && (
                   <span className="text-sm text-gray-500 line-through">
-                    KES {product.compareAtPrice.toLocaleString()}
+                    {formatPrice(product.compareAtPrice)}
                   </span>
                 )}
               </div>
@@ -260,7 +262,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
                 {product.name}
               </Link>
             </h3>
-            <p className="text-lg font-black text-brand-cyan whitespace-nowrap">KES {product.price.toLocaleString()}</p>
+            <p className="text-lg font-black text-brand-cyan whitespace-nowrap">{formatPrice(product.price)}</p>
           </div>
           {(() => {
             const inventory = product.inventory ?? product.stock ?? 0;

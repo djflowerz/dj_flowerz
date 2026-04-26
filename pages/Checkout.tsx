@@ -270,7 +270,7 @@ export default function Checkout() {
 
   // Redirect if cart is empty
   useEffect(() => {
-    if (items.length === 0 && !completedDownloads) {
+    if ((items || []).length === 0 && !completedDownloads) {
       navigate('/store');
     }
   }, [items, navigate, completedDownloads]);
@@ -279,7 +279,7 @@ export default function Checkout() {
     if (!couponCode.trim()) return;
 
     // Block coupons for 7-Day Access plan to protect pricing integrity
-    const hasWeeklyPlan = items.some((i: any) => 
+    const hasWeeklyPlan = (items || []).some((i: any) => 
         i.type === 'subscription' && (i.price === 200 || i.id === 'weekly' || (i.name && i.name.toLowerCase().includes('7-day')))
     );
 

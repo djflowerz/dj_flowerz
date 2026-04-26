@@ -67,15 +67,23 @@ const AdminAffiliates = lazyWithRetry(() => import('./src/admin/pages/Affiliates
 const AdminInstallments = lazyWithRetry(() => import('./src/admin/pages/Installments'));
 const AdminMarketing = lazyWithRetry(() => import('./src/admin/pages/Marketing'));
 const AdminShipping = lazyWithRetry(() => import('./src/admin/pages/Shipping'));
+const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/AdminProfiles'));
+const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
+const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
+const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
+
+// Marketplace/Seller Pages
+const SellerDashboard = lazyWithRetry(() => import('./pages/SellerDashboard'));
+const MyStore = lazyWithRetry(() => import('./pages/MyStore'));
+const Wishlist = lazyWithRetry(() => import('./pages/Wishlist'));
+
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 const SetupProfile = lazyWithRetry(() => import('./pages/SetupProfile'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const PostDetail = lazy(() => import('./pages/PostDetail'));
-const AdminGovernance = lazyWithRetry(() => import('./src/admin/pages/Governance'));
-const AdminCommandCentre = lazyWithRetry(() => import('./src/admin/pages/CommandCentre'));
-const AdminTrustPortal = lazyWithRetry(() => import('./src/admin/pages/TrustPortal'));
-const AdminProfiles = lazyWithRetry(() => import('./src/admin/pages/AdminProfiles'));
+const Search = lazyWithRetry(() => import('./pages/Search'));
+const DirectMessages = lazyWithRetry(() => import('./pages/DirectMessages'));
 const VerificationPortal = lazy(() => import('./pages/VerificationPortal'));
 
 const Mixtapes = lazyWithRetry(() => import('./pages/Mixtapes'));
@@ -148,6 +156,11 @@ const AppContent = () => {
             <Route path="/post/:id" element={<Suspense fallback={<LoadingSpinner />}><PostDetail /></Suspense>} />
             <Route path="/member/:handle" element={<PublicProfile />} />
             <Route path="/dj-lab" element={<Suspense fallback={<LoadingSpinner />}><DJLab /></Suspense>} />
+            
+            {/* Seller & Marketplace Routes */}
+            <Route path="/seller/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
+            <Route path="/seller/store" element={<ProtectedRoute><MyStore /></ProtectedRoute>} />
+            <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
 
             <Route path="/store" element={<Store />} />
             <Route path="/store/:slug" element={<ProductDetails />} />
@@ -161,6 +174,9 @@ const AppContent = () => {
             <Route path="/setup-profile" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/verification" element={<ProtectedRoute><VerificationPortal /></ProtectedRoute>} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/messages" element={<ProtectedRoute><DirectMessages /></ProtectedRoute>} />
+            <Route path="/messages/:conversationId" element={<ProtectedRoute><DirectMessages /></ProtectedRoute>} />
 
             {/* Admin Modular Pages */}
             <Route path="/admin" element={<ErrorBoundary><ProtectedRoute adminOnly><AdminHome /></ProtectedRoute></ErrorBoundary>} />
@@ -196,6 +212,8 @@ const AppContent = () => {
     </Layout>
   );
 };
+
+import { CurrencyProvider } from './context/CurrencyContext';
 
 const App: React.FC = () => {
   useEffect(() => {
@@ -277,36 +295,38 @@ const App: React.FC = () => {
   };
 
   return (
-    <AuthProvider>
-      <DataProvider>
-        <CartProvider>
-          <PlayerProvider>
-              <Router>
-                <ScrollToTop />
-                {showInstallBanner && (
-                  <div className="fixed bottom-24 left-4 right-4 z-[9999] bg-brand-purple p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/20">
-                    <div className="flex items-center gap-3">
-                        <Activity className="text-white" size={24} />
-                        <div>
-                          <p className="text-sm font-black text-white uppercase tracking-tighter">DJ FLOWERZ App</p>
-                          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Official Mobile Experience</p>
-                        </div>
+    <CurrencyProvider>
+      <AuthProvider>
+        <DataProvider>
+          <CartProvider>
+            <PlayerProvider>
+                <Router>
+                  <ScrollToTop />
+                  {showInstallBanner && (
+                    <div className="fixed bottom-24 left-4 right-4 z-[9999] bg-brand-purple p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/20">
+                      <div className="flex items-center gap-3">
+                          <Activity className="text-white" size={24} />
+                          <div>
+                            <p className="text-sm font-black text-white uppercase tracking-tighter">DJ FLOWERZ App</p>
+                            <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest leading-none">Official Mobile Experience</p>
+                          </div>
+                      </div>
+                      <div className="flex gap-2">
+                          <button onClick={() => setShowInstallBanner(false)} className="px-3 py-2 text-white/50 text-[10px] font-black uppercase">Later</button>
+                          <button onClick={handleInstall} className="px-5 py-2 bg-white text-brand-purple rounded-full text-[10px] font-black uppercase shadow-xl">Install</button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => setShowInstallBanner(false)} className="px-3 py-2 text-white/50 text-[10px] font-black uppercase">Later</button>
-                        <button onClick={handleInstall} className="px-5 py-2 bg-white text-brand-purple rounded-full text-[10px] font-black uppercase shadow-xl">Install</button>
-                    </div>
-                  </div>
-                )}
-                <Toaster position="top-right" richColors closeButton theme="dark" />
-                <FloatingChatWidget />
-                <LiveEventStreamer />
-                <AppContent />
-              </Router>
-            </PlayerProvider>
-          </CartProvider>
-        </DataProvider>
-      </AuthProvider>
+                  )}
+                  <Toaster position="top-right" richColors closeButton theme="dark" />
+                  <FloatingChatWidget />
+                  <LiveEventStreamer />
+                  <AppContent />
+                </Router>
+              </PlayerProvider>
+            </CartProvider>
+          </DataProvider>
+        </AuthProvider>
+      </CurrencyProvider>
     );
   };
 

@@ -44,7 +44,8 @@ export default function Notifications() {
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'like': return <Heart size={20} className="text-red-500 fill-red-500" />;
+      case 'like':
+      case 'reaction': return <Heart size={20} className="text-red-500 fill-red-500" />;
       case 'comment': return <MessageSquare size={20} className="text-brand-purple" />;
       case 'echo': return <Repeat size={20} className="text-green-500" />;
       case 'follow': return <UserPlus size={20} className="text-brand-cyan" />;
@@ -83,7 +84,10 @@ export default function Notifications() {
                 className="p-4 flex gap-4 hover:bg-white/[0.02] cursor-pointer transition-all"
                 onClick={() => {
                    if (n.type === 'escrow_update') navigate('/community?tab=marketplace');
-                   else if (n.reference_id) navigate(`/community`); // Could be deep link to pulse
+                   else if (n.type === 'dm') navigate(`/messages/${n.reference_id}`);
+                   else if (n.reference_id && ['comment', 'like', 'reaction', 'echo'].includes(n.type)) {
+                     navigate(`/post/${n.reference_id}`);
+                   }
                 }}
               >
                 <div className="mt-1">{getIcon(n.type)}</div>

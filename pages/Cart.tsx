@@ -2,11 +2,13 @@ import React from 'react';
 import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 import { Trash2, ArrowRight, ShoppingBag, Minus, Plus } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext';
 
 export default function Cart() {
   const { items, removeFromCart, cartTotal, updateQuantity } = useCart();
+  const { formatPrice } = useCurrency();
 
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     return (
       <div className="bg-[#0B0B0F] min-h-screen flex flex-col items-center justify-center px-4 pt-20">
         <div className="bg-[#15151A] p-12 rounded-[2.5rem] border border-white/5 text-center max-w-md w-full shadow-2xl">
@@ -63,7 +65,7 @@ export default function Cart() {
                           {product.name}
                         </Link>
                         <p className="text-xs font-black text-gray-500 uppercase tracking-widest mt-1">{product.category}</p>
-                        <p className="mt-2 text-xl font-black text-brand-cyan">KES {product.price.toLocaleString()}</p>
+                        <p className="mt-2 text-xl font-black text-brand-cyan">{formatPrice(product.price)}</p>
                       </div>
                       <button
                         type="button"
@@ -98,7 +100,7 @@ export default function Cart() {
 
                       <div className="text-right">
                         <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">Total</p>
-                        <p className="font-black text-white">KES {(product.price * product.quantity).toLocaleString()}</p>
+                        <p className="font-black text-white">{formatPrice(product.price * product.quantity)}</p>
                       </div>
                     </div>
                   </div>
@@ -114,7 +116,7 @@ export default function Cart() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-2">
                   <span className="text-xs font-black text-gray-600 uppercase tracking-widest">Subtotal</span>
-                  <span className="text-lg font-bold text-gray-400">KES {cartTotal.toLocaleString()}</span>
+                  <span className="text-lg font-bold text-gray-400">{formatPrice(cartTotal)}</span>
                 </div>
                 <div className="flex items-center justify-between px-2">
                   <span className="text-xs font-black text-gray-600 uppercase tracking-widest">Shipping</span>
@@ -124,7 +126,7 @@ export default function Cart() {
                 <div className="pt-6 border-t border-white/5">
                   <div className="flex items-center justify-between px-6 py-6 bg-brand-purple/10 rounded-[2rem] border border-brand-purple/20 shadow-inner">
                     <span className="text-sm font-black text-white uppercase tracking-widest leading-none">Grand Total</span>
-                    <span className="text-3xl font-black text-white tracking-tighter leading-none">KES {cartTotal.toLocaleString()}</span>
+                    <span className="text-3xl font-black text-white tracking-tighter leading-none">{formatPrice(cartTotal)}</span>
                   </div>
                 </div>
               </div>

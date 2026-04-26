@@ -99,7 +99,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onJoinSuccess }) => {
     };
 
     const handleWhatsAppHelp = () => {
-        window.open('https://wa.me/254700000000?text=Hello%20DJ%20Flowerz,%20I%20need%20help%20accessing%20the%20Music%20Pool.', '_blank');
+        window.open('https://wa.me/254798059089?text=Hello%20DJ%20Flowerz,%20I%20need%20help%20accessing%20the%20Music%20Pool.', '_blank');
     };
 
     return (
