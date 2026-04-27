@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminSidebar } from './AdminSidebar';
-import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar, DollarSign, ShieldCheck } from 'lucide-react';
+import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar, DollarSign, ShieldCheck, Menu, X } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils';
@@ -14,6 +14,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
     const { request } = useAdminApi();
     const [notifications, setNotifications] = useState<any>(null);
     const [showDropdown, setShowDropdown] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const fetchNotifications = async () => {
         try {
@@ -79,18 +80,31 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
     };
 
     return (
-        <div className="flex min-h-screen bg-[#050507] text-white">
-            <AdminSidebar />
+        <div className="flex min-h-screen bg-[#050507] text-white relative">
+            <AdminSidebar 
+                isOpen={isMobileMenuOpen} 
+                onClose={() => setIsMobileMenuOpen(false)} 
+            />
 
-            <main className="flex-1 flex flex-col p-12">
-                <header className="flex justify-between items-center mb-12">
-                    <div>
-                        <h2 className="text-4xl font-black text-white tracking-tighter mb-2">{title}</h2>
-                        <div className="w-12 h-1.5 bg-brand-purple rounded-full shadow-[0_0_15px_rgba(123,92,255,0.5)]" />
+            <main className="flex-1 flex flex-col p-4 md:p-8 lg:p-12 transition-all duration-300">
+                <header className="flex justify-between items-center mb-8 md:mb-12">
+                    <div className="flex items-center gap-4">
+                        {/* Mobile Menu Toggle */}
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="lg:hidden w-12 h-12 rounded-xl bg-[#0B0B0F] border border-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all"
+                        >
+                            <Menu size={24} />
+                        </button>
+                        
+                        <div>
+                            <h2 className="text-2xl md:text-4xl font-black text-white tracking-tighter mb-1 md:mb-2">{title}</h2>
+                            <div className="w-8 md:w-12 h-1 md:h-1.5 bg-brand-purple rounded-full shadow-[0_0_15px_rgba(123,92,255,0.5)]" />
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                        <div className="relative group hidden lg:block">
+                    <div className="flex items-center gap-3 md:gap-6">
+                        <div className="relative group hidden xl:block">
                             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-hover:text-brand-purple transition-colors" size={20} />
                             <input
                                 type="text"
@@ -102,11 +116,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
                         <div className="relative">
                             <button 
                                 onClick={() => setShowDropdown(!showDropdown)}
-                                className="w-14 h-14 rounded-2xl bg-[#0B0B0F] border border-white/5 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-all shadow-inner relative group"
+                                className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-[#0B0B0F] border border-white/5 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-all shadow-inner relative group"
                             >
-                                <Bell size={24} className={cn("group-hover:rotate-12 transition-transform", totalCount > 0 && "text-brand-purple")} />
+                                <Bell size={20} className={cn("md:w-6 md:h-6 group-hover:rotate-12 transition-transform", totalCount > 0 && "text-brand-purple")} />
                                 {totalCount > 0 && (
-                                    <div className="absolute top-4 right-4 w-5 h-5 bg-brand-purple rounded-full border-2 border-[#0B0B0F] flex items-center justify-center text-[9px] font-black text-white shadow-[0_0_10px_rgba(123,92,255,0.5)]">
+                                    <div className="absolute top-2 right-2 md:top-4 md:right-4 w-4 h-4 md:w-5 md:h-5 bg-brand-purple rounded-full border-2 border-[#0B0B0F] flex items-center justify-center text-[8px] md:text-[9px] font-black text-white shadow-[0_0_10px_rgba(123,92,255,0.5)]">
                                         {totalCount > 9 ? '9+' : totalCount}
                                     </div>
                                 )}
@@ -158,19 +172,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
                             )}
                         </div>
 
-                        <div className="flex items-center gap-4 pl-6 border-l border-white/5">
+                        <div className="flex items-center gap-4 pl-3 md:pl-6 border-l border-white/5">
                             <div className="text-right hidden sm:block">
-                                <p className="text-[11px] font-black text-white uppercase tracking-widest">Admin User</p>
-                                <p className="text-[9px] text-brand-purple font-black uppercase tracking-tighter">System Administrator</p>
+                                <p className="text-[10px] md:text-[11px] font-black text-white uppercase tracking-widest">Admin User</p>
+                                <p className="text-[8px] md:text-[9px] text-brand-purple font-black uppercase tracking-tighter">System Administrator</p>
                             </div>
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-purple to-brand-cyan p-[1px]">
-                                <div className="w-full h-full rounded-2xl bg-[#0B0B0F] flex items-center justify-center">
-                                    <Users size={24} className="text-white" />
+                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-gradient-to-tr from-brand-purple to-brand-cyan p-[1px]">
+                                <div className="w-full h-full rounded-xl md:rounded-2xl bg-[#0B0B0F] flex items-center justify-center">
+                                    <Users size={20} className="md:w-6 md:h-6 text-white" />
                                 </div>
                             </div>
                         </div>
                     </div>
                 </header>
+
 
                 <div className="flex-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {children}

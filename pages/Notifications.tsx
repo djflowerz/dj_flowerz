@@ -32,9 +32,10 @@ export default function Notifications() {
           headers: { 'Authorization': `Bearer ${session?.access_token}` }
         });
         const data = await resp.json();
-        setNotifications(data);
+        setNotifications(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("Failed to fetch notifications");
+        setNotifications([]);
       } finally {
         setLoading(false);
       }
