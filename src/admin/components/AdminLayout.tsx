@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminSidebar } from './AdminSidebar';
-import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar, DollarSign, ShieldCheck, Menu, X } from 'lucide-react';
+import { Bell, Search, Users, ChevronRight, ShoppingCart, MessageSquare, Music, Ticket, Headphones, ShieldAlert, Calendar, DollarSign, ShieldCheck, Menu, X, Mail } from 'lucide-react';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils';
@@ -45,6 +45,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
             case 'maintenance': return <ShieldAlert size={14} />;
             case 'gigs': return <Calendar size={14} />;
             case 'verification': return <ShieldCheck size={14} />;
+            case 'messages': return <Mail size={14} />;
             default: return <Bell size={14} />;
         }
     };
@@ -60,6 +61,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
             case 'maintenance': return 'Maintenance';
             case 'gigs': return 'Gig Inquiries';
             case 'verification': return 'Verification Queue';
+            case 'messages': return 'Contact Messages';
             default: return key;
         }
     };
@@ -75,6 +77,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => 
             case 'maintenance': return '/admin/studio';
             case 'gigs': return '/admin/bookings';
             case 'verification': return '/admin/trust-portal';
+            case 'messages': return '/admin/messages';
             default: return '/admin';
         }
     };

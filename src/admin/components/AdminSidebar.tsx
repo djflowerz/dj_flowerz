@@ -2,9 +2,10 @@ import React from 'react';
 import {
     LayoutDashboard, ShoppingBag, Package, Music, Users,
     Settings, LogOut, MessageSquare, CreditCard, Crown,
-    Mail, Share2, Wallet, Megaphone, ShieldAlert, ShieldCheck
+    Mail, Share2, Wallet, Megaphone, ShieldAlert, ShieldCheck, X
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { cn } from '@/utils';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },

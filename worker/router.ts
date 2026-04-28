@@ -2931,12 +2931,13 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     // GET /api/admin/notifications
     if (path === '/api/admin/notifications' && method === 'GET') {
       try {
-        const [ordersRes, payoutsRes, studioRes, verifyRes, tracksRes] = await env.DB.batch([
+        const [ordersRes, payoutsRes, studioRes, verifyRes, tracksRes, messagesRes] = await env.DB.batch([
           env.DB.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'pending'"),
           env.DB.prepare("SELECT COUNT(*) as count FROM payout_requests WHERE status = 'pending'"),
           env.DB.prepare("SELECT COUNT(*) as count FROM studio_sessions WHERE status = 'pending'"),
           env.DB.prepare("SELECT COUNT(*) as count FROM profiles WHERE is_verified = 0 AND handle IS NOT NULL"),
           env.DB.prepare("SELECT COUNT(*) as count FROM scraped_tracks WHERE status = 'pending' OR status IS NULL"),
+          env.DB.prepare("SELECT COUNT(*) as count FROM contact_messages WHERE status = 'new'"),
         ]);
 
         const orders    = (ordersRes.results?.[0] as any)?.count || 0;
@@ -2944,6 +2945,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         const studio    = (studioRes.results?.[0] as any)?.count || 0;
         const verification = (verifyRes.results?.[0] as any)?.count || 0;
         const tracks    = (tracksRes.results?.[0] as any)?.count || 0;
+        const messages  = (messagesRes.results?.[0] as any)?.count || 0;
 
         const breakdown: Record<string, number> = {};
         if (orders > 0)       breakdown.orders = orders;
@@ -2951,8 +2953,9 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         if (studio > 0)       breakdown.studio = studio;
         if (verification > 0) breakdown.verification = verification;
         if (tracks > 0)       breakdown.tracks = tracks;
+        if (messages > 0)     breakdown.messages = messages;
 
-        const total = orders + payouts + studio + verification + tracks;
+        const total = orders + payouts + studio + verification + tracks + messages;
         return json({ total, breakdown });
       } catch (e: any) {
         // Gracefully degrade — don't crash the admin layout
