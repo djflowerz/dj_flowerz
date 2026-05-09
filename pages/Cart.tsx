@@ -69,7 +69,7 @@ export default function Cart() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromCart(product.id)}
+                        onClick={() => removeFromCart(product.id, product.selectedVariant)}
                         className="p-2 text-gray-600 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                         title="Remove Item"
                       >
@@ -82,7 +82,7 @@ export default function Cart() {
                       <div className="flex items-center bg-[#0B0B0F] rounded-xl border border-white/10 overflow-hidden">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(product.id, Math.max(1, product.quantity - 1))}
+                          onClick={() => updateQuantity(product.id, product.selectedVariant, Math.max(1, product.quantity - 1))}
                           className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
                           disabled={product.quantity <= 1}
                         >
@@ -91,7 +91,7 @@ export default function Cart() {
                         <span className="w-10 text-center text-sm font-black text-white">{product.quantity}</span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(product.id, product.quantity + 1)}
+                          onClick={() => updateQuantity(product.id, product.selectedVariant, product.quantity + 1)}
                           className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all"
                         >
                           <Plus size={14} />

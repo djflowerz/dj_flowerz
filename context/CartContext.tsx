@@ -6,8 +6,8 @@ import { useAuth } from './AuthContext';
 interface CartContextType {
   items: CartItem[];
   addToCart: (product: Product, quantity?: number, variant?: string) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  removeFromCart: (productId: string, variant?: string) => void;
+  updateQuantity: (productId: string, variant: string | undefined, quantity: number) => void;
   clearCart: () => void;
   cartSubtotal: number;
   taxAmount: number;
@@ -90,13 +90,13 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setItems(prev => prev.filter(item => item.id !== productId));
+  const removeFromCart = (productId: string, variant?: string) => {
+    setItems(prev => prev.filter(item => !(item.id === productId && item.selectedVariant === variant)));
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (productId: string, variant: string | undefined, quantity: number) => {
     if (quantity < 1) return;
-    setItems(prev => prev.map(item => item.id === productId ? { ...item, quantity } : item));
+    setItems(prev => prev.map(item => (item.id === productId && item.selectedVariant === variant) ? { ...item, quantity } : item));
   }
 
   const clearCart = () => setItems([]);
