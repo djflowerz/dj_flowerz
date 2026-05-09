@@ -28,7 +28,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   });
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
   // Persist to localStorage
   React.useEffect(() => {
@@ -39,15 +39,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [items]);
 
-  // Clear cart state if user logs out (localStorage is cleared in AuthContext)
+  // Clear cart only after auth has fully resolved AND user is not logged in.
+  // Without the !authLoading guard, this effect fires on every mount while
+  // Supabase is still fetching the session, wiping the cart before it can load.
   React.useEffect(() => {
-    if (!isAuthenticated) {
-      // Check if we should clear guest cart or if guest carts are allowed
-      // The user seems to want it empty when not logged in
+    if (!authLoading && !isAuthenticated) {
       setItems([]);
       localStorage.removeItem('djf_cart');
     }
-  }, [isAuthenticated]);
+  }, [authLoading, isAuthenticated]);
 
   const addToCart = (product: Product, quantity: number = 1, variantId?: string) => {
     setItems(prev => {
