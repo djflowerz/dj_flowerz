@@ -39,15 +39,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [items]);
 
-  // Clear cart only after auth has fully resolved AND user is not logged in.
-  // Without the !authLoading guard, this effect fires on every mount while
-  // Supabase is still fetching the session, wiping the cart before it can load.
-  React.useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      setItems([]);
-      localStorage.removeItem('djf_cart');
-    }
-  }, [authLoading, isAuthenticated]);
+
 
   const addToCart = (product: Product, quantity: number = 1, variantId?: string) => {
     setItems(prev => {
