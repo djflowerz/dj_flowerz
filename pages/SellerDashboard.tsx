@@ -60,9 +60,12 @@ export default function SellerDashboard() {
       ]);
 
       setStats(statsData);
-      setPayouts(payoutData);
-      setReviews(reviewData.reviews);
-      setReviewStats({ average_rating: reviewData.average_rating, total_reviews: reviewData.total_reviews });
+      setPayouts(Array.isArray(payoutData) ? payoutData : []);
+      setReviews(Array.isArray(reviewData?.reviews) ? reviewData.reviews : []);
+      setReviewStats({ 
+        average_rating: reviewData?.average_rating || 0, 
+        total_reviews: reviewData?.total_reviews || 0 
+      });
     } catch (e) {
       toast.error("Failed to sync financial data");
     } finally {

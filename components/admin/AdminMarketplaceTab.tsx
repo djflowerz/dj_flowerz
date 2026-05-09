@@ -44,7 +44,7 @@ export default function AdminMarketplaceTab() {
       });
       if (res.ok) {
         const data = await res.json();
-        setEvidenceList(data.evidence || []);
+        setEvidenceList(Array.isArray(data?.evidence) ? data.evidence : []);
       }
     } catch (err) {
       console.error('Failed to fetch evidence:', err);
