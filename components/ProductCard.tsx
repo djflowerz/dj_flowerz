@@ -87,7 +87,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             )}
             {product.isHot && (
               <div className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
-                <Flame size={10} fill="currentColor" /> HOT
+                <Flame size={10} fill="currentColor" /> HOT & NEW
               </div>
             )}
             {product.isFeatured && (
@@ -107,7 +107,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             )}
             {product.isSpecialOffer && (
               <div className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
-                SPECIAL OFFER
+                LIMITED OFFER
               </div>
             )}
             {product.sku && (
@@ -217,7 +217,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           )}
           {product.isHot && (
             <div className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight flex items-center gap-1">
-              <Flame size={10} fill="currentColor" /> HOT
+              <Flame size={10} fill="currentColor" /> HOT & NEW
             </div>
           )}
           {product.isFeatured && (
@@ -237,7 +237,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           )}
           {product.isSpecialOffer && (
             <div className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-tight">
-                SPECIAL OFFER
+                LIMITED OFFER
             </div>
           )}
           {product.sku && (
@@ -256,13 +256,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
 
       <div className="flex-1 p-5 space-y-3 flex flex-col bg-gradient-to-b from-transparent to-black/20 z-10">
         <div className="space-y-1">
-          <div className="flex justify-between items-start">
-            <h3 className="text-lg font-outfit font-black text-white truncate pr-2 group-hover:text-brand-cyan transition-colors uppercase tracking-tight">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-1.5 md:gap-0.5">
+            <h3 className="text-base md:text-lg font-outfit font-black text-white group-hover:text-brand-cyan transition-colors uppercase tracking-tight line-clamp-2 md:truncate md:pr-2">
               <Link to={`/store/${product.slug || product.id}`}>
                 {product.name}
               </Link>
             </h3>
-            <p className="text-lg font-black text-brand-cyan whitespace-nowrap">{formatPrice(product.price)}</p>
+            <p className="text-base md:text-lg font-black text-brand-cyan whitespace-nowrap mt-0.5 md:mt-0">{formatPrice(product.price)}</p>
           </div>
           {(() => {
             const inventory = product.inventory ?? product.stock ?? 0;

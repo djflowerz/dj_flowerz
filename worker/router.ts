@@ -2262,7 +2262,20 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       features: typeof p.features === 'string' ? JSON.parse(p.features) : (p.features || []),
       shipping_tier: p.shipping_tier || p.shippingTier || 'local',
       shippingTier: p.shipping_tier || p.shippingTier || 'local',
-      category_name: p.category_name || p.category || 'Music'
+      category_name: p.category_name || p.category || 'Music',
+      // Ensure boolean flags are passed through correctly
+      is_hot: p.is_hot === 1 || p.is_hot === true,
+      is_best_seller: p.is_best_seller === 1 || p.is_best_seller === true,
+      is_special_offer: p.is_special_offer === 1 || p.is_special_offer === true,
+      is_trending: p.is_trending === 1 || p.is_trending === true,
+      is_featured: p.is_featured === 1 || p.is_featured === true,
+      offer_expiry: p.offer_expiry || '',
+      sku: p.sku || '',
+      short_description: p.short_description || '',
+      discount_price: p.discount_price !== null && p.discount_price !== undefined ? Number(p.discount_price) : undefined,
+      compare_at_price: p.compare_at_price !== null && p.compare_at_price !== undefined ? Number(p.compare_at_price) : undefined,
+      requires_shipping: p.requires_shipping === 1 || p.requires_shipping === true,
+      whatsapp_enabled: p.whatsapp_enabled !== 0 && p.whatsapp_enabled !== false
     }));
     return json(mapped);
   }
@@ -2599,6 +2612,40 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // POST /api/admin/r2-upload
+    if (path === '/api/admin/r2-upload' && method === 'POST') {
+      if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) return json({ error: 'Forbidden' }, 403);
+      
+      try {
+        const rawFileName = request.headers.get('x-file-name');
+        const fileName = rawFileName ? decodeURIComponent(rawFileName) : `upload_${Date.now()}`;
+        const folder = request.headers.get('x-folder') || 'uploads';
+        const contentType = request.headers.get('content-type') || 'application/octet-stream';
+        
+        // Generate a unique key
+        const fileId = crypto.randomUUID();
+        const ext = fileName.split('.').pop() || 'bin';
+        const objectKey = `${folder}/${fileId}.${ext}`;
+        
+        const body = await request.arrayBuffer();
+        await env.R2_BUCKET.put(objectKey, body, {
+          httpMetadata: { contentType }
+        });
+        
+        const fileUrl = `https://${env.PUBLIC_R2_DOMAIN}/${objectKey}`;
+        console.log(`[R2 Admin Upload] Success: ${fileUrl} (Key: ${objectKey})`);
+        
+        return json({ 
+          success: true, 
+          url: fileUrl, 
+          key: objectKey 
+        });
+      } catch (e: any) {
+        console.error('[POST /api/admin/r2-upload] Error:', e);
+        return json({ error: e.message }, 500);
+      }
+    }
+
     // GET /api/admin/governance/queue
     if (path === '/api/admin/governance/queue' && method === 'GET') {
       const { results } = await env.DB.prepare(`
@@ -2830,6 +2877,17 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
         shipping_tier: p.shipping_tier || p.shippingTier || 'local',
         shippingTier: p.shipping_tier || p.shippingTier || 'local',
         category_name: p.category_name || p.category || 'Music',
+        // Normalize boolean flags (D1 stores as 0/1 integers)
+        is_hot: p.is_hot === 1 || p.is_hot === true,
+        is_best_seller: p.is_best_seller === 1 || p.is_best_seller === true,
+        is_special_offer: p.is_special_offer === 1 || p.is_special_offer === true,
+        is_trending: p.is_trending === 1 || p.is_trending === true,
+        is_featured: p.is_featured === 1 || p.is_featured === true,
+        offer_expiry: p.offer_expiry || '',
+        sku: p.sku || '',
+        short_description: p.short_description || '',
+        requires_shipping: p.requires_shipping === 1 || p.requires_shipping === true,
+        whatsapp_enabled: p.whatsapp_enabled !== 0 && p.whatsapp_enabled !== false,
         variants: variants.filter((v: any) => v.product_id === p.id).map((v: any) => ({
           ...v,
           image_url: normalizeAssetUrl(v.image_url),
@@ -2845,20 +2903,52 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const id = crypto.randomUUID();
       await env.DB.prepare(`
         INSERT INTO products (
-          id, name, slug, description, price, image_url, category, type, stock, status, is_featured
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, name, slug, description, short_description, price, discount_price, compare_at_price,
+          image, images, category, type, sku, stock, status,
+          is_featured, is_hot, is_best_seller, is_special_offer, is_trending,
+          offer_expiry, requires_shipping, whatsapp_enabled, features,
+          technical_details, use_cases, brand, release_date, weight, dimensions,
+          shipping_size, price_local, price_air, price_sea, digital_file_url,
+          download_password, os
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id,
         data.name,
-        data.slug,
+        data.slug || '',
         data.description || '',
+        data.shortDescription || data.short_description || '',
         data.price || 0,
-        data.imageUrl || data.image_url || '',
+        data.discountPrice !== undefined ? data.discountPrice : (data.discount_price !== undefined ? data.discount_price : null),
+        data.compareAtPrice !== undefined ? data.compareAtPrice : (data.compare_at_price !== undefined ? data.compare_at_price : null),
+        data.imageUrl || data.image_url || data.image || '',
+        JSON.stringify(data.images || []),
         data.category || 'Music',
-        data.type || 'digital',
+        data.type || 'physical',
+        data.sku || '',
         data.stock || 0,
         data.status || 'published',
-        data.isFeatured ? 1 : 0
+        data.isFeatured || data.is_featured ? 1 : 0,
+        data.isHot || data.is_hot ? 1 : 0,
+        data.isBestSeller || data.is_best_seller ? 1 : 0,
+        data.isSpecialOffer || data.is_special_offer ? 1 : 0,
+        data.isTrending || data.is_trending ? 1 : 0,
+        data.offerExpiry || data.offer_expiry || null,
+        data.requiresShipping !== undefined ? (data.requiresShipping ? 1 : 0) : (data.requires_shipping !== undefined ? (data.requires_shipping ? 1 : 0) : 1),
+        data.whatsappEnabled !== undefined ? (data.whatsappEnabled ? 1 : 0) : (data.whatsapp_enabled !== undefined ? (data.whatsapp_enabled ? 1 : 0) : 1),
+        JSON.stringify(data.features || []),
+        JSON.stringify(data.technical_details || data.technicalDetails || []),
+        JSON.stringify(data.use_cases || data.useCases || []),
+        data.brand || '',
+        data.releaseDate || data.release_date || null,
+        data.weight || '',
+        data.dimensions || '',
+        data.shippingSize || data.shipping_size || 'medium',
+        data.priceLocal || data.price_local || null,
+        data.priceAir || data.price_air || null,
+        data.priceSea || data.price_sea || null,
+        data.digitalFileUrl || data.digital_file_url || '',
+        data.downloadPassword || data.download_password || '',
+        data.os || 'None'
       ).run();
       
       // Handle variants if provided
@@ -2882,21 +2972,54 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       const data = await request.json() as any;
       await env.DB.prepare(`
         UPDATE products SET 
-          name = ?, slug = ?, description = ?, price = ?, 
-          image_url = ?, category = ?, type = ?, stock = ?, 
-          status = ?, is_featured = ?
+          name = ?, slug = ?, description = ?, short_description = ?,
+          price = ?, discount_price = ?, compare_at_price = ?,
+          image = ?, images = ?, category = ?, type = ?, sku = ?, stock = ?,
+          status = ?, is_featured = ?, is_hot = ?, is_best_seller = ?,
+          is_special_offer = ?, is_trending = ?, offer_expiry = ?,
+          requires_shipping = ?, whatsapp_enabled = ?, features = ?,
+          technical_details = ?, use_cases = ?, brand = ?, release_date = ?,
+          weight = ?, dimensions = ?, shipping_size = ?, price_local = ?,
+          price_air = ?, price_sea = ?, digital_file_url = ?,
+          download_password = ?, os = ?
         WHERE id = ?
       `).bind(
         data.name,
-        data.slug,
+        data.slug || '',
         data.description || '',
+        data.shortDescription || data.short_description || '',
         data.price || 0,
-        data.imageUrl || data.image_url || '',
+        data.discountPrice !== undefined ? data.discountPrice : (data.discount_price !== undefined ? data.discount_price : null),
+        data.compareAtPrice !== undefined ? data.compareAtPrice : (data.compare_at_price !== undefined ? data.compare_at_price : null),
+        data.imageUrl || data.image_url || data.image || '',
+        JSON.stringify(data.images || []),
         data.category || 'Music',
-        data.type || 'digital',
+        data.type || 'physical',
+        data.sku || '',
         data.stock || 0,
         data.status || 'published',
-        data.isFeatured ? 1 : 0,
+        data.isFeatured || data.is_featured ? 1 : 0,
+        data.isHot || data.is_hot ? 1 : 0,
+        data.isBestSeller || data.is_best_seller ? 1 : 0,
+        data.isSpecialOffer || data.is_special_offer ? 1 : 0,
+        data.isTrending || data.is_trending ? 1 : 0,
+        data.offerExpiry || data.offer_expiry || null,
+        data.requiresShipping !== undefined ? (data.requiresShipping ? 1 : 0) : (data.requires_shipping !== undefined ? (data.requires_shipping ? 1 : 0) : 1),
+        data.whatsappEnabled !== undefined ? (data.whatsappEnabled ? 1 : 0) : (data.whatsapp_enabled !== undefined ? (data.whatsapp_enabled ? 1 : 0) : 1),
+        JSON.stringify(data.features || []),
+        JSON.stringify(data.technical_details || data.technicalDetails || []),
+        JSON.stringify(data.use_cases || data.useCases || []),
+        data.brand || '',
+        data.releaseDate || data.release_date || null,
+        data.weight || '',
+        data.dimensions || '',
+        data.shippingSize || data.shipping_size || 'medium',
+        data.priceLocal || data.price_local || null,
+        data.priceAir || data.price_air || null,
+        data.priceSea || data.price_sea || null,
+        data.digitalFileUrl || data.digital_file_url || '',
+        data.downloadPassword || data.download_password || '',
+        data.os || 'None',
         id
       ).run();
       

@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 import {
   Star, Heart, ShieldCheck, Truck, RefreshCw, ChevronRight,
   Minus, Plus, PlayCircle, Check, AlertTriangle, Share2,
-  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap, CheckCircle2
+  Facebook, Twitter, Instagram, MessageCircle, Copy, Info, Layout, Package, Zap, CheckCircle2, Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -175,12 +175,24 @@ export default function ProductDetails() {
     if (!product) return [];
     const mainImage = product.image || product.image_url;
     let rawImages: string[] = [];
+    
     if (Array.isArray(product.images)) {
         rawImages = product.images;
     } else if (typeof product.images === 'string') {
-        try { rawImages = JSON.parse(product.images); } catch (e) { rawImages = []; }
+        try { 
+          const parsed = JSON.parse(product.images); 
+          rawImages = Array.isArray(parsed) ? parsed : [];
+        } catch (e) { 
+          rawImages = []; 
+        }
     }
-    return [mainImage, ...rawImages].filter(Boolean);
+    
+    // Combine main image with gallery images and filter out duplicates and empty values
+    const allImages = [mainImage, ...rawImages]
+      .filter(Boolean)
+      .map(img => String(img).trim());
+      
+    return Array.from(new Set(allImages));
   }, [product]);
 
   const productFeatures = useMemo(() => {
@@ -264,9 +276,25 @@ export default function ProductDetails() {
                     alt={product.name} 
                     className="w-full h-auto object-contain transition-transform duration-700 group-hover:scale-105"
                 />
-                {product.isHot && (
-                    <div className="absolute top-8 left-8 bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg z-20">HOT</div>
-                )}
+                
+                {/* Marketing Badges */}
+                <div className="absolute top-8 left-8 flex flex-col gap-2 z-20">
+                    {product.isHot && (
+                        <div className="bg-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 uppercase tracking-tight">
+                            <Flame size={12} fill="currentColor" /> HOT & NEW
+                        </div>
+                    )}
+                    {product.isSpecialOffer && (
+                        <div className="bg-red-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-tight">
+                            LIMITED OFFER
+                        </div>
+                    )}
+                    {product.isTrending && (
+                        <div className="bg-purple-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 uppercase tracking-tight">
+                            <Zap size={12} fill="currentColor" /> TRENDING
+                        </div>
+                    )}
+                </div>
             </div>
             
             <div className="grid grid-cols-4 gap-4">
