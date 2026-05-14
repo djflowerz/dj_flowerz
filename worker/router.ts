@@ -2265,17 +2265,24 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       category_name: p.category_name || p.category || 'Music',
       // Ensure boolean flags are passed through correctly
       is_hot: p.is_hot === 1 || p.is_hot === true,
+      isHot: p.is_hot === 1 || p.is_hot === true,
       is_best_seller: p.is_best_seller === 1 || p.is_best_seller === true,
+      isBestSeller: p.is_best_seller === 1 || p.is_best_seller === true,
       is_special_offer: p.is_special_offer === 1 || p.is_special_offer === true,
+      isSpecialOffer: p.is_special_offer === 1 || p.is_special_offer === true,
       is_trending: p.is_trending === 1 || p.is_trending === true,
+      isTrending: p.is_trending === 1 || p.is_trending === true,
       is_featured: p.is_featured === 1 || p.is_featured === true,
+      isFeatured: p.is_featured === 1 || p.is_featured === true,
       offer_expiry: p.offer_expiry || '',
       sku: p.sku || '',
       short_description: p.short_description || '',
       discount_price: p.discount_price !== null && p.discount_price !== undefined ? Number(p.discount_price) : undefined,
       compare_at_price: p.compare_at_price !== null && p.compare_at_price !== undefined ? Number(p.compare_at_price) : undefined,
       requires_shipping: p.requires_shipping === 1 || p.requires_shipping === true,
+      requiresShipping: p.requires_shipping === 1 || p.requires_shipping === true,
       whatsapp_enabled: p.whatsapp_enabled !== 0 && p.whatsapp_enabled !== false
+
     }));
     return json(mapped);
   }
